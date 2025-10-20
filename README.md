@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hero-bg.jpg" width="400">
+  <img src="hero-bg.jpg" width="400">
 </p>
 
 # Rome — An Evennia-Based Multiplayer Text Adventure
@@ -54,3 +54,4 @@ evennia migrate
 
 # Start the game
 evennia start
+
