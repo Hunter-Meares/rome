@@ -42,7 +42,7 @@ WEBSERVER_PORTS = [(4011, 4012)] # Default port was in use by another user UGH
 ######################################################################
 
 # The start position for new characters. Default is Limbo (#2).
-START_LOCATION = "#69"
+START_LOCATION = "#223"
 
 ######################################################################
 # Default Account setup and access
@@ -50,6 +50,10 @@ START_LOCATION = "#69"
 AUTO_CREATE_CHARACTER_WITH_ACCOUNT = False
 AUTO_PUPPET_ON_LOGIN = False
 MAX_NR_CHARACTERS = 3
+
+# Points character creation at our custom Rome-themed menu instead of
+# the contrib's example_menu.py.
+CHARGEN_MENU = "world.chargen_menu"
 
 ######################################################################
 # Settings given in secret_settings.py override those in this file.
@@ -65,3 +69,26 @@ try:
     from .connection_settings import *
 except ImportError:
     pass
+
+# List of Python modules Evennia scans for prototype dictionaries (like
+# ARGUS_NPC in world/prototypes.py, or DAGGER/BROADSWORD/HEALTH_POTION in
+# world/combat.py), making them spawnable by name via spawn("NAME") or the
+# in-game @spawn command. This list is exhaustive, not additive - only
+# modules listed here are scanned, so any new file with prototypes must be
+# added here too.
+PROTOTYPE_MODULES = ["world.prototypes"]
+
+# Achievements contrib (evennia.contrib.game_systems.achievements) - points 
+# to the module(s) containing achievement definitions. Actual achievement 
+# data (name/desc/category/tracking/count/prereqs for each one) lives in 
+# world/achievements.py, not here - this setting just tells the contrib 
+# where to find it. The actual progress-tracking calls (track_achievements()) 
+# are wired into the relevant game logic separately: world/combat.py (combat 
+# victories, reaching level 100) and world/economy.py (merchant purchases). 
+# Players check their own progress in-game with the 'achievements' command.
+ACHIEVEMENT_CONTRIB_MODULES = ["world.achievements"]
+
+# Makes all of Evennia's default commands (look, get, movement, etc.)
+# use our custom MuxCommand base, so the HP/MP/SP prompt refreshes
+# after every command, not just combat ones.
+COMMAND_DEFAULT_CLASS = "commands.command.MuxCommand"

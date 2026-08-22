@@ -14,6 +14,23 @@ EvMenu. The included `example_menu.py` gives a number of useful techniques
 and examples, including how to allow players to choose and confirm
 character names from within the menu.
 
+----------------------------------------------------------------------------
+ROME-SPECIFIC FIX
+----------------------------------------------------------------------------
+The original ContribCmdCharCreate.func() never parsed self.args at all -
+"charcreate dummy = description" and bare "charcreate" behaved
+identically, always generating a random placeholder key
+(choices(string.ascii_letters + string.digits, k=10)) regardless of what
+was typed. This is why the chargen menu always re-prompted for a name
+even when one was seemingly already given - there was nothing to detect,
+because the provided name was discarded before the menu ever ran.
+
+Fixed here: an optional "<name> = <description>" argument is now
+actually read and used, if provided (falling back to the original random
+key if not), and new_character.db.chargen_prefilled_name is set to True
+when this happens - chargen_menu.py's name-selection node checks this
+exact flag to decide whether to skip its own redundant prompt, rather
+than trying to infer this after the fact from the character's key.
 """
 
 import string
@@ -54,8 +71,16 @@ class ContribCmdCharCreate(MuxAccountCommand):
     """
     create a new character
 
+    Usage:
+      charcreate
+      charcreate <name>
+      charcreate <name> = <description>
+
     Begin creating a new character, or resume character creation for
-    an existing in-progress character.
+    an existing in-progress character. If a name is given, it's used
+    directly (as long as it's available) instead of a random
+    placeholder - you'll still confirm it during the guided menu, but
+    won't be asked to type it a second time.
 
     You can stop character creation at any time and resume where
     you left off later.
@@ -77,8 +102,24 @@ class ContribCmdCharCreate(MuxAccountCommand):
             # we're continuing chargen for a WIP character
             new_character = in_progress[0]
         else:
-            # generate a randomized key so the player can choose a character name later
-            key = "".join(choices(string.ascii_letters + string.digits, k=10))
+            requested_name = self.lhs.strip() if self.lhs else ""
+            requested_desc = self.rhs.strip() if self.rhs else ""
+
+            if requested_name:
+                from typeclasses.characters import Character
+
+                if Character.objects.filter_family(db_key__iexact=requested_name):
+                    self.msg(
+                        "|rThe name '%s' is already taken.|n Try a different name, "
+                        "or just 'charcreate' with no name to pick one during creation."
+                        % requested_name
+                    )
+                    return
+                key = requested_name
+            else:
+                # generate a randomized key so the player can choose a character name later
+                key = "".join(choices(string.ascii_letters + string.digits, k=10))
+
             new_character, errors = account.create_character(
                 key=key, location=None, ip=session.address
             )
@@ -87,6 +128,12 @@ class ContribCmdCharCreate(MuxAccountCommand):
                 self.msg("\n".join(errors))
             if not new_character:
                 return
+
+            if requested_name:
+                new_character.db.chargen_prefilled_name = True
+            if requested_desc:
+                new_character.db.desc = requested_desc
+
             # initalize the new character to the beginning of the chargen menu
             new_character.db.chargen_step = "menunode_welcome"
             # make sure the character first logs in at the settings-defined start location

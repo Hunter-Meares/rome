@@ -136,7 +136,47 @@ class Account(DefaultAccount):
 
     """
 
-    pass
+    def at_post_login(self, session=None, **kwargs):
+        """
+        Called at the end of the login process, after the account
+        has been fully logged in and authenticated. This is where
+        we show the MOTD (message of the day).
+
+        Session analytics (world/analytics.py) used to be started
+        here, but this account-side approach turned out unreliable -
+        moved to at_post_puppet/at_post_unpuppet on CombatCharacter
+        instead (world/combat.py), which are character-side hooks
+        that don't depend on guessing whether the account can still
+        correctly find its puppet at the moment they fire.
+        """
+        motd = """
+|Y==================================================|n
+Welcome to |wRome: The Eternal City|n
+|Y--------------------------------------------------|n
+Website: http://rome.vineyard.haus/
+Email:   zeus@rome.vineyard.haus (Admin)
+|Y--------------------------------------------------|n
+You are exploring a world still being built - the gods,
+the streets of Rome, and everyone in between are all a
+work in progress. Things will change, break, and grow.
+Your patience, curiosity, and feedback all help shape
+where this goes next.
+
+|wA few things worth knowing:|n
+  |whelp|n   - full command list and how things work
+  |wwho|n    - see who else is out there right now
+  |wtitle|n  - set a custom title shown next to your name
+  |wpublic <msg>|n - talk to everyone online, even if you can't see them
+
+Got a bug, an idea, or just want to talk shop? Reach out
+any time at |wzeus@rome.vineyard.haus|n - we read everything.
+|Y--------------------------------------------------|n
+May the gods watch over you as you ascend the Aventine.
+|Y==================================================|n
+"""
+        self.msg(motd, session=session)
+
+        super().at_post_login(session=session, **kwargs)
 
 
 class Guest(DefaultGuest):

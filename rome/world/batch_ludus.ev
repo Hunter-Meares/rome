@@ -1,0 +1,106 @@
+#
+# Ludus (gladiator training ground) batch file - v2
+# Run this from the Atrium of the Games as superuser/Developer.
+# Usage: batchcommands world.batch_ludus
+#
+# Builds a 5-room training ground: an entrance hall plus four tiered
+# training rooms (roughly levels 1-2, 3-5, 6-8, 9-10). Each training
+# room gets THREE persistent, respawning trainers of that tier
+# (world.combat.RespawningNPC) rather than one shared NPC everyone
+# queues behind, or a personal challenge-spawned instance - so a few
+# new players arriving together can each train at once. Fight one
+# directly by name; no more 'challenge' needed here.
+#
+# This file teleports to the Atrium first, so it works correctly no
+# matter where you're standing when you run it.
+#
+
+#
+@tel Atrium of the Games
+#
+@dig Ludus Entrance = east;e,west;w
+#
+east
+#
+@desc |wLudus Entrance|n
+
+The Ludus - Rome's gladiator school - opens up around you, sand-floored and lined with practice weapons racks. The clash of wooden swords and the shouted corrections of trainers echo from every direction. A large board near the entrance lists the day's matches, though it seems to update itself according to no schedule anyone can quite predict. Four training grounds branch off from here, each suited to a different level of experience.
+#
+@dig Weapons Yard = north;n,south;s
+#
+north
+#
+@desc |wWeapons Yard|n
+
+A wide, sandy yard given over to the basics - footwork, blocking, the first hundred repetitions of a proper strike. Several trainers wait here, patient with beginners in a way the more seasoned instructors have long since stopped being. |yType |wfight <name>|y to test yourself against one.|n
+#
+@spawn LUDUS_TRAINER_TIER1
+#
+@spawn LUDUS_TRAINER_TIER1
+#
+@spawn LUDUS_TRAINER_TIER1
+#
+py trainers = [o for o in here.contents if o.key == "a Ludus recruit-trainer"]; [setattr(t, "key", "%s (%d)" % (t.key, i + 1)) for i, t in enumerate(trainers)]
+#
+south
+#
+@dig Wrestling Pit = east;e,west;w
+#
+east
+#
+@desc |wWrestling Pit|n
+
+A sunken ring of packed earth, worn smooth by countless bouts. This is where recruits graduate from drills to real contests - close, physical, and considerably less forgiving than the Weapons Yard. A few weapons-masters here have seen enough fights to know exactly how good you think you are before you've swung once. |yType |wfight <name>|y to find out if one of them is right.|n
+#
+@spawn LUDUS_TRAINER_TIER2
+#
+@spawn LUDUS_TRAINER_TIER2
+#
+@spawn LUDUS_TRAINER_TIER2
+#
+py trainers = [o for o in here.contents if o.key == "a Ludus weapons-master"]; [setattr(t, "key", "%s (%d)" % (t.key, i + 1)) for i, t in enumerate(trainers)]
+#
+west
+#
+@dig Beast Taming Ring = south;s,north;n
+#
+south
+#
+@desc |wBeast Taming Ring|n
+
+Heavy iron cages line the walls, mostly empty, though the ones that aren't make their presence known. A few beast-handlers train fighters here for chaos - the unpredictable rhythm of something that doesn't fight the way a person does. |yType |wfight <name>|y if you're ready for that lesson.|n
+#
+@spawn LUDUS_TRAINER_TIER3
+#
+@spawn LUDUS_TRAINER_TIER3
+#
+@spawn LUDUS_TRAINER_TIER3
+#
+py trainers = [o for o in here.contents if o.key == "a Ludus beast-handler"]; [setattr(t, "key", "%s (%d)" % (t.key, i + 1)) for i, t in enumerate(trainers)]
+#
+north
+#
+@dig Champions' Court = up;u,down;d
+#
+up
+#
+@desc |wChampions' Court|n
+
+The finest training ground in the Ludus, reserved for those who've earned the right to stand here. A few champions wait here, each undefeated longer than most fighters have trained at all - the last real test before the arena itself stops feeling quite so frightening. |yType |wfight <name>|y when you're ready.|n
+#
+@spawn LUDUS_TRAINER_TIER4
+#
+@spawn LUDUS_TRAINER_TIER4
+#
+@spawn LUDUS_TRAINER_TIER4
+#
+py trainers = [o for o in here.contents if o.key == "a Ludus champion"]; [setattr(t, "key", "%s (%d)" % (t.key, i + 1)) for i, t in enumerate(trainers)]
+#
+down
+#
+# Back in Ludus Entrance
+#
+west
+#
+# Back in Atrium of the Games - build complete.
+#

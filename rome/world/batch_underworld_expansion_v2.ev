@@ -1,0 +1,406 @@
+#
+# Underworld Expansion v2 batch file
+#
+# Full rebuild after v1 failed for two real, separate reasons:
+#   1) @destroy without /force triggers a confirmation prompt batch
+#      mode cannot answer - the old "onward" exit silently survived,
+#      and everything after it chained onto the wrong location. Fixed
+#      here with /force throughout.
+#   2) A live playtest revealed the whole structure was too linear
+#      (forward/back only), some room descriptions were rendering as
+#      invisible black text, and short direction aliases didn't work.
+#
+# This version:
+#   - Uses real compass directions (north/n, southeast/se, etc)
+#     everywhere instead of "onward"/"meadows"/"side" - gives standard
+#     short aliases for free.
+#   - Asphodel Meadows is a genuine 3x3 grid (9 rooms, verified
+#     collision-free exit names - see the topology notes below).
+#     Multiple real paths exist between entrance and exit, and the
+#     meadow spreads in every direction rather than a single line.
+#   - Elysium and Tartarus are branching spines with real side-
+#     branches, not full grids (kept simpler than Asphodel deliberately,
+#     to manage the real risk of exit-name collisions in a build this
+#     size - see the topology note in each section).
+#   - Wandering, non-combat ghost NPCs added to Asphodel and Elysium,
+#     using the same WanderingNPC pattern already proven in
+#     world/colosseum.py.
+#   - COLOR FIX: v1 used |x (literal ANSI black) as default narration -
+#     this renders as invisible-on-black-background on most clients,
+#     a real bug. This version uses Evennia's xterm256 greyscale scale
+#     instead (|=a black ... |=z white, immune to ANSI theme remapping):
+#     |=o (middle grey) as default narration, |=v (bright grey) for
+#     highlights. |w/|c/|b/|Y/|r are unchanged from v1, since those were
+#     never the problem.
+#
+# ASPHODEL GRID TOPOLOGY (verified collision-free before writing any
+# commands - every room's exit list checked for duplicate direction
+# names):
+#   Edge (entrance): back->hub, east->Heart, north->NW, south->SW
+#   Heart (center):  west->Edge, north->N-Field, south->S-Field, east->GreyThins
+#   N-Field:         south->Heart, west->NW, east->NE
+#   S-Field:         north->Heart, west->SW, east->SE
+#   GreyThins (exit):west->Heart, north->NE, south->SE, east->Threshold
+#   NW: south->Edge, east->N-Field
+#   NE: west->N-Field, south->GreyThins
+#   SW: north->Edge, east->S-Field
+#   SE: west->S-Field, north->GreyThins
+# Entrance/exit rooms deliberately use "back" for the hub connection
+# (not a compass direction) specifically so their full compass rose
+# stays free for real grid connections - this is what v1 got wrong.
+#
+# IMPORTANT: run the separately-given cleanup commands FIRST, to
+# remove the orphaned rooms/NPCs from the failed v1 attempt. This file
+# assumes River Styx Crossing and Threshold of Return already exist,
+# and that River Styx Crossing's "onward" is still the ORIGINAL exit
+# pointing to Threshold of Return (this file's own /force destroy
+# handles removing it - don't remove it separately first).
+#
+# Usage: batchcommands world.batch_underworld_expansion_v2
+#
+
+#
+# ============================================================
+# REWIRE: River Styx Crossing's "onward" now goes to the new hub
+# ============================================================
+#
+@tel River Styx Crossing
+#
+@destroy/force onward
+#
+@dig The Judgment Hall = onward;o
+#
+onward
+#
+@desc here = |=oThe path that was worn smooth by countless feet finally opens into a vast, echoing chamber. |=vGrey stone columns|=o rise into a ceiling lost in mist, and passages lead away in several directions - each one different, each one final. At the chamber's center, a robed figure sits upon a plain stone seat, watching every shade that arrives with the same patient, unreadable attention.|n
+#
+@create Minos the Judge:evennia.objects.objects.DefaultCharacter
+#
+@desc Minos the Judge = |wA tall, ancient shade|=o, robed in what might once have been fine cloth, now faded past any color at all. He does not carry a weapon and needs none - his authority here is older than any blade. His eyes, when they settle on you, seem to weigh something you cannot see.|n
+#
+@lock Minos the Judge = puppet:false()
+#
+
+#
+# ============================================================
+# ASPHODEL MEADOWS - 3x3 grid. See topology notes above.
+# ============================================================
+#
+@dig Edge of the Asphodel Meadows = west;w, back;b
+#
+west
+#
+@desc here = |=oThe passage opens onto an endless grey field, flowers the color of old ash swaying in a wind you cannot feel on your skin. This is where most shades come - not punished, not blessed, simply here. |=vA soft mist|=o clings to the ground no matter how far you walk, and the field stretches out in every direction, not just one.|n
+#
+@dig Heart of the Asphodel Meadows = east;e, west;w
+#
+east
+#
+@desc here = |=oThe true heart of the meadow, flat and endless in every direction. Pale grey blossoms nod on stalks the color of dust, and distant shades move through the field at their own pace, never quite close enough to speak to.|n
+#
+@dig The North Fields = north;n, south;s
+#
+north
+#
+@desc here = |=oThe asphodel stretches wide here, other shades drifting through it at a distance. |wSome turn as you pass|=o. None follow.|n
+#
+@dig Windswept Corner of the Meadows = west;w, east;e
+#
+west
+#
+@desc here = |=oA faint, directionless wind moves through this corner of the field, bending the pale asphodel in slow waves. |=vNothing else moves here at all.|n
+#
+@tel The North Fields
+#
+@dig The Farthest Reach = east;e, west;w
+#
+east
+#
+@desc here = |=oThe grass here has never known a footstep that mattered. |wA few shades drift past|=o without looking up, following some old habit that outlasted the reason for it.|n
+#
+@tel Heart of the Asphodel Meadows
+#
+@dig The South Fields = south;s, north;n
+#
+south
+#
+@desc here = |=oDozens of shades stand here in loose clusters, murmuring to each other in voices too faint to make out individual words.|n
+#
+@dig The Sunken Hollow = west;w, east;e
+#
+west
+#
+@desc here = |=oThe ground dips here, just enough to pool the mist knee-deep. |=vBroken grey columns|=o lie half-sunk in the ash-colored earth nearby, worn smooth by time rather than violence.|n
+#
+@tel The South Fields
+#
+@dig A Quiet Corner = east;e, west;w
+#
+east
+#
+@desc here = |=oA scattering of bare, ash-grey trees stands here, no fruit grown on them in longer than anyone remembers. |=vA few shades sit beneath them anyway|=o, out of old habit more than comfort.|n
+#
+@tel Heart of the Asphodel Meadows
+#
+@dig Where the Grey Thins = east;e, west;w
+#
+east
+#
+@desc here = |=oThe field begins to thin here, the asphodel growing sparser with every step, until the path ahead narrows toward a familiar grey light. Whatever else waits in this realm, this is the way anyone eventually finds, sooner or later, if they walk long enough.|n
+#
+
+#
+# Close the grid - the four corner-to-hub-adjacent connections that
+# aren't covered by the @dig chain above. Each done as a matched pair
+# of @open commands (one from each side), verified against the
+# topology notes to confirm no direction name is reused anywhere.
+#
+@tel Windswept Corner of the Meadows
+#
+@open south;s = Edge of the Asphodel Meadows
+#
+@tel Edge of the Asphodel Meadows
+#
+@open north;n = Windswept Corner of the Meadows
+#
+@tel The Farthest Reach
+#
+@open south;s = Where the Grey Thins
+#
+@tel Where the Grey Thins
+#
+@open north;n = The Farthest Reach
+#
+@tel The Sunken Hollow
+#
+@open north;n = Edge of the Asphodel Meadows
+#
+@tel Edge of the Asphodel Meadows
+#
+@open south;s = The Sunken Hollow
+#
+@tel A Quiet Corner
+#
+@open north;n = Where the Grey Thins
+#
+@tel Where the Grey Thins
+#
+@open south;s = A Quiet Corner
+#
+
+#
+# Exit from Asphodel toward Threshold of Return - the only
+# direction still free in Where the Grey Thins.
+#
+@open east;asphodel;a = Threshold of Return
+#
+
+#
+# Wandering ghost NPC for Asphodel - non-combat, pure flavor.
+#
+@tel Heart of the Asphodel Meadows
+#
+@create a wandering shade:world.colosseum.WanderingNPC
+#
+@desc a wandering shade = |wA quiet, indistinct figure|=o, drifting through the meadow without any apparent destination. It doesn't seem to notice you, or anything else - just moves, the way it has for longer than it could say.|n
+#
+@lock a wandering shade = puppet:false()
+#
+py from evennia import search_object; wanderer = search_object("a wandering shade")[0]; wanderer.db.wander_rooms = [search_object("Heart of the Asphodel Meadows")[0], search_object("The North Fields")[0], search_object("The South Fields")[0], search_object("Where the Grey Thins")[0], search_object("Edge of the Asphodel Meadows")[0], search_object("The Sunken Hollow")[0], search_object("A Quiet Corner")[0], search_object("The Farthest Reach")[0], search_object("Windswept Corner of the Meadows")[0]]
+#
+
+#
+# Side branch off Heart: Banks of the River Lethe. Heart has no
+# remaining unused direction (west/north/south/east all taken by
+# the grid), so this branches from The North Fields instead, using
+# "up" - a direction not otherwise used anywhere in the grid.
+#
+@tel The North Fields
+#
+@dig Banks of the River Lethe = up;u, down;d
+#
+up
+#
+@desc here = |=oA second river runs here, wider and stiller than the Styx ever was. Its water is |ca pale, luminous grey|=o, and looking into it for too long brings on a strange, gentle blankness - the shape of a memory just out of reach. Shades kneel at its edge in twos and threes, drinking without hesitation.|n
+#
+@dig The Lethe Ferry Landing = east;e, west;w
+#
+east
+#
+@desc here = |=oA second, smaller boat waits here, its pilot as silent as Charon's own. Unlike the Styx, this crossing goes nowhere in particular - shades who board simply drift, and eventually forget why they came to the water at all. |wYou feel no pull to board it.|n
+#
+
+#
+# ============================================================
+# ELYSIUM - the realm of the blessed and heroic dead.
+# Branching spine, not a full grid: main path uses north/back,
+# with two genuine side-branches using east/west and up/down,
+# neither of which collides with the main path's direction names.
+# ============================================================
+#
+@tel The Judgment Hall
+#
+@dig Gates of Elysium = north;n, back;b
+#
+north
+#
+@desc here = |=vA pair of tall, unadorned gates|=o stand open here, and beyond them the grey of the Judgment Hall gives way to something almost gentle - the same muted light, but touched faintly with |Ya pale, warm gold|=o, like the last hour before a sunset that never quite arrives.|n
+#
+@dig The Blessed Fields = north;n, south;s
+#
+north
+#
+@desc here = |=oThe ground here is the same ash-grey as the Asphodel Meadows, but the air feels different - quieter, easier, the kind of stillness that follows a long labor finally set down. |YFaint golden light|=o seems to come from nowhere and everywhere at once. Paths lead off in more than one direction from here.|n
+#
+@dig Grove of Champions = east;e, west;w
+#
+east
+#
+@desc here = |=vTall grey trees|=o stand in a wide circle, and beneath them rest shades unlike the ones in Asphodel - straighter-backed, more present, as though death here weighs less. |wA few bear the faint outline of old scars|=o, worn like honors rather than wounds.|n
+#
+@tel The Blessed Fields
+#
+@dig Gardens of the Fortunate = west;w, east;e
+#
+west
+#
+@desc here = |=oRows of grey blossoms grow here in careful, tended lines - someone, or something, still cares for this place. |YA warm, faint gold|=o clings to the edges of each petal, the only color in the entire Underworld that looks touched by anything like joy.|n
+#
+@tel The Blessed Fields
+#
+@dig The Still Waters = north;n, south;s
+#
+north
+#
+@desc here = |=oA lake spreads out here, perfectly flat, its surface |ca pale silvered grey|=o that holds no reflection at all. The stillness is total - no wind, no ripple, nothing but quiet water stretching toward a horizon that never quite resolves into a shore.|n
+#
+@dig The Isles of the Blessed = north;n, south;s
+#
+north
+#
+@desc here = |=oThe path ends at the edge of the Still Waters again, but here a scattering of small islands rise from the silver lake, connected by walkways of pale stone. |wThe shades who reach this place|=o rarely speak, and rarely need to - they seem, simply, at peace.|n
+#
+@dig Return Path from Elysium = north;n, south;s
+#
+north
+#
+@desc here = |=oEven here, the path eventually turns back toward grey. The gold light fades a little more with every step, until the familiar ash-colored mist of the wider Underworld closes back in around you.|n
+#
+@open elysium;e2 = Threshold of Return
+#
+
+#
+# Wandering ghost NPC for Elysium.
+#
+@tel The Blessed Fields
+#
+@create a lingering hero's shade:world.colosseum.WanderingNPC
+#
+@desc a lingering hero's shade = |wA straighter-backed shade|=o than most, moving through Elysium with an ease that looks almost like peace. |YA faint gold|=o still clings to it, the way it clings to everything in this realm. It nods to you once, then keeps moving.|n
+#
+@lock a lingering hero's shade = puppet:false()
+#
+py from evennia import search_object; hero_shade = search_object("a lingering hero's shade")[0]; hero_shade.db.wander_rooms = [search_object("Gates of Elysium")[0], search_object("The Blessed Fields")[0], search_object("Grove of Champions")[0], search_object("Gardens of the Fortunate")[0], search_object("The Still Waters")[0], search_object("The Isles of the Blessed")[0]]
+#
+
+#
+# ============================================================
+# TARTARUS - the realm of the punished. Same branching-spine
+# approach as Elysium: main path uses south/back, one genuine
+# side-branch uses east/west.
+# ============================================================
+#
+@tel The Judgment Hall
+#
+@dig The Bronze Gates of Tartarus = south;s, back;b
+#
+south
+#
+@desc here = |=vMassive gates|=o, their surface the color of old, tarnished metal, stand sealed except for a gap just wide enough to pass through. Beyond them, the air grows colder, the grey deepening toward |bsomething closer to black|=o. A low sound carries up from somewhere far below - not quite a voice, not quite anything else.|n
+#
+@dig Descent into Shadow = south;s, north;n
+#
+south
+#
+@desc here = |bThe passage slopes steadily downward|=o, the walls pressing closer with every step. |=vFaint grey light|=o still reaches this far, but it feels thinner here, stretched, like it's being spent rather than given.|n
+#
+@dig The Chained Depths = south;s, north;n
+#
+south
+#
+@desc here = |bHeavy iron chains|=o hang from a ceiling too high to see, disappearing into darkness in both directions. Nothing visibly holds them taut, and nothing visibly needs to. |=oThe cold here has a weight to it.|n
+#
+@dig Wailing Cavern = south;s, north;n
+#
+south
+#
+@desc here = |=oA vast cavern opens here, and the low sound from the gates resolves into something closer to a chorus of distant, muffled voices - not screaming, nothing so simple as that, just an endless, wearied lament that never quite forms words. |rFaint embers|=o glow somewhere far below, more felt than seen. A narrower way splits off to one side.|n
+#
+@dig Prison of the Titans = east;e, west;w
+#
+east
+#
+@desc here = |bA colossal shape|=o is bound here, half-visible in the gloom - vast enough that no single glance takes in all of it, ancient enough that its stillness feels less like sleep and more like something that has simply stopped mattering. |=oThe old stories say this is where the first war ended.|n
+#
+@tel Wailing Cavern
+#
+@dig The Watching Furies = south;s, north;n
+#
+south
+#
+@desc here = |=vThree shapes|=o stand at the edge of the light here, wings folded, watching without hostility and without mercy - only the patient attention of something that has judged before and will judge again. |wThey do not stop you from passing.|n
+#
+@create a watching Fury:evennia.objects.objects.DefaultCharacter
+#
+@desc a watching Fury = |=vA winged shape|=o, more shadow than substance, its face unreadable in the low light. It has judged the wicked since before Tartarus had a name, and it will judge them long after you have gone.|n
+#
+@lock a watching Fury = puppet:false()
+#
+@dig Return Path from Tartarus = south;s, north;n
+#
+south
+#
+@desc here = |=oEven Tartarus has an edge. The cold begins to thin here, the grey lightening by degrees, the distant lament fading into the ordinary, endless murmur of the wider Underworld.|n
+#
+@open tartarus;t2 = Threshold of Return
+#
+
+#
+# ============================================================
+# Central landmark: Palace of Hades and Persephone
+# (side branch off the Judgment Hall - pure flavor dead-end,
+# using up/down since every other direction from the Judgment
+# Hall is already spoken for by a realm entrance)
+# ============================================================
+#
+@tel The Judgment Hall
+#
+@dig Palace of Hades and Persephone = up;u, down;d
+#
+up
+#
+@desc here = |=vA vast palace|=o rises here, built of the same grey stone as everything else in this realm, its scale the only thing that marks it as different. |wNo guards stand at its doors|=o - none are needed. Somewhere within, the old stories say, the Lord and Lady of this whole grey country hold a court that few living shades have ever actually seen.|n
+#
+down
+#
+# Build complete.
+#
+# STRUCTURE SUMMARY:
+#  - Asphodel Meadows: genuine 3x3 grid, 9 rooms, verified
+#    collision-free exits, multiple real paths from entrance to
+#    exit, plus a Lethe side-branch and a wandering ghost NPC.
+#  - Elysium: 6-room branching spine with two real side-branches
+#    (Grove of Champions, Gardens of the Fortunate), plus a
+#    wandering ghost NPC.
+#  - Tartarus: 6-room branching spine with one real side-branch
+#    (Prison of the Titans), plus a stationed Fury.
+#  - Palace of Hades and Persephone: dead-end flavor room off the
+#    hub, using up/down.
+#
+# Worth a full connectivity walkthrough before considering this
+# done - confirm every grid connection in Asphodel actually works
+# both directions (this is the single highest-risk part of this
+# build, given how many exit names had to be carefully verified
+# by hand), and confirm all three realms still correctly reach
+# Threshold of Return.
+#

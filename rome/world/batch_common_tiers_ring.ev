@@ -1,0 +1,57 @@
+#
+# Common Tiers Expansion batch file
+# Renames the existing "Common Tiers" room to Maenianum Secundum Imum
+# (matches real Colosseum terminology - the lower, better half of the
+# third tier), then builds it out into a 4-room hub. One spoke is
+# Maenianum Secundum Summum (the upper, poorer half) - reached as a
+# spoke rather than inserted into the vertical spine, to avoid
+# relinking the existing up/down exits between this room and Wooden
+# Heights. No duplicate title lines in any @desc this time.
+#
+# Usage: batchcommands world.batch_common_tiers_ring
+#
+
+#
+@tel The Common Tiers
+#
+@name here = Maenianum Secundum Imum
+#
+@desc here = The lower, better half of the third tier - ordinary Roman citizens and regular plebeians packed in by the thousand, standing room bleeding into sitting room bleeding into standing room again. Stairways lead off to either side, a row of vendors works the crowd to the north, and a steeper stair climbs further up to the poorer seating above.
+#
+@dig Common Tiers - Eastern Steps = east;e, west;w
+#
+east
+#
+@desc here = A wide stone stairway doubling as its own gathering spot, citizens sitting three and four to a step that was only ever meant to hold two. Someone near the top is keeping a running count of the score, shouted down in relay by whoever's closest.
+#
+west
+#
+@dig Common Tiers - Western Steps = west;w, east;e
+#
+west
+#
+@desc here = The mirror of the eastern stairway, just as crowded, just as loud. A game of some kind is being played on the lower steps with a knucklebone and considerably more shouting than the rules seem to require.
+#
+east
+#
+@dig Common Tiers - Vendor Row = north;n, south;s
+#
+north
+#
+@desc here = A narrow walkway packed with hawkers and their trays - honeyed nuts, watered wine, cheap cushions for anyone tired of sitting on stone. The noise here is less about the games and more about the very determined business of being sold something.
+#
+south
+#
+@dig Maenianum Secundum Summum = south;s, north;n
+#
+south
+#
+@desc here = The upper, poorer half of the third tier - the seating gets rougher and the crowd gets louder the higher it climbs, packed with citizens who couldn't afford anything closer and the foreigners who weren't offered anything better. The view is worse. Nobody up here seems to mind much.
+#
+north
+#
+# Build complete. Imum hub: east to Eastern Steps, west to Western
+# Steps, north to Vendor Row, south to Summum - all four lead
+# straight back. Pre-existing up/down exits on Imum (to Equestrian
+# Terraces below, Wooden Heights above) are completely untouched.
+#

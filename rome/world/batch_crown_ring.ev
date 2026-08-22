@@ -1,0 +1,37 @@
+#
+# Colosseum's Crown Expansion batch file
+# Smallest hub of the whole seating expansion - matches the Crown's
+# historically small, exclusive nature (mostly just the sailors who
+# work the velarium). Real color woven into the body text this time,
+# not just the (now-removed) title line.
+#
+# Usage: batchcommands world.batch_crown_ring
+#
+
+#
+@tel The Colosseum's Crown
+#
+@desc here = The very top of the Colosseum, where hardly anyone but the awning-riggers bothers to climb. From here Rome spreads out in every direction - rooftops catching the |Ylast gold light|n of the afternoon, distant |csmoke|n rising thin over the forum, the |bblue-grey glint|n of the river cutting the city in two. The roar of the crowd below sounds almost gentle from up here, softened by distance into something closer to the sea. A narrow walk leads east toward the sailors' watch, and west toward the best view the Colosseum has to offer.
+#
+@dig The Sailors' Watch = east;e, west;w
+#
+east
+#
+@desc here = A cramped platform where off-duty sailors lounge between shifts on the velarium's ropes, skin |Ysun-browned|n dark, entirely unbothered by a drop that would have anyone else's knuckles white on the rail. One of them is asleep sitting up. Nobody seems to find this remarkable.
+#
+west
+#
+@dig The High Overlook = west;w, east;e
+#
+west
+#
+@desc here = The single highest point a spectator can actually reach, and the view earns it - Rome laid out beneath a sky gone |Yamber|n at the edges, temples catching the light on the hills beyond the river, and somewhere far below, so small it barely seems real, the |rblood-red|n sand of the arena itself.
+#
+east
+#
+# Build complete. Crown hub: east to Sailors' Watch, west to High
+# Overlook - both lead straight back. Pre-existing down exit (to
+# Wooden Heights) is untouched. This completes the full vertical
+# spine: Atrium -> Podium -> Equestrian -> Imum/Summum -> Wooden
+# Heights -> Crown, every tier now a real multi-room space.
+#

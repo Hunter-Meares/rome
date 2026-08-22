@@ -1,0 +1,205 @@
+"""
+Social commands
+
+A player-facing replacement for 'who' - shows name, custom title,
+race, class, and level instead of the technical admin table (account
+name, room, protocol, host IP). Admins/Developers still see the full
+technical table, unchanged - see evennia.commands.default.account.CmdWho
+for that logic, which this subclasses and falls back to.
+
+Also includes 'title', letting players set a short custom title shown
+on the who list (e.g. "the Undefeated", "Senator of Rome").
+"""
+
+import time
+from world.combat import rank_title
+
+import evennia
+from evennia.commands.default.account import CmdWho as DefaultCmdWho
+from evennia.utils import utils
+
+from commands.command import Command
+
+
+class CmdWho(DefaultCmdWho):
+    """
+    list who is currently online
+
+    Usage:
+      who
+      who/full
+
+    Shows who is currently online - character, title, race, class,
+    level, and location. Admins and Developers see this by default;
+    add the /full switch for the complete technical table (account
+    name, connect time, command count, protocol, host IP).
+    """
+
+    def func(self):
+        account = self.account
+        show_admin_data = account.check_permstring("Developer") or account.check_permstring(
+            "Admins"
+        )
+
+        session_list = evennia.SESSION_HANDLER.get_sessions()
+        session_list = sorted(session_list, key=lambda o: o.account.key)
+
+        if show_admin_data and "full" in self.switches:
+            # Complete technical table - everything, uncropped. Meant
+            # for when you actually need it (e.g. tracing abuse by
+            # host/IP), not for routine glancing.
+            table = self.styled_table(
+                "|wAccount Name",
+                "|wOn for",
+                "|wIdle",
+                "|wPuppeting",
+                "|wTitle",
+                "|wRace",
+                "|wClass",
+                "|wLevel",
+                "|wRoom",
+                "|wCmds",
+                "|wProtocol",
+                "|wHost",
+            )
+            for session in session_list:
+                if not session.logged_in:
+                    continue
+
+                delta_cmd = time.time() - session.cmd_last_visible
+                delta_conn = time.time() - session.conn_time
+                sess_account = session.get_account()
+                puppet = session.get_puppet()
+                location = puppet.location.key if puppet and puppet.location else "None"
+
+                title = puppet.db.custom_title if puppet else ""
+                race = (puppet.db.race_display if puppet else None) or "-"
+                pclass = (puppet.db.class_display if puppet else None) or "-"
+                level = (puppet.db.level if puppet else None) or 1
+
+                table.add_row(
+                    sess_account.get_display_name(sess_account),
+                    utils.time_format(delta_conn, 0),
+                    utils.time_format(delta_cmd, 1),
+                    puppet.key if puppet else "None",
+                    title or "",
+                    race,
+                    pclass,
+                    level,
+                    location,
+                    session.cmd_total,
+                    session.protocol_key,
+                    isinstance(session.address, tuple) and session.address[0] or session.address,
+                )
+            self.msg(str(table))
+            naccounts = evennia.SESSION_HANDLER.account_count()
+            self.msg("%d account%s logged in." % (naccounts, "" if naccounts == 1 else "s"))
+            return
+
+        if show_admin_data:
+            # Lean default for admins - readable at normal client
+            # widths. Every text column is cropped so long titles/room
+            # names can't blow up the table into wrapping. Use
+            # 'who/full' for every technical field.
+            table = self.styled_table(
+                "|wAccount",
+                "|wChar",
+                "|wTitle",
+                "|wRace",
+                "|wClass",
+                "|wLvl",
+                "|wRoom",
+                "|wIdle",
+            )
+            for session in session_list:
+                if not session.logged_in:
+                    continue
+
+                delta_cmd = time.time() - session.cmd_last_visible
+                sess_account = session.get_account()
+                puppet = session.get_puppet()
+                location = puppet.location.key if puppet and puppet.location else "None"
+
+                title = puppet.db.custom_title if puppet else ""
+                race = (puppet.db.race_display if puppet else None) or "-"
+                pclass = (puppet.db.class_display if puppet else None) or "-"
+                level = (puppet.db.level if puppet else None) or 1
+
+                table.add_row(
+                    utils.crop(sess_account.get_display_name(sess_account), width=10),
+                    utils.crop(puppet.key if puppet else "None", width=10),
+                    title or "-",
+                    utils.crop(race, width=9),
+                    utils.crop(pclass, width=10),
+                    rank_title(level),
+                    location,
+                    utils.time_format(delta_cmd, 1),
+                )
+            self.msg(str(table))
+            naccounts = evennia.SESSION_HANDLER.account_count()
+            self.msg("%d account%s logged in." % (naccounts, "" if naccounts == 1 else "s"))
+            return
+
+        table = self.styled_table(
+            "|wName", "|wTitle", "|wRace", "|wClass", "|wLevel", "|wIdle"
+        )
+        for session in session_list:
+            if not session.logged_in:
+                continue
+
+            delta_idle = time.time() - session.cmd_last_visible
+            char = session.get_puppet()
+
+            if char:
+                name = char.key
+                title = char.db.custom_title or ""
+                race = char.db.race_display or "-"
+                pclass = char.db.class_display or "-"
+                level = char.db.level or 1
+            else:
+                # Account is online but not currently puppeting a character
+                name = session.account.key
+                title = ""
+                race = "-"
+                pclass = "-"
+                level = "-"
+
+            table.add_row(
+                name, title, race, pclass, rank_title(level) if level != "-" else "-", utils.time_format(delta_idle, 1)
+            )
+
+        self.msg(str(table))
+        naccounts = evennia.SESSION_HANDLER.account_count()
+        self.msg("%d account%s logged in." % (naccounts, "" if naccounts == 1 else "s"))
+
+
+class CmdTitle(Command):
+    """
+    Set a custom title shown on the who list.
+
+    Usage:
+      title <text>
+      title clear
+
+    Your title appears next to your name on the who list, e.g.
+    "Marcus - the Undefeated". Keep it short (40 characters or less).
+    """
+
+    key = "title"
+    help_category = "general"
+
+    def func(self):
+        caller = self.caller
+
+        if not self.args or self.args.strip().lower() == "clear":
+            caller.db.custom_title = None
+            caller.msg("Your title has been cleared.")
+            return
+
+        title = self.args.strip()
+        if len(title) > 40:
+            caller.msg("Titles must be 40 characters or less.")
+            return
+
+        caller.db.custom_title = title
+        caller.msg("Your title is now: %s" % title)

@@ -1,0 +1,227 @@
+#
+# Olympus expansion batch file
+# Run this from inside Zeus' Throne Room (#69) as superuser/Developer.
+# Usage: batchcommands world.batch_olympus
+#
+# This builds 23 new rooms connected to your existing 3 (Throne Room,
+# Grand Balcony, Hall of Storms), ending back where you started.
+#
+
+#
+# ============================================================
+# EAST WING - Council Chamber, Hall of Heroes, Armory, Forge
+# ============================================================
+#
+@dig Council Chamber = east;e,west;w
+#
+east
+#
+@desc The Council Chamber opens before you, a vast circular hall ringed by towering thrones carved from clouds turned to marble, each etched with the sigil of a different Olympian. |cSilver light|n filters down from an oculus in the domed ceiling, illuminating a floor inlaid with a great bronze star-map of the heavens. At the chamber's heart stands a low central hearth, its |yflames burning a shade of gold|n no mortal fire could match, said never to gutter so long as the gods remain undivided. The air carries the hush of countless arguments, treaties, and judgments passed within these walls, and every footstep echoes with unusual weight, as though the chamber itself is listening.
+#
+@dig Hall of Heroes = east;e,west;w
+#
+east
+#
+@desc Rows of |wmarble statues|n line this long, echoing hall, each depicting a mortal hero raised to immortal memory - a spear-armed warrior mid-stride, a queen with her chin lifted in defiance, a boy reaching for the sky. |yGolden laurel wreaths|n rest atop each statue's brow, renewed by unseen hands whenever they dim. Between the statues hang tapestries depicting the deeds that earned each hero their place here, the threads shimmering faintly as if still replaying the moment of glory. The hall smells of old stone and fresh laurel, and a hush lies over everything - the particular silence reserved for the dead who were never quite forgotten.
+#
+@dig Trophy Vault = south;s,north;n
+#
+south
+#
+@desc This narrow chamber is lined floor to ceiling with |ytrophies of divine and mortal conquest|n alike - broken swords of fallen titans, a single scale from an unnamed serpent, warhorns silenced mid-battle. Each item rests on its own pedestal of black stone, unlabeled, as though the gods alone need remember what each one cost. A faint, cold draft moves through the room with no visible source, stirring dust that never quite settles. |mPurple witch-light|n flickers from sconces near the ceiling, casting long shadows that shift independently of anything that could be causing them.
+#
+north
+#
+west
+#
+@dig Armory of Olympus = north;n,south;s
+#
+north
+#
+@desc Weapon racks stretch in orderly rows across this vaulted chamber, each holding arms wrought for hands far larger and stronger than mortal ones - spears crackling with contained lightning, shields etched with wards against forgotten enemies, a single war-hammer resting on a rack all its own, too heavy for the floor beneath it not to groan. |cBlue-white sparks|n drift from a rack of javelins near the far wall, never quite extinguishing. The air smells of hot metal and ozone, and everything here has the particular stillness of weapons kept ready rather than weapons kept for display.
+#
+@dig Celestial Forge = east;e,west;w
+#
+east
+#
+@desc Heat rolls from this chamber in waves, radiating from a |rforge of white-hot coals|n that never needs tending, tucked into the far wall beneath a chimney that seems to vent smoke directly into the stars themselves. Anvils of star-iron stand in a neat row, their surfaces scarred from centuries of divine hammer-work. Half-finished weapons and armor pieces lie scattered about - a shield missing its final ward, a blade not yet quenched - as though whoever works here stepped away only a moment ago and fully intends to return. Sparks drift upward instead of down, vanishing into darkness rather than falling to the floor.
+#
+west
+#
+south
+#
+west
+#
+# Back in Throne Room
+#
+# ============================================================
+# WEST WING - Zeus' Private Chambers, Vault, Aviary
+# ============================================================
+#
+@dig Zeus' Private Chambers = west;w,east;e
+#
+west
+#
+@desc Far removed from the pomp of the throne room, this chamber holds a quieter, more personal kind of grandeur. A great bed draped in |bmidnight-blue silk|n dominates one wall, its canopy embroidered with constellations that shift subtly if watched too long. A writing desk of dark storm-oak sits beneath a window that looks out not onto any earthly sky, but a swirling field of stars entirely its own. |yGolden light|n pools from unseen sconces, warm rather than blinding, and the air smells faintly of rain on distant mountains. Few are permitted here, and the room seems to know it.
+#
+@dig Vault of Thunderbolts = down;d,up;u
+#
+down
+#
+@desc Descending into this chamber, the air itself seems charged, raising the hair on your arms with each step closer to the center of the room. Racks of |Ybright, crackling thunderbolts|n rest suspended in mid-air, contained by nothing visible, their light flickering in slow, deliberate pulses like a held breath. The walls are unadorned stone, scorched black in places from long-ago accidents, and a low hum fills the room, felt more in the chest than heard with the ears. This is not a place for the unworthy or the unwary.
+#
+up
+#
+@dig Aviary of the Golden Eagles = west;w,east;e
+#
+west
+#
+@desc Open to the sky through a vast, unglazed archway, this chamber serves as roost for Zeus' sacred eagles, their feathers catching the light like beaten |ygold|n whenever they shift on their high perches. The floor is soft with feathers and old straw, and a faint, clean smell of high mountain air fills the space, utterly unlike the ozone-and-stone scent of the rest of Olympus. Occasionally, one of the great birds tilts its head to regard visitors with an unsettling, knowing intelligence, as though deciding whether to report their presence. Wind moves freely through the open archway, carrying the distant cry of hunting eagles somewhere far below.
+#
+east
+#
+east
+#
+# Back in Throne Room
+#
+# ============================================================
+# NORTH WING - Grand Balcony (existing) branches
+# ============================================================
+#
+north
+#
+@dig Terrace of the Winds = east;e,west;w
+#
+east
+#
+@desc This open terrace catches every wind that crosses Olympus, the air here never quite still, tugging at cloaks and hair with playful, unpredictable gusts. |cPale silver clouds|n drift past at eye level, close enough to touch, and the railing is carved in a continuous relief of the four winds locked in eternal motion around its length. Underfoot, the marble is cool and faintly damp, as though the terrace exists at the exact boundary between sky and stone. Standing here too long invites a peculiar vertigo - not fear of falling, but the sense that the terrace itself might not be entirely fixed in place.
+#
+@dig Aerie of the West Wind = north;n,south;s
+#
+north
+#
+@desc This small, exposed platform seems to exist for no purpose but to catch the full force of the west wind, which never stops moving through it in long, keening gusts. A single stone bench sits near the platform's edge, worn smooth by centuries of divine visitors who came here simply to think, or to be alone with the sky. |wWhite cloud-wisps|n curl up over the platform's low wall and dissolve into nothing, and far below, the mortal world is visible only as a hazy, indistinct suggestion of color. It is, by all accounts, a favorite place to sulk.
+#
+south
+#
+west
+#
+@dig Cloud Walk = up;u,down;d
+#
+up
+#
+@desc The path here is, quite literally, made of cloud - dense and packed enough to walk upon, though every step carries a faint, unsettling softness that never quite resolves into solid ground. The walkway curves upward and out of sight, bordered by nothing at all, with only the wind and a very long drop separating you from the world far below. Wisps of loose cloud drift up from the path's edges like steam, and the light here is diffuse and shadowless, coming from everywhere and nowhere. Only the truly confident, or the truly foolish, linger long.
+#
+@dig Storm Watch = north;n,south;s
+#
+north
+#
+@desc This small platform sits at the very edge of Olympus' storm-wrought boundary, offering an unobstructed view of storms being born far below - swirling grey masses of cloud spun into being by unseen hands. |YFlashes of lightning|n illuminate the platform in brief, stuttering bursts, and the boom of distant thunder arrives moments later, felt in the floor before it's heard. A simple stone rail is the only thing between you and the long drop beyond, and the wind here carries the distinct, electric smell of a storm not yet arrived below, but already gathering.
+#
+south
+#
+down
+#
+south
+#
+# Back in Throne Room
+#
+# ============================================================
+# SOUTH WING - Hall of Storms (existing) branches into the
+# Grand Atrium and everything beyond it
+# ============================================================
+#
+south
+#
+@dig Grand Atrium = south;s,north;n
+#
+south
+#
+@desc This vast, echoing atrium serves as a secondary heart to Olympus, its high ceiling open to a sky that shifts between dusk and starlight depending on unknowable moods. |mVeins of violet light|n run through the marble floor in branching patterns, pulsing faintly underfoot like something half-alive. Grand archways lead deeper into the divine halls beyond, each framed with its own distinct carved motif - vines, waves, flame, stars, storm, and stone. The air hums with quiet, ambient power, the sound of a place built to hold far more than any mortal structure ever could.
+#
+@dig Library of Fates = west;w,east;e
+#
+west
+#
+@desc Endless shelves rise into shadow far above, each holding scrolls and tomes that seem to shift position when unwatched, reorganizing themselves according to logic no mortal scholar could follow. |cFaint blue light|n emanates from the books themselves rather than any visible source, enough to read by but never quite enough to see the room's true edges. A hush presses down here, heavier than mere silence - the specific quiet of a place that holds knowledge some are better off never finding. Dust motes drift in the still air, catching the light like slow-falling stars.
+#
+@dig Scrying Pool Chamber = north;n,south;s
+#
+north
+#
+@desc At the center of this round, low-ceilinged chamber lies a still pool of water so dark it swallows all reflected light, its surface disturbed by no draft or footstep. |cPale light|n ripples occasionally across its surface unprompted, as though something vast were shifting just beneath. The walls are carved with a hundred watching eyes, worn smooth with age - a silent tribute to Argus and all who guard Olympus' secrets. Leaning too far over the pool invites the unmistakable sensation of being watched back.
+#
+south
+#
+east
+#
+@dig Feast Hall of Olympus = east;e,west;w
+#
+east
+#
+@desc Long tables of pale wood stretch the length of this warm, golden-lit hall, set eternally as though a feast might begin at any moment. |yGolden goblets|n and platters of fruit that never spoil line every surface, and the faint, sweet smell of ambrosia hangs perpetually in the air. Tapestries of past feasts - laughter, arguments, the occasional overturned table - hang along the walls, each one a memory made permanent. The hall feels lived-in in a way few other chambers of Olympus do, worn smooth at the table edges by centuries of divine elbows.
+#
+@dig Wine Cellar of the Gods = north;n,south;s
+#
+north
+#
+@desc Cool, dim, and quiet, this cellar holds row upon row of amphorae stacked in careful pyramids, each sealed with wax bearing a different god's personal mark. |rDeep red|n stains the stone floor in places, decades or centuries old, evidence of spills no one has bothered to clean. A faint, heady aroma of fermented nectar fills the air, thick enough to feel almost drinkable on its own. The vintages here are said to range from merely excellent to those capable of granting a mortal a single night's taste of true divinity - and, occasionally, a very long recovery afterward.
+#
+south
+#
+west
+#
+@dig Garden of the Gods = south;s,north;n
+#
+south
+#
+@desc This sprawling garden defies every mortal season at once - blossoms and fruit and autumn leaves all present in the same breath, arranged along winding paths of white gravel. |gDeep green vines|n heavy with golden fruit climb marble trellises, and flowers unknown to any mortal botanist bloom in colors that seem to shift when looked at directly. Somewhere nearby, unseen, water trickles constantly over stone. The air is thick with pollen and something sweeter, headier, that lingers pleasantly at the back of the throat.
+#
+@dig Nectar Springs = east;e,west;w
+#
+east
+#
+@desc A series of shallow, steaming pools cascade gently down a short marble slope, each filled with a liquid that catches the light in colors no ordinary water could produce. |ySoft golden steam|n rises from the pools' surface, carrying a scent like honey and citrus and something else entirely unnamed. Small stone benches line the pools' edges, worn smooth by countless divine visitors who came here simply to soak and be still. Even a brief moment near the springs leaves skin faintly warm and unusually at ease.
+#
+west
+#
+@dig Ambrosia Orchard = west;w,east;e
+#
+west
+#
+@desc Rows of low, twisted trees fill this quiet orchard, each branch heavy with fruit that glows faintly from within, a soft |ygolden|n light pulsing gently like a slow heartbeat. The ground beneath is carpeted in fallen petals that never seem to rot or fade, and the air carries a rich, complex sweetness impossible to place - honey, wine, and something indefinably divine all at once. Reaching for the fruit feels, somehow, like being watched and permitted at the same time. Mortals who eat unearned fruit from this orchard rarely do so twice.
+#
+east
+#
+@dig Temple of Judgment = south;s,north;n
+#
+south
+#
+@desc Cold and solemn, this circular temple holds a single raised dais at its center, flanked by two towering statues - one holding scales, the other a sword. |wPale marble|n dominates every surface, unbroken by color or warmth, and the acoustics carry even a whisper clearly to every corner of the chamber. No decoration softens this room; its purpose is singular, and its atmosphere makes that purpose felt in the chest before it's understood in the mind. Those brought here rarely leave unchanged.
+#
+@dig Hall of Ascension = east;e,west;w
+#
+east
+#
+@desc This narrow, radiant hall culminates in a single raised platform bathed in |Wblinding white light|n from a source that seems to come from everywhere at once. Ancient inscriptions line the walls in a script that shifts and resolves into readable words only for those meant to read them - accounts, it's said, of every mortal ever raised to godhood, and the price each one paid for it. The air here feels thinner, charged with anticipation, as though the hall itself is holding its breath, waiting to see who might next ascend its platform. It is not a place entered lightly, nor left unchanged.
+#
+west
+#
+north
+#
+north
+#
+@dig Celestial Observatory = up;u,down;d
+#
+up
+#
+@desc This open-air platform sits above even the highest clouds of Olympus, offering an unobstructed view of the full turning heavens above. A great |cbrass and silver armillary sphere|n dominates the room's center, its rings slowly rotating in perfect, silent synchrony with the actual stars overhead. Star charts unlike any mortal astronomer has ever produced cover every open surface, annotated in a hand that changes depending on which god last visited. The silence here is vast and total, broken only by the occasional soft click of the sphere's rings shifting into some new configuration.
+#
+down
+#
+north
+#
+north
+#
+# Back in Throne Room - build complete.
+#

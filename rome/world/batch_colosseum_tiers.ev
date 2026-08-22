@@ -1,0 +1,76 @@
+#
+# Colosseum Seating Tiers batch file
+# Adds a real "up" progression through the Colosseum's seating levels,
+# matching the actual historical Roman social hierarchy - best seats
+# (closest to the action) for senators, worst (highest, most exposed)
+# for the poor. Pure exploration/atmosphere content, not gated or
+# combat-related.
+#
+# Usage: batchcommands world.batch_colosseum_tiers
+#
+
+#
+@tel Atrium of the Games
+#
+@dig The Senatorial Podium = up;u, down;d
+#
+up
+#
+@desc here = |wThe Senatorial Podium|n
+
+The lowest, closest tier - close enough to the sand that a bad throw could clear the wall entirely. Marble benches, cushioned, each one carved with the name of the senator who claims it by right. The view here is the best in the entire Colosseum, and everyone in every tier above knows it.
+#
+@dig The Equestrian Terraces = up;u, down;d
+#
+up
+#
+@desc here = |wThe Equestrian Terraces|n
+
+A step back from the podium, and a step down in luxury to match - still stone, still shaded, but shared rather than claimed. This is where the equites sit: wealthy enough for a good seat, not wealthy enough for the best one.
+#
+@dig The Common Tiers = up;u, down;d
+#
+up
+#
+@desc here = |wThe Common Tiers|n
+
+Rome's ordinary citizens pack in here by the thousand, standing room bleeding into sitting room bleeding into standing room again. The noise up here is different from the podium below - louder, rowdier, closer to the actual heartbeat of the crowd.
+#
+py here.db.echo_messages = ["A vendor somewhere below shouts about honeyed nuts.", "Someone near you argues loudly about a fighter's odds.", "A ripple of laughter moves through the tier for no reason you can see.", "The press of the crowd shifts as another wave of spectators pushes in."]
+#
+@dig The Wooden Heights = up;u, down;d
+#
+up
+#
+@desc here = |wThe Wooden Heights|n
+
+The stone gives way to timber up here, seating added rather than built in, creaking under a crowd of the poorest citizens the games still bother to let in at all. The view is smaller, the sun harsher, and the whole structure sways very slightly whenever the crowd below roars.
+#
+@dig The Colosseum's Crown = up;u, down;d
+#
+up
+#
+@desc here = |wThe Colosseum's Crown|n
+
+The very top of the Colosseum, where the awning-riggers work and hardly anyone else bothers to climb. From here Rome spreads out in every direction - rooftops, smoke, the distant glint of the river, temples catching the last of the light on the hills beyond. The roar of the crowd below sounds almost gentle from up here, softened by distance into something closer to the sea.
+#
+py here.db.echo_messages = ["Far below, the crowd roars at something you can't see.", "A gull wheels past, entirely unbothered by any of this.", "The awning ropes creak overhead, pulled taut by the wind.", "For a moment, the noise of the city and the noise of the crowd blur into one sound."]
+#
+down
+#
+down
+#
+down
+#
+down
+#
+down
+#
+# Build complete. Two rooms (Common Tiers, Colosseum's Crown) have
+# echo_messages set but still need the ColosseumEcho script attached
+# to actually fire them:
+#   @tel The Common Tiers
+#   py from world.colosseum import ColosseumEcho; here.scripts.add(ColosseumEcho)
+#   @tel The Colosseum's Crown
+#   py from world.colosseum import ColosseumEcho; here.scripts.add(ColosseumEcho)
+#

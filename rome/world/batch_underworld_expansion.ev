@@ -1,0 +1,295 @@
+#
+# Underworld Expansion batch file
+#
+# Adds 27 new rooms to the existing 3-room Underworld (Shores of the
+# Styx -> River Styx Crossing -> Threshold of Return), bringing the
+# total to 30. Structure: River Styx Crossing's "onward" now leads to
+# a new hub (the Judgment Hall) instead of straight to Threshold of
+# Return. Three realms branch from there - Asphodel Meadows, Elysium,
+# Tartarus - each ending in its own "Return Path" room that connects
+# back to Threshold of Return, so every path leads toward an actual
+# way out. No dead ends, by design - the ferry crossing is one-way,
+# so players are fully committed once they're here.
+#
+# Deliberately NOT rewarding: no XP, no gold, no loot anywhere in this
+# file. This space is meant to be atmospheric and worth exploring once
+# during the wait, not a reason to want to die. Real design choice,
+# not an oversight - see the to-do list for the fuller reasoning.
+#
+# Color palette, consistent throughout: |x dark grey (default
+# narration), |X bright grey (mist/stone/highlights), |w dim white
+# (shades, bone, pallor), |c cyan (cold otherworldly water/glow),
+# |b blue (deep cold shadow, especially Tartarus). Elysium alone gets
+# sparing |Y muted gold as its "blessed" accent; Tartarus alone gets
+# sparing |r dark red for distant, abstract suffering - kept
+# non-graphic throughout.
+#
+# IMPORTANT: run this AFTER world.batch_underworld has already been
+# run once (this file assumes River Styx Crossing and Threshold of
+# Return already exist). This file rewires River Styx Crossing's
+# "onward" exit and adds new exits to Threshold of Return - it does
+# NOT touch the CharonFerryExit typeclass on Shores of the Styx's own
+# "onward" exit, which stays exactly as already configured.
+#
+# Usage: batchcommands world.batch_underworld_expansion
+#
+
+#
+# ============================================================
+# REWIRE: River Styx Crossing's "onward" now goes to the new hub
+# ============================================================
+#
+@tel River Styx Crossing
+#
+@destroy onward
+#
+@dig The Judgment Hall = onward;o
+#
+onward
+#
+@desc here = |xThe path that was worn smooth by countless feet finally opens into a vast, echoing chamber. |XGrey stone columns|x rise into a ceiling lost in mist, and three great passages lead away into darkness - each one different, each one final. At the chamber's center, a robed figure sits upon a plain stone seat, watching every shade that arrives with the same patient, unreadable attention.|n
+#
+
+#
+# ============================================================
+# Ghostly NPC: Minos, the Judge
+# ============================================================
+#
+@create Minos the Judge:evennia.objects.objects.DefaultCharacter
+#
+@desc Minos the Judge = |wA tall, ancient shade|x, robed in what might once have been fine cloth, now faded past any color at all. He does not carry a weapon and needs none - his authority here is older than any blade. His eyes, when they settle on you, seem to weigh something you cannot see.|n
+#
+@lock Minos the Judge = puppet:false()
+#
+
+#
+# ============================================================
+# ASPHODEL MEADOWS - the realm of ordinary souls
+# ============================================================
+#
+@tel The Judgment Hall
+#
+@dig Edge of the Asphodel Meadows = meadows;m, back;b
+#
+meadows
+#
+@desc here = |xThe passage opens onto an endless grey field, flowers the color of old ash swaying in a wind you cannot feel on your skin. This is where most shades come - not punished, not blessed, simply here. |XA soft mist|x clings to the ground no matter how far you walk.|n
+#
+@dig The Grey Fields = onward;o, back;b
+#
+onward
+#
+@desc here = |xThe asphodel stretches in every direction, pale grey blossoms nodding on stalks the color of dust. Other shades move through the field at a distance, never quite close enough to speak to, never quite far enough to forget they're there.|n
+#
+@dig A Gathering of Shades = onward;o, back;b
+#
+onward
+#
+@desc here = |xDozens of shades stand here in loose clusters, murmuring to each other in voices too faint to make out individual words. |wSome turn as you pass|x. None follow.|n
+#
+@dig The Murmuring Crowd = onward;o, back;b
+#
+onward
+#
+@desc here = |xThe crowd here is thicker, shoulder to shoulder, an endless soft murmur rising and falling like breathing. It is not unpleasant. It is not anything, really - just the sound of a great many people who have stopped being in a hurry.|n
+#
+@dig Ruins of Forgotten Names = onward;o, back;b
+#
+onward
+#
+@desc here = |XBroken grey columns|x lie half-sunk in the ash-colored earth, and where inscriptions once ran along their length, only smooth stone remains. Whatever names were carved here have worn away completely - erased not by violence, but simply by enough time passing.|n
+#
+@dig The Grey Orchard = onward;o, back;b
+#
+onward
+#
+@desc here = |xRows of trees stand here, bare of leaves, their branches the same ash-grey as everything else in this field. No fruit has grown on them in longer than anyone remembers. |Xa few shades sit beneath them anyway|x, out of old habit more than comfort.|n
+#
+@dig Return Path from Asphodel = onward;o, back;b
+#
+onward
+#
+@desc here = |xThe field begins to thin here, the asphodel growing sparser with every step, until the path ahead narrows toward a familiar grey light. Whatever else waits in this realm, this is the way anyone eventually finds, sooner or later, if they walk long enough.|n
+#
+
+#
+# Side branch off The Murmuring Crowd: Banks of the River Lethe
+#
+@tel The Murmuring Crowd
+#
+@dig Banks of the River Lethe = side;s, back;b
+#
+side
+#
+@desc here = |xA second river runs here, wider and stiller than the Styx ever was. Its water is |ca pale, luminous grey|x, and looking into it for too long brings on a strange, gentle blankness - the shape of a memory just out of reach. Shades kneel at its edge in twos and threes, drinking without hesitation.|n
+#
+@dig The Lethe Ferry Landing = onward;o, back;b
+#
+onward
+#
+@desc here = |xA second, smaller boat waits here, its pilot as silent as Charon's own. Unlike the Styx, this crossing goes nowhere in particular - shades who board simply drift, and eventually forget why they came to the water at all. |wYou feel no pull to board it.|n
+#
+
+#
+# ============================================================
+# ELYSIUM - the realm of the blessed and heroic dead
+# ============================================================
+#
+@tel The Judgment Hall
+#
+@dig Gates of Elysium = elysium;e, back;b
+#
+elysium
+#
+@desc here = |XA pair of tall, unadorned gates|x stand open here, and beyond them the grey of the Judgment Hall gives way to something almost gentle - the same muted light, but touched faintly with |Ya pale, warm gold|x, like the last hour before a sunset that never quite arrives.|n
+#
+@dig The Blessed Fields = onward;o, back;b
+#
+onward
+#
+@desc here = |xThe ground here is the same ash-grey as the Asphodel Meadows, but the air feels different - quieter, easier, the kind of stillness that follows a long labor finally set down. |YFaint golden light|x seems to come from nowhere and everywhere at once.|n
+#
+@dig Grove of Champions = onward;o, back;b
+#
+onward
+#
+@desc here = |XTall grey trees|x stand in a wide circle, and beneath them rest shades unlike the ones in Asphodel - straighter-backed, more present, as though death here weighs less. |wA few bear the faint outline of old scars|x, worn like honors rather than wounds.|n
+#
+@dig The Still Waters = onward;o, back;b
+#
+onward
+#
+@desc here = |xA lake spreads out here, perfectly flat, its surface |ca pale silvered grey|x that holds no reflection at all. The stillness is total - no wind, no ripple, nothing but quiet water stretching toward a horizon that never quite resolves into a shore.|n
+#
+@dig Gardens of the Fortunate = onward;o, back;b
+#
+onward
+#
+@desc here = |xRows of grey blossoms grow here in careful, tended lines - someone, or something, still cares for this place. |YA warm, faint gold|x clings to the edges of each petal, the only color in the entire Underworld that looks touched by anything like joy.|n
+#
+@dig The Isles of the Blessed = onward;o, back;b
+#
+onward
+#
+@desc here = |xThe path ends at the edge of the Still Waters again, but here a scattering of small islands rise from the silver lake, connected by walkways of pale stone. |wThe shades who reach this place|x rarely speak, and rarely need to - they seem, simply, at peace.|n
+#
+@dig Return Path from Elysium = onward;o, back;b
+#
+onward
+#
+@desc here = |xEven here, the path eventually turns back toward grey. The gold light fades a little more with every step, until the familiar ash-colored mist of the wider Underworld closes back in around you.|n
+#
+
+#
+# ============================================================
+# TARTARUS - the realm of the punished
+# ============================================================
+#
+@tel The Judgment Hall
+#
+@dig The Bronze Gates of Tartarus = tartarus;t, back;b
+#
+tartarus
+#
+@desc here = |XMassive gates|x, their surface the color of old, tarnished metal, stand sealed except for a gap just wide enough to pass through. Beyond them, the air grows colder, the grey deepening toward |bsomething closer to black|x. A low sound carries up from somewhere far below - not quite a voice, not quite anything else.|n
+#
+@dig Descent into Shadow = onward;o, back;b
+#
+onward
+#
+@desc here = |bThe passage slopes steadily downward|x, the walls pressing closer with every step. |XFaint grey light|x still reaches this far, but it feels thinner here, stretched, like it's being spent rather than given.|n
+#
+@dig The Chained Depths = onward;o, back;b
+#
+onward
+#
+@desc here = |bHeavy iron chains|x hang from a ceiling too high to see, disappearing into darkness in both directions. Nothing visibly holds them taut, and nothing visibly needs to. |xThe cold here has a weight to it.|n
+#
+@dig Wailing Cavern = onward;o, back;b
+#
+onward
+#
+@desc here = |xA vast cavern opens here, and the low sound from the gates resolves into something closer to a chorus of distant, muffled voices - not screaming, nothing so simple as that, just an endless, wearied lament that never quite forms words. |rFaint embers|x glow somewhere far below, more felt than seen.|n
+#
+@dig Prison of the Titans = onward;o, back;b
+#
+onward
+#
+@desc here = |bA colossal shape|x is bound here, half-visible in the gloom - vast enough that no single glance takes in all of it, ancient enough that its stillness feels less like sleep and more like something that has simply stopped mattering. |xThe old stories say this is where the first war ended.|n
+#
+@dig The Watching Furies = onward;o, back;b
+#
+onward
+#
+@desc here = |XThree shapes|x stand at the edge of the light here, wings folded, watching without hostility and without mercy - only the patient attention of something that has judged before and will judge again. |wThey do not stop you from passing.|n
+#
+@dig Return Path from Tartarus = onward;o, back;b
+#
+onward
+#
+@desc here = |xEven Tartarus has an edge. The cold begins to thin here, the grey lightening by degrees, the distant lament fading into the ordinary, endless murmur of the wider Underworld.|n
+#
+
+#
+# ============================================================
+# Ghostly NPC: a Fury, stationed at The Watching Furies
+# ============================================================
+#
+@tel The Watching Furies
+#
+@create a watching Fury:evennia.objects.objects.DefaultCharacter
+#
+@desc a watching Fury = |XA winged shape|x, more shadow than substance, its face unreadable in the low light. It has judged the wicked since before Tartarus had a name, and it will judge them long after you have gone.|n
+#
+@lock a watching Fury = puppet:false()
+#
+
+#
+# ============================================================
+# Central landmark: Palace of Hades and Persephone
+# (side branch off the Judgment Hall - pure flavor, dead-end
+# with its own return exit, does NOT connect toward Threshold
+# of Return, since it isn't meant to be part of the through-path)
+# ============================================================
+#
+@tel The Judgment Hall
+#
+@dig Palace of Hades and Persephone = palace;p, back;b
+#
+palace
+#
+@desc here = |XA vast palace|x rises here, built of the same grey stone as everything else in this realm, its scale the only thing that marks it as different. |wNo guards stand at its doors|x - none are needed. Somewhere within, the old stories say, the Lord and Lady of this whole grey country hold a court that few living shades have ever actually seen.|n
+#
+back
+#
+
+#
+# ============================================================
+# CONNECT ALL THREE "RETURN PATH" ROOMS TO THRESHOLD OF RETURN
+# ============================================================
+#
+@tel Return Path from Asphodel
+#
+@open asphodel;a = Threshold of Return
+#
+@tel Return Path from Elysium
+#
+@open elysium;e = Threshold of Return
+#
+@tel Return Path from Tartarus
+#
+@open tartarus;t = Threshold of Return
+#
+# Build complete.
+#
+# Threshold of Return should now be reachable via THREE separate
+# routes (from Asphodel, Elysium, and Tartarus), in addition to its
+# existing "back" exit to River Styx Crossing. No dead ends anywhere
+# in the expansion - every realm eventually leads to the actual way
+# out.
+#
+# Worth a full connectivity walkthrough before considering this done -
+# given the one-way ferry, a missed exit anywhere in this file would
+# leave a player genuinely stuck with no way back except manual admin
+# intervention.
+#

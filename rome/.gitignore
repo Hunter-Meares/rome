@@ -25,6 +25,13 @@ __pycache__
 *.pid
 *.restart
 *.db3
+*.db3-journal
+*.db3.backup*
+
+# Leftover local build artifacts (e.g. compiling a newer sqlite3 from
+# source) - not project code, shouldn't ever be committed.
+sqlite-autoconf-*/
+sqlite-autoconf-*.tar.gz
 
 # Installation-specific.
 # For group efforts, comment out some or all of these.

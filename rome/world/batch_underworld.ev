@@ -1,0 +1,46 @@
+#
+# The Underworld batch file
+# Deliberately NOT connected to the rest of the map by any exit - the
+# only way in is dying at level 6+ (handled in code by
+# CombatRules.handle_player_defeat), and the only way out is solving
+# the riddle here, or a future Medicus resurrection spell.
+#
+# Usage: batchcommands world.batch_underworld
+# Can be run from anywhere - it doesn't touch your current room at all.
+#
+
+#
+@dig Shores of the Styx
+#
+@tel Shores of the Styx
+#
+@desc here = |wShores of the Styx|n
+
+The world of the living is gone - not distant, simply gone, the way a dream is gone the moment you try to describe it. A black river moves without sound at the edge of a colorless shore, and the shapes of other shades drift along its bank, none of them quite looking at you. There is no warmth here, and no cold either. Somewhere ahead, a path leads deeper.
+#
+py here.tags.add("underworld_entrance", category="underworld")
+#
+@dig River Styx Crossing = onward;o, back;b
+#
+onward
+#
+@desc here = |wRiver Styx Crossing|n
+
+The black water runs alongside a path worn smooth by countless bare feet before yours. No ferryman appears here - perhaps he only comes for those who still have coin to pay him, and the dead who wander this far in have nothing left to offer. The path continues onward, toward something that feels, distantly, like a door.
+#
+@dig Threshold of Return = onward;o, back;b
+#
+onward
+#
+@desc here = |wThreshold of Return|n
+
+A single shade stands here, ancient and patient, blocking a threshold of pale light beyond which nothing can be seen. It does not speak first. It only waits - and when a shade draws near, the same question forms in the air, asked in no voice at all: |wWhat walks on four legs in the morning, two legs at noon, and three legs in the evening?|n
+
+|yType 'answer <your answer>' to respond.|n
+#
+back
+#
+back
+#
+# Build complete. Rooms are standalone - not linked to the main map.
+#

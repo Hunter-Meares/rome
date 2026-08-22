@@ -1,0 +1,356 @@
+#
+# Colosseum zone batch file
+# Run this from Zeus' Throne Room (#69) as superuser/Developer.
+# Usage: batchcommands world.batch_colosseum
+#
+# Builds a standalone 25-room Colosseum zone (holding cells, stealth
+# escape path, combat escape path, arena core, spectator stands,
+# entrance/atrium) with NPCs, ambient echoes, and the sneak/riddle
+# puzzle gating. The temporary link used to reach the zone while
+# building it is severed at the very end, so the Colosseum is only
+# reachable via START_LOCATION, teleport, or recall - not by walking
+# from Olympus.
+#
+
+#
+# ============================================================
+# HOLDING CELLS
+# ============================================================
+#
+@dig Your Cell = descend into the pits;colosseumlink,climb back up;climbback
+#
+descend into the pits
+#
+@desc |wYour Cell|n
+
+You wake on cold, filthy straw, wrists raw where iron shackles rubbed through the night. The cell is barely large enough to lie down in, walls slick with damp, a single barred window near the ceiling admitting a thin blade of daylight. Somewhere above and beyond these walls you can hear it - a low, constant roar, like the sea, punctuated by the clash of |ymetal on metal|n and, once, a scream cut suddenly short. You are a captive of the Colosseum now. How you got here is your own story to tell.
+#
+tag here = colosseum_start:colosseum
+#
+py here.db.echo_messages = ["Somewhere above, the crowd roars all at once.", "A distant clang of metal echoes down through the stone.", "You hear a scream, quickly swallowed by the noise of the crowd.", "Chains rattle somewhere nearby in the dark."]; here.scripts.add("world.colosseum.ColosseumEcho")
+#
+@dig Cell Block Corridor = out;o,in
+#
+out
+#
+@desc |wCell Block Corridor|n
+
+A narrow stone corridor runs between rows of cell doors, lit by guttering torches that do little against the gloom. The air is thick with damp stone, old straw, and fear. To the |ynorth|n, an iron gate leads deeper toward the arena itself - the sound of a crowd is louder that way. To the |cwest|n, a crumbling grate opens into darker, quieter passages below. An old man sits against the wall nearby, watching newcomers with tired, knowing eyes.
+#
+py here.db.echo_messages = ["A guard's footsteps echo somewhere down the corridor.", "Someone in a nearby cell begins to weep quietly.", "The distant roar of the crowd rises, then fades."]; here.scripts.add("world.colosseum.ColosseumEcho")
+#
+@spawn OLD_MILO
+#
+@dig Adjacent Cell = east;e,west;w
+#
+east
+#
+@desc |wAdjacent Cell|n
+
+This cell holds several other captives, huddled together against the cold. A few glance up as you enter, sizing you up in the way people do when they aren't sure yet if you're an ally or a rival. Nobody says much. There isn't much to say, down here.
+#
+west
+#
+@dig Iron Gate = north;n,south;s
+#
+north
+#
+@desc |wIron Gate|n
+
+A heavy iron gate stands half-open here, guarded loosely by a single bored-looking sentry. Beyond it, a passage slopes upward toward the roar of the crowd. |yThis is the way of the sword|n - fight your way to freedom in the games, if you have the nerve for it.
+#
+south
+#
+# ============================================================
+# STEALTH ESCAPE PATH
+# ============================================================
+#
+@dig Crumbling Grate = west;w,east;e
+#
+west
+#
+@desc |wCrumbling Grate|n
+
+A rusted iron grate, broken loose at one corner, opens into a black passage below. The air here is cooler, damper, and smells of standing water. |cThis is the quiet way|n - if you're patient, and careful, freedom might lie this way instead.
+#
+east
+#
+west
+#
+@dig Flooded Cistern = down;d,up;u
+#
+down
+#
+@desc |wFlooded Cistern|n
+
+Ankle-deep water covers the floor of this old cistern, black and cold, rippling faintly with every movement. Old brickwork arches overhead, streaked green with age. A narrow ledge leads west, toward the sound of a guard's idle humming.
+#
+up
+#
+down
+#
+@dig Guard Checkpoint = west;w,east;e
+#
+west
+#
+@desc |wGuard Checkpoint|n
+
+A single guard stands watch here, spear loose in one hand, clearly more bored than alert. Beyond him, a passage continues into darkness - but there's no simple way past him by walking. |yYou'll have to |wsneak|y past, if you can.|n
+#
+@spawn GUARD_TITUS
+#
+@dig Maintenance Tunnel = west;w,east;e
+#
+west
+#
+@desc |wMaintenance Tunnel|n
+
+A narrow service tunnel, choked with old cobwebs and the smell of stagnant air. Whoever built this clearly never expected anyone but slaves and engineers to pass through it. A faint light glimmers somewhere ahead to the north.
+#
+tag here = colosseum_maintenance_tunnel:colosseum
+#
+east
+#
+@destroy west
+#
+east
+#
+up
+#
+east
+#
+# Back in Cell Block Corridor - Guard Checkpoint's forward exit has been
+# severed above, so it's only reachable by teleport (for building) or by
+# the 'sneak' command's teleport (for players).
+#
+@tel Maintenance Tunnel
+#
+@dig Riddle Door Chamber = north;n,south;s
+#
+north
+#
+@desc |wRiddle Door Chamber|n
+
+A heavy stone door blocks the passage ahead, carved with an ancient inscription that glows faintly when looked upon:
+
+|y"I follow you all day, yet you never catch me. I vanish in full light, yet grow long as day departs. What am I?"|n
+
+Speak your answer aloud with |wsolve <answer>|n, if you believe you know it.
+#
+@dig Hidden Stairwell = up;u,down;d
+#
+up
+#
+@desc |wHidden Stairwell|n
+
+A narrow, spiraling stairwell climbs up through old stonework, cool air drifting down from somewhere far above. This is the quiet way out - if you made it this far, freedom is close now.
+#
+tag here = colosseum_hidden_stairwell:colosseum
+#
+down
+#
+@destroy up
+#
+# Riddle Door Chamber's forward exit is now severed too - only reachable
+# by solving the riddle (or, for building, by teleport).
+#
+@tel Zeus' Throne Room
+#
+# ============================================================
+# COMBAT ESCAPE PATH
+# ============================================================
+#
+@tel Iron Gate
+#
+@dig Gladiator Holding Pen = north;n,south;s
+#
+north
+#
+@desc |wGladiator Holding Pen|n
+
+Weapon racks line the walls here, mostly empty, a few dull practice blades left behind by whoever trained last. The air smells of sweat and old blood. A narrow stair leads up to a storage loft, and a side door opens onto a small resting chamber. Ahead, north, a tunnel slopes up toward daylight and noise.
+#
+@dig Gladiator's Rest = east;e,west;w
+#
+east
+#
+@desc |wGladiator's Rest|n
+
+A small, spare chamber where fighters wait between bouts - a few crude benches, a water basin, walls scratched with the tally-marks of countless nervous hands. It's quiet here, in a way that feels temporary.
+#
+west
+#
+@dig Weapons Depot = up;u,down;d
+#
+up
+#
+@desc |wWeapons Depot|n
+
+Racks of practice and combat weapons fill this loft space above the holding pen - blunted swords, cracked shields, a few pieces of genuinely serviceable armor set aside from the rest. Dust hangs thick in the air, lit by a single shaft of light from a gap in the roof.
+#
+down
+#
+@dig Tunnel to the Sands = north;n,south;s
+#
+north
+#
+@desc |wTunnel to the Sands|n
+
+The tunnel slopes sharply upward here, packed earth giving way to worn stone steps. The roar of the crowd is deafening now, a wall of sound pressing in from ahead, and the light at the tunnel's end is blinding after the dark of the cells. There is no turning back once you climb these final steps.
+#
+py here.db.echo_messages = ["The crowd's roar swells, impossibly loud, from just ahead.", "Metal clangs against metal somewhere beyond the light.", "Someone screams your name - or someone else's - you can't tell."]; here.scripts.add("world.colosseum.ColosseumEcho")
+#
+@dig Arena Sands = north;n,south;s
+#
+north
+#
+@desc |wArena Sands|n
+
+Blinding sunlight and a wall of noise hit you at once. The arena floor stretches out before you, |ysand stained dark|n in places no amount of raking has ever fully hidden. Tens of thousands of voices roar from the stands above, a physical pressure against your skin. Somewhere to the west, machinery groans in the depths below the sand. To the south stands a gate marked only with old, half-erased letters - the |rGate of Death|n, through which no one walks twice. A scarred trainer stands waiting for you at the center of the sand, entirely unbothered by the noise.
+#
+py here.db.echo_messages = ["The crowd roars as one, a wave of sound crashing over the sands.", "Somewhere in the stands, someone is chanting a name.", "The clash of distant weapons rings out from another bout nearby."]; here.scripts.add("world.colosseum.ColosseumEcho")
+#
+@spawn ARENA_TRAINER
+#
+@dig Hypogeum Machinery Room = west;w,east;e
+#
+west
+#
+@desc |wHypogeum Machinery Room|n
+
+Massive wooden gears and rope-driven pulleys fill this cramped underground chamber, the machinery that raises trapdoors, cages, and scenery up into the arena above. It creaks and groans constantly, worked by unseen hands elsewhere in the tunnels. A narrow stair leads down to a storage vault.
+#
+@dig Colosseum Undercroft Storage = down;d,up;u
+#
+down
+#
+@desc |wColosseum Undercroft Storage|n
+
+Crates, cages, and props for the games are stored here in the dark - spare armor, blunted tridents, an unsettling number of animal cages, empty for now. The air is cool and still, and everything here waits patiently for its turn in the light above.
+#
+up
+#
+east
+#
+@dig Announcer's Box = up;u,down;d
+#
+up
+#
+@desc |wAnnouncer's Box|n
+
+A small wooden platform overlooks the arena floor from a modest height, close enough to see every drop of sweat and blood below. This is where the day's matches are called out to the crowd, voice carrying via some clever trick of the amphitheater's design.
+#
+down
+#
+@dig Gate of Life = east;e,west;w
+#
+east
+#
+@desc |wGate of Life|n
+
+A wide gate stands open here, its stonework worn smooth by the hands of every fighter who has ever walked through it victorious. Beyond it, the noise of the crowd fades into the quieter bustle of the Colosseum's public spaces. |yThis is the way out, for those who earn it.|n
+#
+west
+#
+@tel Zeus' Throne Room
+#
+# ============================================================
+# ATRIUM & ENTRANCE (convergence point for both escape paths)
+# ============================================================
+#
+@tel Hidden Stairwell
+#
+@dig Atrium of the Games = up;u,down;d
+#
+up
+#
+@desc |wAtrium of the Games|n
+
+Light and noise spill in from every direction here - this is the beating heart of the Colosseum's public spaces, where freed fighters, spectators, and vendors all cross paths. A Herald stands near the center, voice raised over the din, announcing the day's matches to anyone who'll listen. Grand entrances lead in every direction: south toward the city beyond, north up into the stands themselves.
+#
+tag here = colosseum_recall_point:colosseum
+#
+@spawn COLOSSEUM_HERALD
+#
+@dig Colosseum Main Entrance = south;s,north;n
+#
+south
+#
+@desc |wColosseum Main Entrance|n
+
+The Colosseum's grand facade rises above you, tier upon tier of arches stretching toward the sky, easily the most imposing structure you've ever stood before. Crowds move steadily in and out through the great arched entrance, and beyond them, the city of Rome itself sprawls outward in every direction - though the roads leading there are, for now, still being paved.
+#
+north
+#
+@dig Beneath the Stands = north;n,south;s
+#
+north
+#
+@desc |wBeneath the Stands|n
+
+A wide service passage runs beneath the seating tiers, lit by shafts of daylight through gaps above. The muffled roar of the crowd rumbles constantly through the stonework overhead. Passages lead east toward the general seating, and west toward a row of vendor stalls.
+#
+@dig Plebeian Stands = east;e,west;w
+#
+east
+#
+@desc |wPlebeian Stands|n
+
+Row upon row of packed stone benches rise up around you, filled with a loud, restless crowd cheering, jeering, and betting on every bout below. The energy here is raw and infectious - this is the Colosseum at its truest.
+#
+py here.db.echo_messages = ["The crowd around you erupts into cheers.", "Someone nearby loudly loses a bet and curses.", "A vendor's cry rises briefly above the noise: 'Wine! Fresh bread!'"]; here.scripts.add("world.colosseum.ColosseumEcho")
+#
+@dig Senatorial Box = up;u,down;d
+#
+up
+#
+@desc |wSenatorial Box|n
+
+A shaded, cushioned platform set apart from the general seating, reserved for senators, magistrates, and their guests. The view of the arena is unmatched from here, and the atmosphere is considerably more restrained than the stands below - though no less invested in the outcome of each bout.
+#
+down
+#
+west
+#
+@dig Vendor Concourse = west;w,east;e
+#
+west
+#
+@desc |wVendor Concourse|n
+
+A row of stalls lines this open concourse, selling wine, bread, roasted meats, and small clay tokens said to bring luck to whichever fighter you favor. The smell of food nearly overpowers the ever-present scent of sand and sweat drifting in from the arena beyond.
+#
+east
+#
+south
+#
+# ============================================================
+# Link the Atrium to the Gate of Life already built in the combat
+# wing - two existing rooms, linked with @open in both directions.
+# ============================================================
+#
+@tel Gate of Life
+#
+@open east;e = Atrium of the Games
+#
+@tel Atrium of the Games
+#
+@open west;w = Gate of Life
+#
+# ============================================================
+# CLEANUP - sever the temporary Throne Room link
+# ============================================================
+#
+@tel Zeus' Throne Room
+#
+@destroy descend into the pits
+#
+@tel Your Cell
+#
+@destroy climb back up
+#
+@tel Zeus' Throne Room
+#
+# Build complete. The Colosseum is now a standalone zone, reachable only
+# via START_LOCATION, @tel, or the recall command.
+#

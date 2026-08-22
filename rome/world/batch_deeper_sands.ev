@@ -1,0 +1,104 @@
+#
+# The Deeper Sands batch file
+# Expands Arena Sands with a real leveled continuation (up to level
+# 25), gated at the entrance so brand-new characters can't wander in
+# over their heads. Run this FROM Arena Sands, or let the initial
+# @tel handle it.
+#
+# Usage: batchcommands world.batch_deeper_sands
+#
+# LAST STEP (not automatable - requires being physically in the room):
+# stand in Arena Sands and retype the "onward" exit into the gated
+# threshold:
+#   @typeclass onward = world.colosseum.DeeperSandsGateExit
+#
+
+#
+@tel Arena Sands
+#
+@dig Threshold of the Deeper Sands = onward;o, back;b
+#
+onward
+#
+@desc here = |wThreshold of the Deeper Sands|n
+
+The sand changes underfoot here - packed harder, darker, stained by years of fights the newbie yard never sees. A weathered sign leans against the tunnel wall, half in Latin, half in whatever the last person to read it scratched underneath: further in, further danger. This is not a place for the untested.
+#
+@dig Recruit's Circle = onward;o, back;b
+#
+onward
+#
+@desc here = |wRecruit's Circle|n
+
+A modest ring, sand still fairly clean, marked out for fighters who've moved past the absolute basics but haven't yet earned the deeper sand. A green arena recruit is here, working through forms with more enthusiasm than precision.
+#
+py here.db.trainer_prototype = "ARENA_FIGHTER_RECRUIT"
+#
+@dig Hunter's Round = onward;o, back;b
+#
+onward
+#
+@desc here = |wHunter's Round|n
+
+An open, circular yard, sand churned by hooves as much as feet. A Centaur arena hunter paces its edge, javelin never quite still, watching the tunnel mouth for whoever's next.
+#
+py here.db.trainer_prototype = "ARENA_FIGHTER_HUNTER"
+#
+@dig Brute's Pit = onward;o, back;b
+#
+onward
+#
+@desc here = |wBrute's Pit|n
+
+A sunken ring, walls scarred deep enough to suggest the fights held here don't always stay contained to the sand. A Minotaur arena brute waits at the center, utterly still, breathing slow.
+#
+py here.db.trainer_prototype = "ARENA_FIGHTER_BRUTE"
+#
+@dig Duelist's Ring = onward;o, back;b
+#
+onward
+#
+@desc here = |wDuelist's Ring|n
+
+A tighter, more formal space than the others - less pit, more stage. A Harpy arena duelist waits with the patient stillness of someone who has never once needed to move first.
+#
+py here.db.trainer_prototype = "ARENA_FIGHTER_DUELIST"
+#
+@dig Champion's Coliseum = onward;o, back;b
+#
+onward
+#
+@desc here = |wChampion's Coliseum|n
+
+A proper arena in miniature, tiered stone benches rising just high enough to suggest this fight is meant to be watched, not just fought. A Cyclops arena champion stands ready at its center, shield already raised.
+#
+py here.db.trainer_prototype = "ARENA_FIGHTER_CHAMPION"
+#
+@dig The Master's Sands = onward;o, back;b
+#
+onward
+#
+@desc here = |wThe Master's Sands|n
+
+The deepest ring, and the quietest. No benches, no crowd - just sand, and a figure standing at its center who has never once needed an audience to be dangerous. This is the Arena Master's ground, and everyone who reaches it already knows it.
+#
+py here.db.trainer_prototype = "ARENA_FIGHTER_MASTER"
+#
+back
+#
+back
+#
+back
+#
+back
+#
+back
+#
+back
+#
+back
+#
+# Build complete. Last step: stand in Arena Sands and run
+#   @typeclass onward = world.colosseum.DeeperSandsGateExit
+# to actually enforce the level 6+ gate on the threshold exit.
+#

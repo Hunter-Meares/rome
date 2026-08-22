@@ -1,0 +1,50 @@
+#
+# Equestrian Terraces Expansion batch file
+# Same hub-and-spoke pattern as the Podium, hyphens not colons in
+# room names. 3 new rooms branching off the existing anchor.
+#
+# Usage: batchcommands world.batch_equestrian_ring
+#
+
+#
+@tel The Equestrian Terraces
+#
+@desc here = |wThe Equestrian Terraces|n
+
+A step back from the podium below, and a step down in luxury to match - still stone, still shaded, but shared rather than claimed outright. This is where the equites sit: wealthy enough for a good seat, not wealthy enough for the best one. Galleries curve away on either side, and a refreshment hall opens to the south.
+#
+@dig Equestrian Terraces - Eastern Gallery = east;e, west;w
+#
+east
+#
+@desc here = |wEquestrian Terraces - Eastern Gallery|n
+
+Stone benches under a colonnaded roof, well-dressed spectators leaning in close to argue about a fighter's form rather than just his odds. Enough coin here that half the conversations are really about business, with the games as an excuse to have them.
+#
+west
+#
+@dig Equestrian Terraces - Western Gallery = west;w, east;e
+#
+west
+#
+@desc here = |wEquestrian Terraces - Western Gallery|n
+
+The mirror of the eastern gallery, the same stone benches under the same colonnaded roof. A few equites here have brought their own cushions, unwilling to trust the Colosseum's.
+#
+east
+#
+@dig Equestrian Terraces - Refreshment Hall = south;s, north;n
+#
+south
+#
+@desc here = |wEquestrian Terraces - Refreshment Hall|n
+
+A shaded, open-sided hall just off the terraces, tables scattered with the remains of a meal too elaborate for what's technically still a sporting event. This is as close as the Colosseum gets to a proper dining room.
+#
+north
+#
+# Build complete. Hub-and-spoke: Equestrian Terraces connects east to
+# Eastern Gallery, west to Western Gallery, south to Refreshment Hall
+# - all three lead straight back. Pre-existing up/down exits (to
+# Senatorial Podium below, Common Tiers above) are untouched.
+#

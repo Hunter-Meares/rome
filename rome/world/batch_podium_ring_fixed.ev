@@ -1,0 +1,56 @@
+#
+# Podium Expansion batch file - CORRECTED
+# Original version used colons in room names ("Podium: Eastern
+# Colonnade"), which Evennia's @dig reserves specifically for
+# specifying a typeclass override (roomname:typeclass syntax) - every
+# @dig in the original silently failed because of this. Fixed by
+# switching to hyphens instead of colons. Also re-sets the Podium's
+# description first, since the failed run left it showing the wrong
+# (Vestal Terrace) text.
+#
+# Usage: batchcommands world.batch_podium_ring_fixed
+#
+
+#
+@tel The Senatorial Podium
+#
+@desc here = |wThe Senatorial Podium: The Emperor's Box|n
+
+The single best seat in the entire Colosseum, close enough to the sand that the sound of it - sword on shield, sand shifting under a fallen body - reaches here undiluted by distance. An ornate box of marble and gilt wood dominates the space, reserved for the Emperor himself and whichever of his household he chooses to bring. Colonnades curve away on either side toward the rest of the podium, and a quieter terrace lies just south.
+#
+@dig Podium - Eastern Colonnade = east;e, west;w
+#
+east
+#
+@desc here = |wPodium - Eastern Colonnade|n
+
+The senatorial benches continue along the curve here, marble underfoot, a colonnade of slim columns marking the boundary between the podium and the standing crowd above. A senator two seats down is loudly explaining betting odds to someone who very clearly already understands them better than he does.
+#
+west
+#
+@dig Podium - Western Colonnade = west;w, east;e
+#
+west
+#
+@desc here = |wPodium - Western Colonnade|n
+
+The mirror of the eastern colonnade, marble benches curving back around toward the Emperor's Box. A pair of senators here have abandoned the games entirely in favor of what sounds like a much older argument about land holdings.
+#
+east
+#
+@dig Podium - Vestal Terrace = south;s, north;n
+#
+south
+#
+@desc here = |wPodium - Vestal Terrace|n
+
+A quieter stretch of the podium, set apart from the senators on either side - the reserved seating of the Vestal Virgins, marked by its own low marble screen. Even the crowd's noise seems to soften here, whether from architecture or simple deference.
+#
+north
+#
+# Build complete. Hub-and-spoke: Emperor's Box connects east to
+# Eastern Colonnade, west to Western Colonnade, south to Vestal
+# Terrace - all three lead straight back to the Box. Pre-existing
+# up/down exits on the Box (to Equestrian Terraces and the Atrium)
+# are untouched.
+#

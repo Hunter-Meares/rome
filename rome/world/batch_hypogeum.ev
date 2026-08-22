@@ -1,0 +1,63 @@
+#
+# Hypogeum batch file
+# The tunnel network directly beneath the arena floor - animal cages,
+# fighter holding cells, and the lift mechanisms that raised beasts
+# and scenery up through trapdoors into the arena itself. Connects
+# from Arena Sands via a new "down" exit. Same verified pattern as
+# every prior batch: hyphens not colons, no duplicate title lines,
+# real color woven into the prose.
+#
+# Usage: batchcommands world.batch_hypogeum
+#
+# NOTE: if Arena Sands already has a "down" exit in use for something
+# else, the first @dig below will fail with a clear error rather than
+# silently overwriting anything - if that happens, let me know and
+# we'll pick a different direction.
+#
+
+#
+@tel Arena Sands
+#
+@dig Hypogeum Tunnels = down;d, up;u
+#
+down
+#
+@desc here = The air changes the moment you're below the sand - cooler, closer, thick with the smell of animals and old rope. Torchlight barely reaches the corners here, and the roar of a crowd overhead sounds strange from underneath, more like a held breath than a cheer. Tunnels lead off in every direction: cages to the east, holding cells west, the lift works north, storage south.
+#
+@dig Hypogeum - Animal Dens = east;e, west;w
+#
+east
+#
+@desc here = Iron-barred cages line both walls, the air sharp with the smell of big, hungry, unhappy animals. Something in the dark shifts its weight against the bars, and you'd rather not find out exactly what. A |Ythin shaft of daylight|n falls from a grate far overhead, the only real light down here.
+#
+west
+#
+@dig Hypogeum - Fighters Hold = west;w, east;e
+#
+west
+#
+@desc here = A row of holding cells, smaller and grimmer than the ones new captives wake up in - these are for fighters already condemned to the sand today, waiting their turn with whatever composure they can manage. A |rstreak of old, dark stain|n marks the floor near the door that leads up.
+#
+east
+#
+@dig The Lift Works = north;n, south;s
+#
+north
+#
+@desc here = A heavy wooden platform sits at the center of the room, ringed by capstans and thick rope disappearing up into a shaft cut straight through the stone above. This is how the beasts and the scenery both make their sudden, dramatic entrances - hauled up by a dozen straining slaves and released through a trapdoor in the sand. A |Ycrack of light|n leaks down from the closed door far overhead.
+#
+south
+#
+@dig Hypogeum - Storage Vaults = south;s, north;n
+#
+south
+#
+@desc here = Scenery pieces, spare cage doors, coils of rope, and stacked timber for whatever the next show demands - a small forest of painted rock, a hill for the hunters to stand on, an ordinary door that leads nowhere at all except back into another performance. Everything down here exists to be sent up and destroyed.
+#
+north
+#
+# Build complete. Hypogeum Tunnels hub: east to Animal Dens, west to
+# Fighters Hold, north to The Lift Works, south to Storage Vaults -
+# all four lead straight back. New "down" exit from Arena Sands leads
+# to Hypogeum Tunnels; "up" from there leads back to Arena Sands.
+#

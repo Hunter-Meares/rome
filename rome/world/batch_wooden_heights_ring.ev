@@ -1,0 +1,42 @@
+#
+# Wooden Heights Expansion batch file
+# Same verified pattern - hyphens not colons, no duplicate title
+# lines in any @desc.
+#
+# Usage: batchcommands world.batch_wooden_heights_ring
+#
+
+#
+@tel The Wooden Heights
+#
+@desc here = The stone gives way entirely to timber up here, seating added rather than built in, creaking under a crowd of the poorest citizens the games still bother to let in at all - along with the slaves and women who aren't offered anywhere better regardless of what they could afford. The whole structure sways very slightly whenever the crowd below roars. Walkways lead off to either side, and a stair south climbs up into the rigging that runs the awnings.
+#
+@dig Wooden Heights - Splintered Walk = east;e, west;w
+#
+east
+#
+@desc here = A narrow timber walkway that flexes underfoot with every step, splinters worn smooth in places by years of bare feet. Nobody up here seems bothered by the sway. Newcomers grip the rail. Regulars don't.
+#
+west
+#
+@dig Wooden Heights - Standing Rows = west;w, east;e
+#
+west
+#
+@desc here = No seats at all here, just packed standing room and a low rail between the crowd and a very long drop. Somehow the view is still good enough that nobody's left in the two thousand years anyone's kept count.
+#
+east
+#
+@dig The Awning Works = south;s, north;n
+#
+south
+#
+@desc here = A cramped platform where the velarium's rigging actually lives - thick ropes running down through pulleys mounted into the stonework, coiled and ready for the sailors who work them. The great canvas awning itself is folded back today, but the machinery that moves it dominates the whole space regardless.
+#
+north
+#
+# Build complete. Wooden Heights hub: east to Splintered Walk, west
+# to Standing Rows, south to The Awning Works - all three lead
+# straight back. Pre-existing up/down exits (to Common Tiers below,
+# Colosseum's Crown above) are untouched.
+#
