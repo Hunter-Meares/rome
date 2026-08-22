@@ -20,6 +20,55 @@ from evennia.utils import utils
 
 from commands.command import Command
 
+# Column-width caps for the who tables. Every OTHER column already had a
+# sensible crop() applied (Account/Char/Race/Class) - Title and Room were
+# the two left fully uncropped, and since both can genuinely run long
+# (a room name, or up to a 40-character custom title), they were the
+# actual cause of the table wrapping into the broken multi-line mess a
+# too-wide EvTable produces on a normal client width. Named constants
+# so the /full and lean tables (and the plain player table) all stay
+# in sync rather than drifting to different, inconsistent widths.
+_WHO_TITLE_WIDTH = 16
+_WHO_ROOM_WIDTH = 18
+_WHO_TITLE_WIDTH_WIDE = 20  # plain player table has fewer columns, more room
+
+# Rank-tier color, applied to rank_title()'s output on the who tables -
+# a plain white "GOD" sitting next to a plain white "Novice" gave no
+# visual sense of progression at a glance. Ascends from a dim, unassuming
+# grey up through increasingly vivid colors, with GOD deliberately the
+# only warm/red tone so it reads as unmistakably different from every
+# earned mortal rank below it.
+_RANK_COLORS = [
+    (101, "|R"),  # GOD
+    (100, "|Y"),  # Legend
+    (90, "|y"),  # Grand Master
+    (60, "|C"),  # Master
+    (35, "|c"),  # Veteran
+    (15, "|g"),  # Adept
+    (1, "|x"),  # Novice
+]
+
+
+def _rank_color_code(level):
+    """The color code for a given level's tier, per _RANK_COLORS above."""
+    lvl = level if isinstance(level, int) else 1
+    for threshold, code in _RANK_COLORS:
+        if lvl >= threshold:
+            return code
+    return "|w"
+
+
+def _colored_rank(level):
+    """rank_title()'s text (e.g. 'Veteran', 'GOD'), colored by tier."""
+    return "%s%s|n" % (_rank_color_code(level), rank_title(level))
+
+
+def _colored_level(level):
+    """The raw numeric level (not the rank title), colored by tier -
+    for the /full technical table, which shows the exact number rather
+    than the rank label the other two tables use."""
+    return "%s%s|n" % (_rank_color_code(level), level)
+
 
 class CmdWho(DefaultCmdWho):
     """
@@ -45,22 +94,25 @@ class CmdWho(DefaultCmdWho):
         session_list = sorted(session_list, key=lambda o: o.account.key)
 
         if show_admin_data and "full" in self.switches:
-            # Complete technical table - everything, uncropped. Meant
-            # for when you actually need it (e.g. tracing abuse by
-            # host/IP), not for routine glancing.
+            # Complete technical table. Account Name/Puppeting/Protocol/
+            # Host stay fully uncropped - those are the genuinely
+            # diagnostic fields this view exists for (tracing abuse by
+            # host/IP). Title/Race/Class/Room are flavor, not diagnostic,
+            # and were the actual cause of this table wrapping into an
+            # unreadable mess - cropped the same as the lean table below.
             table = self.styled_table(
-                "|wAccount Name",
-                "|wOn for",
-                "|wIdle",
-                "|wPuppeting",
-                "|wTitle",
-                "|wRace",
-                "|wClass",
-                "|wLevel",
-                "|wRoom",
-                "|wCmds",
-                "|wProtocol",
-                "|wHost",
+                "|YAccount Name",
+                "|YOn for",
+                "|YIdle",
+                "|YPuppeting",
+                "|YTitle",
+                "|YRace",
+                "|YClass",
+                "|YLevel",
+                "|YRoom",
+                "|YCmds",
+                "|YProtocol",
+                "|YHost",
             )
             for session in session_list:
                 if not session.logged_in:
@@ -82,11 +134,11 @@ class CmdWho(DefaultCmdWho):
                     utils.time_format(delta_conn, 0),
                     utils.time_format(delta_cmd, 1),
                     puppet.key if puppet else "None",
-                    title or "",
-                    race,
-                    pclass,
-                    level,
-                    location,
+                    "|Y%s|n" % utils.crop(title, width=_WHO_TITLE_WIDTH) if title else "-",
+                    utils.crop(race, width=9),
+                    utils.crop(pclass, width=10),
+                    _colored_level(level),
+                    "|c%s|n" % utils.crop(location, width=_WHO_ROOM_WIDTH),
                     session.cmd_total,
                     session.protocol_key,
                     isinstance(session.address, tuple) and session.address[0] or session.address,
@@ -102,14 +154,14 @@ class CmdWho(DefaultCmdWho):
             # names can't blow up the table into wrapping. Use
             # 'who/full' for every technical field.
             table = self.styled_table(
-                "|wAccount",
-                "|wChar",
-                "|wTitle",
-                "|wRace",
-                "|wClass",
-                "|wLvl",
-                "|wRoom",
-                "|wIdle",
+                "|YAccount",
+                "|YChar",
+                "|YTitle",
+                "|YRace",
+                "|YClass",
+                "|YLvl",
+                "|YRoom",
+                "|YIdle",
             )
             for session in session_list:
                 if not session.logged_in:
@@ -128,11 +180,11 @@ class CmdWho(DefaultCmdWho):
                 table.add_row(
                     utils.crop(sess_account.get_display_name(sess_account), width=10),
                     utils.crop(puppet.key if puppet else "None", width=10),
-                    title or "-",
+                    "|Y%s|n" % utils.crop(title, width=_WHO_TITLE_WIDTH) if title else "-",
                     utils.crop(race, width=9),
                     utils.crop(pclass, width=10),
-                    rank_title(level),
-                    location,
+                    _colored_rank(level),
+                    "|c%s|n" % utils.crop(location, width=_WHO_ROOM_WIDTH),
                     utils.time_format(delta_cmd, 1),
                 )
             self.msg(str(table))
@@ -141,7 +193,7 @@ class CmdWho(DefaultCmdWho):
             return
 
         table = self.styled_table(
-            "|wName", "|wTitle", "|wRace", "|wClass", "|wLevel", "|wIdle"
+            "|YName", "|YTitle", "|YRace", "|YClass", "|YLevel", "|YIdle"
         )
         for session in session_list:
             if not session.logged_in:
@@ -165,7 +217,12 @@ class CmdWho(DefaultCmdWho):
                 level = "-"
 
             table.add_row(
-                name, title, race, pclass, rank_title(level) if level != "-" else "-", utils.time_format(delta_idle, 1)
+                name,
+                "|Y%s|n" % utils.crop(title, width=_WHO_TITLE_WIDTH_WIDE) if title else "-",
+                utils.crop(race, width=12),
+                utils.crop(pclass, width=12),
+                _colored_rank(level) if level != "-" else "-",
+                utils.time_format(delta_idle, 1),
             )
 
         self.msg(str(table))

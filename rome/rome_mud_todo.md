@@ -8,8 +8,28 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ## 🚨 Do this first
 
-- [ ] **Reload the server.** Everything in the new section directly below is written but not yet live — several of these are real, player-facing bugs (broken shop economy, broken self-heal spells, items that never consumed a use) that are still active on the running server until a reload picks up the fixed code.
-- [ ] **Get this codebase into git.** Confirmed directly this session: a batch of source fixes (`world/combat.py`, spanning the Underworld death-move fix, the self-targeting spell fix, and the named-target search fix) silently reverted to their original buggy text partway through a session — almost certainly a concurrent save from a local editor overwriting changes made here. Nothing in `world/` is currently tracked in git at all (repo has 3 commits total, none touching this content), so there was no way to diff against a known-good version or recover automatically; it had to be caught by re-running the test suite and noticing regressions. This will keep happening if two things are editing the same files at once with no version control as a safety net.
+- [ ] **Reload the server.** Several fixes across this file are written but not yet live until a reload picks them up — check each section below for what's still pending.
+- [x] ~~**Get this codebase into git.**~~ — resolved. Repo connected to GitHub (`github.com/Hunter-Meares/rome`) via a repo-scoped SSH deploy key, full game history committed to `main` and `dev`, `.gitignore` gaps fixed (db backups/journal, a stray local sqlite build directory), stale README links fixed, a `secret_settings.py.example` template added, and the vestigial unused `evennia` submodule (pinned to an old ~v5.0.1 commit nothing actually used) removed entirely.
+- [ ] **Set up a real staging instance before real players arrive.** `main` = production, `dev` = staging is now the intended workflow (branches exist and are in sync) - but there's no second *running* server yet. Recommended: a second Evennia instance on different ports (e.g. 7531/4013-4014) with its own separate database, checked out on `dev`, so future changes can be tested live without touching the production server or its player data. Fine to keep skipping this while there are zero players; worth doing before that's no longer true. Explicitly on hold per your call - ask when ready.
+
+---
+
+## 💡 Feature ideas for player attraction/immersion (not yet scoped, no code started)
+
+Brainstormed on request - picked for being strong thematic fits for Rome specifically rather than generic MUD features. Roughly ordered by impact-for-effort; none of these have any implementation started.
+
+- [ ] **Actual Colosseum "Games."** Right now the arena is a training ground, not a spectacle. A scheduled or admin-triggered tournament event - an announced bracket, spectator NPCs reacting to hits/kills, a "crowd favor" stat that climbs on flashy wins (crits, finishers like Gory Finish) - would make the thing the game is literally named after actually feel like the Colosseum. Existing wandering-spectator NPCs and the achievement system are both natural hooks for this.
+- [ ] **Earned, display-able titles from achievements - a genuine dual-title system, kept deliberately separate from the existing custom `title` command.** Design discussed and settled:
+  - `db.custom_title` stays exactly as it is today - free text, fully player-controlled, unrestricted (pure self-expression, e.g. "Senator of Rome").
+  - New `db.earned_titles` (a list) + `db.active_earned_title` (which one is currently displayed) - populated automatically off achievement completion (a small addition to the achievement dicts: a `"title"` field, e.g. `"the Undefeated"` on the Arena Master achievement). Can only ever contain titles actually unlocked - no faking it, same "verified, not just claimed" spirit as the existing `greet`/mask-proof identity system.
+  - New commands alongside the unchanged `title <text>` / `title clear`: `titles` (list what's unlocked + which is active), `titles set <name>`, `titles clear`.
+  - Display split by context rather than trying to cram both in everywhere: `who`'s compact table shows one slot only (earned title takes priority if active, falls back to custom) to keep the table from getting even more cramped than it already is (see the `who` cleanup section below); `stats`/looking directly at a player shows both, labeled separately, since there's room there.
+- [ ] **A living-world rumor/news system.** NPCs occasionally mentioning recent player accomplishments ("Have you heard? Marcus defeated the Arena Master!"). Cheap to build, disproportionately high payoff for making the world feel alive rather than static - plugs directly into achievement data already being tracked.
+- [ ] **Collegia - player-run guilds.** Historically authentic (collegia were real Roman trade/social guilds), and distinct from the existing static lore factions. Player-created, player-led, real ranks. Gives long-term players a reason to organize beyond a temporary party, and gives Rome-the-city a natural building type (guild halls) once it exists.
+- [ ] **A bounty/quest board.** Simple repeatable "kill X" / "fetch Y" objectives for gold/XP. Right now new/returning players default to "grind NPCs" with no clearer structure; a board gives an obvious answer to "what do I do today."
+- [ ] **`top`/leaderboard command.** Top players by level, gold, or achievements. Cheap, social, quietly competitive.
+- [ ] **Bump `extended_room` (time-of-day descriptions) up the existing contrib priority list.** Already chosen, currently unprioritized. Given the amount of care already put into atmosphere (the Underworld color-palette work, room descriptions throughout), this is disproportionately high-immersion for the effort.
+- [ ] **Bump in-character `mail` up the existing contrib priority list too.** Also already chosen, also currently low priority. Given how much social infrastructure already exists (sdesc/mask/recog/greet), letters between characters is a natural next social layer that's currently missing.
 
 ---
 
