@@ -142,10 +142,11 @@ def create_god_help_entries():
 
     gods_text = (
         "|wGods among mortals|n\n\n"
-        "A character of level 101 or higher is not an admin wearing a "
-        "costume, and not a stronger kind of player. In-fiction, they are "
-        "what the game calls them: a literal, living god, walking among "
-        "mortals with the full weight of divine power behind them.\n\n"
+        "A character of level 101 or higher is exactly what the game calls "
+        "them: a literal, living god, walking among mortals with the full "
+        "weight of divine power behind them. Not a powerful adventurer, not "
+        "a title - a god, the same kind of being the temples are built for "
+        "and the festivals are held for.\n\n"
         "This has real, practical consequences for how you play around one:\n\n"
         "- Treat their presence as genuinely extraordinary. If a god actually "
         "appeared in front of you, you would not shrug it off - you would "

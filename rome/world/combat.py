@@ -4906,6 +4906,13 @@ class CmdGodLevel(Command):
     all - it isn't a rank anyone is promoted into, it only ever
     describes whoever already holds the true superuser account.
 
+    Crossing into godhood (any level over 100) also sets the target's
+    displayed race to 'Olympian' and their displayed class to their
+    new tier's own title - a mortal race/class stops meaning anything
+    once someone is a literal god. Their original mortal race/class is
+    kept and restored automatically if they're ever demoted back to
+    100 or below.
+
     Requires Praeses (104) or true superuser to use at all, and you
     can never raise anyone to a level whose permission outranks your
     own (a Praeses/Admin can promote up to Praeses, but only a Numen
@@ -4966,6 +4973,7 @@ class CmdGodLevel(Command):
             target.permissions.remove(old_perm)
             target.db.godlevel_permission = None
 
+        old_level = target.db.level or 1
         target.db.level = new_level
         target.db.invincible = new_level > 100
 
@@ -4973,6 +4981,27 @@ class CmdGodLevel(Command):
         if new_perm:
             target.permissions.add(new_perm)
             target.db.godlevel_permission = new_perm
+
+        # Race/class on ascension: every god's race_display becomes
+        # "Olympian" and their class_display becomes their tier's own
+        # title (Auspex, Aedilis, ...) - a mortal race and class stop
+        # meaning anything once someone is a literal god, and this
+        # directly extends the "Olympian"/"Divine" flavor Jupiter
+        # already used before this system existed. The character's
+        # actual mortal race_display/class_display are preserved so a
+        # later demotion back to level 100 or below can restore them
+        # rather than leaving "Olympian" stuck on an ordinary mortal.
+        if new_level > 100 and old_level <= 100:
+            target.db.mortal_race_display = target.db.race_display
+            target.db.mortal_class_display = target.db.class_display
+        if new_level > 100:
+            target.db.race_display = "Olympian"
+            target.db.class_display = rank_title(new_level)
+        elif old_level > 100 and new_level <= 100:
+            if target.db.mortal_race_display:
+                target.db.race_display = target.db.mortal_race_display
+            if target.db.mortal_class_display:
+                target.db.class_display = target.db.mortal_class_display
 
         title = rank_title(new_level)
         caller.msg("|gSet %s to level %d (%s).|n" % (target.key, new_level, title))

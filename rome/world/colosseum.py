@@ -102,6 +102,15 @@ class NPCChatter(DefaultScript):
     precedent of WanderingNPC also living here despite being reused
     well beyond the Colosseum itself (the Forum's wandering NPCs use
     it too).
+
+    Routed through each listener's own process_language hook (same
+    listener-side mechanism player speech uses - see
+    CombatCharacter.process_language in world/combat.py), rather than
+    a blind msg_contents - Rome's NPCs speak Latin, the city's own
+    lingua franca (`obj.db.chatter_language` overrides this per-NPC if
+    a specific NPC should ever speak something else), so a listener
+    who genuinely doesn't know Latin hears it scrambled exactly like
+    they would from a player.
     """
 
     def at_script_creation(self):
@@ -118,7 +127,17 @@ class NPCChatter(DefaultScript):
         if not lines:
             return
         line = lines[randint(0, len(lines) - 1)]
-        npc.location.msg_contents('%s says, "%s"' % (npc, line))
+        quoted = '"%s"' % line
+        language = npc.db.chatter_language or "latin"
+
+        for receiver in npc.location.contents:
+            if receiver is npc:
+                continue
+            if hasattr(receiver, "process_language") and callable(receiver.process_language):
+                heard = receiver.process_language(quoted, npc, language)
+            else:
+                heard = quoted
+            receiver.msg("%s says, %s" % (npc, heard))
 
 
 class WanderingNPC(DefaultScript):
