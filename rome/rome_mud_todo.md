@@ -6,6 +6,21 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## 🏛️ Rome the city — first real world-building has started
+
+Previously "not started, still fully open." A first, deliberately small piece is now live in the actual game database (not just source code - see the housekeeping note on live-DB scripting below).
+
+- [x] **Colosseum now actually connects to something.** Colosseum Main Entrance's long-standing "the roads leading there are, for now, still being paved" placeholder is resolved - a real `south` exit now leads to a new hub plaza.
+- [x] **The Meta Sudans built as the city's entry hub** - a real historical choice, not an arbitrary one: this monumental fountain plaza genuinely stood right outside the Colosseum, at the junction of the roads toward the Forum. Deliberately chosen over starting a generic grid - see the design discussion: ancient Rome wasn't grid-planned (that's more a Roman *military camp*/colonial-town pattern), and building a large network of anonymous intersections before any real destinations exist is harder to verify than named landmark rooms, not easier - directly informed by how much live-database auditing the Underworld duplicate-content cleanup needed.
+- [x] Two real historical roads branch from the plaza: **Via Sacra** (west, the actual ancient processional road toward the Forum - this is the anchor point for wherever the Forum gets built next) and **Via Triumphalis** (east, left open toward "districts not yet built").
+- [x] **A real, interactive fountain object in the Meta Sudans** - lookable, `get:false()` locked so it can never be picked up, with periodic ambient water-sound echoes via the existing `ColosseumEcho` script (no new code needed - this mechanism already existed from the original Colosseum build). Confirms `get:false()` is the correct, standard pattern for any future non-pickupable scenery prop - no custom item typeclass required.
+- [x] **Caught and fixed a real bug myself before it shipped**: the first build pass gave the Meta Sudans two different `north` exits (one to the Colosseum, one to Via Triumphalis) - the exact class of exit-naming collision the Underworld v2 rebuild's own notes flagged as something to verify. Caught by the same live-connectivity-check habit from that cleanup, fixed immediately.
+- [x] **Full Colosseum color pass completed** - all 65 rooms reachable from the holding cells now have color, up from 25 when this started (40 had zero color codes; all colorized in two passes, zone-consistent palettes matching the Underworld's realm-based approach: cold/damp cyan-green for the cells, blood-red/gold for the arena core, gold/marble-white for the Senatorial Podium, muted tones for the poorer Wooden Heights, etc.)
+- [ ] **Housekeeping discovered while doing this**: direct live-database scripting (via `evennia shell`, used for all of the above instead of `.ev` batch files - faster and more immediately verifiable, matching the lesson from the Underworld batch-file bugs) occasionally hits a transient `django.db.utils.OperationalError: database is locked` when the live server is mid-write at the same moment. Not a bug - SQLite only allows one writer at a time, and a real (healthy) server process is the one holding it. A short retry resolves it every time observed. Worth keeping in mind for any future live-DB scripting rather than assuming the server is unhealthy.
+- [ ] **Next real step**: the Forum Romanum. Via Sacra (west of the Meta Sudans) is the correct, already-built anchor point - continue the road from its current dead end rather than starting a new disconnected piece. Same "small, real, historically-grounded, immediately-verified" approach recommended over a large speculative grid.
+
+---
+
 ## 🚨 Do this first
 
 - [ ] **Reload the server.** Several fixes across this file are written but not yet live until a reload picks them up — check each section below for what's still pending.
