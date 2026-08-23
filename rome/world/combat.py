@@ -902,12 +902,24 @@ class CombatRules:
     def resurrect(self, character):
         """
         Brings a dead character back to the world of the living - fully
-        heals them, clears is_dead, and returns them to the holding
-        cells. Used by both the Underworld riddle-solve return path and
-        (once built) Medicus's Blessing of Asclepius spell.
+        heals them, clears is_dead, and returns them somewhere sensible
+        for their experience level. Used by both the Underworld
+        riddle-solve return path and Medicus's Blessing of Asclepius
+        spell (spell_resurrect below).
+
+        Level 5 and below return to the holding cells beneath the
+        Colosseum, same as always - still early enough in the escape
+        questline that the cells are the natural "home." Level 6+
+        returns to the Temple of Jupiter Optimus Maximus on the
+        Capitoline instead (tagged 'capitoline_resurrection_point',
+        category 'capitoline') - by that point a character has proven
+        themselves enough that being pulled back from death by the
+        king of the gods himself, in his own temple, fits better than
+        waking up back in a cell.
         """
         from evennia.objects.models import ObjectDB
         from django.conf import settings
+        from evennia.utils.search import search_tag
 
         if not character.db.is_dead:
             return False
@@ -917,13 +929,27 @@ class CombatRules:
         character.db.mp = character.db.max_mp
         character.db.sp = character.db.max_sp
 
-        cells = ObjectDB.objects.get_id(settings.START_LOCATION)
-        if cells:
-            character.move_to(cells, quiet=False)
-        character.msg(
-            "|GLife floods back into you. You awaken in the holding cells beneath "
-            "the Colosseum, alive once more.|n"
-        )
+        level = character.db.level or 1
+        destination = None
+        if level >= 6:
+            temple = search_tag("capitoline_resurrection_point", category="capitoline")
+            if temple:
+                destination = temple[0]
+                arrival_msg = (
+                    "|GLife floods back into you. You awaken within the Temple of "
+                    "Jupiter Optimus Maximus, the god's own hall around you, alive "
+                    "once more.|n"
+                )
+        if not destination:
+            destination = ObjectDB.objects.get_id(settings.START_LOCATION)
+            arrival_msg = (
+                "|GLife floods back into you. You awaken in the holding cells "
+                "beneath the Colosseum, alive once more.|n"
+            )
+
+        if destination:
+            character.move_to(destination, quiet=False)
+        character.msg(arrival_msg)
         return True
 
     def resolve_attack(
@@ -4908,10 +4934,12 @@ class CmdGodLevel(Command):
 
     Crossing into godhood (any level over 100) also sets the target's
     displayed race to 'Olympian' and their displayed class to their
-    new tier's own title - a mortal race/class stops meaning anything
-    once someone is a literal god. Their original mortal race/class is
-    kept and restored automatically if they're ever demoted back to
-    100 or below.
+    own divine domain (e.g. Jupiter -> 'King of the Sky', looked up
+    from db.divine_presence) rather than their tier's rank title -
+    that's already shown as the level itself, so repeating it as
+    'class' too would just be the same fact twice. Their original
+    mortal race/class is kept and restored automatically if they're
+    ever demoted back to 100 or below.
 
     Requires Praeses (104) or true superuser to use at all, and you
     can never raise anyone to a level whose permission outranks your
@@ -4983,20 +5011,31 @@ class CmdGodLevel(Command):
             target.db.godlevel_permission = new_perm
 
         # Race/class on ascension: every god's race_display becomes
-        # "Olympian" and their class_display becomes their tier's own
-        # title (Auspex, Aedilis, ...) - a mortal race and class stop
-        # meaning anything once someone is a literal god, and this
-        # directly extends the "Olympian"/"Divine" flavor Jupiter
-        # already used before this system existed. The character's
-        # actual mortal race_display/class_display are preserved so a
-        # later demotion back to level 100 or below can restore them
-        # rather than leaving "Olympian" stuck on an ordinary mortal.
+        # "Olympian" - a mortal race stops meaning anything once
+        # someone is a literal god, extending the "Olympian" flavor
+        # Jupiter already used before this system existed. class_display
+        # is deliberately NOT set to the tier title (Auspex, Aedilis,
+        # ...) - that's already shown as the level/rank itself (e.g. on
+        # 'who'), and repeating it as "class" too is pure redundancy,
+        # the same fact shown twice under different labels. Instead
+        # class_display becomes the god's own domain (e.g. Jupiter ->
+        # "King of the Sky"), looked up from world/god_help.py's
+        # PANTHEON data via whatever db.divine_presence is already set
+        # to - a second, genuinely different axis of information (WHO
+        # this god is) rather than a restatement of HOW senior they
+        # are. Falls back to "Divine" (the exact generic value Jupiter
+        # himself used before this system existed) if divine_presence
+        # isn't set to a recognized deity yet. The character's actual
+        # mortal race_display/class_display are preserved so a later
+        # demotion back to level 100 or below can restore them.
         if new_level > 100 and old_level <= 100:
             target.db.mortal_race_display = target.db.race_display
             target.db.mortal_class_display = target.db.class_display
         if new_level > 100:
+            from world.god_help import god_domain
+
             target.db.race_display = "Olympian"
-            target.db.class_display = rank_title(new_level)
+            target.db.class_display = god_domain(target.db.divine_presence) or "Divine"
         elif old_level > 100 and new_level <= 100:
             if target.db.mortal_race_display:
                 target.db.race_display = target.db.mortal_race_display

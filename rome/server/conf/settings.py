@@ -88,6 +88,18 @@ PROTOTYPE_MODULES = ["world.prototypes"]
 # Players check their own progress in-game with the 'achievements' command.
 ACHIEVEMENT_CONTRIB_MODULES = ["world.achievements"]
 
+# world/help_entries.py originally held only Evennia's own stock
+# scaffolding "evennia" help topic (never customized for Rome, deleted
+# per request), leaving the file genuinely empty. An empty
+# HELP_ENTRY_DICTS list still gets scanned by default (Evennia's
+# default FILE_HELP_ENTRY_MODULES = ["world.help_entries"]) and logs a
+# spurious [EE] "Could not find file-help module" on every reload -
+# technically true but not an actual error. All of Rome's real help
+# content (god/pantheon lore, races/classes/stats) is added directly
+# to the database instead (world/god_help.py, world/help_setup.py),
+# so there's nothing left for this file-based mechanism to load.
+FILE_HELP_ENTRY_MODULES = []
+
 # Makes all of Evennia's default commands (look, get, movement, etc.)
 # use our custom MuxCommand base, so the HP/MP/SP prompt refreshes
 # after every command, not just combat ones.

@@ -26,6 +26,7 @@ PANTHEON = {
         "directly; when he does, no one mistakes it for anything less than the "
         "sky itself taking notice. Sacred animal: the eagle. Symbol: the "
         "thunderbolt. Roman equivalent of the Greek Zeus.",
+        "King of the Sky",
     ),
     "juno": (
         "Juno",
@@ -35,6 +36,7 @@ PANTHEON = {
         "her temple precinct; to this day 'moneta,' the root of 'money' itself, "
         "carries her name. Sacred animal: the peacock. Roman equivalent of the "
         "Greek Hera.",
+        "Queen of the Gods",
     ),
     "neptune": (
         "Neptune",
@@ -44,6 +46,7 @@ PANTHEON = {
         "port, and no general crossed water to fight a war, without a prayer "
         "left for Neptune first. Symbol: the trident. Roman equivalent of the "
         "Greek Poseidon.",
+        "Lord of the Sea",
     ),
     "minerva": (
         "Minerva",
@@ -53,6 +56,7 @@ PANTHEON = {
         "muscle. Said to have sprung fully formed and fully armed from "
         "Jupiter's own skull. Sacred animal: the owl. Roman equivalent of the "
         "Greek Athena.",
+        "Goddess of Wisdom",
     ),
     "mars": (
         "Mars",
@@ -62,6 +66,7 @@ PANTHEON = {
         "Mars himself fathered Romulus, the city's founder. Every legion that "
         "ever marched carried his favor as much as its own standards. Sacred "
         "animal: the wolf. Roman equivalent of the Greek Ares.",
+        "God of War",
     ),
     "venus": (
         "Venus",
@@ -71,6 +76,7 @@ PANTHEON = {
         "her Greek counterpart ever was in Athens; more than one general has "
         "built her a temple in gratitude for a battle he was certain her "
         "favor decided. Roman equivalent of the Greek Aphrodite.",
+        "Goddess of Love",
     ),
     "ceres": (
         "Ceres",
@@ -80,6 +86,7 @@ PANTHEON = {
         "administered by mortal hands. Her festival, the Cerealia, marks the "
         "turning of the agricultural year. Roman equivalent of the Greek "
         "Demeter.",
+        "Goddess of the Harvest",
     ),
     "diana": (
         "Diana",
@@ -88,6 +95,7 @@ PANTHEON = {
         "own company in the deep woods - a goddess for anyone who's ever felt "
         "more at home outside Rome's walls than within them. Sacred animal: "
         "the stag. Roman equivalent of the Greek Artemis.",
+        "Goddess of the Hunt",
     ),
     "vulcan": (
         "Vulcan",
@@ -97,6 +105,7 @@ PANTHEON = {
         "any in the old stories. Every weapon carried into the arena, and "
         "every legion's steel, is said to owe him something. Roman "
         "equivalent of the Greek Hephaestus.",
+        "God of the Forge",
     ),
     "mercury": (
         "Mercury",
@@ -105,6 +114,7 @@ PANTHEON = {
         "the one god equally comfortable in the Forum's marketplace stalls "
         "and at Jupiter's own side. Symbol: the winged sandal. Roman "
         "equivalent of the Greek Hermes.",
+        "Messenger of the Gods",
     ),
     "bacchus": (
         "Bacchus",
@@ -113,6 +123,7 @@ PANTHEON = {
         "the pantheon's - the Senate itself once moved to restrict his "
         "rites when they grew too unruly for the city's comfort. Sacred "
         "plant: the grapevine. Roman equivalent of the Greek Dionysus.",
+        "God of Wine",
     ),
     "pluto": (
         "Pluto",
@@ -122,6 +133,7 @@ PANTHEON = {
         "cause; Romans have always preferred to speak of the dead's realm "
         "obliquely rather than summon its master's attention directly. "
         "Roman equivalent of the Greek Hades.",
+        "Lord of the Underworld",
     ),
     "vesta": (
         "Vesta",
@@ -131,6 +143,7 @@ PANTHEON = {
         "the city's very survival. The quietest of the pantheon, and in some "
         "ways the most load-bearing: Rome's household gods all answer, in "
         "the end, to her. Roman equivalent of the Greek Hestia.",
+        "Goddess of the Hearth",
     ),
 }
 
@@ -177,11 +190,26 @@ def create_god_help_entries():
         db_lock_storage="view:all()",
     )
 
-    for key, (display, desc) in PANTHEON.items():
-        text = "|w%s|n\n\n%s" % (display, desc)
+    for key, (display, desc, domain) in PANTHEON.items():
+        text = "|w%s|n - %s\n\n%s" % (display, domain, desc)
         HelpEntry.objects.create(
             db_key=key,
             db_help_category="Lore",
             db_entrytext=text,
             db_lock_storage="view:all()",
         )
+
+
+def god_domain(divine_presence_key):
+    """
+    Short domain phrase for a deity (e.g. "King of the Sky" for
+    Jupiter), keyed the same way db.divine_presence already is.
+    Used by CmdGodLevel (world/combat.py) to set a newly-promoted
+    god's class_display to something that actually differs from their
+    level/rank title, instead of just repeating it - see that
+    command's docstring for the full reasoning. Returns None if the
+    key doesn't match any known deity (a brand-new god who hasn't set
+    a divine_presence yet, most likely).
+    """
+    entry = PANTHEON.get((divine_presence_key or "").lower())
+    return entry[2] if entry else None

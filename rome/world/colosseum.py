@@ -63,11 +63,64 @@ class DeeperSandsGateExit(DefaultExit):
         super().at_traverse(traversing_object, target_location, **kwargs)
 
 #########################################################
+#         Self-healing repeating-script mixin
+#########################################################
+
+
+class SelfHealingRepeatScript(DefaultScript):
+    """
+    Shared base for every periodic-tick script below (ambient echoes,
+    NPC chatter, wandering NPCs) - fixes a real, confirmed bug in how
+    these get created.
+
+    All of this project's world-building NPCs/rooms are set up via
+    piped `evennia shell` scripts, not live in-game commands. That
+    matters here specifically: `scripts.add()` does start the script's
+    repeat timer immediately, but `evennia shell` is a separate,
+    short-lived process from the actual running game server - it exits
+    within moments of finishing, taking that in-memory timer with it,
+    before the script has ever gone through one real pause/resume
+    cycle inside the live server.
+
+    Evennia normally restarts a persistent script's timer after every
+    server reload via an *unpause* (`_unpause_task`, internally) - but
+    unpausing only resumes a task that recorded a genuine pause state
+    (`db._paused_time` etc.) at the moment it was interrupted. A script
+    whose timer only ever existed in a throwaway shell process never
+    got the chance to record that pause state, so Evennia's own
+    reload-time unpause silently does nothing for it, forever - the
+    script sits at `db_is_active=True` in the database, looking
+    perfectly healthy, while never actually ticking again.
+
+    Confirmed live via a temporary diagnostic: every single NPCChatter
+    script in the game (34/34, all built via `evennia shell`) had
+    literally never fired since creation, and roughly half of
+    WanderingNPC/ColosseumEcho's instances were in the same state -
+    the other half had, at some point, been touched by a real live
+    server interaction that gave them a genuine pause cycle to resume
+    from, which is why some worked and others silently didn't.
+
+    `at_server_start()` is the fix: unlike the unpause step, Evennia
+    calls this hook, inside the real live process, for every active
+    script on every single reload - regardless of whether the unpause
+    above actually did anything. Checking here whether a real task is
+    running and force-starting one if not is exactly the self-healing
+    check needed, and it's cheap and idempotent for scripts that are
+    already ticking correctly.
+    """
+
+    def at_server_start(self):
+        super().at_server_start()
+        if self.db_is_active and not self.ndb._task:
+            self.start(force_restart=True)
+
+
+#########################################################
 #              Ambient room-echo script
 #########################################################
 
 
-class ColosseumEcho(DefaultScript):
+class ColosseumEcho(SelfHealingRepeatScript):
     """
     Attach to a room to have it periodically announce an ambient sound
     to everyone inside - crowd noise, clanging metal, distant screams,
@@ -88,7 +141,7 @@ class ColosseumEcho(DefaultScript):
         self.obj.msg_contents(messages[randint(0, len(messages) - 1)])
 
 
-class NPCChatter(DefaultScript):
+class NPCChatter(SelfHealingRepeatScript):
     """
     Attach directly to an NPC (not a room) to have it periodically say
     one of a set of lines out loud to whoever's in the room with it -
@@ -140,7 +193,7 @@ class NPCChatter(DefaultScript):
             receiver.msg("%s says, %s" % (npc, heard))
 
 
-class WanderingNPC(DefaultScript):
+class WanderingNPC(SelfHealingRepeatScript):
     """
     Attach to an NPC to have it periodically wander between a defined
     set of rooms - its "beat" - rather than roaming the whole game or
