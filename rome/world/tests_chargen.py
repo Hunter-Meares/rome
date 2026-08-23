@@ -270,6 +270,19 @@ class TestApplyRaceAndClass(EvenniaTest):
         for spell in ("cure wounds", "field dressing", "antidote"):
             self.assertIn(spell, char.db.spells_known)
 
+    def test_default_title_is_set_and_player_changeable(self):
+        char = self.char1
+        char.db.race = "human"
+        char.db.player_class = "gladiator"
+        _apply_race_and_class(char)
+
+        self.assertEqual(char.db.custom_title, "the Untested")
+        # Confirm it's a normal custom_title value, not special-cased -
+        # the player can freely change or clear it afterward same as
+        # any title set via the 'title' command.
+        char.db.custom_title = "the Undefeated"
+        self.assertEqual(char.db.custom_title, "the Undefeated")
+
     def test_no_duplicate_starting_spells_on_repeated_apply(self):
         """
         _apply_race_and_class guards with 'if spell_name not in

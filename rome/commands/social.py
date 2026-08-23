@@ -30,7 +30,9 @@ from commands.command import Command
 # in sync rather than drifting to different, inconsistent widths.
 _WHO_TITLE_WIDTH = 16
 _WHO_ROOM_WIDTH = 18
-_WHO_TITLE_WIDTH_WIDE = 20  # plain player table has fewer columns, more room
+_WHO_TITLE_WIDTH_WIDE = 30  # plain player table has fewer columns, more room
+_WHO_RACE_WIDTH = 14
+_WHO_CLASS_WIDTH = 14
 
 # Rank-tier color, applied to rank_title()'s output on the who tables -
 # a plain white "GOD" sitting next to a plain white "Novice" gave no
@@ -68,6 +70,28 @@ def _colored_level(level):
     for the /full technical table, which shows the exact number rather
     than the rank label the other two tables use."""
     return "%s%s|n" % (_rank_color_code(level), level)
+
+
+def _short_flavor_name(display_text):
+    """
+    The short 'core name' from a race/class display string like
+    'Human (Roman Citizen)' or 'Augur (Light - Mage/Support)' - just
+    the part before the parenthetical subtitle. A value with no
+    parenthesis at all (e.g. a manually-set flavor value like "Olympian"
+    or "Divine") passes through unchanged.
+
+    This is the actual fix for a real bug reported live: cropping the
+    FULL display string (as this code used to do) could truncate right
+    at the open-paren, and utils.crop()'s default suffix is the
+    literal string "[...]", not a single ellipsis character - so
+    "Human (Roman Citizen)" cropped to width 12 rendered as the
+    genuinely confusing "Human ([...]". Splitting off the subtitle
+    first means there's essentially nothing left long enough to need
+    truncating in normal use.
+    """
+    if not display_text:
+        return "-"
+    return display_text.split(" (", 1)[0]
 
 
 class CmdWho(DefaultCmdWho):
@@ -125,8 +149,8 @@ class CmdWho(DefaultCmdWho):
                 location = puppet.location.key if puppet and puppet.location else "None"
 
                 title = puppet.db.custom_title if puppet else ""
-                race = (puppet.db.race_display if puppet else None) or "-"
-                pclass = (puppet.db.class_display if puppet else None) or "-"
+                race = _short_flavor_name(puppet.db.race_display if puppet else None)
+                pclass = _short_flavor_name(puppet.db.class_display if puppet else None)
                 level = (puppet.db.level if puppet else None) or 1
 
                 table.add_row(
@@ -135,8 +159,8 @@ class CmdWho(DefaultCmdWho):
                     utils.time_format(delta_cmd, 1),
                     puppet.key if puppet else "None",
                     "|Y%s|n" % utils.crop(title, width=_WHO_TITLE_WIDTH) if title else "-",
-                    utils.crop(race, width=9),
-                    utils.crop(pclass, width=10),
+                    utils.crop(race, width=_WHO_RACE_WIDTH),
+                    utils.crop(pclass, width=_WHO_CLASS_WIDTH),
                     _colored_level(level),
                     "|c%s|n" % utils.crop(location, width=_WHO_ROOM_WIDTH),
                     session.cmd_total,
@@ -173,16 +197,16 @@ class CmdWho(DefaultCmdWho):
                 location = puppet.location.key if puppet and puppet.location else "None"
 
                 title = puppet.db.custom_title if puppet else ""
-                race = (puppet.db.race_display if puppet else None) or "-"
-                pclass = (puppet.db.class_display if puppet else None) or "-"
+                race = _short_flavor_name(puppet.db.race_display if puppet else None)
+                pclass = _short_flavor_name(puppet.db.class_display if puppet else None)
                 level = (puppet.db.level if puppet else None) or 1
 
                 table.add_row(
                     utils.crop(sess_account.get_display_name(sess_account), width=10),
                     utils.crop(puppet.key if puppet else "None", width=10),
                     "|Y%s|n" % utils.crop(title, width=_WHO_TITLE_WIDTH) if title else "-",
-                    utils.crop(race, width=9),
-                    utils.crop(pclass, width=10),
+                    utils.crop(race, width=_WHO_RACE_WIDTH),
+                    utils.crop(pclass, width=_WHO_CLASS_WIDTH),
                     _colored_rank(level),
                     "|c%s|n" % utils.crop(location, width=_WHO_ROOM_WIDTH),
                     utils.time_format(delta_cmd, 1),
@@ -205,8 +229,8 @@ class CmdWho(DefaultCmdWho):
             if char:
                 name = char.key
                 title = char.db.custom_title or ""
-                race = char.db.race_display or "-"
-                pclass = char.db.class_display or "-"
+                race = _short_flavor_name(char.db.race_display)
+                pclass = _short_flavor_name(char.db.class_display)
                 level = char.db.level or 1
             else:
                 # Account is online but not currently puppeting a character
@@ -219,8 +243,8 @@ class CmdWho(DefaultCmdWho):
             table.add_row(
                 name,
                 "|Y%s|n" % utils.crop(title, width=_WHO_TITLE_WIDTH_WIDE) if title else "-",
-                utils.crop(race, width=12),
-                utils.crop(pclass, width=12),
+                utils.crop(race, width=_WHO_RACE_WIDTH),
+                utils.crop(pclass, width=_WHO_CLASS_WIDTH),
                 _colored_rank(level) if level != "-" else "-",
                 utils.time_format(delta_idle, 1),
             )
@@ -232,11 +256,13 @@ class CmdWho(DefaultCmdWho):
 
 class CmdTitle(Command):
     """
-    Set a custom title shown on the who list.
+    Set a custom title shown on the who list, your character sheet,
+    and when someone looks at you.
 
     Usage:
-      title <text>
-      title clear
+      title            - show your current title
+      title <text>     - set a new title
+      title clear      - remove your title
 
     Your title appears next to your name on the who list, e.g.
     "Marcus - the Undefeated". Keep it short (40 characters or less).
@@ -247,13 +273,25 @@ class CmdTitle(Command):
 
     def func(self):
         caller = self.caller
+        args = self.args.strip() if self.args else ""
 
-        if not self.args or self.args.strip().lower() == "clear":
+        if not args:
+            # Bare 'title' shows the current one - this used to clear
+            # it instead, which meant the single most natural thing to
+            # type when you just wanted to check your title wiped it.
+            current = caller.db.custom_title
+            if current:
+                caller.msg("Your title is: %s" % current)
+            else:
+                caller.msg("You don't have a title set. Use 'title <text>' to set one.")
+            return
+
+        if args.lower() == "clear":
             caller.db.custom_title = None
             caller.msg("Your title has been cleared.")
             return
 
-        title = self.args.strip()
+        title = args
         if len(title) > 40:
             caller.msg("Titles must be 40 characters or less.")
             return

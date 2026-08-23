@@ -3492,6 +3492,19 @@ class CombatCharacter(ContribRPCharacter):
                 return verified[self.id]
         return super().get_display_name(looker, **kwargs)
 
+    def return_appearance(self, looker, **kwargs):
+        """
+        Adds a custom-title line ahead of the normal appearance text,
+        when one is set. db.custom_title only ever showed up on the
+        who tables before this - there was genuinely no way to see a
+        title in full anywhere else, and no way at all to see another
+        character's title if who's column width had cropped it.
+        """
+        appearance = super().return_appearance(looker, **kwargs)
+        if self.db.custom_title:
+            return "|Y%s|n\n%s" % (self.db.custom_title, appearance)
+        return appearance
+
     def at_object_creation(self):
         """Called once, when this object is first created."""
         super().at_object_creation()
@@ -4525,11 +4538,16 @@ class CmdCoreStats(Command):
         class_display = char.db.class_display or "-"
         level = char.db.level or 1
         title = rank_title(level)
+        custom_title = char.db.custom_title
         xp = char.db.xp or 0
         xp_needed = COMBAT_RULES.xp_for_level(level) if level < MAX_LEVEL else None
 
         lines = [
             "|w%s|n" % char.key,
+        ]
+        if custom_title:
+            lines.append("  |Y%s|n" % custom_title)
+        lines += [
             "  %s, %s" % (race_display, class_display),
             "  Level %d (%s)" % (level, title),
         ]

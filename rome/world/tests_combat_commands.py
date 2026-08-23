@@ -32,6 +32,7 @@ from world.combat import (
     CmdChallenge,
     CmdCast,
     CmdUseSkill,
+    CmdCoreStats,
     POWERATTACK_SP_COST,
     DISENGAGE_SUCCESS_CHANCE,
 )
@@ -300,3 +301,35 @@ class TestCmdUseSkillNamedTargeting(CombatCommandTestBase):
     def test_skill_unknown_rejected(self):
         result = self.call(CmdUseSkill(), "made up skill = Char2", caller=self.char1)
         self.assertIn("don't know a skill", result)
+
+
+class TestCustomTitleDisplay(CombatCommandTestBase):
+    """
+    Regression coverage for a real gap found live: db.custom_title was
+    only ever shown on the who tables - there was no way to see your
+    own title in full anywhere else, and no way at all to see another
+    character's title if who's column width had cropped it. Both
+    'stats' and looking at a character now show it.
+    """
+
+    def test_stats_shows_the_callers_own_title(self):
+        self.char1.db.custom_title = "the Undefeated"
+        result = self.call(CmdCoreStats(), "", caller=self.char1)
+        self.assertIn("the Undefeated", result)
+
+    def test_stats_omits_the_title_line_when_none_is_set(self):
+        self.char1.db.custom_title = None
+        result = self.call(CmdCoreStats(), "", caller=self.char1)
+        self.assertNotIn("None", result.split("\n")[1] if "\n" in result else "")
+
+    def test_looking_at_a_character_shows_their_title(self):
+        self.char1.db.custom_title = "the Undefeated"
+        self.char1.db.desc = "A tall, scarred fighter."
+        appearance = self.char1.return_appearance(self.char2)
+        self.assertIn("the Undefeated", appearance)
+
+    def test_looking_at_a_character_with_no_title_is_unaffected(self):
+        self.char1.db.custom_title = None
+        self.char1.db.desc = "A tall, scarred fighter."
+        appearance = self.char1.return_appearance(self.char2)
+        self.assertIn("A tall, scarred fighter.", appearance)

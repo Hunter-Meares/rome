@@ -749,6 +749,13 @@ def _apply_race_and_class(character):
             default_sdesc = "a %s" % race_key
         character.execute_cmd("sdesc %s" % default_sdesc)
 
+    # --- Default title: an in-character marker of being fresh out of
+    # the holding cells, rather than starting with no title at all.
+    # "the Untested" reads as a real gladiator-world title (unproven in
+    # the arena yet) rather than an out-of-character "new player" label
+    # - fully player-changeable afterward via the normal 'title'
+    # command, same as sdesc above.
+    character.db.custom_title = "the Untested"
 
 def menunode_end(caller, raw_string=""):
     """End-of-chargen cleanup."""
