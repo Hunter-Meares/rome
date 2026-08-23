@@ -143,6 +143,7 @@ Pulled from the project to-do list — check there for the full, current list, b
 - **When something breaks repeatedly in the same area, add temporary diagnostics rather than keep guessing** — used successfully (if reactively) for the stuck-loop bug; `debugpy` is now available to do this more directly going forward.
 - **Deploy instructions are given explicitly with every code change** — which file(s) to upload, whether a reload is needed, whether a manual settings.py edit or one-time live command is required on top of the file itself.
 - **A to-do list (`rome_mud_todo.md`) is maintained alongside actual work** — check it for current status before assuming something is or isn't built; it's been kept current throughout this project and corrected multiple times when it was found to be stale or inaccurate.
+- **`world/motd.py`'s `RECENT_UPDATES_DATE`/`RECENT_UPDATES_TEXT` get updated after any major player-facing change** — a new area, a new player-usable command, a bugfix players would actually notice. Shown at login and via the `motd`/`news` command, both reading from the same `get_motd()`. Keep it to 2-3 lines, written for a player, not a changelog entry — admin-only/internal changes don't belong here.
 
 ---
 

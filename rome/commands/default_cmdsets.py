@@ -24,6 +24,7 @@ from world import doors
 from world import economy
 from world import languages
 from world import building_menu
+from world import motd
 from evennia.contrib.utils.debugpy import CmdDebugPy
 from evennia.contrib.grid.ingame_map_display import MapDisplayCmdSet
 from evennia.contrib.grid.ingame_map_display.ingame_map_display import CmdMap
@@ -135,6 +136,7 @@ class AccountCmdSet(default_cmds.AccountCmdSet):
         self.add(combat.CmdQuit())
         self.add(ContribChargenCmdSet)
         self.add(social.CmdWho())
+        self.add(motd.MOTDCmdSet())
 
 
 class UnloggedinCmdSet(default_cmds.UnloggedinCmdSet):
