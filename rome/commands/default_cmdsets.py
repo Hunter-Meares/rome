@@ -22,6 +22,8 @@ from world import party
 from world import underworld
 from world import doors
 from world import economy
+from world import languages
+from world import building_menu
 from evennia.contrib.utils.debugpy import CmdDebugPy
 from evennia.contrib.grid.ingame_map_display import MapDisplayCmdSet
 from evennia.contrib.grid.ingame_map_display.ingame_map_display import CmdMap
@@ -91,6 +93,10 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(combat.CmdGreet())
         self.add(combat.CmdSlay())
         self.add(combat.CmdCleanupNPCs())
+        self.add(combat.CmdGodLevel())
+        self.add(combat.CmdWizInvis())
+        self.add(combat.CmdRestore())
+        self.add(combat.CmdSnoop())
         self.add(combat.FriendlyCmdMask())
         self.add(colosseum.ColosseumCmdSet())
         self.add(social.CmdTitle())
@@ -98,6 +104,8 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(underworld.UnderworldCmdSet())
         self.add(simpledoor.SimpleDoorCmdSet)
         self.add(doors.DescriptiveOpenCloseDoor())
+        self.add(languages.LanguageCmdSet())
+        self.add(building_menu.RomeBuildingCmdSet())
 
 
 from world.character_creator import ContribChargenCmdSet

@@ -25,7 +25,7 @@ regular walking through exits.
 """
 
 DIVINE_ANNOUNCE_MESSAGES = {
-    "zeus": {
+    "jupiter": {
         "arrive": (
             "|c*** The air splits with a deafening crack of thunder as {name} "
             "descends in a blinding flash of lightning - all who witness it feel "
@@ -36,7 +36,7 @@ DIVINE_ANNOUNCE_MESSAGES = {
             "vanishes in a blinding flash of lightning! ***|n"
         ),
     },
-    "hera": {
+    "juno": {
         "arrive": (
             "|m*** A regal golden light fills the room, and somewhere unseen a "
             "peacock's cry rings out, as {name} arrives. ***|n"
@@ -46,7 +46,7 @@ DIVINE_ANNOUNCE_MESSAGES = {
             "revoked, and {name} is gone. ***|n"
         ),
     },
-    "poseidon": {
+    "neptune": {
         "arrive": (
             "|C*** The ground trembles and the sharp scent of brine fills the "
             "air as {name} rises, as though from some unseen tide. ***|n"
@@ -56,7 +56,7 @@ DIVINE_ANNOUNCE_MESSAGES = {
             "behind as {name} departs. ***|n"
         ),
     },
-    "demeter": {
+    "ceres": {
         "arrive": (
             "|g*** The air turns warm and sweet with the scent of ripening "
             "wheat as {name} arrives, and for a moment the room feels like "
@@ -67,7 +67,7 @@ DIVINE_ANNOUNCE_MESSAGES = {
             "borrowed warmth of the season fading with them. ***|n"
         ),
     },
-    "athena": {
+    "minerva": {
         "arrive": (
             "|W*** A silver owl's cry pierces the air as {name} descends in a "
             "shimmer of cool, grey light. ***|n"
@@ -87,7 +87,7 @@ DIVINE_ANNOUNCE_MESSAGES = {
             "departs. ***|n"
         ),
     },
-    "artemis": {
+    "diana": {
         "arrive": (
             "|C*** The shadows sharpen and a sliver of moonlight cuts through "
             "as {name} arrives, silent as a hunting cat. ***|n"
@@ -97,7 +97,7 @@ DIVINE_ANNOUNCE_MESSAGES = {
             "{name} is already gone. ***|n"
         ),
     },
-    "ares": {
+    "mars": {
         "arrive": (
             "|r*** The air turns thick with the scent of iron and smoke as a "
             "blood-red light heralds {name}'s arrival, distant war-drums "
@@ -108,7 +108,7 @@ DIVINE_ANNOUNCE_MESSAGES = {
             "the lingering scent of ash behind. ***|n"
         ),
     },
-    "aphrodite": {
+    "venus": {
         "arrive": (
             "|M*** A wave of intoxicating perfume rolls through the room as "
             "rose petals drift down from nowhere - {name} has arrived. ***|n"
@@ -118,7 +118,7 @@ DIVINE_ANNOUNCE_MESSAGES = {
             "from the air. ***|n"
         ),
     },
-    "hephaestus": {
+    "vulcan": {
         "arrive": (
             "|y*** The ring of hammer on anvil echoes for just a moment, "
             "sparks scattering through the air, as {name} arrives, trailing "
@@ -129,7 +129,7 @@ DIVINE_ANNOUNCE_MESSAGES = {
             "{name} withdraws. ***|n"
         ),
     },
-    "hermes": {
+    "mercury": {
         "arrive": (
             "|c*** A sudden gust of wind swirls through the room, gone as "
             "quickly as it came - and {name} is simply standing there, where "
@@ -140,7 +140,7 @@ DIVINE_ANNOUNCE_MESSAGES = {
             "gone. ***|n"
         ),
     },
-    "dionysus": {
+    "bacchus": {
         "arrive": (
             "|M*** The sweet smell of wine and ripe grapes fills the air as "
             "unseen vines curl briefly along the walls - {name} has "
@@ -151,7 +151,7 @@ DIVINE_ANNOUNCE_MESSAGES = {
             "{name} departs. ***|n"
         ),
     },
-    "hades": {
+    "pluto": {
         "arrive": (
             "|K*** The light dims and a bone-deep cold settles over the room "
             "as shadows pool in the corners, and {name} steps forth from "
@@ -162,7 +162,7 @@ DIVINE_ANNOUNCE_MESSAGES = {
             "the cold behind. ***|n"
         ),
     },
-    "hecate": {
+    "trivia": {
         "arrive": (
             "|m*** Twin torch-flames flare to life at the room's edges as "
             "{name} steps from the space between one heartbeat and the "
@@ -207,7 +207,26 @@ class Character(ObjectParent, CombatCharacter):
         with db.divine_presence set to a god's name get that god's
         signature departure message instead of the plain default, but
         only when actually teleporting - regular walking is untouched.
+
+        Wizinvis (see CmdWizInvis in world/combat.py) overrides all of
+        this: while active, no plain-movement departure message is
+        sent to anyone at all, and even the divine-teleport flavor
+        only reaches whoever can already see through the wizinvis
+        (CombatCharacter.access's 'view' check - anyone at or above
+        this character's own level, or a true superuser). Anyone who
+        can see through it still sees the character directly via
+        look/room contents regardless of this message.
         """
+        if self.db.wizinvis and self.location:
+            god_key = self.db.divine_presence
+            if god_key and move_type == "teleport":
+                flavor = DIVINE_ANNOUNCE_MESSAGES.get(str(god_key).lower())
+                text = (flavor["leave"] if flavor else _DEFAULT_DIVINE_LEAVE).format(name=self.key)
+                for observer in self.location.contents:
+                    if observer != self and self.access(observer, "view"):
+                        observer.msg(text)
+            return
+
         god_key = self.db.divine_presence
         if god_key and move_type == "teleport" and self.location:
             flavor = DIVINE_ANNOUNCE_MESSAGES.get(str(god_key).lower())
@@ -222,8 +241,19 @@ class Character(ObjectParent, CombatCharacter):
         """
         Called in the NEW room, just after a move happens. Same
         divine_presence + teleport check as announce_move_from above,
-        for that god's signature arrival instead.
+        for that god's signature arrival instead - and the same
+        wizinvis override.
         """
+        if self.db.wizinvis and self.location:
+            god_key = self.db.divine_presence
+            if god_key and move_type == "teleport":
+                flavor = DIVINE_ANNOUNCE_MESSAGES.get(str(god_key).lower())
+                text = (flavor["arrive"] if flavor else _DEFAULT_DIVINE_ARRIVE).format(name=self.key)
+                for observer in self.location.contents:
+                    if observer != self and self.access(observer, "view"):
+                        observer.msg(text)
+            return
+
         god_key = self.db.divine_presence
         if god_key and move_type == "teleport" and self.location:
             flavor = DIVINE_ANNOUNCE_MESSAGES.get(str(god_key).lower())

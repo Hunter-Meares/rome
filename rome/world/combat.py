@@ -108,6 +108,9 @@ ILLUSION_ACCURACY_PENALTY = -30
 SANCTUARY_BREAK_CHANCE = 30
 SANCTUARY_DURATION = 3600  # 1 real hour, in seconds
 
+# Personal-instance NPC safety net (see spawn_personal_npc/InstanceCleanupTimer)
+INSTANCE_CLEANUP_TIMEOUT = 600  # 10 minutes, in seconds
+
 # Rite of the Entrails (Haruspex). A cursed target takes extra damage
 # from all sources for the condition's duration.
 CURSED_DAMAGE_MULTIPLIER = 1.3
@@ -178,8 +181,8 @@ MAX_LEVEL = 100  # 101 ("God") is assigned manually, never earned via XP
 
 # Rank titles shown in place of raw level numbers (e.g. on 'who'). Bands
 # chosen to line up with the Skills & Spells tier system on the website
-# (Novice/Adept/Veteran/Master/Grand Master). Level 101 (manually assigned
-# "God" characters) is handled separately, not through this table.
+# (Novice/Adept/Veteran/Master/Grand Master). Levels 101+ (the "Cursus
+# Divinorum" god tiers) are handled separately via GOD_TIERS below.
 RANK_TITLES = [
     (90, "Grand Master"),
     (60, "Master"),
@@ -188,20 +191,43 @@ RANK_TITLES = [
     (1, "Novice"),
 ]
 
+# The god tier ladder. Each level maps to (title, permission) - the
+# Evennia Permission string automatically granted/revoked alongside
+# that level by CmdGodLevel, so a character's displayed rank and their
+# actual command access always move together instead of being two
+# separately-maintained facts. 101 and 106 have no permission of their
+# own: 101 ("Novus Deus") is a genuine probationary rung - immortal
+# and RP-significant, but no real admin commands yet, matching what
+# level 101 already did before this system existed. 106 ("Rex Divum")
+# is never assigned by any command at all - it exists only to label
+# whichever character already is a true Django superuser (currently
+# Jupiter/#1), since a true superuser bypasses every lock unconditionally
+# regardless of anything in this table (see CLAUDE.md gotcha #6).
+GOD_TIERS = {
+    101: ("Novus Deus", None),
+    102: ("Auspex", "Helper"),
+    103: ("Aedilis", "Builder"),
+    104: ("Praeses", "Admin"),
+    105: ("Numen Regnant", "Developer"),
+    106: ("Rex Divum", None),
+}
+
 
 def rank_title(level):
     """
-    Returns the rank title for a given level. Level 101+ (gods) should
-    be handled by the caller before reaching this - this function only
-    knows about the 1-100 mortal range. Level 100 exactly gets its own
-    unique title ("Legend") rather than sharing "Grand Master" with the
-    rest of the 90-99 band - the single highest level a mortal can
-    reach deserves to stand apart from mere skill tiers.
+    Returns the rank title for a given level. Level 100 exactly gets
+    its own unique title ("Legend") rather than sharing "Grand Master"
+    with the rest of the 90-99 band - the single highest level a
+    mortal can reach deserves to stand apart from mere skill tiers.
+    Levels 101+ pull their title from GOD_TIERS; anything past 106
+    (shouldn't normally happen) falls back to the top tier's title
+    rather than crashing.
     """
     if level is None:
         level = 1
     if level > 100:
-        return "GOD"
+        tier = GOD_TIERS.get(level, GOD_TIERS[106])
+        return tier[0]
     if level == 100:
         return "Legend"
     for threshold, title in RANK_TITLES:
@@ -2254,8 +2280,6 @@ class CombatRules:
         Spawns a fresh personal copy of an NPC prototype for a single
         challenger. Returns the spawned NPC.
         """
-        from evennia.utils.utils import delay
-
         obj = spawn(prototype_name)[0]
         obj.move_to(challenger.location, quiet=True)
         obj.db.instance_owner = challenger
@@ -2264,8 +2288,13 @@ class CombatRules:
 
         # Safety net: if the fight is abandoned (challenger disengages,
         # disconnects, whatever) the instance still gets cleaned up
-        # after 10 minutes rather than lingering forever.
-        delay(600, callback=obj.delete)
+        # after 10 minutes rather than lingering forever. A persistent
+        # Script rather than a plain delay() call - delay() doesn't
+        # survive a server reload or crash, which was the actual,
+        # confirmed root cause of NPCs needing manual cleanupnpcs runs
+        # (see InstanceCleanupTimer below, same fix already applied to
+        # RespawnTimer/CharonTimer/SanctuaryTimer elsewhere in this file).
+        obj.scripts.add(InstanceCleanupTimer)
 
         return obj
 
@@ -3533,6 +3562,83 @@ class CombatCharacter(ContribRPCharacter):
                 return verified[self.id]
         return super().get_display_name(looker, **kwargs)
 
+    def access(self, accessing_obj, access_type="read", default=False, **kwargs):
+        """
+        Wizinvis - a god with db.wizinvis set is hidden from anyone
+        whose level is lower than their own (so a mortal, or a lower
+        god tier, simply doesn't see them in a room's contents/look),
+        but stays fully visible to anyone at or above their own level,
+        and to true superusers unconditionally. Only affects the
+        'view' access type - doesn't touch locks like get/attack/etc,
+        so a wizinvis god can still be found by name if someone
+        already knows to look (matches real wizinvis behavior in
+        other codebases: hidden from casual notice, not truly gone).
+        """
+        if access_type == "view" and self.db.wizinvis and accessing_obj is not self:
+            looker_account = getattr(accessing_obj, "account", None)
+            if not (looker_account and looker_account.is_superuser):
+                looker_level = 0
+                if hasattr(accessing_obj, "db"):
+                    looker_level = accessing_obj.db.level or 0
+                self_level = self.db.level or 0
+                if looker_level < self_level:
+                    return False
+        return super().access(accessing_obj, access_type=access_type, default=default, **kwargs)
+
+    def process_language(self, text, speaker, language, **kwargs):
+        """
+        Listener-side hook from the rpsystem contrib - called on every
+        receiver of a say/pose/emote with the raw spoken text. Default
+        rpsystem behavior only obfuscates text explicitly tagged with
+        a language in an emote (langname"..."); this project instead
+        treats every utterance as spoken in a real language, defaulting
+        to the speaker's currently-set db.speaking (itself defaulting
+        to Latin - see world/languages.py and CombatCharacter's
+        at_object_creation), so plain 'say' is meaningfully affected
+        too, not just explicitly-tagged emotes.
+
+        Gods (level 101+) understand every language unconditionally,
+        same "truth cuts through everything" spirit as get_display_name
+        above. Anyone who doesn't know the language it was spoken in
+        hears it scrambled via rplanguage's own phonetic engine -
+        real, consistent nonsense, not just a blank "you don't
+        understand."
+        """
+        effective_language = language or (speaker.db.speaking or "latin")
+
+        level = self.db.level or 1
+        known = self.db.known_languages or ["latin"]
+        if level > 100 or effective_language in known:
+            return "|w%s|n" % text
+
+        from evennia.contrib.rpg.rpsystem import rplanguage
+
+        try:
+            garbled = rplanguage.obfuscate_language(text, level=1.0, language=effective_language)
+        except Exception:
+            garbled = text
+        return "|w(in an unfamiliar tongue) %s|n" % garbled
+
+    def msg(self, text=None, from_obj=None, session=None, **kwargs):
+        """
+        Relays a copy of everything this character receives to anyone
+        currently snooping them (see CmdSnoop) - the actual mechanism
+        behind snoop, since Evennia has no built-in session-watching
+        of its own. Snoopers get a prefixed copy; the target is never
+        told they're being watched. Only relays real text messages,
+        not e.g. bare OOB/prompt updates, to keep a snooper's own
+        screen readable.
+        """
+        super().msg(text=text, from_obj=from_obj, session=session, **kwargs)
+        snoopers = self.db.snoopers
+        if snoopers and text:
+            display_text = text[0] if isinstance(text, tuple) else text
+            if isinstance(display_text, str):
+                prefix = "|x[snoop %s]|n " % self.key
+                for snooper in list(snoopers):
+                    if snooper and snooper.pk and snooper != self:
+                        snooper.msg(prefix + display_text)
+
     def return_appearance(self, looker, **kwargs):
         """
         Adds a custom-title line ahead of the normal appearance text,
@@ -3586,6 +3692,10 @@ class CombatCharacter(ContribRPCharacter):
         self.db.agilitas = 10
         self.db.ingenium = 10
         self.db.vigor = 10
+        # Languages - see world/languages.py and process_language below.
+        # Every character starts knowing (and speaking) only Latin.
+        self.db.known_languages = ["latin"]
+        self.db.speaking = "latin"
         # Subscribe to ticker handler for out-of-combat condition tickdown
         tickerhandler.add(NONCOMBAT_TURN_TIME, self.at_update, idstring="update")
 
@@ -3779,6 +3889,30 @@ class SanctuaryTimer(DefaultScript):
         character.db.sanctuary_active = False
         character.msg("|mYour Sanctuary fades.|n")
         self.stop()
+
+
+class InstanceCleanupTimer(DefaultScript):
+    """
+    A one-shot timer that deletes a personal-instance NPC (see
+    spawn_personal_npc above) if its fight is abandoned rather than
+    finished. Was a plain delay() call - the confirmed cause of NPCs
+    needing a manual `cleanupnpcs` run, since delay() doesn't survive
+    a server reload or crash during that window, leaving the instance
+    orphaned. As a persistent Script, this timer itself survives a
+    reload, so the safety net is now actually safe.
+    """
+
+    def at_script_creation(self):
+        self.key = "instance_cleanup_timer"
+        self.interval = INSTANCE_CLEANUP_TIMEOUT
+        self.repeats = 1
+        self.persistent = True
+        self.start_delay = True
+
+    def at_repeat(self):
+        npc = self.obj
+        if npc and npc.pk:
+            npc.delete()
 
 
 class CombatTurnHandler(DefaultScript):
@@ -4629,10 +4763,12 @@ class CmdCleanupNPCs(Command):
 
     These NPCs are supposed to clean themselves up automatically -
     either the moment they're properly defeated, or via a 10-minute
-    safety timer if a fight is challenged but never actually
-    finished. They only end up orphaned if that timer never got a
-    chance to fire: a server reload or crash during that window, or
-    combat getting stuck before resolving normally.
+    safety timer (InstanceCleanupTimer, a persistent Script) if a
+    fight is challenged but never actually finished. That timer now
+    survives a server reload, so this should rarely find anything -
+    it remains as a safety net for the genuinely rare case of combat
+    getting stuck before resolving normally, or a crash before the
+    timer was even attached.
 
     With no argument, this only LISTS what it finds - nothing gets
     destroyed. Review the list, then run 'cleanupnpcs confirm' to
@@ -4690,7 +4826,9 @@ class CmdSlay(Command):
     defeated normally, while a player character is sent to the
     Underworld (or a safe respawn, if below level 6) exactly as if
     they'd lost a genuine fight. Works whether or not the target is
-    currently in combat. Only available to gods (level over 100).
+    currently in combat. Only available to gods (level over 100), and
+    only against mortals - no god can slay another god, Rex Divum
+    included.
     """
 
     key = "slay"
@@ -4714,6 +4852,9 @@ class CmdSlay(Command):
         if not target.attributes.has("max_hp"):
             caller.msg("That cannot be slain.")
             return
+        if (target.db.level or 0) > 100:
+            caller.msg("%s is a god - beyond your power to slay." % target.key)
+            return
         if target.db.hp is not None and target.db.hp <= 0:
             caller.msg("%s is already dead." % target.key)
             return
@@ -4727,6 +4868,257 @@ class CmdSlay(Command):
             self.rules.handle_player_defeat(target, attacker=caller)
         else:
             self.rules.at_defeat(target, attacker=caller)
+
+
+def _permission_rank(permname):
+    """
+    Index of a permission string within settings.PERMISSION_HIERARCHY
+    (higher = more authority), or -1 if it's not a real permission
+    (used for the god tiers - 101 and 106 - that don't grant one).
+    Local helper for CmdGodLevel's "can't promote above your own
+    authority" check below.
+    """
+    from django.conf import settings
+
+    try:
+        return [p.lower() for p in settings.PERMISSION_HIERARCHY].index(permname.lower())
+    except (ValueError, AttributeError):
+        return -1
+
+
+class CmdGodLevel(Command):
+    """
+    Set a character's level directly - the Cursus Divinorum's
+    'advance', and also the general-purpose way to set anyone's
+    mortal level for testing or events.
+
+    Usage:
+      godlevel <character> = <level>
+
+    Works across the whole range, not just the god tiers: 'godlevel
+    Marcus = 50' sets a mortal's level exactly as much as 'godlevel
+    Marcus = 103' would raise them to Aedilis. For levels 102-105,
+    the matching Evennia permission (Helper/Builder/Admin/Developer)
+    is granted or revoked automatically, so rank and real command
+    access always move together - there's no separate step.
+
+    Level 106 (Rex Divum) can't be granted through this command at
+    all - it isn't a rank anyone is promoted into, it only ever
+    describes whoever already holds the true superuser account.
+
+    Requires Praeses (104) or true superuser to use at all, and you
+    can never raise anyone to a level whose permission outranks your
+    own (a Praeses/Admin can promote up to Praeses, but only a Numen
+    Regnant/Developer or the superuser can grant Numen Regnant itself).
+    """
+
+    key = "godlevel"
+    aliases = ["advance"]
+    help_category = "admin"
+
+    def func(self):
+        caller = self.caller
+        is_superuser = bool(caller.account and caller.account.is_superuser)
+        caller_level = caller.db.level or 1
+
+        if caller_level < 104 and not is_superuser:
+            caller.msg("You lack the authority to change anyone's level.")
+            return
+
+        if not self.args or "=" not in self.args:
+            caller.msg("Usage: godlevel <character> = <level>")
+            return
+
+        lhs, rhs = self.args.split("=", 1)
+        target = caller.search(lhs.strip(), global_search=True)
+        if not target:
+            return
+
+        try:
+            new_level = int(rhs.strip())
+        except ValueError:
+            caller.msg("Level must be a whole number.")
+            return
+
+        if new_level < 1 or new_level > 105:
+            caller.msg(
+                "Level must be between 1 and 105 - 106 (Rex Divum) can't be "
+                "granted, it only ever describes a true superuser."
+            )
+            return
+
+        if not is_superuser:
+            new_perm = GOD_TIERS.get(new_level, (None, None))[1]
+            caller_perm = GOD_TIERS.get(caller_level, (None, None))[1]
+            if new_perm and _permission_rank(new_perm) > _permission_rank(caller_perm or ""):
+                caller.msg(
+                    "You can't grant a rank with more authority than your own."
+                )
+                return
+
+        # Clear out whichever god-tier permission this system may have
+        # previously granted the target, before applying the new one -
+        # otherwise repeated promotions/demotions would just pile up
+        # permissions rather than the target's access matching their
+        # current level.
+        old_perm = target.db.godlevel_permission
+        if old_perm:
+            target.permissions.remove(old_perm)
+            target.db.godlevel_permission = None
+
+        target.db.level = new_level
+        target.db.invincible = new_level > 100
+
+        new_perm = GOD_TIERS.get(new_level, (None, None))[1]
+        if new_perm:
+            target.permissions.add(new_perm)
+            target.db.godlevel_permission = new_perm
+
+        title = rank_title(new_level)
+        caller.msg("|gSet %s to level %d (%s).|n" % (target.key, new_level, title))
+        target.msg("|yYour level has been set to %d (%s).|n" % (new_level, title))
+
+
+class CmdWizInvis(Command):
+    """
+    Turn wizinvis on or off - a god's invisibility to those beneath them.
+
+    Usage:
+      wizinvis
+      wizinvis off
+
+    While active, you're hidden from anyone whose level is lower than
+    your own - they won't see you in a room's contents or in 'look',
+    and you won't be announced arriving or departing. Anyone at or
+    above your own level, and any true superuser, sees straight
+    through it regardless. Requires Auspex (level 102) or higher.
+    """
+
+    key = "wizinvis"
+    help_category = "admin"
+
+    def func(self):
+        caller = self.caller
+        level = caller.db.level or 0
+        is_superuser = bool(caller.account and caller.account.is_superuser)
+        if level < 102 and not is_superuser:
+            caller.msg("You lack the standing to go unseen.")
+            return
+
+        if self.args and self.args.strip().lower() == "off":
+            if not caller.db.wizinvis:
+                caller.msg("You're already visible.")
+                return
+            caller.db.wizinvis = False
+            caller.msg("|yYou are visible once more.|n")
+            return
+
+        if caller.db.wizinvis:
+            caller.msg("You're already unseen.")
+            return
+        caller.db.wizinvis = True
+        caller.msg("|yYou fade from the sight of those beneath you.|n")
+
+
+class CmdRestore(Command):
+    """
+    Fully restore a character's HP, MP, and SP.
+
+    Usage:
+      restore <character>
+      restore me
+
+    Requires Auspex (level 102) or higher.
+    """
+
+    key = "restore"
+    help_category = "admin"
+
+    def func(self):
+        caller = self.caller
+        level = caller.db.level or 0
+        is_superuser = bool(caller.account and caller.account.is_superuser)
+        if level < 102 and not is_superuser:
+            caller.msg("You lack the standing to work this restoration.")
+            return
+
+        if not self.args:
+            caller.msg("Usage: restore <character>")
+            return
+
+        target = caller.search(self.args.strip(), global_search=True)
+        if not target:
+            return
+        if not target.attributes.has("max_hp"):
+            caller.msg("That can't be restored.")
+            return
+
+        target.db.hp = target.db.max_hp
+        target.db.mp = target.db.max_mp
+        target.db.sp = target.db.max_sp
+        caller.msg("|gRestored %s to full HP/MP/SP.|n" % target.key)
+        if target != caller:
+            target.msg("|gA divine touch restores you fully.|n")
+
+
+class CmdSnoop(Command):
+    """
+    Secretly monitor everything a character sees.
+
+    Usage:
+      snoop <character>
+      snoop off <character>
+
+    Silently relays everything the target receives to you, prefixed
+    so you can tell it apart from your own surroundings. The target is
+    never notified. Shows their output only, not their raw keystrokes.
+    Requires Auspex (level 102) or higher.
+    """
+
+    key = "snoop"
+    help_category = "admin"
+
+    def func(self):
+        caller = self.caller
+        level = caller.db.level or 0
+        is_superuser = bool(caller.account and caller.account.is_superuser)
+        if level < 102 and not is_superuser:
+            caller.msg("You lack the standing to snoop.")
+            return
+
+        args = self.args.strip()
+        if not args:
+            caller.msg("Usage: snoop <character> | snoop off <character>")
+            return
+
+        turning_off = False
+        if args.lower().startswith("off "):
+            turning_off = True
+            args = args[4:].strip()
+
+        target = caller.search(args, global_search=True)
+        if not target:
+            return
+        if target == caller:
+            caller.msg("You can't snoop yourself.")
+            return
+
+        snoopers = target.db.snoopers or []
+        if turning_off:
+            if caller in snoopers:
+                snoopers.remove(caller)
+                target.db.snoopers = snoopers
+                caller.msg("You stop snooping %s." % target.key)
+            else:
+                caller.msg("You aren't snooping %s." % target.key)
+            return
+
+        if caller in snoopers:
+            caller.msg("You're already snooping %s." % target.key)
+            return
+        snoopers.append(caller)
+        target.db.snoopers = snoopers
+        caller.msg("|yYou begin snooping %s. Their output will appear prefixed.|n" % target.key)
 
 
 class CmdGreet(Command):

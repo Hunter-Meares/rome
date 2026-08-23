@@ -59,15 +59,18 @@ class TestRankColoring(EvenniaCommandTest):
         self.assertEqual(_rank_color_code(1), "|x")
 
     def test_colored_rank_wraps_the_real_rank_title_text(self):
+        # Level 101 ("Novus Deus") is the entry rung of the Cursus
+        # Divinorum god ladder - see GOD_TIERS in world/combat.py -
+        # not a flat "GOD" string.
         result = _colored_rank(101)
-        self.assertIn("GOD", result)
+        self.assertIn("Novus Deus", result)
         self.assertTrue(result.startswith("|R"))
         self.assertTrue(result.endswith("|n"))
 
     def test_colored_level_shows_the_raw_number_not_the_title(self):
         result = _colored_level(101)
         self.assertIn("101", result)
-        self.assertNotIn("GOD", result)
+        self.assertNotIn("Novus Deus", result)
 
 
 class TestCmdWho(EvenniaCommandTest):
@@ -121,7 +124,8 @@ class TestCmdWho(EvenniaCommandTest):
         self.assertNotIn("Human ([...]", result)
         self.assertNotIn("Augur ([...]", result)
         # /full is documented to show the exact numeric level, not the
-        # rank title - must not have been swapped to "GOD" text instead.
+        # rank title - must not have been swapped to the tier's "Novus
+        # Deus" text instead.
         self.assertIn("101", result)
 
     def test_who_with_no_puppet_does_not_crash(self):
