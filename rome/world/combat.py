@@ -129,6 +129,31 @@ POWERATTACK_SP_COST = 10
 POWERATTACK_DAMAGE_BONUS = 15  # Flat bonus damage added on top of normal weapon/unarmed damage
 POWERATTACK_ACCURACY_PENALTY = -15  # Harder to land than a normal attack
 
+# Crowd reactions in rooms tagged 'spectacle' (category 'colosseum' -
+# currently Arena Sands and The Master's Sands). Fires from apply_damage
+# and at_defeat so every damage path (basic attack, spell, skill, item)
+# gets the same lively crowd, without duplicating the check three times.
+# Hits use a chance so a multi-round fight doesn't spam a line every
+# single swing; a kill is rare and climactic enough to always fire.
+SPECTATOR_HIT_CHANCE = 35
+SPECTATOR_HIT_LINES = [
+    "The crowd roars as the blow connects!",
+    "A cheer rises from the stands!",
+    "Someone in the tiers lets out a sharp whistle.",
+    '"Finish him!" someone shouts from the crowd.',
+    "The crowd gasps at the force of the strike.",
+    "Spectators lean over the railing for a better look.",
+    "A ripple of excitement runs through the watching crowd.",
+]
+SPECTATOR_KILL_LINES = [
+    "The crowd erupts into thunderous applause!",
+    "A roar of approval shakes the stands as the bout ends.",
+    "Somewhere above, bets are already being placed on the next match.",
+    "The crowd stamps its feet in a deafening ovation.",
+    "Cheering rolls down from the tiers in waves.",
+    '"Another one down!" someone crows from the stands.',
+]
+
 # ----------------------------------------------------------------------------
 # LEVELING CURVE
 # ----------------------------------------------------------------------------
@@ -544,6 +569,7 @@ class CombatRules:
             damage_log = defender.db.damage_log or {}
             damage_log[attacker] = damage_log.get(attacker, 0) + damage
             defender.db.damage_log = damage_log
+            self.spectator_react(defender.location, SPECTATOR_HIT_LINES, SPECTATOR_HIT_CHANCE)
 
         # Riposte (Gladiator) - a genuine reactive trigger, unlike
         # every other condition check in this method: it doesn't
@@ -562,6 +588,20 @@ class CombatRules:
             )
             self.apply_damage(attacker, RIPOSTE_COUNTER_DAMAGE)
 
+    def spectator_react(self, location, lines, chance=100):
+        """
+        Fires a random crowd-reaction line into `location`, but only if
+        it's tagged 'spectacle' (category 'colosseum') - so ambient
+        crowd noise stays confined to actual arena floors (Arena Sands,
+        The Master's Sands) rather than bleeding into the Ludus training
+        grounds or anywhere else combat happens to occur.
+        """
+        if not location or not location.tags.has("spectacle", category="colosseum"):
+            return
+        if randint(1, 100) > chance:
+            return
+        location.msg_contents(lines[randint(0, len(lines) - 1)])
+
     def at_defeat(self, defeated, attacker=None):
         """
         Announces defeat, and handles two special cases:
@@ -574,6 +614,7 @@ class CombatRules:
         display_name = defeated.db.base_name or defeated.key
         if defeated.location:
             defeated.location.msg_contents("%s has been defeated!" % display_name)
+            self.spectator_react(defeated.location, SPECTATOR_KILL_LINES)
 
         # --- Colosseum escape-on-victory ---
         if attacker and defeated.tags.has("colosseum_trainer", category="npc_role"):
