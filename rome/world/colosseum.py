@@ -88,6 +88,39 @@ class ColosseumEcho(DefaultScript):
         self.obj.msg_contents(messages[randint(0, len(messages) - 1)])
 
 
+class NPCChatter(DefaultScript):
+    """
+    Attach directly to an NPC (not a room) to have it periodically say
+    one of a set of lines out loud to whoever's in the room with it -
+    a merchant's sales pitch, a beggar's plea, a senator's complaint.
+    Configure by setting `obj.db.chatter_lines` (a list of plain
+    strings, no quote marks or "X says" wrapper needed - both are
+    added automatically) before/after adding this script to the NPC.
+
+    Deliberately a general-purpose sibling to ColosseumEcho above,
+    not Colosseum-specific despite the module - matches the existing
+    precedent of WanderingNPC also living here despite being reused
+    well beyond the Colosseum itself (the Forum's wandering NPCs use
+    it too).
+    """
+
+    def at_script_creation(self):
+        self.key = "npc_chatter"
+        self.interval = 60
+        self.persistent = True
+        self.start_delay = True
+
+    def at_repeat(self):
+        npc = self.obj
+        if not npc or not npc.pk or not npc.location:
+            return
+        lines = npc.db.chatter_lines
+        if not lines:
+            return
+        line = lines[randint(0, len(lines) - 1)]
+        npc.location.msg_contents('%s says, "%s"' % (npc, line))
+
+
 class WanderingNPC(DefaultScript):
     """
     Attach to an NPC to have it periodically wander between a defined
