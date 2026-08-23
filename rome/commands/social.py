@@ -30,7 +30,7 @@ from commands.command import Command
 # in sync rather than drifting to different, inconsistent widths.
 _WHO_TITLE_WIDTH = 16
 _WHO_ROOM_WIDTH = 18
-_WHO_TITLE_WIDTH_WIDE = 30  # plain player table has fewer columns, more room
+_WHO_TITLE_WIDTH_WIDE = 42  # plain player table has no idle column, more room for titles
 _WHO_RACE_WIDTH = 14
 _WHO_CLASS_WIDTH = 14
 
@@ -61,7 +61,7 @@ def _rank_color_code(level):
 
 
 def _colored_rank(level):
-    """rank_title()'s text (e.g. 'Veteran', 'GOD'), colored by tier."""
+    """rank_title()'s text (e.g. 'Veteran', 'Rex Divum'), colored by tier."""
     return "%s%s|n" % (_rank_color_code(level), rank_title(level))
 
 
@@ -216,14 +216,18 @@ class CmdWho(DefaultCmdWho):
             self.msg("%d account%s logged in." % (naccounts, "" if naccounts == 1 else "s"))
             return
 
+        # No idle column here - regular players don't need to see it
+        # (that's an admin-oversight detail, not something a plain
+        # who-list needs). The freed width goes to the title column
+        # instead, since that's the field actually worth the room -
+        # see _WHO_TITLE_WIDTH_WIDE above.
         table = self.styled_table(
-            "|YName", "|YTitle", "|YRace", "|YClass", "|YLevel", "|YIdle"
+            "|YName", "|YTitle", "|YRace", "|YClass", "|YLevel"
         )
         for session in session_list:
             if not session.logged_in:
                 continue
 
-            delta_idle = time.time() - session.cmd_last_visible
             char = session.get_puppet()
 
             if char:
@@ -246,7 +250,6 @@ class CmdWho(DefaultCmdWho):
                 utils.crop(race, width=_WHO_RACE_WIDTH),
                 utils.crop(pclass, width=_WHO_CLASS_WIDTH),
                 _colored_rank(level) if level != "-" else "-",
-                utils.time_format(delta_idle, 1),
             )
 
         self.msg(str(table))

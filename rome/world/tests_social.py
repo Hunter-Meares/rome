@@ -60,8 +60,10 @@ class TestRankColoring(EvenniaCommandTest):
 
     def test_colored_rank_wraps_the_real_rank_title_text(self):
         # Level 101 ("Novus Deus") is the entry rung of the Cursus
-        # Divinorum god ladder - see GOD_TIERS in world/combat.py -
-        # not a flat "GOD" string.
+        # Divinorum god ladder - see GOD_TIERS in world/combat.py.
+        # Level/rank shows the specific tier name; class_display is
+        # the one that's flattened to "Divine" for every god (see
+        # CmdGodLevel), not this.
         result = _colored_rank(101)
         self.assertIn("Novus Deus", result)
         self.assertTrue(result.startswith("|R"))

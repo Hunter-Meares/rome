@@ -219,7 +219,9 @@ def rank_title(level):
     its own unique title ("Legend") rather than sharing "Grand Master"
     with the rest of the 90-99 band - the single highest level a
     mortal can reach deserves to stand apart from mere skill tiers.
-    Levels 101+ pull their title from GOD_TIERS; anything past 106
+    Levels 101+ pull their title from GOD_TIERS - the specific Cursus
+    Divinorum tier name (Novus Deus, Auspex, Aedilis, Praeses, Numen
+    Regnant, Rex Divum), same as it's always been; anything past 106
     (shouldn't normally happen) falls back to the top tier's title
     rather than crashing.
     """
@@ -4933,13 +4935,12 @@ class CmdGodLevel(Command):
     describes whoever already holds the true superuser account.
 
     Crossing into godhood (any level over 100) also sets the target's
-    displayed race to 'Olympian' and their displayed class to their
-    own divine domain (e.g. Jupiter -> 'King of the Sky', looked up
-    from db.divine_presence) rather than their tier's rank title -
-    that's already shown as the level itself, so repeating it as
-    'class' too would just be the same fact twice. Their original
-    mortal race/class is kept and restored automatically if they're
-    ever demoted back to 100 or below.
+    displayed race to 'Olympian' and their displayed class to a flat
+    'Divine' - a mortal race/class stops meaning anything once someone
+    is a literal god, and their actual standing is already shown by
+    their level/rank (Novus Deus, Aedilis, Rex Divum, ...). Their
+    original mortal race/class is kept and restored automatically if
+    they're ever demoted back to 100 or below.
 
     Requires Praeses (104) or true superuser to use at all, and you
     can never raise anyone to a level whose permission outranks your
@@ -5011,31 +5012,21 @@ class CmdGodLevel(Command):
             target.db.godlevel_permission = new_perm
 
         # Race/class on ascension: every god's race_display becomes
-        # "Olympian" - a mortal race stops meaning anything once
-        # someone is a literal god, extending the "Olympian" flavor
-        # Jupiter already used before this system existed. class_display
-        # is deliberately NOT set to the tier title (Auspex, Aedilis,
-        # ...) - that's already shown as the level/rank itself (e.g. on
-        # 'who'), and repeating it as "class" too is pure redundancy,
-        # the same fact shown twice under different labels. Instead
-        # class_display becomes the god's own domain (e.g. Jupiter ->
-        # "King of the Sky"), looked up from world/god_help.py's
-        # PANTHEON data via whatever db.divine_presence is already set
-        # to - a second, genuinely different axis of information (WHO
-        # this god is) rather than a restatement of HOW senior they
-        # are. Falls back to "Divine" (the exact generic value Jupiter
-        # himself used before this system existed) if divine_presence
-        # isn't set to a recognized deity yet. The character's actual
-        # mortal race_display/class_display are preserved so a later
-        # demotion back to level 100 or below can restore them.
+        # "Olympian" and their class_display becomes a flat "Divine" -
+        # a mortal race/class stops meaning anything once someone is a
+        # literal god. Level/rank (Novus Deus, Aedilis, Rex Divum, ...)
+        # is what actually says how senior a given god is - class is
+        # deliberately just "Divine" for all of them, kept simple
+        # rather than trying to encode a second axis of information
+        # there too. The character's actual mortal race_display/
+        # class_display are preserved so a later demotion back to
+        # level 100 or below can restore them.
         if new_level > 100 and old_level <= 100:
             target.db.mortal_race_display = target.db.race_display
             target.db.mortal_class_display = target.db.class_display
         if new_level > 100:
-            from world.god_help import god_domain
-
             target.db.race_display = "Olympian"
-            target.db.class_display = god_domain(target.db.divine_presence) or "Divine"
+            target.db.class_display = "Divine"
         elif old_level > 100 and new_level <= 100:
             if target.db.mortal_race_display:
                 target.db.race_display = target.db.mortal_race_display

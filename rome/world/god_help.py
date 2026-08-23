@@ -198,18 +198,3 @@ def create_god_help_entries():
             db_entrytext=text,
             db_lock_storage="view:all()",
         )
-
-
-def god_domain(divine_presence_key):
-    """
-    Short domain phrase for a deity (e.g. "King of the Sky" for
-    Jupiter), keyed the same way db.divine_presence already is.
-    Used by CmdGodLevel (world/combat.py) to set a newly-promoted
-    god's class_display to something that actually differs from their
-    level/rank title, instead of just repeating it - see that
-    command's docstring for the full reasoning. Returns None if the
-    key doesn't match any known deity (a brand-new god who hasn't set
-    a divine_presence yet, most likely).
-    """
-    entry = PANTHEON.get((divine_presence_key or "").lower())
-    return entry[2] if entry else None
