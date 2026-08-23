@@ -327,6 +327,56 @@ ANTIDOTE_POTION = {
     "item_kwargs": {"to_cure": ["Poisoned"]},
 }
 
+"""
+----------------------------------------------------------------------------
+FORUM ROMANUM - COMMERCIAL DISTRICT WARES
+----------------------------------------------------------------------------
+Flavor/trade goods for the Forum's shopkeepers - plain sellable items,
+no item_func, same pattern as the Colosseum vendor's snacks/cushions.
+"""
+
+SCROLL_OF_POETRY = {
+    "key": "a scroll of poetry",
+    "desc": "A tightly-rolled papyrus scroll, a well-known poet's verses copied in a careful, practiced hand.",
+    "price": 15,
+}
+
+SCROLL_OF_HISTORY = {
+    "key": "a scroll of history",
+    "desc": "A dense historical account, copied and re-copied enough times that a few passages have drifted from the original.",
+    "price": 20,
+}
+
+GOLD_RING = {
+    "key": "a gold ring",
+    "desc": "A simple gold band, well-made but not showy - the kind of piece a citizen of modest means might actually afford.",
+    "price": 60,
+}
+
+GOLD_BRACELET = {
+    "key": "a gold bracelet",
+    "desc": "A delicate gold bracelet, small links catching the light with every movement.",
+    "price": 85,
+}
+
+VIAL_OF_PERFUME = {
+    "key": "a vial of perfume",
+    "desc": "A small glass vial of scented oil, the stopper sealed with a dab of wax.",
+    "price": 25,
+}
+
+ROASTED_MEAT_SKEWER = {
+    "key": "a roasted meat skewer",
+    "desc": "A skewer of well-charred meat, still warm, sold fresh off the brazier.",
+    "price": 4,
+}
+
+HONEYED_BREAD = {
+    "key": "a piece of honeyed bread",
+    "desc": "A dense little loaf, drizzled with honey until it's nearly too sticky to hold.",
+    "price": 3,
+}
+
 
 """
 ----------------------------------------------------------------------------
