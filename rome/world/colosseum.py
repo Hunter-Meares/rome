@@ -62,6 +62,36 @@ class DeeperSandsGateExit(DefaultExit):
             return
         super().at_traverse(traversing_object, target_location, **kwargs)
 
+
+class LevelGateExit(DefaultExit):
+    """
+    Generic level-gated exit - blocks traversal below a minimum level,
+    set per-exit via `db.min_level` (and an optional `db.gate_flavor`
+    naming what's beyond, used in the refusal message so the same
+    class reads correctly at every gate instead of a generic one).
+
+    A sibling to DeeperSandsGateExit above, deliberately left as its
+    own separate class rather than refactored onto this one - it's
+    already live and deployed, and there's no value in the risk of
+    touching working, deployed content just to deduplicate ~10 lines.
+    This class is for new gates instead - currently the Ludus's own
+    internal tiers (Wrestling Pit, Beast Taming Ring, Champions'
+    Court), which needed three different thresholds and didn't
+    justify three new one-off classes.
+    """
+
+    def at_traverse(self, traversing_object, target_location, **kwargs):
+        min_level = self.db.min_level or 1
+        level = traversing_object.db.level or 1
+        if level < min_level:
+            flavor = self.db.gate_flavor or "this part of the Ludus"
+            traversing_object.msg(
+                "|rYou aren't experienced enough for %s yet. Come back "
+                "once you've reached level %d.|n" % (flavor, min_level)
+            )
+            return
+        super().at_traverse(traversing_object, target_location, **kwargs)
+
 #########################################################
 #         Self-healing repeating-script mixin
 #########################################################
@@ -164,6 +194,15 @@ class NPCChatter(SelfHealingRepeatScript):
     a specific NPC should ever speak something else), so a listener
     who genuinely doesn't know Latin hears it scrambled exactly like
     they would from a player.
+
+    Set `obj.db.tells_rumors = True` to also let this NPC occasionally
+    report a real, recent player achievement instead of its own
+    scripted lines (see world/rumors.py) - opt-in per NPC rather than
+    universal, since not every NPC's flavor fits gossiping (a herald
+    announcing news makes sense; the Flamen Dialis, bound by ritual
+    silence around most things, doesn't). `obj.db.rumor_chance`
+    (default 30) controls how often, out of 100, a tick prefers a
+    rumor over the NPC's own lines when one is available.
     """
 
     def at_script_creation(self):
@@ -176,10 +215,19 @@ class NPCChatter(SelfHealingRepeatScript):
         npc = self.obj
         if not npc or not npc.pk or not npc.location:
             return
-        lines = npc.db.chatter_lines
-        if not lines:
-            return
-        line = lines[randint(0, len(lines) - 1)]
+
+        line = None
+        if npc.db.tells_rumors and randint(1, 100) <= (npc.db.rumor_chance or 30):
+            from world.rumors import get_random_rumor_line
+
+            line = get_random_rumor_line()
+
+        if not line:
+            lines = npc.db.chatter_lines
+            if not lines:
+                return
+            line = lines[randint(0, len(lines) - 1)]
+
         quoted = '"%s"' % line
         language = npc.db.chatter_language or "latin"
 

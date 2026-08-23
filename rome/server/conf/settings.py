@@ -104,3 +104,22 @@ FILE_HELP_ENTRY_MODULES = []
 # use our custom MuxCommand base, so the HP/MP/SP prompt refreshes
 # after every command, not just combat ones.
 COMMAND_DEFAULT_CLASS = "commands.command.MuxCommand"
+
+# Auditing (evennia.contrib.utils.auditing) - logs every command a
+# player sends to server/logs/audit_YYYY-MM-DD.log (JSON, one file
+# per day), for QA and post-incident investigation (e.g. "what did
+# this player actually do before X happened"). The contrib ships with
+# default AUDIT_MASKS that already scrub passwords out of login/
+# character-creation commands before anything is written, so this is
+# safe to enable without extra config - but it does log everything
+# else in cleartext, including public/private in-character speech, so
+# treat these logs with the same care as any other record containing
+# player communications.
+#
+# AUDIT_OUT (server output back to clients) is deliberately left off -
+# the contrib's own docs warn a single broadcast to everyone online
+# becomes one log line *per connected player*, which is a lot of
+# volume for not much investigative value compared to AUDIT_IN.
+SERVER_SESSION_CLASS = "evennia.contrib.utils.auditing.server.AuditedServerSession"
+AUDIT_IN = True
+AUDIT_OUT = False

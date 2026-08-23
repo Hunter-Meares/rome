@@ -20,11 +20,17 @@ def announce_achievements(character, completed_keys):
     every call site (world/combat.py, world/economy.py) just passes
     that return value straight through rather than each one building
     its own announcement independently.
+
+    Also feeds the rumor system (world/rumors.py) - every real
+    completion gets remembered so opted-in NPCs can mention it later.
+    This is the one shared place every achievement completion already
+    flows through, so nothing else needed to change to plug this in.
     """
     if not completed_keys:
         return
 
     from evennia.contrib.game_systems.achievements import get_achievement
+    from world.rumors import record_rumor
 
     for key in completed_keys:
         data = get_achievement(key)
@@ -45,6 +51,7 @@ def announce_achievements(character, completed_keys):
         lines.append("")
 
         character.msg("\n".join(lines))
+        record_rumor(character.key, name)
 
 FIRST_ESCAPE = {
     "key": "first_escape",
