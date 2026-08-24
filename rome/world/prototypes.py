@@ -257,6 +257,52 @@ PLATEMAIL = {
     "key": "a suit of plate mail",
 }
 
+# ----------------------------------------------------------------------------
+# UNIQUE / DIVINE ITEMS - one-of-a-kind gear for specific god characters, not
+# meant to be sold, found, or spawned in numbers. Deliberately break the
+# usual armor tradeoff every mortal-tier armor above follows (heavier
+# protection costs defense_modifier, trading dodge for damage reduction) -
+# a god's own gear has no such cost. get:false() locks these to whoever
+# they're equipped on; a true superuser bypasses that lock same as any
+# other, so this only ever stops another player from taking it, never the
+# god wearing it.
+# ----------------------------------------------------------------------------
+
+THUNDERBOLT_OF_JUPITER = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "|Y|hthe Thunderbolt of Jupiter|n",
+    "desc": (
+        "|YA jagged spear of pure lightning|n, caught and bound into a shape "
+        "a hand could hold - the air around it never quite stops crackling, "
+        "and the faint smell of ozone follows it everywhere it moves. "
+        "|wForged in no earthly forge|n, it does not so much strike a target "
+        "as simply arrive there, the distance between wielder and target "
+        "briefly ceasing to be a meaningful thing. |cLegend holds this is "
+        "the very bolt that split the sky the day the Titans fell.|n"
+    ),
+    "weapon_type_name": "thunderbolt",
+    "weapon_category": "polearm",
+    "damage_range": (80, 150),
+    "accuracy_bonus": 75,
+    "two_handed": True,
+    "locks": "get:false()",
+}
+
+AEGIS_OF_OLYMPUS = {
+    "prototype_parent": "BASEARMOR",
+    "key": "|Y|hthe Aegis of Olympus|n",
+    "desc": (
+        "|YA breastplate of hammered gold and storm-cloud grey|n, its "
+        "surface shifting faintly like weather seen from a great height. "
+        "|wLightning traces itself across the metal|n in slow, deliberate "
+        "arcs, there and gone before the eye can follow. |cNo blade forged "
+        "by mortal or god has ever left a mark on it.|n"
+    ),
+    "damage_reduction": 40,
+    "defense_modifier": 30,
+    "locks": "get:false()",
+}
+
 MEDKIT = {
     "key": "a medical kit",
     "aliases": ["medkit"],
