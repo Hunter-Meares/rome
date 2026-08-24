@@ -9,6 +9,7 @@ with a location in the game world (like Characters, Rooms, Exits).
 """
 
 from evennia.objects.objects import DefaultObject
+from evennia.utils.ansi import strip_ansi
 
 
 class ObjectParent:
@@ -21,6 +22,18 @@ class ObjectParent:
     take precedence.
 
     """
+
+    def get_numbered_name(self, count, looker, **kwargs):
+        """
+        Evennia's own inflect-based article insertion has no special case
+        for a key that already starts with "the" (proper-noun items like
+        "the Aegis of Olympus") - it happily produces "a the Aegis of
+        Olympus". Skip the auto-article for any such key instead.
+        """
+        plain_key = strip_ansi(kwargs.get("key", self.key))
+        if plain_key.strip().lower().startswith("the "):
+            kwargs["no_article"] = True
+        return super().get_numbered_name(count, looker, **kwargs)
 
 
 class Object(ObjectParent, DefaultObject):

@@ -40,6 +40,8 @@ from evennia.commands.default.cmdset_character import CharacterCmdSet
 from evennia.commands.default.account import CmdQuit as DefaultCmdQuit
 from evennia.prototypes.spawner import spawn
 from evennia.utils.logger import log_trace
+from evennia.utils import utils as evennia_utils
+from typeclasses.objects import ObjectParent
 
 """
 ----------------------------------------------------------------------------
@@ -3259,7 +3261,7 @@ EQUIPMENT TYPECLASSES
 """
 
 
-class CombatWeapon(DefaultObject):
+class CombatWeapon(ObjectParent, DefaultObject):
     """A weapon which can be wielded in combat with the 'wield' command."""
 
     rules = COMBAT_RULES
@@ -3280,7 +3282,7 @@ class CombatWeapon(DefaultObject):
             giver.location.msg_contents("%s stops wielding %s." % (giver, self))
 
 
-class CombatArmor(DefaultObject):
+class CombatArmor(ObjectParent, DefaultObject):
     """A set of armor which can be worn with the 'don' command."""
 
     rules = COMBAT_RULES
@@ -5474,6 +5476,64 @@ class CmdDoff(Command):
             self.caller.location.msg_contents("%s removes %s." % (self.caller, old_armor))
 
 
+class CmdInventory(Command):
+    """
+    Check what you are carrying, wielding, and wearing.
+
+    Usage:
+      inventory
+      inv
+      i
+    """
+
+    key = "inventory"
+    aliases = ["inv", "i"]
+    locks = "cmd:all()"
+    help_category = "general"
+
+    def func(self):
+        caller = self.caller
+        weapon = caller.db.wielded_weapon
+        armor = caller.db.worn_armor
+        equipped = {obj for obj in (weapon, armor) if obj}
+        carried = [obj for obj in caller.contents if obj not in equipped]
+
+        if not carried and not equipped:
+            caller.msg("You are not carrying anything.")
+            return
+
+        equipped_lines = []
+        if weapon:
+            equipped_lines.append("|wWielded (in hand):|n  %s" % weapon.get_display_name(caller))
+        if armor:
+            equipped_lines.append("|wWorn (as armor):|n    %s" % armor.get_display_name(caller))
+        if equipped_lines:
+            caller.msg("\n".join(equipped_lines))
+
+        if not carried:
+            caller.msg("|wCarrying nothing else.|n")
+            return
+
+        # Group same-named items together (e.g. several loose daggers)
+        # the same way Evennia's own default inventory command does,
+        # so duplicates show as "3 daggers" instead of 3 separate rows.
+        grouped = {}
+        for obj in carried:
+            grouped.setdefault(obj.get_display_name(caller), []).append(obj)
+
+        table = self.styled_table("|YObject", "|YDesc")
+        for name, group in sorted(grouped.items()):
+            count = len(group)
+            obj = group[0]
+            singular, plural = obj.get_numbered_name(count, caller)
+            desc = obj.db.desc or ""
+            table.add_row(
+                plural if count > 1 else singular,
+                evennia_utils.crop(desc, width=40),
+            )
+        caller.msg("|wCarrying:|n\n%s" % table)
+
+
 class CmdUse(MuxCommand):
     """
     Use an item.
@@ -6412,6 +6472,7 @@ class BattleCmdSet(CharacterCmdSet):
         self.add(CmdUnwield())
         self.add(CmdDon())
         self.add(CmdDoff())
+        self.add(CmdInventory())
         self.add(CmdUse())
         self.add(CmdLearnSpell())
         self.add(CmdCast())
