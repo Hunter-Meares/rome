@@ -482,6 +482,9 @@ class CombatRules:
         if defender.db.worn_armor:
             defense_value += defender.db.worn_armor.db.defense_modifier
 
+        if defender.db.worn_shield:
+            defense_value += defender.db.worn_shield.db.defense_modifier
+
         if "Defense Up" in self.get_conditions(defender):
             defense_value += DEF_UP_MOD
         if "Defense Down" in self.get_conditions(defender):
@@ -3261,6 +3264,79 @@ EQUIPMENT TYPECLASSES
 """
 
 
+# ----------------------------------------------------------------------------
+# EQUIPMENT SLOTS
+# ----------------------------------------------------------------------------
+# Maps a slot name (an armor prototype's db.armor_slot; unset means "body")
+# to the character attribute holding whatever's equipped there. "body"
+# keeps the original db.worn_armor name rather than a new db.worn_body, so
+# every existing read of it (get_damage, get_defense, chargen, etc.) keeps
+# working completely unchanged.
+ARMOR_SLOT_ATTRS = {
+    "body": "worn_armor",
+    "shield": "worn_shield",
+    "head": "worn_head",
+    "arms": "worn_arms",
+    "hands": "worn_hands",
+    "legs": "worn_legs",
+    "feet": "worn_feet",
+}
+
+# The only stats/resources accessory armor (every slot but body and
+# shield) is allowed to modify - anything outside these in an item's
+# stat_bonuses/resource_bonuses dict is silently ignored rather than
+# doing nothing useful.
+EQUIPMENT_STAT_KEYS = ("virtus", "agilitas", "ingenium", "vigor")
+EQUIPMENT_RESOURCE_KEYS = ("max_hp", "max_mp", "max_sp")
+
+
+def find_equipped_slot(character, item):
+    """Returns the slot name `item` is currently equipped in on
+    `character` (checking every ARMOR_SLOT_ATTRS attribute), or None."""
+    for slot, attr in ARMOR_SLOT_ATTRS.items():
+        if getattr(character.db, attr, None) == item:
+            return slot
+    return None
+
+
+def _clamp_current_resources(character):
+    """Keeps current hp/mp/sp from exceeding a max that just shrank -
+    e.g. doffing a +max_hp item mid-session while at full health."""
+    for current_attr, max_attr in (("hp", "max_hp"), ("mp", "max_mp"), ("sp", "max_sp")):
+        current = getattr(character.db, current_attr, None)
+        maximum = getattr(character.db, max_attr, None)
+        if current is not None and maximum is not None and current > maximum:
+            setattr(character.db, current_attr, maximum)
+
+
+def apply_equipment_bonuses(character, item):
+    """Adds an accessory armor item's stat_bonuses/resource_bonuses to
+    the wearer - called once, when the item is donned."""
+    for stat, amount in (item.db.stat_bonuses or {}).items():
+        if stat in EQUIPMENT_STAT_KEYS:
+            current = getattr(character.db, stat, 10) or 10
+            setattr(character.db, stat, current + amount)
+    for resource, amount in (item.db.resource_bonuses or {}).items():
+        if resource in EQUIPMENT_RESOURCE_KEYS:
+            current = getattr(character.db, resource, 0) or 0
+            setattr(character.db, resource, current + amount)
+
+
+def remove_equipment_bonuses(character, item):
+    """Reverses apply_equipment_bonuses - called on doff, on drop/give
+    of a worn item, and when donning a replacement bumps the old item
+    out of its slot."""
+    for stat, amount in (item.db.stat_bonuses or {}).items():
+        if stat in EQUIPMENT_STAT_KEYS:
+            current = getattr(character.db, stat, 10) or 10
+            setattr(character.db, stat, current - amount)
+    for resource, amount in (item.db.resource_bonuses or {}).items():
+        if resource in EQUIPMENT_RESOURCE_KEYS:
+            current = getattr(character.db, resource, 0) or 0
+            setattr(character.db, resource, current - amount)
+    _clamp_current_resources(character)
+
+
 class CombatWeapon(ObjectParent, DefaultObject):
     """A weapon which can be wielded in combat with the 'wield' command."""
 
@@ -3283,7 +3359,11 @@ class CombatWeapon(ObjectParent, DefaultObject):
 
 
 class CombatArmor(ObjectParent, DefaultObject):
-    """A set of armor which can be worn with the 'don' command."""
+    """A piece of armor or a shield which can be worn/carried with the
+    'don' command, in whichever slot its db.armor_slot names (defaults
+    to 'body' if unset). Non-body, non-shield slots never touch
+    damage_reduction/defense_modifier at all - see apply_equipment_bonuses
+    above."""
 
     rules = COMBAT_RULES
 
@@ -3298,8 +3378,10 @@ class CombatArmor(ObjectParent, DefaultObject):
         return True
 
     def at_drop(self, dropper):
-        if dropper.db.worn_armor == self:
-            dropper.db.worn_armor = None
+        slot = find_equipped_slot(dropper, self)
+        if slot:
+            setattr(dropper.db, ARMOR_SLOT_ATTRS[slot], None)
+            remove_equipment_bonuses(dropper, self)
             dropper.location.msg_contents("%s removes %s." % (dropper, self))
 
     def at_pre_give(self, giver, getter):
@@ -3309,9 +3391,129 @@ class CombatArmor(ObjectParent, DefaultObject):
         return True
 
     def at_give(self, giver, getter):
-        if giver.db.worn_armor == self:
-            giver.db.worn_armor = None
+        slot = find_equipped_slot(giver, self)
+        if slot:
+            setattr(giver.db, ARMOR_SLOT_ATTRS[slot], None)
+            remove_equipment_bonuses(giver, self)
             giver.location.msg_contents("%s removes %s." % (giver, self))
+
+
+# ----------------------------------------------------------------------------
+# LEVEL-SCALED WEAPON GENERATION
+# ----------------------------------------------------------------------------
+# category shapes the overall curve (how hard-hitting/accurate that kind
+# of weapon is, in general); a subtype below layers a small, real-data-
+# derived delta on top so e.g. a Dagger and a Gladius (both light_blade)
+# stay distinct from each other, not identical, at any level.
+WEAPON_CATEGORIES = {
+    "light_blade": {"damage_mult": 1.0, "accuracy": 25},
+    "ranged": {"damage_mult": 1.15, "accuracy": 18},
+    "polearm": {"damage_mult": 1.35, "accuracy": 8},
+    "heavy_blade": {"damage_mult": 1.5, "accuracy": 8},
+    "staff": {"damage_mult": 0.6, "accuracy": 25},
+    "heavy_weapon": {"damage_mult": 2.0, "accuracy": -10},
+}
+
+# Keyed by each weapon's existing db.weapon_type_name. Deltas derived
+# directly from this project's own real, already-live weapon stats (not
+# guessed) - see the design discussion this system came from.
+WEAPON_SUBTYPES = {
+    "dagger": {"category": "light_blade", "accuracy_offset": 5, "damage_mult": 0.91},
+    "gladius": {"category": "light_blade", "accuracy_offset": -5, "damage_mult": 1.09},
+    "broadsword": {"category": "heavy_blade", "accuracy_offset": 7, "damage_mult": 0.86},
+    "greatsword": {"category": "heavy_blade", "accuracy_offset": -8, "damage_mult": 1.14},
+    "spear": {"category": "polearm", "accuracy_offset": 2, "damage_mult": 0.96},
+    "trident": {"category": "polearm", "accuracy_offset": -3, "damage_mult": 1.04},
+    "javelin": {"category": "ranged", "accuracy_offset": -3, "damage_mult": 1.08},
+    "shortbow": {"category": "ranged", "accuracy_offset": 2, "damage_mult": 0.92},
+    "waraxe": {"category": "heavy_weapon", "accuracy_offset": 0, "damage_mult": 1.0},
+    "ritual staff": {"category": "staff", "accuracy_offset": 0, "damage_mult": 1.0},
+}
+
+
+def compute_weapon_stats(subtype, level):
+    """
+    Computes (damage_range, accuracy_bonus, price) for a weapon subtype
+    at a given level. Accuracy never scales with level by design - a
+    weapon's handling character shouldn't change just because it's more
+    powerful.
+    """
+    info = WEAPON_SUBTYPES[subtype]
+    category = WEAPON_CATEGORIES[info["category"]]
+
+    base_min = 7 + level * 1.3
+    base_max = 14 + level * 2.1
+    min_dmg = round(base_min * category["damage_mult"] * info["damage_mult"])
+    max_dmg = round(base_max * category["damage_mult"] * info["damage_mult"])
+    accuracy_bonus = category["accuracy"] + info["accuracy_offset"]
+    price = round(15 + level * 2.5 + (min_dmg + max_dmg) * 0.8)
+
+    return (min_dmg, max_dmg), accuracy_bonus, price
+
+
+def spawn_leveled_weapon(prototype_name, level, location=None):
+    """
+    Spawns a weapon prototype with its damage/accuracy/price baked in
+    for the given level, computed once at spawn time from its own
+    db.weapon_type_name. get_attack/get_damage read the result exactly
+    like any hand-authored weapon, unaware it was generated.
+    """
+    obj = spawn(prototype_name)[0]
+    if location:
+        obj.move_to(location, quiet=True)
+    damage_range, accuracy_bonus, price = compute_weapon_stats(obj.db.weapon_type_name, level)
+    obj.db.damage_range = damage_range
+    obj.db.accuracy_bonus = accuracy_bonus
+    obj.db.price = price
+    obj.db.item_level = level
+    return obj
+
+
+# ----------------------------------------------------------------------------
+# LEVEL-SCALED ARMOR GENERATION - fixes the weapon/armor growth-rate
+# mismatch found while designing the formula above. damage_reduction is
+# derived from the exact same linear term the weapon formula uses
+# (14 + 2.1*level), scaled by a fixed mitigation-percentage target - since
+# both formulas share that term, the ratio between a given armor
+# category's reduction and a given weapon category's damage stays
+# constant at every level by construction, instead of two independently-
+# tuned linear formulas silently drifting apart. ARMOR_MITIGATION_TARGET
+# (0.18) and the category multipliers below were calibrated to reproduce
+# Leather/Scale/Plate's real, already-live damage_reduction values
+# (2/4/6) at roughly level 4 - the same level the weapon formula's own
+# per-weapon deltas independently calibrated against.
+# ----------------------------------------------------------------------------
+ARMOR_CATEGORIES = {
+    "light": 0.6,
+    "medium": 1.0,
+    "heavy": 1.4,
+}
+ARMOR_MITIGATION_TARGET = 0.18
+
+
+def compute_armor_stats(category, level):
+    """Computes (damage_reduction, defense_modifier, price) for a body
+    armor category at a given level."""
+    mult = ARMOR_CATEGORIES[category]
+    reduction = round(ARMOR_MITIGATION_TARGET * (14 + 2.1 * level) * mult)
+    defense_modifier = -reduction
+    price = round(20 + level * 1.5 + reduction * 4)
+    return reduction, defense_modifier, price
+
+
+def spawn_leveled_armor(prototype_name, level, location=None):
+    """Spawns a body-armor prototype with its damage_reduction/
+    defense_modifier/price baked in for the given level, from its own
+    db.armor_category."""
+    obj = spawn(prototype_name)[0]
+    if location:
+        obj.move_to(location, quiet=True)
+    reduction, defense_modifier, price = compute_armor_stats(obj.db.armor_category, level)
+    obj.db.damage_reduction = reduction
+    obj.db.defense_modifier = defense_modifier
+    obj.db.price = price
+    obj.db.item_level = level
+    return obj
 
 
 """
@@ -3699,6 +3901,12 @@ class CombatCharacter(ContribRPCharacter):
         # Equipment
         self.db.wielded_weapon = None
         self.db.worn_armor = None
+        self.db.worn_shield = None
+        self.db.worn_head = None
+        self.db.worn_arms = None
+        self.db.worn_hands = None
+        self.db.worn_legs = None
+        self.db.worn_feet = None
         self.db.unarmed_damage_range = (5, 15)
         self.db.unarmed_accuracy = 30
         # Conditions
@@ -5370,6 +5578,13 @@ class CmdWield(Command):
             self.caller.msg("That's not a weapon!")
             return
 
+        if weapon.db.two_handed and self.caller.db.worn_shield:
+            self.caller.msg(
+                "You can't wield a two-handed weapon while carrying a shield - "
+                "doff it first."
+            )
+            return
+
         if not self.caller.db.wielded_weapon:
             self.caller.db.wielded_weapon = weapon
             self.caller.location.msg_contents("%s wields %s." % (self.caller, weapon))
@@ -5417,10 +5632,13 @@ class CmdUnwield(Command):
 
 class CmdDon(Command):
     """
-    Don armor that you are carrying.
+    Don a piece of armor or a shield that you are carrying.
 
     Usage:
       don <armor>
+
+    Which slot it goes in (body, shield, head, arms, hands, legs, feet)
+    is determined automatically by the item itself.
     """
 
     key = "don"
@@ -5438,26 +5656,41 @@ class CmdDon(Command):
         if not armor:
             return
         if not armor.is_typeclass("world.combat.CombatArmor", exact=True):
-            self.caller.msg("That's not armor!")
+            self.caller.msg("That's not something you can wear!")
             return
 
-        if not self.caller.db.worn_armor:
-            self.caller.db.worn_armor = armor
-            self.caller.location.msg_contents("%s dons %s." % (self.caller, armor))
-        else:
-            old_armor = self.caller.db.worn_armor
-            self.caller.db.worn_armor = armor
+        slot = armor.db.armor_slot or "body"
+        attr_name = ARMOR_SLOT_ATTRS[slot]
+
+        if slot == "shield":
+            weapon = self.caller.db.wielded_weapon
+            if weapon and weapon.db.two_handed:
+                self.caller.msg(
+                    "You can't carry a shield while wielding a two-handed "
+                    "weapon - unwield it first."
+                )
+                return
+
+        old_item = getattr(self.caller.db, attr_name, None)
+        if old_item:
+            remove_equipment_bonuses(self.caller, old_item)
+        setattr(self.caller.db, attr_name, armor)
+        apply_equipment_bonuses(self.caller, armor)
+
+        if old_item:
             self.caller.location.msg_contents(
-                "%s removes %s and dons %s." % (self.caller, old_armor, armor)
+                "%s removes %s and dons %s." % (self.caller, old_item, armor)
             )
+        else:
+            self.caller.location.msg_contents("%s dons %s." % (self.caller, armor))
 
 
 class CmdDoff(Command):
     """
-    Stop wearing armor.
+    Stop wearing a piece of armor or a shield.
 
     Usage:
-      doff
+      doff <armor>
     """
 
     key = "doff"
@@ -5468,12 +5701,29 @@ class CmdDoff(Command):
         if self.rules.is_in_combat(self.caller):
             self.caller.msg("You can't doff armor in a fight!")
             return
-        if not self.caller.db.worn_armor:
-            self.caller.msg("You aren't wearing any armor!")
-        else:
-            old_armor = self.caller.db.worn_armor
-            self.caller.db.worn_armor = None
-            self.caller.location.msg_contents("%s removes %s." % (self.caller, old_armor))
+
+        worn_items = {}
+        for slot, attr in ARMOR_SLOT_ATTRS.items():
+            item = getattr(self.caller.db, attr, None)
+            if item:
+                worn_items[item] = slot
+
+        if not worn_items:
+            self.caller.msg("You aren't wearing anything!")
+            return
+
+        if not self.args:
+            self.caller.msg("Usage: doff <obj>")
+            return
+
+        armor = self.caller.search(self.args, candidates=list(worn_items.keys()))
+        if not armor:
+            return
+
+        slot = worn_items[armor]
+        setattr(self.caller.db, ARMOR_SLOT_ATTRS[slot], None)
+        remove_equipment_bonuses(self.caller, armor)
+        self.caller.location.msg_contents("%s removes %s." % (self.caller, armor))
 
 
 class CmdInventory(Command):
@@ -5491,22 +5741,37 @@ class CmdInventory(Command):
     locks = "cmd:all()"
     help_category = "general"
 
+    # (attribute name, display label), in the order they should be shown.
+    _EQUIPPED_SLOTS = (
+        ("wielded_weapon", "Wielded (in hand)"),
+        ("worn_shield", "Shield"),
+        ("worn_armor", "Worn (as armor)"),
+        ("worn_head", "Worn (on head)"),
+        ("worn_arms", "Worn (on arms)"),
+        ("worn_hands", "Worn (on hands)"),
+        ("worn_legs", "Worn (on legs)"),
+        ("worn_feet", "Worn (on feet)"),
+    )
+
     def func(self):
         caller = self.caller
-        weapon = caller.db.wielded_weapon
-        armor = caller.db.worn_armor
-        equipped = {obj for obj in (weapon, armor) if obj}
-        carried = [obj for obj in caller.contents if obj not in equipped]
+        equipped = {}
+        for attr, label in self._EQUIPPED_SLOTS:
+            item = getattr(caller.db, attr, None)
+            if item:
+                equipped[attr] = item
+
+        carried = [obj for obj in caller.contents if obj not in equipped.values()]
 
         if not carried and not equipped:
             caller.msg("You are not carrying anything.")
             return
 
-        equipped_lines = []
-        if weapon:
-            equipped_lines.append("|wWielded (in hand):|n  %s" % weapon.get_display_name(caller))
-        if armor:
-            equipped_lines.append("|wWorn (as armor):|n    %s" % armor.get_display_name(caller))
+        equipped_lines = [
+            "|w%s:|n  %s" % (label, equipped[attr].get_display_name(caller))
+            for attr, label in self._EQUIPPED_SLOTS
+            if attr in equipped
+        ]
         if equipped_lines:
             caller.msg("\n".join(equipped_lines))
 

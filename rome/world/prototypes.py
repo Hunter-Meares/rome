@@ -238,6 +238,7 @@ LEATHERARMOR = {
     "price": 30,
     "damage_reduction": 2,
     "defense_modifier": -2,
+    "armor_category": "light",
     "key": "a suit of leather armor",
 }
 
@@ -246,6 +247,7 @@ SCALEMAIL = {
     "price": 60,
     "damage_reduction": 4,
     "defense_modifier": -4,
+    "armor_category": "medium",
     "key": "a suit of scale mail",
 }
 
@@ -254,7 +256,97 @@ PLATEMAIL = {
     "price": 100,
     "damage_reduction": 6,
     "defense_modifier": -6,
+    "armor_category": "heavy",
     "key": "a suit of plate mail",
+}
+
+# ----------------------------------------------------------------------------
+# ADDITIONAL EQUIPMENT SLOTS - shields and accessory armor (head/arms/hands/
+# legs/feet). Shields contribute defense_modifier only, same as body armor's
+# dodge side but never its damage_reduction side - see the design discussion
+# this came from for why (a shield helps you avoid a hit landing at all;
+# body armor softens the ones that do land - two different jobs, so they
+# don't stack the same number twice). Accessory armor contributes flat
+# stat_bonuses/resource_bonuses only, applied directly to the wearer on
+# don/doff (world/combat.py) - it's never read by the combat damage/defense
+# formulas at all, unlike body armor and shields.
+# ----------------------------------------------------------------------------
+
+PARMA = {
+    "prototype_parent": "BASEARMOR",
+    "price": 20,
+    "damage_reduction": 0,
+    "defense_modifier": 4,
+    "armor_slot": "shield",
+    "key": "a small round parma shield",
+}
+
+CLIPEUS = {
+    "prototype_parent": "BASEARMOR",
+    "price": 45,
+    "damage_reduction": 0,
+    "defense_modifier": 7,
+    "armor_slot": "shield",
+    "key": "a bronze-faced clipeus",
+}
+
+SCUTUM = {
+    "prototype_parent": "BASEARMOR",
+    "price": 80,
+    "damage_reduction": 0,
+    "defense_modifier": 12,
+    "armor_slot": "shield",
+    "key": "a curved legionary scutum",
+}
+
+GALEA = {
+    "prototype_parent": "BASEARMOR",
+    "price": 35,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "head",
+    "resource_bonuses": {"max_hp": 10},
+    "key": "a bronze galea helmet",
+}
+
+MANICA = {
+    "prototype_parent": "BASEARMOR",
+    "price": 30,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "arms",
+    "stat_bonuses": {"virtus": 1},
+    "key": "a segmented manica arm-guard",
+}
+
+FASCIA_MANUS = {
+    "prototype_parent": "BASEARMOR",
+    "price": 20,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "hands",
+    "stat_bonuses": {"agilitas": 1},
+    "key": "a pair of wrapped fascia manus",
+}
+
+OCREA = {
+    "prototype_parent": "BASEARMOR",
+    "price": 30,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "legs",
+    "resource_bonuses": {"max_sp": 10},
+    "key": "a pair of bronze ocrea greaves",
+}
+
+CALIGAE = {
+    "prototype_parent": "BASEARMOR",
+    "price": 25,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "feet",
+    "stat_bonuses": {"vigor": 1},
+    "key": "a pair of studded caligae boots",
 }
 
 # ----------------------------------------------------------------------------
