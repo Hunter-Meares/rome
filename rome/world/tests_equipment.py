@@ -15,6 +15,8 @@ from world.combat import (
     WEAPON_SUBTYPES,
     ARMOR_CATEGORIES,
     ARMOR_MITIGATION_TARGET,
+    CLASS_ARMOR_PROFICIENCIES,
+    COMBAT_RULES,
     compute_weapon_stats,
     compute_armor_stats,
 )
@@ -122,6 +124,65 @@ class TestMitigationRatioStaysProportional(unittest.TestCase):
         # And the spread across the whole level range should be tiny -
         # this is the actual regression guard for the drift bug.
         self.assertLess(max(ratios) - min(ratios), 0.03)
+
+
+class _FakeDB:
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+
+class _FakeObj:
+    """Minimal stand-in for a character/armor object - is_armor_proficient
+    only ever reads .db.player_class / .db.armor_category, so a full
+    EvenniaTest character isn't needed to exercise its logic."""
+
+    def __init__(self, **kwargs):
+        self.db = _FakeDB(**kwargs)
+
+
+class TestArmorProficiencyIntegrity(unittest.TestCase):
+    def test_every_class_proficiency_tier_is_real(self):
+        for player_class, tiers in CLASS_ARMOR_PROFICIENCIES.items():
+            for tier in tiers:
+                self.assertIn(
+                    tier,
+                    ARMOR_CATEGORIES,
+                    "class %r lists unknown armor tier %r" % (player_class, tier),
+                )
+
+
+class TestIsArmorProficient(unittest.TestCase):
+    def test_light_class_proficient_in_light(self):
+        character = _FakeObj(player_class="augur")
+        armor = _FakeObj(armor_category="light")
+        self.assertTrue(COMBAT_RULES.is_armor_proficient(character, armor))
+
+    def test_light_class_not_proficient_in_heavy(self):
+        character = _FakeObj(player_class="augur")
+        armor = _FakeObj(armor_category="heavy")
+        self.assertFalse(COMBAT_RULES.is_armor_proficient(character, armor))
+
+    def test_heavy_capable_class_proficient_in_everything(self):
+        character = _FakeObj(player_class="legionary")
+        for tier in ("light", "medium", "heavy"):
+            armor = _FakeObj(armor_category=tier)
+            self.assertTrue(COMBAT_RULES.is_armor_proficient(character, armor))
+
+    def test_no_armor_is_always_proficient(self):
+        character = _FakeObj(player_class="augur")
+        self.assertTrue(COMBAT_RULES.is_armor_proficient(character, None))
+
+    def test_armor_without_category_is_always_proficient(self):
+        # Divine/unique gear (e.g. the Aegis of Olympus) has no
+        # armor_category at all - never gated by mortal proficiency.
+        character = _FakeObj(player_class="augur")
+        armor = _FakeObj(armor_category=None)
+        self.assertTrue(COMBAT_RULES.is_armor_proficient(character, armor))
+
+    def test_no_player_class_is_always_proficient(self):
+        character = _FakeObj(player_class=None)
+        armor = _FakeObj(armor_category="heavy")
+        self.assertTrue(COMBAT_RULES.is_armor_proficient(character, armor))
 
 
 if __name__ == "__main__":

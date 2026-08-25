@@ -270,6 +270,12 @@ PLATEMAIL = {
 # stat_bonuses/resource_bonuses only, applied directly to the wearer on
 # don/doff (world/combat.py) - it's never read by the combat damage/defense
 # formulas at all, unlike body armor and shields.
+#
+# Shields carry armor_category (light/medium/heavy) same as body armor, so
+# CLASS_ARMOR_PROFICIENCIES (world/combat.py) can gate both the same way.
+# Accessory pieces don't - see is_armor_proficient's docstring for why a
+# penalty wouldn't have anything to meaningfully bite into on a pure
+# stat-bonus item the way it does on damage_reduction/defense_modifier.
 # ----------------------------------------------------------------------------
 
 PARMA = {
@@ -278,6 +284,7 @@ PARMA = {
     "damage_reduction": 0,
     "defense_modifier": 4,
     "armor_slot": "shield",
+    "armor_category": "light",
     "key": "a small round parma shield",
 }
 
@@ -287,6 +294,7 @@ CLIPEUS = {
     "damage_reduction": 0,
     "defense_modifier": 7,
     "armor_slot": "shield",
+    "armor_category": "medium",
     "key": "a bronze-faced clipeus",
 }
 
@@ -296,7 +304,20 @@ SCUTUM = {
     "damage_reduction": 0,
     "defense_modifier": 12,
     "armor_slot": "shield",
+    "armor_category": "heavy",
     "key": "a curved legionary scutum",
+}
+
+# --- Head ---
+
+PILEUS = {
+    "prototype_parent": "BASEARMOR",
+    "price": 15,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "head",
+    "resource_bonuses": {"max_mp": 5},
+    "key": "a simple felt pileus cap",
 }
 
 GALEA = {
@@ -309,6 +330,28 @@ GALEA = {
     "key": "a bronze galea helmet",
 }
 
+CASSIS = {
+    "prototype_parent": "BASEARMOR",
+    "price": 55,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "head",
+    "resource_bonuses": {"max_hp": 20},
+    "key": "a plumed iron cassis helm",
+}
+
+# --- Arms ---
+
+FASCIA_BRACHII = {
+    "prototype_parent": "BASEARMOR",
+    "price": 15,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "arms",
+    "resource_bonuses": {"max_sp": 5},
+    "key": "a pair of simple fascia brachii wraps",
+}
+
 MANICA = {
     "prototype_parent": "BASEARMOR",
     "price": 30,
@@ -317,6 +360,28 @@ MANICA = {
     "armor_slot": "arms",
     "stat_bonuses": {"virtus": 1},
     "key": "a segmented manica arm-guard",
+}
+
+BRACHIALE = {
+    "prototype_parent": "BASEARMOR",
+    "price": 50,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "arms",
+    "stat_bonuses": {"virtus": 2},
+    "key": "a reinforced iron brachiale vambrace",
+}
+
+# --- Hands ---
+
+CHIROTHECAE = {
+    "prototype_parent": "BASEARMOR",
+    "price": 15,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "hands",
+    "resource_bonuses": {"max_mp": 5},
+    "key": "a pair of simple chirothecae gloves",
 }
 
 FASCIA_MANUS = {
@@ -329,6 +394,28 @@ FASCIA_MANUS = {
     "key": "a pair of wrapped fascia manus",
 }
 
+MANICA_FERRATA = {
+    "prototype_parent": "BASEARMOR",
+    "price": 50,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "hands",
+    "stat_bonuses": {"agilitas": 2},
+    "key": "a pair of iron-plated manica ferrata gauntlets",
+}
+
+# --- Legs ---
+
+FEMINALIA = {
+    "prototype_parent": "BASEARMOR",
+    "price": 15,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "legs",
+    "resource_bonuses": {"max_sp": 5},
+    "key": "a pair of simple feminalia leg-wraps",
+}
+
 OCREA = {
     "prototype_parent": "BASEARMOR",
     "price": 30,
@@ -339,6 +426,28 @@ OCREA = {
     "key": "a pair of bronze ocrea greaves",
 }
 
+OCREA_FERRATA = {
+    "prototype_parent": "BASEARMOR",
+    "price": 50,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "legs",
+    "resource_bonuses": {"max_sp": 20},
+    "key": "a pair of iron-banded ocrea ferrata greaves",
+}
+
+# --- Feet ---
+
+SOLEAE = {
+    "prototype_parent": "BASEARMOR",
+    "price": 15,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "feet",
+    "resource_bonuses": {"max_hp": 5},
+    "key": "a pair of simple leather soleae sandals",
+}
+
 CALIGAE = {
     "prototype_parent": "BASEARMOR",
     "price": 25,
@@ -347,6 +456,16 @@ CALIGAE = {
     "armor_slot": "feet",
     "stat_bonuses": {"vigor": 1},
     "key": "a pair of studded caligae boots",
+}
+
+CALIGAE_FERRATAE = {
+    "prototype_parent": "BASEARMOR",
+    "price": 50,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "feet",
+    "stat_bonuses": {"vigor": 2},
+    "key": "a pair of hobnailed caligae ferratae boots",
 }
 
 # ----------------------------------------------------------------------------
@@ -392,6 +511,99 @@ AEGIS_OF_OLYMPUS = {
     ),
     "damage_reduction": 40,
     "defense_modifier": 30,
+    "locks": "get:false()",
+}
+
+# Jupiter's remaining divine gear (head/arms/hands/legs/feet) - no shield;
+# the Thunderbolt is deliberately two-handed, and CLASS_ARMOR_PROFICIENCIES
+# aside, the same two-handed/shield exclusivity every mortal lives under
+# applies to him too. One piece per core stat plus a resource-boosting
+# pair of sandals, mirroring the mortal accessory pattern (one bonus type
+# per piece) at a scale nothing mortal could ever wear.
+
+DIADEM_OF_THE_SKY_FATHER = {
+    "prototype_parent": "BASEARMOR",
+    "key": "|Y|hthe Diadem of the Sky-Father|n",
+    "desc": (
+        "|YA circlet of hammered starlight|n, too bright to look at directly "
+        "and yet somehow never blinding. |wSeven points crown it|n, said to "
+        "mark the seven winds that answer to no one but him. |cWhen he "
+        "turns his head, the stars themselves seem to lean in to listen.|n"
+    ),
+    "armor_slot": "head",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "stat_bonuses": {"ingenium": 5},
+    "locks": "get:false()",
+}
+
+STORMBOUND_VAMBRACES = {
+    "prototype_parent": "BASEARMOR",
+    "key": "|Y|hthe Stormbound Vambraces|n",
+    "desc": (
+        "|YForearm-guards of black storm-iron|n, veined through with the "
+        "same restless lightning that runs the length of the Thunderbolt "
+        "itself. |wThey hum faintly against the skin|n, as though bracing "
+        "for a blow that never quite arrives. |cNo mortal smith has ever "
+        "seen metal like this, let alone shaped it.|n"
+    ),
+    "armor_slot": "arms",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "stat_bonuses": {"virtus": 5},
+    "locks": "get:false()",
+}
+
+GAUNTLETS_OF_THE_THUNDERER = {
+    "prototype_parent": "BASEARMOR",
+    "key": "|Y|hthe Gauntlets of the Thunderer|n",
+    "desc": (
+        "|YGauntlets of gold-shot storm-cloud grey|n, each knuckle set "
+        "with a single unblinking spark of captured lightning. |wThe grip "
+        "never slips, the aim never wavers|n - these are the hands that "
+        "have hurled ten thousand years of thunderbolts and never once "
+        "missed. |cThey close around the Thunderbolt's haft like they "
+        "were forged for no other purpose.|n"
+    ),
+    "armor_slot": "hands",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "stat_bonuses": {"agilitas": 5},
+    "locks": "get:false()",
+}
+
+GREAVES_OF_OLYMPUS = {
+    "prototype_parent": "BASEARMOR",
+    "key": "|Y|hthe Greaves of Olympus|n",
+    "desc": (
+        "|YGreaves of white-gold and storm-grey|n, engraved with the "
+        "unbroken line of a mountain's silhouette against the sky. "
+        "|wThey do not so much protect the legs beneath them as remind "
+        "the wearer they are standing on the highest peak there is.|n "
+        "|cOlympus itself is said to have lent them its own foundations.|n"
+    ),
+    "armor_slot": "legs",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "stat_bonuses": {"vigor": 5},
+    "locks": "get:false()",
+}
+
+STORM_TREADS_OF_JUPITER = {
+    "prototype_parent": "BASEARMOR",
+    "key": "|Y|hthe Storm-Treads of Jupiter|n",
+    "desc": (
+        "|YSandals woven from storm-cloud and gold thread|n, leaving no "
+        "footprint on any surface they touch - cloud, marble, or the bare "
+        "air itself. |wEach step arrives before the sound of it does|n, "
+        "the way thunder always seems to lag a moment behind the flash "
+        "that made it. |cWherever he walks, the sky over that place "
+        "remembers it for a long time after.|n"
+    ),
+    "armor_slot": "feet",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "resource_bonuses": {"max_hp": 200, "max_mp": 200, "max_sp": 200},
     "locks": "get:false()",
 }
 

@@ -82,6 +82,22 @@ CLASS_WEAPON_PROFICIENCIES = {
     "barbarian": ["heavy_weapon", "heavy_blade"],
 }
 
+# Which body-armor/shield weight tiers (ARMOR_CATEGORIES in the equipment
+# generation section below) each class can wear without penalty. Only body
+# armor and shields are gated - the other five slots (head/arms/hands/legs/
+# feet) only ever grant flat stat/resource bonuses, with no
+# damage_reduction/defense_modifier for a penalty to meaningfully act on.
+CLASS_ARMOR_PROFICIENCIES = {
+    "augur": ["light"],
+    "medicus": ["light"],
+    "haruspex": ["light"],
+    "speculator": ["light"],
+    "venator": ["light", "medium"],
+    "gladiator": ["light", "medium", "heavy"],
+    "legionary": ["light", "medium", "heavy"],
+    "barbarian": ["medium", "heavy"],
+}
+
 NONPROFICIENT_ACCURACY_PENALTY = -20
 
 # How strongly the relevant stat (Agilitas for physical attacks,
@@ -128,6 +144,14 @@ MARKED_FOR_DEATH_DAMAGE_BONUS = 35
 # lands a hit while Riposte Ready is active.
 RIPOSTE_COUNTER_DAMAGE = 20
 NONPROFICIENT_DAMAGE_MULTIPLIER = 0.75  # 25% damage reduction
+
+# Mirrors the weapon penalties above exactly, applied to body armor/shields
+# worn outside CLASS_ARMOR_PROFICIENCIES - too heavy/unfamiliar to move in
+# properly costs you dodge (the same -20 as an off-class weapon's accuracy)
+# and blunts the armor's own protection (the same 25% weapons lose on
+# damage output).
+NONPROFICIENT_ARMOR_DEFENSE_PENALTY = -20
+NONPROFICIENT_ARMOR_REDUCTION_MULTIPLIER = 0.75  # 25% less damage_reduction
 
 # Power Attack (SP-based melee special move) options
 POWERATTACK_SP_COST = 10
@@ -436,6 +460,29 @@ class CombatRules:
             return True
         return weapon.db.weapon_category in proficiencies
 
+    def is_armor_proficient(self, character, armor):
+        """
+        Returns True if character's class is proficient with the given
+        piece's armor_category (light/medium/heavy). Only ever applies
+        to body armor and shields - those are the only slots with an
+        armor_category at all (see the equipment-slots note in
+        world/prototypes.py for why the other five slots aren't gated
+        the same way). A piece with no armor_category, or a character
+        with no player_class set, is always treated as proficient.
+        """
+        if not armor:
+            return True
+        category = armor.db.armor_category
+        if not category:
+            return True
+        char_class = character.db.player_class
+        if not char_class:
+            return True
+        proficiencies = CLASS_ARMOR_PROFICIENCIES.get(char_class)
+        if not proficiencies:
+            return True
+        return category in proficiencies
+
     def get_attack(self, attacker, defender):
         """
         Attack roll. Factors in:
@@ -481,9 +528,13 @@ class CombatRules:
 
         if defender.db.worn_armor:
             defense_value += defender.db.worn_armor.db.defense_modifier
+            if not self.is_armor_proficient(defender, defender.db.worn_armor):
+                defense_value += NONPROFICIENT_ARMOR_DEFENSE_PENALTY
 
         if defender.db.worn_shield:
             defense_value += defender.db.worn_shield.db.defense_modifier
+            if not self.is_armor_proficient(defender, defender.db.worn_shield):
+                defense_value += NONPROFICIENT_ARMOR_DEFENSE_PENALTY
 
         if "Defense Up" in self.get_conditions(defender):
             defense_value += DEF_UP_MOD
@@ -523,7 +574,10 @@ class CombatRules:
             damage_value += ((attacker.db.virtus or 10) - 10) // 2
 
         if defender.db.worn_armor:
-            damage_value -= defender.db.worn_armor.db.damage_reduction
+            reduction = defender.db.worn_armor.db.damage_reduction
+            if not self.is_armor_proficient(defender, defender.db.worn_armor):
+                reduction = int(reduction * NONPROFICIENT_ARMOR_REDUCTION_MULTIPLIER)
+            damage_value -= reduction
 
         # Vigor (constitution/toughness) - a small flat reduction on
         # top of whatever armor provides, independent of it.

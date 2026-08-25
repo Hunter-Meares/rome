@@ -207,9 +207,17 @@ CLASSES = {
             "Favour of the Sky - grant an ally a temporary luck/crit bonus",
             "Auspice - a short predictive buff that reduces incoming damage for a target",
         ],
-        "gear_desc": "Light leather-reinforced robe, ritual staff, small amulet",
+        "gear_desc": "Light leather-reinforced robe, ritual staff, felt cap, wraps, sandals - no shield",
         "stat_mods": {"virtus": 0, "agilitas": 0, "ingenium": 3, "vigor": 0},
-        "starting_gear": ["RITUAL_STAFF", "LEATHERARMOR"],
+        "starting_gear": [
+            "RITUAL_STAFF",
+            "LEATHERARMOR",
+            "PILEUS",
+            "FASCIA_BRACHII",
+            "CHIROTHECAE",
+            "FEMINALIA",
+            "SOLEAE",
+        ],
         "starting_spells": ["cure wounds"],
     },
     "medicus": {
@@ -221,9 +229,17 @@ CLASSES = {
             "Antidote - cures poison and other harmful conditions on an ally",
             "Triage - a group-wide heal, weaker per-target but reaching everyone nearby",
         ],
-        "gear_desc": "Satchel of herbs and bandages, a simple probe, a leather-reinforced field tunic",
+        "gear_desc": "Satchel of herbs and bandages, a simple probe, leather-reinforced field tunic, light wraps and sandals - no shield",
         "stat_mods": {"virtus": 0, "agilitas": 0, "ingenium": 2, "vigor": 1},
-        "starting_gear": ["DAGGER", "LEATHERARMOR"],
+        "starting_gear": [
+            "DAGGER",
+            "LEATHERARMOR",
+            "PILEUS",
+            "FASCIA_BRACHII",
+            "CHIROTHECAE",
+            "FEMINALIA",
+            "SOLEAE",
+        ],
         "starting_spells": ["cure wounds", "field dressing", "antidote"],
     },
     "haruspex": {
@@ -235,9 +251,17 @@ CLASSES = {
             "Blood Sacrament - convert a portion of the caster's health to power a devastating ritual",
             "Mark of Decay - damage-over-time effect that saps enemy strength",
         ],
-        "gear_desc": "Light leather-banded ritual garb, sacrificial blade (ceremonial), bone talismans",
+        "gear_desc": "Light leather-banded ritual garb, sacrificial blade (ceremonial), bone talismans, light wraps and sandals - no shield",
         "stat_mods": {"virtus": 0, "agilitas": 0, "ingenium": 3, "vigor": 0},
-        "starting_gear": ["DAGGER", "LEATHERARMOR"],
+        "starting_gear": [
+            "DAGGER",
+            "LEATHERARMOR",
+            "PILEUS",
+            "FASCIA_BRACHII",
+            "CHIROTHECAE",
+            "FEMINALIA",
+            "SOLEAE",
+        ],
         "starting_spells": ["mark of decay"],
     },
     "speculator": {
@@ -249,9 +273,17 @@ CLASSES = {
             "Ambush - burst from hiding to start a fight with a guaranteed bonus on your first strike",
             "Backstab - bonus damage against a target who hasn't yet acted",
         ],
-        "gear_desc": "Leather jerkin, daggers, shortbow, utility kit (lockpicks, disguise)",
+        "gear_desc": "Leather jerkin, daggers, utility kit (lockpicks, disguise), light wraps and sandals - no shield",
         "stat_mods": {"virtus": 0, "agilitas": 3, "ingenium": 0, "vigor": 0},
-        "starting_gear": ["DAGGER", "LEATHERARMOR"],
+        "starting_gear": [
+            "DAGGER",
+            "LEATHERARMOR",
+            "PILEUS",
+            "FASCIA_BRACHII",
+            "CHIROTHECAE",
+            "FEMINALIA",
+            "SOLEAE",
+        ],
         "starting_spells": [],
         "starting_skills": ["sneak"],
     },
@@ -264,9 +296,17 @@ CLASSES = {
             "Piercing Shot - an armor-ignoring ranged strike",
             "Call of the Wild - summon a beast companion that scales with your level",
         ],
-        "gear_desc": "Mail shirt (medium), hunting javelins, shortbow, hunting cloak",
+        "gear_desc": "Leather mail (light), hunting javelins, bronze helm, arm-guard, gloves, greaves, boots - no shield",
         "stat_mods": {"virtus": 1, "agilitas": 2, "ingenium": 0, "vigor": 0},
-        "starting_gear": ["JAVELIN", "LEATHERARMOR"],
+        "starting_gear": [
+            "JAVELIN",
+            "LEATHERARMOR",
+            "GALEA",
+            "MANICA",
+            "FASCIA_MANUS",
+            "OCREA",
+            "CALIGAE",
+        ],
         "starting_spells": [],
         "starting_skills": ["mark"],
     },
@@ -279,9 +319,18 @@ CLASSES = {
             "Gory Finish - a real execute against targets already below 20% HP",
             "Riposte - the next hit you take triggers an immediate counter-attack",
         ],
-        "gear_desc": "Scale armor (medium), gladius or trident (player choice), small shield (optional), leather greaves",
+        "gear_desc": "Scale armor (medium), broadsword, bronze-faced clipeus shield, helm, arm-guard, gloves, greaves, boots",
         "stat_mods": {"virtus": 2, "agilitas": 1, "ingenium": 0, "vigor": 0},
-        "starting_gear": ["BROADSWORD", "SCALEMAIL"],
+        "starting_gear": [
+            "BROADSWORD",
+            "SCALEMAIL",
+            "CLIPEUS",
+            "GALEA",
+            "MANICA",
+            "FASCIA_MANUS",
+            "OCREA",
+            "CALIGAE",
+        ],
         "starting_spells": [],
         "starting_skills": ["feint"],
     },
@@ -294,9 +343,18 @@ CLASSES = {
             "Testudo - forms a shield wall, granting your whole party a defense boost at once",
             "Gladius Cleave - a close-range cleave striking up to three enemies at once",
         ],
-        "gear_desc": "Heavy lorica (plate/scale), scutum (large shield), gladius, helmet",
+        "gear_desc": "Heavy plate mail, broadsword, scutum (large shield), plumed helm, vambrace, gauntlets, greaves, hobnailed boots",
         "stat_mods": {"virtus": 0, "agilitas": 0, "ingenium": 0, "vigor": 3},
-        "starting_gear": ["BROADSWORD", "PLATEMAIL"],
+        "starting_gear": [
+            "BROADSWORD",
+            "PLATEMAIL",
+            "SCUTUM",
+            "CASSIS",
+            "BRACHIALE",
+            "MANICA_FERRATA",
+            "OCREA_FERRATA",
+            "CALIGAE_FERRATAE",
+        ],
         "starting_spells": [],
         "starting_skills": ["hold the line"],
     },
@@ -309,9 +367,17 @@ CLASSES = {
             "Thundering Maul - a heavy strike that requires a two-handed weapon in hand",
             "War Cry - lowers the accuracy of up to three enemies at once",
         ],
-        "gear_desc": "Mixed scale and hide armor, two-handed axe or maul, war necklace",
+        "gear_desc": "Mixed scale and hide armor, two-handed greatsword, plumed helm, vambrace, gauntlets, greaves, hobnailed boots - no shield, both hands are full",
         "stat_mods": {"virtus": 3, "agilitas": 0, "ingenium": 0, "vigor": 0},
-        "starting_gear": ["GREATSWORD", "SCALEMAIL"],
+        "starting_gear": [
+            "GREATSWORD",
+            "SCALEMAIL",
+            "CASSIS",
+            "BRACHIALE",
+            "MANICA_FERRATA",
+            "OCREA_FERRATA",
+            "CALIGAE_FERRATAE",
+        ],
         "starting_spells": [],
         "starting_skills": ["rage of the north"],
     },
@@ -713,16 +779,26 @@ def _apply_race_and_class(character):
                 character.db.skills_known.append(skill_name)
 
         # --- Class: starting gear, spawned and auto-equipped ---
+        # Local import: world/combat.py has its own deferred import of
+        # RACES/CLASSES from this module (to avoid a circular import at
+        # module-load time) - mirroring that same caution here rather
+        # than importing combat.py at the top of this file.
+        from world.combat import ARMOR_SLOT_ATTRS, apply_equipment_bonuses
+
         for prototype_name in CLASSES[class_key]["starting_gear"]:
             try:
                 obj = spawn(prototype_name)[0]
                 # spawn()'s location kwarg is unreliable - move explicitly.
                 obj.move_to(character, quiet=True)
-                # Auto-equip: weapons get wielded, armor gets donned.
+                # Auto-equip: weapons get wielded; armor/shields/
+                # accessories go into whichever slot their own
+                # db.armor_slot names (defaults to "body" if unset).
                 if obj.is_typeclass("world.combat.CombatWeapon", exact=True):
                     character.db.wielded_weapon = obj
                 elif obj.is_typeclass("world.combat.CombatArmor", exact=True):
-                    character.db.worn_armor = obj
+                    slot = obj.db.armor_slot or "body"
+                    setattr(character.db, ARMOR_SLOT_ATTRS[slot], obj)
+                    apply_equipment_bonuses(character, obj)
             except Exception:
                 # Prototype not found (e.g. a class references gear that
                 # hasn't been built yet) - skip it rather than crash
@@ -730,6 +806,14 @@ def _apply_race_and_class(character):
                 character.msg(
                     "|y(Note: starting gear '%s' isn't set up yet - ask staff.)|n" % prototype_name
                 )
+
+        # Accessory gear above may have raised max_hp/max_mp/max_sp after
+        # they were already set to full a few lines up - re-sync so a
+        # freshly created character always starts at full health/mana/
+        # stamina, not below the new (higher) max.
+        character.db.hp = character.db.max_hp
+        character.db.mp = character.db.max_mp
+        character.db.sp = character.db.max_sp
 
     # --- Default sdesc: "a female cyclops" instead of the generic
     # rpsystem fallback ("a normal person"), built from the actual

@@ -217,11 +217,17 @@ class TestApplyRaceAndClass(EvenniaTest):
 
     def test_cyclops_legionary_stacks_race_and_class_vigor(self):
         """
-        Cyclops (+2 vigor) + Legionary (+3 vigor) should stack to +5
-        over baseline, and max_hp should reflect both the race's flat
-        max_hp bonus AND the derived (vigor-10)*2 bonus on top of it -
-        exactly the "tankier than the flat number alone" case
-        CLAUDE.md calls out.
+        Cyclops (+2 vigor) + Legionary (+3 vigor) stack to +5 over
+        baseline from race/class alone - still exactly the documented
+        invariant (CLAUDE.md: "no stat mod anywhere exceeds +3
+        individually", stacking to a 15 here). Legionary's starting
+        gear now also includes Caligae Ferratae (+2 vigor) and Cassis
+        (+20 max_hp) - equipment bonuses on top of that race/class
+        baseline, not a replacement for it, added this session
+        alongside the new equipment-slot system. max_hp reflects the
+        race's flat bonus, the derived (vigor-10)*2 bonus computed from
+        the race/class-only vigor (gear hasn't been donned yet at that
+        point in _apply_race_and_class), and Cassis's own flat bonus.
         """
         char = self.char1
         char.db.race = "cyclops"
@@ -230,8 +236,11 @@ class TestApplyRaceAndClass(EvenniaTest):
 
         _apply_race_and_class(char)
 
-        self.assertEqual(char.db.vigor, 10 + 2 + 3)  # 15
-        expected_max_hp = base_max_hp_before + 30 + (15 - 10) * 2
+        race_and_class_vigor = 10 + 2 + 3  # 15 - the documented ceiling
+        self.assertEqual(char.db.vigor, race_and_class_vigor + 2)  # +2 from Caligae Ferratae
+        expected_max_hp = (
+            base_max_hp_before + 30 + (race_and_class_vigor - 10) * 2 + 20  # +20 from Cassis
+        )
         self.assertEqual(char.db.max_hp, expected_max_hp)
         # hp/mp/sp should be topped off to the new max after chargen.
         self.assertEqual(char.db.hp, char.db.max_hp)
@@ -241,14 +250,20 @@ class TestApplyRaceAndClass(EvenniaTest):
     def test_stat_ceiling_respected_for_max_investment_combo(self):
         """
         Minotaur (+3 virtus) + Barbarian (+3 virtus) is the real
-        maximum-single-stat combo - should land exactly at the
-        documented ceiling of 16, not higher.
+        maximum-single-stat combo from race/class alone - lands
+        exactly at the documented ceiling of 16, not higher. Barbarian's
+        starting gear now also includes Brachiale (+2 virtus) - an
+        equipment bonus on top of the race/class ceiling, not a
+        contradiction of it (see the equipment-slot system added this
+        session, which deliberately allows gear to push past what
+        race/class alone can reach).
         """
         char = self.char1
         char.db.race = "minotaur"
         char.db.player_class = "barbarian"
         _apply_race_and_class(char)
-        self.assertEqual(char.db.virtus, 16)
+        race_and_class_ceiling = 16
+        self.assertEqual(char.db.virtus, race_and_class_ceiling + 2)  # +2 from Brachiale
 
     def test_starting_gear_is_spawned_and_equipped(self):
         char = self.char1
