@@ -6,6 +6,27 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## 🧹 Automatic dropped-item decay (clutter control) — ✅ this session
+
+Design discussed first (options given, feedback incorporated - 24h global timer, silent deletion, sweep-based Option B) before any code changed, per the working pattern this project follows for anything with real design tradeoffs.
+
+- [x] **Weapons, armor, and consumables now decay 24 hours after being dropped**, silently, no warning message. `ObjectParent.at_drop`/`at_get` (`typeclasses/objects.py`) stamp/clear `db.dropped_at` globally on every object type, but only ever matter for things that actually touch the ground - fixtures and decorative objects are never at risk since nothing "drops" one of those in the first place.
+- [x] **`is_junk_eligible()`/`find_decayed_items()`** (`world/combat.py`) define what counts: `CombatWeapon`, `CombatArmor`, anything with `item_func` set (potions, medkits, bombs, darts), or anything explicitly tagged `junk_eligible` (used for `GLASS_BOTTLE`, the empty-potion residue, which has no `item_func` of its own). Locked/unique items (`get:false()` - Jupiter's gear, any future divine/quest item) are never swept no matter how long they sit.
+- [x] **`ItemDecayManager`** (`world/colosseum.py`) is a persistent global sweep, built on the same `SelfHealingRepeatScript` base as the Colosseum's ambient scripts, running every 30 minutes. A manual `cleanupitems`/`cleanupitems confirm` admin command mirrors the existing `cleanupnpcs` list-then-confirm pattern as an override/testing tool.
+- [x] **Fixed a real bug found along the way**: `CombatWeapon.at_drop`/`CombatArmor.at_drop` never called `super().at_drop()` - silently skipping the new decay-stamping (and any future `ObjectParent` hook) for exactly the two typeclasses that generate this problem most. Matches gotcha #3 in CLAUDE.md exactly (missing `super()` in overridden hooks); fixed the same way.
+- [x] **Live-verified extensively**: drop/pickup stamping, the 24h cutoff, exclusion of fresh/locked/decorative items, the sweep only ever deleting what it should, and the admin command's list-then-confirm flow all confirmed via a real backdated-timestamp test script. 265 tests passing (was 261).
+- [ ] **One honest gap**: whether `ItemDecayManager`'s live 30-minute timer actually survived its first reload after creation was never confirmed with real confidence - checking a Script's in-memory task state from `evennia shell` can't work (it's always a separate process from the running server, so it can never observe another process's live reactor state), and that's the only way this was checked. The mechanism is identical to the already-proven `ColosseumEcho`/`NPCChatter` self-healing pattern, so it's very likely fine, but this is exactly the "live runtime state, hard to verify outside manual observation" category CLAUDE.md's own testing section already warns about. Worth a real in-game confirmation next time someone's on to check `cleanupitems` shows expected results after a genuine 24h+ has passed, rather than assuming.
+
+---
+
+## 🗑️ Broken legacy player characters, round 2 - found, not yet resolved
+
+Found by accident while investigating the item-decay work above (checking the server log for unrelated errors) - not something this session went looking for.
+
+- [ ] **4 more characters with `location=None`** (`BIG NIGGA` pk=136, `xalin` pk=343, `Kerinia` pk=449, `karlanthos` pk=1131), none with an attached account, throwing `AttributeError` in `condition_tickdown` (`world/combat.py`) every ~30 seconds via the out-of-combat condition ticker - confirmed continuously erroring for 3+ hours in the live server log, unrelated to and predating this session's actual changes. Same shape as the batch of 15 broken legacy characters found and deleted earlier in this engagement (with explicit user confirmation via AskUserQuestion) - very likely more of the same, but not deleted this time without asking first, matching that same precedent.
+
+---
+
 ## ⚔️ Full class outfitting, armor proficiency, Jupiter's divine set — ✅ this session
 
 Follow-on from the equipment-slot system below. Four real design questions asked and answered before any code changed (per explicit "ask me first" instruction), covering: chargen gear source (static prototypes, not the level-formula system - avoids the nerf risk already flagged), proficiency type (soft penalty, matching the weapon system, not a hard block), Jupiter's shield conflict (skipped - the Thunderbolt's two-handedness rules it out same as anyone), and accessory scope (tiered per class, not shared generic items).
