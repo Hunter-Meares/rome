@@ -3391,6 +3391,85 @@ def remove_equipment_bonuses(character, item):
     _clamp_current_resources(character)
 
 
+# ----------------------------------------------------------------------------
+# ITEM DECAY - dropped-item clutter control
+# ----------------------------------------------------------------------------
+# Weapons, armor, and consumables get stamped with db.dropped_at the moment
+# they hit the ground (ObjectParent.at_drop, typeclasses/objects.py) and
+# have it cleared the moment they're picked back up (ObjectParent.at_get).
+# A persistent global sweep (ItemDecayManager, world/colosseum.py) runs
+# every 30 minutes and silently deletes anything past JUNK_DECAY_SECONDS -
+# no warning, no announcement, by explicit design. Fixtures and decorative
+# objects are never at risk: nothing ever calls "drop" on one of those, so
+# they never get a db.dropped_at in the first place, regardless of whether
+# is_junk_eligible() would otherwise accept their typeclass.
+JUNK_DECAY_SECONDS = 24 * 60 * 60  # 24 hours
+
+
+def is_junk_eligible(obj):
+    """
+    Returns True if `obj` is the kind of dropped object automatic
+    clutter cleanup should ever consider: weapons, armor (including
+    shields and accessories), and consumable items (potions, medkits,
+    bombs, darts, and their empty-bottle residue, tagged directly via
+    db.junk_eligible since a residue object carries no item_func of
+    its own). Deliberately excludes everything else - a decorative
+    fixture or examine-only object was never given any of these
+    markers by any normal build process, since none of them are ever
+    "dropped" by a player in the first place.
+    """
+    if obj.is_typeclass("world.combat.CombatWeapon", exact=True):
+        return True
+    if obj.is_typeclass("world.combat.CombatArmor", exact=True):
+        return True
+    if obj.db.item_func:
+        return True
+    if obj.db.junk_eligible:
+        return True
+    return False
+
+
+def find_decayed_items():
+    """
+    Returns every currently-decayable dropped item in the game right
+    now: is_junk_eligible(), sitting directly in a Room (not carried,
+    contained, or equipped), with a db.dropped_at older than
+    JUNK_DECAY_SECONDS, and not locked against being taken at all
+    (get:false() - unique/divine gear is never auto-cleaned no matter
+    how it ended up on the ground). Used by both the automatic sweep
+    (ItemDecayManager in world/colosseum.py) and the manual
+    'cleanupitems' admin command below - one shared definition of
+    "decayed" for both.
+
+    Only ever considers objects that have a db.dropped_at attribute at
+    all, which - since that's only ever set by at_drop - naturally
+    scopes this to "things that have touched the ground at least
+    once," not the whole game's object count. Scales with how much
+    clutter has ever existed, not with world size.
+    """
+    from evennia.objects.models import ObjectDB
+    import time
+
+    cutoff = time.time() - JUNK_DECAY_SECONDS
+    candidates = ObjectDB.objects.filter(db_attributes__db_key="dropped_at").distinct()
+
+    decayed = []
+    for obj in candidates:
+        if not obj.pk:
+            continue
+        dropped_at = obj.db.dropped_at
+        if not dropped_at or dropped_at > cutoff:
+            continue
+        if not obj.location or not obj.location.is_typeclass("typeclasses.rooms.Room"):
+            continue
+        if not is_junk_eligible(obj):
+            continue
+        if "get:false()" in (obj.locks.get() or ""):
+            continue
+        decayed.append(obj)
+    return decayed
+
+
 class CombatWeapon(ObjectParent, DefaultObject):
     """A weapon which can be wielded in combat with the 'wield' command."""
 
@@ -3401,7 +3480,8 @@ class CombatWeapon(ObjectParent, DefaultObject):
         self.db.accuracy_bonus = 0
         self.db.weapon_type_name = "weapon"
 
-    def at_drop(self, dropper):
+    def at_drop(self, dropper, **kwargs):
+        super().at_drop(dropper, **kwargs)
         if dropper.db.wielded_weapon == self:
             dropper.db.wielded_weapon = None
             dropper.location.msg_contents("%s stops wielding %s." % (dropper, self))
@@ -3431,7 +3511,8 @@ class CombatArmor(ObjectParent, DefaultObject):
             return False
         return True
 
-    def at_drop(self, dropper):
+    def at_drop(self, dropper, **kwargs):
+        super().at_drop(dropper, **kwargs)
         slot = find_equipped_slot(dropper, self)
         if slot:
             setattr(dropper.db, ARMOR_SLOT_ATTRS[slot], None)
@@ -5104,6 +5185,55 @@ class CmdCleanupNPCs(Command):
         else:
             caller.msg("\n".join(lines))
             caller.msg("|y(Run 'cleanupnpcs confirm' to destroy these.)|n")
+
+
+class CmdCleanupItems(Command):
+    """
+    Finds and destroys dropped weapons/armor/consumables that have
+    been sitting on the ground long enough to auto-decay.
+
+    Usage:
+      cleanupitems
+      cleanupitems confirm
+
+    These items are supposed to clean themselves up automatically -
+    ItemDecayManager (world/colosseum.py), a persistent global sweep,
+    runs every 30 minutes and silently deletes anything past
+    JUNK_DECAY_SECONDS (24 hours; see find_decayed_items above). This
+    command exists as a manual override and testing tool, not because
+    the automatic sweep is expected to need it.
+
+    With no argument, this only LISTS what it finds - nothing gets
+    destroyed. Review the list, then run 'cleanupitems confirm' to
+    actually destroy everything listed.
+    """
+
+    key = "cleanupitems"
+    locks = "cmd:perm(Admin)"
+    help_category = "admin"
+
+    def func(self):
+        caller = self.caller
+        decayed = find_decayed_items()
+
+        if not decayed:
+            caller.msg("No decayed items found.")
+            return
+
+        lines = ["|wDecayed items found:|n"]
+        for obj in decayed:
+            location = obj.location.key if obj.location else "nowhere"
+            lines.append("  %s (in: %s)" % (obj.key, location))
+
+        if self.args and self.args.strip().lower() == "confirm":
+            count = len(decayed)
+            for obj in decayed:
+                obj.delete()
+            caller.msg("\n".join(lines))
+            caller.msg("|gDestroyed %d decayed item(s).|n" % count)
+        else:
+            caller.msg("\n".join(lines))
+            caller.msg("|y(Run 'cleanupitems confirm' to destroy these.)|n")
 
 
 class CmdSlay(Command):

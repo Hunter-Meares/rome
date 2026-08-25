@@ -19,6 +19,7 @@ from world.combat import (
     COMBAT_RULES,
     compute_weapon_stats,
     compute_armor_stats,
+    is_junk_eligible,
 )
 
 
@@ -183,6 +184,40 @@ class TestIsArmorProficient(unittest.TestCase):
         character = _FakeObj(player_class=None)
         armor = _FakeObj(armor_category="heavy")
         self.assertTrue(COMBAT_RULES.is_armor_proficient(character, armor))
+
+
+class _FakeJunkItem:
+    """Minimal stand-in for is_junk_eligible's needs - a .db namespace
+    plus a controllable is_typeclass() result, since that's the only
+    other thing the function calls."""
+
+    def __init__(self, typeclass_result=False, **db_kwargs):
+        self.db = _FakeDB(**db_kwargs)
+        self._typeclass_result = typeclass_result
+
+    def is_typeclass(self, path, exact=False):
+        return self._typeclass_result
+
+
+class TestIsJunkEligible(unittest.TestCase):
+    def test_weapon_typeclass_is_eligible(self):
+        obj = _FakeJunkItem(typeclass_result=True)
+        self.assertTrue(is_junk_eligible(obj))
+
+    def test_plain_object_with_item_func_is_eligible(self):
+        obj = _FakeJunkItem(typeclass_result=False, item_func="heal")
+        self.assertTrue(is_junk_eligible(obj))
+
+    def test_explicitly_tagged_junk_eligible(self):
+        # e.g. GLASS_BOTTLE potion residue - no item_func of its own.
+        obj = _FakeJunkItem(typeclass_result=False, item_func=None, junk_eligible=True)
+        self.assertTrue(is_junk_eligible(obj))
+
+    def test_plain_decorative_object_is_not_eligible(self):
+        # A room fixture: not a weapon/armor typeclass, no item_func,
+        # never explicitly tagged.
+        obj = _FakeJunkItem(typeclass_result=False, item_func=None, junk_eligible=None)
+        self.assertFalse(is_junk_eligible(obj))
 
 
 if __name__ == "__main__":

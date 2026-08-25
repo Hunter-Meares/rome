@@ -146,6 +146,39 @@ class SelfHealingRepeatScript(DefaultScript):
 
 
 #########################################################
+#           Global item-decay sweep (clutter control)
+#########################################################
+
+
+class ItemDecayManager(SelfHealingRepeatScript):
+    """
+    Global singleton script - periodically sweeps the whole game for
+    dropped weapons/armor/consumables that have been sitting untouched
+    long enough to auto-delete, keeping clutter from accumulating
+    without bound as the player base grows. See find_decayed_items()/
+    is_junk_eligible() in world/combat.py for exactly what counts and
+    why fixtures/decorative objects are never at risk.
+
+    Deletion is silent by design - no warning message, no
+    announcement - matching the explicit decision this was built to.
+    Exactly one instance of this script should ever exist; there's no
+    per-object state here, only the timer itself.
+    """
+
+    def at_script_creation(self):
+        self.key = "item_decay_manager"
+        self.interval = 1800  # 30 minutes
+        self.persistent = True
+        self.start_delay = True
+
+    def at_repeat(self):
+        from world.combat import find_decayed_items
+
+        for obj in find_decayed_items():
+            obj.delete()
+
+
+#########################################################
 #              Ambient room-echo script
 #########################################################
 

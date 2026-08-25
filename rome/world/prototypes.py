@@ -617,7 +617,15 @@ MEDKIT = {
     "item_kwargs": {"healing_range": (15, 25)},
 }
 
-GLASS_BOTTLE = {"key": "a glass bottle", "desc": "An empty glass bottle."}
+GLASS_BOTTLE = {
+    "key": "a glass bottle",
+    "desc": "An empty glass bottle.",
+    # No item_func of its own (it's leftover residue, not a usable
+    # item), so it needs this explicit tag to be picked up by the
+    # item-decay sweep (find_decayed_items, world/combat.py) the same
+    # way real consumables are via their item_func.
+    "junk_eligible": True,
+}
 
 HEALTH_POTION = {
     "key": "a health potion",

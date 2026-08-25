@@ -94,6 +94,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(combat.CmdGreet())
         self.add(combat.CmdSlay())
         self.add(combat.CmdCleanupNPCs())
+        self.add(combat.CmdCleanupItems())
         self.add(combat.CmdGodLevel())
         self.add(combat.CmdWizInvis())
         self.add(combat.CmdRestore())

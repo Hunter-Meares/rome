@@ -8,6 +8,8 @@ with a location in the game world (like Characters, Rooms, Exits).
 
 """
 
+import time
+
 from evennia.objects.objects import DefaultObject
 from evennia.utils.ansi import strip_ansi
 
@@ -34,6 +36,32 @@ class ObjectParent:
         if plain_key.strip().lower().startswith("the "):
             kwargs["no_article"] = True
         return super().get_numbered_name(count, looker, **kwargs)
+
+    def at_drop(self, dropper, **kwargs):
+        """
+        Stamps every dropped object with when it hit the ground, so a
+        periodic sweep (ItemDecayManager, world/colosseum.py) can find
+        and quietly delete anything that's been sitting untouched too
+        long - see is_junk_eligible() in world/combat.py for exactly
+        what that sweep actually considers clutter (fixtures and
+        decorative objects are never touched, since nothing ever
+        "drops" one of those in the first place). Applied here rather
+        than on CombatWeapon/CombatArmor individually so any future
+        droppable item type gets it for free.
+        """
+        super().at_drop(dropper, **kwargs)
+        self.db.dropped_at = time.time()
+
+    def at_get(self, getter, **kwargs):
+        """
+        Clears the drop-timestamp the moment something is picked back
+        up, so a later re-drop starts its decay clock fresh instead of
+        inheriting a stale timestamp from however long ago it was first
+        dropped.
+        """
+        super().at_get(getter, **kwargs)
+        if self.db.dropped_at:
+            del self.db.dropped_at
 
 
 class Object(ObjectParent, DefaultObject):
