@@ -1178,15 +1178,19 @@ class CombatRules:
                 if condition_turnchar == turnchar:
                     self.get_conditions(character)[key][0] -= 1
                 if self.get_conditions(character)[key][0] <= 0:
-                    character.location.msg_contents(
-                        "%s no longer has the '%s' condition." % (str(character), str(key))
-                    )
+                    if character.location:
+                        character.location.msg_contents(
+                            "%s no longer has the '%s' condition." % (str(character), str(key))
+                        )
                     del self.get_conditions(character)[key]
 
     def add_condition(self, character, turnchar, condition, duration):
         """Adds a condition to a character."""
         self.get_conditions(character).update({condition: [duration, turnchar]})
-        character.location.msg_contents("%s gains the '%s' condition." % (character, condition))
+        if character.location:
+            character.location.msg_contents(
+                "%s gains the '%s' condition." % (character, condition)
+            )
 
     def apply_turn_conditions(self, character):
         """
@@ -1198,16 +1202,18 @@ class CombatRules:
             if character.db.hp + to_heal > character.db.max_hp:
                 to_heal = character.db.max_hp - character.db.hp
             character.db.hp += to_heal
-            character.location.msg_contents(
-                "%s regains %i HP from Regeneration." % (character, to_heal)
-            )
+            if character.location:
+                character.location.msg_contents(
+                    "%s regains %i HP from Regeneration." % (character, to_heal)
+                )
 
         if "Poisoned" in self.get_conditions(character):
             to_hurt = randint(POISON_RATE[0], POISON_RATE[1])
             self.apply_damage(character, to_hurt)
-            character.location.msg_contents(
-                "%s takes %i damage from being Poisoned." % (character, to_hurt)
-            )
+            if character.location:
+                character.location.msg_contents(
+                    "%s takes %i damage from being Poisoned." % (character, to_hurt)
+                )
             if character.db.hp <= 0:
                 self.at_defeat(character)
 
@@ -1217,9 +1223,10 @@ class CombatRules:
 
         if self.is_in_combat(character) and "Paralyzed" in self.get_conditions(character):
             character.db.combat_actionsleft = 0
-            character.location.msg_contents(
-                "%s is Paralyzed, and can't act this turn!" % character
-            )
+            if character.location:
+                character.location.msg_contents(
+                    "%s is Paralyzed, and can't act this turn!" % character
+                )
             character.db.combat_turnhandler.turn_end_check(character)
 
     # ------------------------------------------------------------------
@@ -4222,6 +4229,17 @@ class CombatCharacter(ContribRPCharacter):
 
     def at_update(self):
         """Fires every NONCOMBAT_TURN_TIME seconds, out of combat."""
+        if not self.location:
+            # A character with no location (abandoned, no account, or
+            # otherwise orphaned - see rome_mud_todo.md for a real
+            # instance of this) has nothing meaningful to tick, and
+            # condition_tickdown's location.msg_contents call would
+            # crash on it. Permanently unsubscribe rather than
+            # repeating this same check forever every 30 seconds for a
+            # character that will never get a location back without
+            # manual intervention.
+            tickerhandler.remove(NONCOMBAT_TURN_TIME, self.at_update, idstring="update")
+            return
         if not self.rules.is_in_combat(self):
             for key in self.db.conditions:
                 self.db.conditions[key][1] = self

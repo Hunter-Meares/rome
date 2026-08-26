@@ -49,6 +49,41 @@ class CombatTestBase(EvenniaTest):
             char.db.damage_log = {}
 
 
+class TestOrphanedCharacterTicking(CombatTestBase):
+    """
+    Regression coverage for a real bug found live: characters that end
+    up with location=None (confirmed instances: an account link
+    severed with the character left behind - see rome_mud_todo.md)
+    crashed every 30 seconds forever via the out-of-combat ticker,
+    since condition_tickdown/apply_turn_conditions/add_condition all
+    called character.location.msg_contents() with no null check.
+    """
+
+    def test_at_update_does_not_crash_with_no_location(self):
+        self.char1.location = None
+        self.char1.db.conditions = {"Regeneration": [3, self.char1]}
+        self.char1.at_update()  # should not raise
+
+    def test_condition_tickdown_does_not_crash_with_no_location(self):
+        self.char1.location = None
+        self.char1.db.conditions = {"Haste": [0, self.char1]}
+        COMBAT_RULES.condition_tickdown(self.char1, self.char1)
+        self.assertNotIn("Haste", self.char1.db.conditions)
+
+    def test_apply_turn_conditions_does_not_crash_with_no_location(self):
+        self.char1.location = None
+        self.char1.db.conditions = {"Regeneration": [True, self.char1]}
+        self.char1.db.hp = 50
+        self.char1.db.max_hp = 100
+        COMBAT_RULES.apply_turn_conditions(self.char1)
+        self.assertGreater(self.char1.db.hp, 50)
+
+    def test_add_condition_does_not_crash_with_no_location(self):
+        self.char1.location = None
+        COMBAT_RULES.add_condition(self.char1, self.char1, "Haste", 3)
+        self.assertIn("Haste", self.char1.db.conditions)
+
+
 class TestGetDefense(CombatTestBase):
     """get_defense has zero random component - fully deterministic."""
 
