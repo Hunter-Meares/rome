@@ -6,6 +6,25 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## 🎮 Real playtest: leveling through the Colosseum + Ludus — findings this session
+
+Prompted by "can you actually create a character and play the game." Created real characters via the real chargen function and drove them through genuine `execute_cmd` calls (real `Command.func()` against real DB objects, not simulated) - verified first that this is valid for this combat system specifically, since NPC turns resolve synchronously (`resolve_attack` called directly, no reactor-scheduled delay), so nothing about `evennia shell` running outside the live reactor loop actually matters here.
+
+- [x] **Retraced karlanthos's exact steps** (see the ticker-crash-loop section above) - clean victory over Rutilus the Trainer in 9 rounds, full narrative combat, achievement unlock, level 2. No reproduction of a stuck/broken state on the current code - points toward the original incident being a dropped connection rather than a live, repeatable bug.
+- [x] **Confirmed: no "OOC changes location" mechanism exists.** Checked Evennia core's own disconnect/unpuppet handlers and this project's `typeclasses/accounts.py`/`typeclases/characters.py` directly - disconnecting or going OOC never touches `location` anywhere, in Evennia or this codebase. Rules out that specific theory for what happened to karlanthos.
+- [x] **Real XP-curve data point**: `xp_for_level(2)` = `int(20 * 2**1.9)` ≈ 74. A level-1→2 character clearing Rutilus + all 3 Weapons Yard recruit trainers nets only ~50 XP total - not enough to reach the level-3 gate for the Wrestling Pit without at least one full respawn-and-refarm cycle at the Weapons Yard. Worth knowing as real, computed pacing data, not a guess - a fresh player grinding only the Weapons Yard will hit a real wall before Wrestling Pit opens.
+- [ ] **Found a real, live bug while grinding for the level-3 push**: `RespawnTimer` (world/combat.py) - see the dedicated section below.
+
+---
+
+## 🐛 RespawnTimer silently never fires (found via live playtesting) — partially fixed
+
+- [x] **Root cause**: `RespawnTimer` was a bare `DefaultScript`, not built on `SelfHealingRepeatScript` like `ColosseumEcho`/`NPCChatter`/`WanderingNPC`. Created via `create_script()` from a shell-driven test fight (not a real live server request), its timer never got a chance to actually start ticking before that process ended - `db_is_active=True` in the database, looking perfectly healthy, while `time_until_next_repeat()` stayed `None` forever. 3 Ludus recruit trainers were left permanently dead (`location=None`) as a direct result - this is exactly the confirmed real-world manifestation of the "known untested item" this file already flagged: "`RespawningNPC` surviving a server reload mid-respawn-wait."
+- [x] `RespawnTimer` now inherits `SelfHealingRepeatScript` (`world/combat.py`), matching the established pattern. Required a new top-level import direction (`combat.py` → `colosseum.py`) that hadn't been used before - verified safe empirically via a real `evennia shell` import test (a naive manual `django.setup()` test script gave a misleading `TypeError`, itself a reminder that only `evennia shell`'s own bootstrap is authoritative for this kind of check, not an ad-hoc script).
+- [ ] **Honest, unresolved gap**: a reload after this fix did NOT retroactively revive the 3 already-stuck instances - confirmed by waiting well past the 30s respawn window and checking real DB state twice. The 3 NPCs were fixed directly instead (forced back to full HP in their room, stale timers deleted) so the game is playable again right now. Why the self-heal didn't fire the same way it does for the other three scripts wasn't pinned down without live debugging - a real candidate for using this project's own `debugpy` integration to actually step through `at_server_start`/`_start_task` next time, rather than reasoning through Evennia's `ExtendedLoopingCall` internals blind. Treat the `SelfHealingRepeatScript` change as an unverified defense for this specific script, not a confirmed fix, until it's actually observed working here.
+
+---
+
 ## 🧹 Automatic dropped-item decay (clutter control) — ✅ this session
 
 Design discussed first (options given, feedback incorporated - 24h global timer, silent deletion, sweep-based Option B) before any code changed, per the working pattern this project follows for anything with real design tradeoffs.
