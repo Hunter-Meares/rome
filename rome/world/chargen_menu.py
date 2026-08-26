@@ -783,7 +783,26 @@ def _apply_race_and_class(character):
         # RACES/CLASSES from this module (to avoid a circular import at
         # module-load time) - mirroring that same caution here rather
         # than importing combat.py at the top of this file.
-        from world.combat import ARMOR_SLOT_ATTRS, apply_equipment_bonuses
+        from world.combat import (
+            ARMOR_SLOT_ATTRS,
+            apply_equipment_bonuses,
+            compute_weapon_stats,
+            compute_armor_stats,
+        )
+
+        # Weapons and body armor now get their stats from the level-
+        # scaled formula instead of each prototype's static hardcoded
+        # values, but pinned to a fixed level rather than the
+        # character's real starting level (1) - solving backward
+        # against every existing weapon/armor's real stats showed
+        # today's starting gear already corresponds to roughly level
+        # 3-5 under the formula (every category landed in that same
+        # band independently), so spawning at the character's actual
+        # level 1 would be a real, unintended nerf nobody asked for.
+        # Level 4 keeps chargen's power level exactly where it already
+        # was - shields and accessories are untouched, they were never
+        # part of the level-formula system to begin with.
+        CHARGEN_GEAR_LEVEL = 4
 
         for prototype_name in CLASSES[class_key]["starting_gear"]:
             try:
@@ -794,9 +813,24 @@ def _apply_race_and_class(character):
                 # accessories go into whichever slot their own
                 # db.armor_slot names (defaults to "body" if unset).
                 if obj.is_typeclass("world.combat.CombatWeapon", exact=True):
+                    damage_range, accuracy_bonus, price = compute_weapon_stats(
+                        obj.db.weapon_type_name, CHARGEN_GEAR_LEVEL
+                    )
+                    obj.db.damage_range = damage_range
+                    obj.db.accuracy_bonus = accuracy_bonus
+                    obj.db.price = price
+                    obj.db.item_level = CHARGEN_GEAR_LEVEL
                     character.db.wielded_weapon = obj
                 elif obj.is_typeclass("world.combat.CombatArmor", exact=True):
                     slot = obj.db.armor_slot or "body"
+                    if slot == "body":
+                        reduction, defense_modifier, price = compute_armor_stats(
+                            obj.db.armor_category, CHARGEN_GEAR_LEVEL
+                        )
+                        obj.db.damage_reduction = reduction
+                        obj.db.defense_modifier = defense_modifier
+                        obj.db.price = price
+                        obj.db.item_level = CHARGEN_GEAR_LEVEL
                     setattr(character.db, ARMOR_SLOT_ATTRS[slot], obj)
                     apply_equipment_bonuses(character, obj)
             except Exception:

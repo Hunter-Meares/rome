@@ -64,7 +64,7 @@ Four core stats: **Virtus** (melee power), **Agilitas** (accuracy/dodge/ranged p
 - **Gold**: plain integer (`character.db.gold`), not individual coin objects — matches Evennia's own official recommended pattern for exactly this reason.
 - **Shops are effectively infinite-stock**: buying spawns a fresh copy from the ware's `prototype_key` rather than moving/depleting the actual display item. Selling back deletes the item outright (not moved into the merchant's inventory) — both deliberate, to avoid a shop ever running dry and to avoid sold goods piling up as confusing duplicate listings.
 - **Sell-back rate**: 50% of an item's price (`SELL_BACK_RATE` in `economy.py`).
-- **Two real merchants deployed**: the Colosseum vendor (flavor snacks) and a new Ludus weaponsmith (real gear — Gladius, Dagger, Leather Armor).
+- **Four real merchants deployed, all flavor goods** (Colosseum vendor, Forum bookseller/goldsmith/perfumer/food vendor) — confirmed live. A Ludus weaponsmith selling real weapons/armor was previously documented here but doesn't actually exist in the live database; that was stale documentation, not a removed feature. Building one is a natural next use for the level-scaled weapon/armor formula (`compute_weapon_stats`/`compute_armor_stats`, `world/combat.py`) once wanted.
 - **Not yet solved**: `learnspell`/`learnskill` still don't cost gold — open design question, not forgotten.
 
 ---

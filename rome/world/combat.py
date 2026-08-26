@@ -3831,24 +3831,17 @@ class RespawnTimer(SelfHealingRepeatScript):
     with is_active=True but time_until_next_repeat()=None, exactly
     matching this failure signature.
 
-    Honest caveat: a reload after adding this base class did NOT
-    retroactively revive the 3 already-stuck instances found live -
-    time_until_next_repeat() stayed None and they never respawned
-    even after several minutes, unlike how this same pattern is
-    already confirmed working for ColosseumEcho/NPCChatter/
-    WanderingNPC. The 3 stuck NPCs were fixed directly instead (forced
-    back to their room at full HP, stale timer deleted). Root cause of
-    why the self-healing check didn't fire the same way here wasn't
-    pinned down - plausibly some interaction between force_restart and
-    this script's start_delay=True in Evennia's own ExtendedLoopingCall
-    internals, not chased down further via blind code reading. This
-    base class is kept anyway since it costs nothing over the plain
-    DefaultScript it replaced and is the established pattern for this
-    exact failure shape - but treat it as an unverified defense, not a
-    confirmed fix, until it's actually seen working for this specific
-    script. If this recurs, `debugpy` (already integrated in this
-    project) can attach live and step through at_server_start/
-    _start_task directly instead of reasoning about it blind.
+    Confirmed working via a real end-to-end test: killed a fresh NPC,
+    reloaded, and (via temporary logging inside at_server_start itself
+    - the only cross-process-safe way to observe this, since ndb state
+    can never be checked from a separate evennia shell process) saw
+    the self-heal actually fire, the timer genuinely tick 30 seconds
+    later, and the NPC land back in its room at full HP. An earlier
+    "this doesn't work" conclusion in this project's history was
+    itself wrong - a repeat of the exact ndb-cross-process verification
+    mistake this class's own docstring above warns about, checking
+    time_until_next_repeat() from a separate shell process rather than
+    from inside the live process during its own reload.
     """
 
     def at_script_creation(self):
