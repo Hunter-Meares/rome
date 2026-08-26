@@ -6,6 +6,22 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## ✨ Two small live-reported UX fixes — ✅ this session
+
+- [x] **Room echoes/NPC dialogue were visually running together.** `ColosseumEcho`/`NPCChatter` (`world/colosseum.py`) both fire independently of everything else happening in a room - reported live as an unreadable wall of text in a busy room (the Forum, multiple wandering NPCs + ambient echoes landing close together). Both now prefix their message with a leading blank line.
+- [x] **Two-handed weapons showed a misleading inventory label.** `CmdInventory` (`world/combat.py`) said "Wielded (in hand)" for the Thunderbolt of Jupiter, which reads as if a hand were still free - it isn't, that's the entire point of `two_handed`. Now shows "Wielded (in both hands)" whenever the weapon's own flag is set.
+- [x] 269 tests passing.
+
+---
+
+## 🔍 karlanthos location=None — further investigation, new lead found
+
+- [x] **Checked Django admin's `LogEntry` table** (every add/change/delete made through the `/admin/` web panel is auto-logged) for any admin action around the incident (2026-08-24 10:53-11:00). Found 9 total entries game-wide, all account/character/object deletions by Jupiter's account, spanning 2025-04-12 through 2026-08-06 - **none anywhere near karlanthos's timeframe**, ruling out the Django admin panel as the mechanism specifically for this case (though it's confirmed as the tool used for other historical cleanup, including two accounts and a stray "basic sword"/dummy characters over the past year).
+- [ ] **Current best theory, unconfirmed**: since Django admin is ruled out, no self-deletion command exists in-game, and OOC/room-deletion were already ruled out last time, the remaining plausible explanation is a manual `evennia shell` intervention (nulling location/account directly rather than a full `.delete()`) - the same *kind* of raw-script technique this project itself uses constantly for legitimate work, which leaves zero trace in any log (Django's `LogEntry` only captures actions taken *through* the admin web panel, not raw ORM/shell operations).
+- [ ] **Forward-looking ideas, not yet built** (since the historical trail is likely exhausted): (1) a periodic health-check script, mirroring `ItemDecayManager`, that scans for `location=None` characters with a live account link and logs an immediate detailed alert the moment one appears, rather than discovering this by accident weeks later; (2) a signal/hook on `Character` that logs a stack trace whenever `db_location` transitions to `None` outside the known legitimate paths (death, decay), giving real forensic data the *next* time this happens instead of reconstructing it after the fact.
+
+---
+
 ## 🎮 Real playtest: leveling through the Colosseum + Ludus — findings this session
 
 Prompted by "can you actually create a character and play the game." Created real characters via the real chargen function and drove them through genuine `execute_cmd` calls (real `Command.func()` against real DB objects, not simulated) - verified first that this is valid for this combat system specifically, since NPC turns resolve synchronously (`resolve_attack` called directly, no reactor-scheduled delay), so nothing about `evennia shell` running outside the live reactor loop actually matters here.
