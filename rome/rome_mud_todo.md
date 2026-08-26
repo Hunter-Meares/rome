@@ -19,11 +19,23 @@ Design discussed first (options given, feedback incorporated - 24h global timer,
 
 ---
 
-## 🗑️ Broken legacy player characters, round 2 - found, not yet resolved
+## 🗑️ Broken legacy player characters, round 2 — ✅ resolved this session
 
-Found by accident while investigating the item-decay work above (checking the server log for unrelated errors) - not something this session went looking for.
+Found by accident while investigating the item-decay work above (checking the server log for unrelated errors) - not something this session went looking for. Root-caused properly before touching anything, per explicit request, rather than just deleting on sight.
 
-- [ ] **4 more characters with `location=None`** (`BIG NIGGA` pk=136, `xalin` pk=343, `Kerinia` pk=449, `karlanthos` pk=1131), none with an attached account, throwing `AttributeError` in `condition_tickdown` (`world/combat.py`) every ~30 seconds via the out-of-combat condition ticker - confirmed continuously erroring for 3+ hours in the live server log, unrelated to and predating this session's actual changes. Same shape as the batch of 15 broken legacy characters found and deleted earlier in this engagement (with explicit user confirmation via AskUserQuestion) - very likely more of the same, but not deleted this time without asking first, matching that same precedent.
+- [x] **Root cause investigated, not just patched.** All 4 (`BIG NIGGA` pk=136, `xalin` pk=343, `Kerinia` pk=449, `karlanthos` pk=1131) had `db_account=None` (account link fully severed) while `prelogout_location` still correctly pointed to a real, still-existing room - ruling out "the room got deleted" and confirming a normal disconnect happened *before* whatever severed the account link. No self-deletion command exists anywhere in this codebase, so that severing was an admin/manual action outside the game's own command flow, not something the live code causes on its own. Pulled the actual audit log for `karlanthos` (created 2 days prior) and found a real account (`cuthbert#28`) playing through the full Colosseum escape sequence, ending mid-fight in Arena Sands (`challenge` → `fight` → `attack`) with the command trail simply stopping cold - consistent with a dropped connection or the previously-fixed turn-handler stuck-loop bug, not a new one. `xalin`/`Kerinia` predate the audit-logging system so no comparable trail exists for them. `BIG NIGGA` (Jan 2026) has `player_class: "warrior"` - not one of the current 8 real classes - confirming it predates the current class system entirely and is old prototype debris, not a recent lost player.
+- [x] **All 4 deleted**, along with their carried/equipped items (karlanthos's broadsword and plate mail included) so nothing was left behind as orphaned debris of its own.
+- [x] **The actual underlying bug fixed** (not just the 4 symptoms) - see the ticker-crash-loop fix below.
+
+---
+
+## 🔧 Ticker crash-loop fix (location-less characters) — ✅ this session
+
+The real, fixable bug behind the round-2 legacy characters above - would recreate the exact same crash loop for any future character that ends up location-less, regardless of how that happens.
+
+- [x] **`condition_tickdown`/`apply_turn_conditions`/`add_condition`** (`world/combat.py`) all called `character.location.msg_contents(...)` with zero null check, and every character is permanently subscribed to a 30-second out-of-combat ticker at creation (`CombatCharacter.at_object_creation`) with no unsubscribe anywhere in the codebase. Any character that ever ends up with `location=None` crashed this ticker every 30 seconds, forever, silently logged - confirmed continuously erroring for 3+ hours before the fix.
+- [x] **`at_update()`** now checks for a missing location up front and, on finding one, permanently unsubscribes from the ticker (`tickerhandler.remove`) instead of repeating the same check forever - a character with no location isn't getting one back without manual intervention. The other three call sites got the same defensive `if character.location:` guard, for the rarer case of a fighter losing location mid-combat rather than via the out-of-combat path.
+- [x] **Confirmed live**: zero new tracebacks in over an hour of real uptime since the fix + deletion, versus a new one every ~30 seconds continuously beforehand. 4 new regression tests added (`TestOrphanedCharacterTicking`, `world/tests_combat.py`); 269 tests passing (was 265).
 
 ---
 
