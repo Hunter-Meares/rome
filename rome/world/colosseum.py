@@ -201,7 +201,12 @@ class ColosseumEcho(SelfHealingRepeatScript):
         messages = self.obj.db.echo_messages
         if not messages:
             return
-        self.obj.msg_contents(messages[randint(0, len(messages) - 1)])
+        # Leading blank line - ambient echoes fire independently of
+        # anything else happening in the room (player commands, other
+        # NPCs' chatter), and with no separator they visually run
+        # together into an unreadable wall when several land close
+        # together (a real complaint from actually watching this live).
+        self.obj.msg_contents("\n" + messages[randint(0, len(messages) - 1)])
 
 
 class NPCChatter(SelfHealingRepeatScript):
@@ -271,7 +276,11 @@ class NPCChatter(SelfHealingRepeatScript):
                 heard = receiver.process_language(quoted, npc, language)
             else:
                 heard = quoted
-            receiver.msg("%s says, %s" % (npc, heard))
+            # Leading blank line - same reasoning as ColosseumEcho's:
+            # this fires independently of everything else in the room,
+            # and several NPCs/echoes landing close together read as
+            # an unbroken wall of text without it.
+            receiver.msg("\n%s says, %s" % (npc, heard))
 
 
 class WanderingNPC(SelfHealingRepeatScript):

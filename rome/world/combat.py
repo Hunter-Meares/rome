@@ -6002,8 +6002,16 @@ class CmdInventory(Command):
             caller.msg("You are not carrying anything.")
             return
 
+        def _slot_label(attr, default_label, item):
+            # A two-handed weapon leaves nothing free for a shield -
+            # say so explicitly rather than the generic "in hand",
+            # which reads as if a hand were still free.
+            if attr == "wielded_weapon" and item.db.two_handed:
+                return "Wielded (in both hands)"
+            return default_label
+
         equipped_lines = [
-            "|w%s:|n  %s" % (label, equipped[attr].get_display_name(caller))
+            "|w%s:|n  %s" % (_slot_label(attr, label, equipped[attr]), equipped[attr].get_display_name(caller))
             for attr, label in self._EQUIPPED_SLOTS
             if attr in equipped
         ]
