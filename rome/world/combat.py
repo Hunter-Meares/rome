@@ -31,6 +31,7 @@ from random import randint
 
 from evennia import TICKER_HANDLER as tickerhandler
 from evennia import DefaultScript, create_object, create_script
+from world.colosseum import SelfHealingRepeatScript
 from evennia.objects.objects import DefaultCharacter, DefaultObject
 from evennia.contrib.rpg.rpsystem import ContribRPCharacter, CmdMask
 from commands.command import Command
@@ -3808,7 +3809,7 @@ class HostileNPC(AutoStatNPC):
         self._use_ability(kind, name, target)
 
 
-class RespawnTimer(DefaultScript):
+class RespawnTimer(SelfHealingRepeatScript):
     """
     A one-shot, persistent timer that brings a defeated RespawningNPC
     back after a delay. Persistent (survives a server reload) rather
@@ -3816,6 +3817,38 @@ class RespawnTimer(DefaultScript):
     by a reload would mean the NPC just never comes back at all,
     exactly the kind of reload-fragility that caused real problems
     with the personal-instance safety-net timer earlier.
+
+    Built on SelfHealingRepeatScript (world/colosseum.py) rather than
+    a bare DefaultScript - a real bug found live via playtesting:
+    created via create_script() (see spend_action's defeat-handling
+    above) from inside an evennia shell script (not a real live
+    server request), this hit the identical failure mode
+    ColosseumEcho/NPCChatter/WanderingNPC originally had -
+    db_is_active=True in the database, looking perfectly healthy,
+    while the actual in-memory timer that would fire at_repeat()
+    never existed past the process that created it. Confirmed live: 3
+    Ludus recruit trainers stayed permanently dead (location=None)
+    with is_active=True but time_until_next_repeat()=None, exactly
+    matching this failure signature.
+
+    Honest caveat: a reload after adding this base class did NOT
+    retroactively revive the 3 already-stuck instances found live -
+    time_until_next_repeat() stayed None and they never respawned
+    even after several minutes, unlike how this same pattern is
+    already confirmed working for ColosseumEcho/NPCChatter/
+    WanderingNPC. The 3 stuck NPCs were fixed directly instead (forced
+    back to their room at full HP, stale timer deleted). Root cause of
+    why the self-healing check didn't fire the same way here wasn't
+    pinned down - plausibly some interaction between force_restart and
+    this script's start_delay=True in Evennia's own ExtendedLoopingCall
+    internals, not chased down further via blind code reading. This
+    base class is kept anyway since it costs nothing over the plain
+    DefaultScript it replaced and is the established pattern for this
+    exact failure shape - but treat it as an unverified defense, not a
+    confirmed fix, until it's actually seen working for this specific
+    script. If this recurs, `debugpy` (already integrated in this
+    project) can attach live and step through at_server_start/
+    _start_task directly instead of reasoning about it blind.
     """
 
     def at_script_creation(self):
