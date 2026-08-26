@@ -25,6 +25,7 @@ from world import economy
 from world import languages
 from world import building_menu
 from world import motd
+from world import worldcheck
 from evennia.contrib.utils.debugpy import CmdDebugPy
 from evennia.contrib.grid.ingame_map_display import MapDisplayCmdSet
 from evennia.contrib.grid.ingame_map_display.ingame_map_display import CmdMap
@@ -108,6 +109,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(doors.DescriptiveOpenCloseDoor())
         self.add(languages.LanguageCmdSet())
         self.add(building_menu.RomeBuildingCmdSet())
+        self.add(worldcheck.CmdWorldCheck())
 
 
 from world.character_creator import ContribChargenCmdSet
