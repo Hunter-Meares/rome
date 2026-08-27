@@ -1274,7 +1274,7 @@ VENDOR_WATERED_WINE = {
 LUDUS_WEAPONSMITH = {
     "key": "a Ludus weaponsmith",
     "aliases": ["weaponsmith", "smith"],
-    "typeclass": "world.economy.NPCMerchant",
+    "typeclass": "world.economy.LudusWeaponsmith",
     "desc": (
         "Forearms scarred by decades of forge-work, the weaponsmith barely "
         "looks up from the blade she's sharpening. Every fighter who's ever "
@@ -1282,6 +1282,400 @@ LUDUS_WEAPONSMITH = {
     ),
     "shopname": "the weaponsmith's stall",
     "locks": "puppet:false()",
+}
+
+"""
+----------------------------------------------------------------------------
+LUDUS WEAPONSMITH STOCK - three tiers (Novice/Veteran/Champion, roughly
+levels 2/6/10 to match the Ludus's own tier bands above) of one weapon per
+category plus all three body-armor and shield categories. Each tier gets
+its own name and flavor text - never just the same item with bigger
+numbers - while sharing the same weapon_type_name/armor_category as its
+sibling tiers, so world.combat.compute_weapon_stats/compute_armor_stats
+still drives the actual numbers. See LUDUS_WEAPONSMITH_STOCK below (and
+world.economy.LudusWeaponsmith) for how these get spawned and priced.
+----------------------------------------------------------------------------
+"""
+
+SMITH_DAGGER_NOVICE = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a notched practice dagger",
+    "desc": (
+        "Its edge has been dulled and reground more times than the smith "
+        "can count - a first blade for someone who's never held one "
+        "before, forgiving of a shaky grip."
+    ),
+    "weapon_type_name": "dagger",
+    "weapon_category": "light_blade",
+    "two_handed": False,
+}
+
+SMITH_DAGGER_VETERAN = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a blood-worn dagger",
+    "desc": (
+        "The leather grip has darkened with use, and a thin groove runs "
+        "the length of the blade where a whetstone has passed a thousand "
+        "times. This has drawn real blood before."
+    ),
+    "weapon_type_name": "dagger",
+    "weapon_category": "light_blade",
+    "two_handed": False,
+}
+
+SMITH_DAGGER_CHAMPION = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a duelist's stiletto",
+    "desc": (
+        "Slim, balanced, and honed to a wicked point, this blade was "
+        "forged for someone who wins fights in a single motion. The "
+        "pommel bears a small victor's laurel etched into the steel."
+    ),
+    "weapon_type_name": "dagger",
+    "weapon_category": "light_blade",
+    "two_handed": False,
+}
+
+SMITH_GLADIUS_NOVICE = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "an unmarked training gladius",
+    "desc": (
+        "Standard-issue, mass-produced, indistinguishable from a hundred "
+        "others racked beside it. It does the job."
+    ),
+    "weapon_type_name": "gladius",
+    "weapon_category": "light_blade",
+    "two_handed": False,
+}
+
+SMITH_GLADIUS_VETERAN = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a nicked veteran's gladius",
+    "desc": (
+        "Small dents run along the flat of the blade - each one a parry "
+        "that held. Its owner clearly survived whatever put them there."
+    ),
+    "weapon_type_name": "gladius",
+    "weapon_category": "light_blade",
+    "two_handed": False,
+}
+
+SMITH_GLADIUS_CHAMPION = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a gilt-hilted gladius",
+    "desc": (
+        "Gold leaf traces the hilt's grip, and the flat of the blade "
+        "bears an etched name - some past champion's, worn nearly smooth "
+        "by handling. The smith won't say how she came by it."
+    ),
+    "weapon_type_name": "gladius",
+    "weapon_category": "light_blade",
+    "two_handed": False,
+}
+
+SMITH_SPEAR_NOVICE = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a plain ash-wood spear",
+    "desc": (
+        "A straightforward hunting spear, more suited to driving off a "
+        "stray dog than a gladiatorial bout, but sturdy enough to learn "
+        "on."
+    ),
+    "weapon_type_name": "spear",
+    "weapon_category": "polearm",
+    "two_handed": True,
+}
+
+SMITH_SPEAR_VETERAN = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a battle-scarred spear",
+    "desc": (
+        "The wooden shaft has been re-wrapped in cord where old cracks "
+        "were bound tight, and the bronze head shows the pitting of a "
+        "blade that's actually seen use."
+    ),
+    "weapon_type_name": "spear",
+    "weapon_category": "polearm",
+    "two_handed": True,
+}
+
+SMITH_SPEAR_CHAMPION = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a champion's leaf-bladed spear",
+    "desc": (
+        "Forged from a single dense billet, its head shaped like a "
+        "laurel leaf and inlaid with a thin band of silver. Weighted for "
+        "a fighter who's already proven they can use it."
+    ),
+    "weapon_type_name": "spear",
+    "weapon_category": "polearm",
+    "two_handed": True,
+}
+
+SMITH_SHORTBOW_NOVICE = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a beginner's shortbow",
+    "desc": (
+        "Light draw weight, forgiving string tension - built to teach "
+        "proper form rather than put anyone down for good."
+    ),
+    "weapon_type_name": "shortbow",
+    "weapon_category": "ranged",
+    "two_handed": True,
+}
+
+SMITH_SHORTBOW_VETERAN = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a well-strung hunting bow",
+    "desc": (
+        "The wood has been oiled dark from handling, and the string "
+        "shows the fraying of real, repeated use. Someone has clearly "
+        "fed themselves with this."
+    ),
+    "weapon_type_name": "shortbow",
+    "weapon_category": "ranged",
+    "two_handed": True,
+}
+
+SMITH_SHORTBOW_CHAMPION = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a horn-tipped recurve bow",
+    "desc": (
+        "Reinforced with strips of horn along the belly for a punishing "
+        "draw weight, its limbs curve back on themselves like a smile. "
+        "Not a beginner's weapon."
+    ),
+    "weapon_type_name": "shortbow",
+    "weapon_category": "ranged",
+    "two_handed": True,
+}
+
+SMITH_WARAXE_NOVICE = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a blunt-edged training axe",
+    "desc": (
+        "Head weighted for practice swings rather than a killing stroke "
+        "- heavy enough to build the right muscles, dull enough not to "
+        "end the lesson early."
+    ),
+    "weapon_type_name": "waraxe",
+    "weapon_category": "heavy_weapon",
+    "two_handed": True,
+}
+
+SMITH_WARAXE_VETERAN = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a chipped battle-axe",
+    "desc": (
+        "The edge carries small nicks where it's met bone rather than "
+        "air. Whoever swung this last meant it."
+    ),
+    "weapon_type_name": "waraxe",
+    "weapon_category": "heavy_weapon",
+    "two_handed": True,
+}
+
+SMITH_WARAXE_CHAMPION = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a bearded executioner's axe",
+    "desc": (
+        "A wide, curved head with a distinctive hooked 'beard' along the "
+        "lower edge, built to hook a shield aside before the real blow "
+        "lands. This is a crowd-favorite's weapon - the kind that ends "
+        "fights, not just wins them."
+    ),
+    "weapon_type_name": "waraxe",
+    "weapon_category": "heavy_weapon",
+    "two_handed": True,
+}
+
+SMITH_LEATHER_NOVICE = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a patched leather jerkin",
+    "desc": "Cheap, thin, and mended more than once - better than nothing, and not much more.",
+    "armor_category": "light",
+}
+
+SMITH_LEATHER_VETERAN = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a supple leather cuirass",
+    "desc": (
+        "Well-oiled and broken in, this hide has been fitted to move "
+        "with a fighter rather than against them."
+    ),
+    "armor_category": "light",
+}
+
+SMITH_LEATHER_CHAMPION = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a studded champion's leather",
+    "desc": (
+        "Reinforced with rows of bronze studs and dyed a deep, "
+        "deliberate red, this leather has been worn by someone the "
+        "crowd already knows by name."
+    ),
+    "armor_category": "light",
+}
+
+SMITH_SCALE_NOVICE = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a rough scale vest",
+    "desc": "The bronze scales are uneven and loosely riveted - functional, if a little noisy.",
+    "armor_category": "medium",
+}
+
+SMITH_SCALE_VETERAN = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a battle-worn scale hauberk",
+    "desc": (
+        "Individual scales have been replaced piecemeal over time, "
+        "giving it a mismatched, well-used look that speaks to real "
+        "survival."
+    ),
+    "armor_category": "medium",
+}
+
+SMITH_SCALE_CHAMPION = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a gilded scale cuirass",
+    "desc": (
+        "Each bronze scale has been polished to a mirror shine and "
+        "edged in gold leaf - as much a statement to the crowd as it is "
+        "protection."
+    ),
+    "armor_category": "medium",
+}
+
+SMITH_PLATE_NOVICE = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a dented practice plate",
+    "desc": (
+        "Thick, heavy, and none too flattering, this suit was built to "
+        "absorb a beating during training, not to look good doing it."
+    ),
+    "armor_category": "heavy",
+}
+
+SMITH_PLATE_VETERAN = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a battle-forged plate cuirass",
+    "desc": (
+        "Hammered back into shape more than once, its surface a map of "
+        "old dents that never quite came fully out."
+    ),
+    "armor_category": "heavy",
+}
+
+SMITH_PLATE_CHAMPION = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a champion's ornamented plate",
+    "desc": (
+        "Embossed with a relief of crossed gladii across the breastplate "
+        "and finished in blackened steel, this armor was clearly made "
+        "for someone the Ludus expects to win."
+    ),
+    "armor_category": "heavy",
+}
+
+SMITH_PARMA_NOVICE = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a worn wooden parma",
+    "desc": (
+        "Small, light, and scuffed from years of practice bouts - the "
+        "kind of shield every recruit starts with."
+    ),
+    "armor_slot": "shield",
+    "armor_category": "light",
+}
+
+SMITH_PARMA_VETERAN = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a bronze-rimmed parma",
+    "desc": (
+        "Its wooden face bears the dents of blows that didn't land where "
+        "they were aimed - proof it's done its job more than once."
+    ),
+    "armor_slot": "shield",
+    "armor_category": "light",
+}
+
+SMITH_PARMA_CHAMPION = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a champion's painted parma",
+    "desc": (
+        "Its face bears a bold painted eagle, wings spread, the kind of "
+        "shield a crowd learns to recognize and cheer for."
+    ),
+    "armor_slot": "shield",
+    "armor_category": "light",
+}
+
+SMITH_CLIPEUS_NOVICE = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a plain bronze-faced clipeus",
+    "desc": (
+        "Solid and unremarkable, its bronze facing already showing the "
+        "first scratches of real use."
+    ),
+    "armor_slot": "shield",
+    "armor_category": "medium",
+}
+
+SMITH_CLIPEUS_VETERAN = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a battle-dented clipeus",
+    "desc": (
+        "The bronze face carries a web of shallow dents, each one a blow "
+        "that didn't get through."
+    ),
+    "armor_slot": "shield",
+    "armor_category": "medium",
+}
+
+SMITH_CLIPEUS_CHAMPION = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a champion's laureled clipeus",
+    "desc": (
+        "Its bronze face is embossed with a wreath of laurel leaves "
+        "circling the boss - a shield made for someone expected to keep "
+        "winning."
+    ),
+    "armor_slot": "shield",
+    "armor_category": "medium",
+}
+
+SMITH_SCUTUM_NOVICE = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a plain legionary scutum",
+    "desc": (
+        "Heavy, curved, and entirely without decoration - standard "
+        "training issue, built to teach the weight before the finesse."
+    ),
+    "armor_slot": "shield",
+    "armor_category": "heavy",
+}
+
+SMITH_SCUTUM_VETERAN = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a battle-scarred scutum",
+    "desc": (
+        "Its curved face is scored with old sword-strikes, the wood "
+        "beneath the hide showing through in more than one place."
+    ),
+    "armor_slot": "shield",
+    "armor_category": "heavy",
+}
+
+SMITH_SCUTUM_CHAMPION = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a champion's blazoned scutum",
+    "desc": (
+        "Painted with a bold thunderbolt motif across its curved face, "
+        "this scutum belongs to a fighter the crowd already knows to "
+        "watch."
+    ),
+    "armor_slot": "shield",
+    "armor_category": "heavy",
 }
 
 COLOSSEUM_MENAGERIE_HANDLER = {

@@ -165,3 +165,60 @@ class TestCmdShop(EvenniaCommandTest):
     def test_no_merchant_here_rejects(self):
         result = self.call(CmdShop(), "", caller=self.char1)
         self.assertIn("no merchant here", result)
+
+
+class TestLudusWeaponsmith(EvenniaTest):
+    """
+    The weaponsmith stocks herself entirely from at_object_creation
+    (see LUDUS_WEAPONSMITH_STOCK) - these tests spawn a real one and
+    check what she actually ends up carrying, rather than just
+    checking the stock list's own shape.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from world.economy import LudusWeaponsmith, LUDUS_WEAPONSMITH_STOCK
+
+        self.LudusWeaponsmith = LudusWeaponsmith
+        self.stock_list = LUDUS_WEAPONSMITH_STOCK
+        self.smith = create.create_object(LudusWeaponsmith, key="Smith", location=self.room1)
+
+    def test_stocks_exactly_one_item_per_stock_entry(self):
+        self.assertEqual(len(self.smith.contents), len(self.stock_list))
+
+    def test_every_stocked_item_has_a_positive_price(self):
+        for item in self.smith.contents:
+            self.assertTrue(item.db.price and item.db.price > 0, "%s has no price" % item.key)
+
+    def test_higher_tier_costs_more_than_lower_tier(self):
+        # Same weapon (gladius), three tiers - price should strictly
+        # increase novice -> veteran -> champion, since price scales
+        # with the baked-in level via compute_weapon_stats.
+        gladii = [i for i in self.smith.contents if i.db.weapon_type_name == "gladius"]
+        gladii_by_level = sorted(gladii, key=lambda i: i.db.item_level)
+        prices = [i.db.price for i in gladii_by_level]
+        self.assertEqual(prices, sorted(prices))
+        self.assertLess(prices[0], prices[-1])
+
+    def test_tiers_of_the_same_item_have_distinct_names(self):
+        # The whole point of this shop over a plain level-scaled reskin -
+        # each tier must read as a different item, not "Gladius v2".
+        gladius_names = {i.key for i in self.smith.contents if i.db.weapon_type_name == "gladius"}
+        self.assertEqual(len(gladius_names), 3)
+
+    def test_shopname_set(self):
+        self.assertEqual(self.smith.db.shopname, "the weaponsmith's stall")
+
+    def test_stocks_weapons_armor_and_shields(self):
+        from world.combat import CombatWeapon, CombatArmor
+
+        weapons = [i for i in self.smith.contents if i.is_typeclass(CombatWeapon, exact=True)]
+        armor_and_shields = [
+            i for i in self.smith.contents if i.is_typeclass(CombatArmor, exact=True)
+        ]
+        shields = [i for i in armor_and_shields if i.db.armor_slot == "shield"]
+        body_armor = [i for i in armor_and_shields if i.db.armor_slot != "shield"]
+
+        self.assertEqual(len(weapons), 15)  # 5 weapons x 3 tiers
+        self.assertEqual(len(shields), 9)  # 3 shield categories x 3 tiers
+        self.assertEqual(len(body_armor), 9)  # 3 armor categories x 3 tiers

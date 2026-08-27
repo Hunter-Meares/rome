@@ -54,6 +54,88 @@ class NPCMerchant(DefaultCharacter):
         self.locks.add("puppet:false()")
 
 
+# Three tiers (prototype_key, level) per weapon/armor/shield the Ludus
+# weaponsmith stocks - see the matching SMITH_* prototypes and their
+# design-comment block in world/prototypes.py for why each tier has its
+# own name/flavor rather than being the same item with bigger numbers.
+# Levels (2/6/10) roughly match the Ludus's own tier bands (recruit/
+# weapons-master/beast-handler/champion training rooms).
+LUDUS_WEAPONSMITH_STOCK = [
+    ("SMITH_DAGGER_NOVICE", 2),
+    ("SMITH_DAGGER_VETERAN", 6),
+    ("SMITH_DAGGER_CHAMPION", 10),
+    ("SMITH_GLADIUS_NOVICE", 2),
+    ("SMITH_GLADIUS_VETERAN", 6),
+    ("SMITH_GLADIUS_CHAMPION", 10),
+    ("SMITH_SPEAR_NOVICE", 2),
+    ("SMITH_SPEAR_VETERAN", 6),
+    ("SMITH_SPEAR_CHAMPION", 10),
+    ("SMITH_SHORTBOW_NOVICE", 2),
+    ("SMITH_SHORTBOW_VETERAN", 6),
+    ("SMITH_SHORTBOW_CHAMPION", 10),
+    ("SMITH_WARAXE_NOVICE", 2),
+    ("SMITH_WARAXE_VETERAN", 6),
+    ("SMITH_WARAXE_CHAMPION", 10),
+    ("SMITH_LEATHER_NOVICE", 2),
+    ("SMITH_LEATHER_VETERAN", 6),
+    ("SMITH_LEATHER_CHAMPION", 10),
+    ("SMITH_SCALE_NOVICE", 2),
+    ("SMITH_SCALE_VETERAN", 6),
+    ("SMITH_SCALE_CHAMPION", 10),
+    ("SMITH_PLATE_NOVICE", 2),
+    ("SMITH_PLATE_VETERAN", 6),
+    ("SMITH_PLATE_CHAMPION", 10),
+    ("SMITH_PARMA_NOVICE", 2),
+    ("SMITH_PARMA_VETERAN", 6),
+    ("SMITH_PARMA_CHAMPION", 10),
+    ("SMITH_CLIPEUS_NOVICE", 2),
+    ("SMITH_CLIPEUS_VETERAN", 6),
+    ("SMITH_CLIPEUS_CHAMPION", 10),
+    ("SMITH_SCUTUM_NOVICE", 2),
+    ("SMITH_SCUTUM_VETERAN", 6),
+    ("SMITH_SCUTUM_CHAMPION", 10),
+]
+
+
+class LudusWeaponsmith(NPCMerchant):
+    """
+    The Ludus weaponsmith - stocks herself automatically on creation
+    from LUDUS_WEAPONSMITH_STOCK, so spawning her once (or respawning
+    her after any wipe) always produces a complete, correctly-priced
+    shop with no separate build-script step to remember or keep in
+    sync. Uses world.combat's level-scaled weapon/armor formula (the
+    same one chargen's starting gear uses) rather than hand-authored
+    prices/stats, so her prices/power automatically stay consistent
+    with the rest of the game if that formula is ever retuned.
+    """
+
+    def at_object_creation(self):
+        super().at_object_creation()
+        self.db.shopname = "the weaponsmith's stall"
+
+        from world.combat import compute_weapon_stats, compute_armor_stats
+
+        for prototype_key, level in LUDUS_WEAPONSMITH_STOCK:
+            obj = spawn(prototype_key)[0]
+            if obj.is_typeclass("world.combat.CombatWeapon", exact=True):
+                damage_range, accuracy_bonus, price = compute_weapon_stats(
+                    obj.db.weapon_type_name, level
+                )
+                obj.db.damage_range = damage_range
+                obj.db.accuracy_bonus = accuracy_bonus
+                obj.db.price = price
+                obj.db.item_level = level
+            elif obj.is_typeclass("world.combat.CombatArmor", exact=True):
+                reduction, defense_modifier, price = compute_armor_stats(
+                    obj.db.armor_category, level
+                )
+                obj.db.damage_reduction = reduction
+                obj.db.defense_modifier = defense_modifier
+                obj.db.price = price
+                obj.db.item_level = level
+            obj.move_to(self, quiet=True)
+
+
 def _sellable_wares(merchant):
     """Every item in the merchant's inventory with a price set."""
     return [obj for obj in merchant.contents if obj.db.price]
