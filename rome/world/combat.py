@@ -1147,7 +1147,7 @@ class CombatRules:
             )
             return
 
-        if not damage_value:
+        if damage_value is None:
             damage_value = self.get_damage(attacker, defender)
 
         if damage_value > 0:

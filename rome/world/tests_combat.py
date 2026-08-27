@@ -325,6 +325,60 @@ class TestGetDamage(CombatTestBase):
         return armor
 
 
+class TestResolveAttackDamageValue(CombatTestBase):
+    """
+    Regression coverage for a real bug: resolve_attack used to check
+    `if not damage_value:` rather than `if damage_value is None:` (the
+    is-None check its own attack_value/defense_value params correctly
+    use a few lines above it). Since 0 is falsy, an explicitly passed
+    damage_value=0 - a caller like itemfunc_attack (bombs/darts, which
+    roll their own item-specific damage and pass it straight through)
+    deliberately reporting "this hit connected but did zero damage" -
+    got silently discarded and recomputed from get_damage() instead,
+    which reads the ATTACKER'S EQUIPPED WEAPON - unrelated to whatever
+    item was actually used. Currently unreachable in live gameplay
+    (BOMB rolls 25-40, POISON_DART rolls 5-10 - neither range can ever
+    produce 0), but a real latent bug for any future weak/dud item.
+    """
+
+    def test_explicit_zero_damage_value_is_respected_not_recomputed(self):
+        # A high-damage weapon so an incorrect recompute via
+        # get_damage() would obviously NOT land on 0 by chance.
+        weapon = self._make_weapon(damage_range=(50, 50))
+        self.char1.db.wielded_weapon = weapon
+        self.char2.db.hp = 100
+        self.char2.db.max_hp = 100
+
+        COMBAT_RULES.resolve_attack(
+            self.char1, self.char2, attack_value=999, defense_value=1, damage_value=0
+        )
+
+        self.assertEqual(self.char2.db.hp, 100)
+
+    def test_omitted_damage_value_still_computes_fresh(self):
+        # No damage_value passed at all (None, the real default) -
+        # should still compute normally, unaffected by the fix.
+        weapon = self._make_weapon(damage_range=(50, 50))
+        self.char1.db.wielded_weapon = weapon
+        self.char2.db.hp = 100
+        self.char2.db.max_hp = 100
+
+        COMBAT_RULES.resolve_attack(self.char1, self.char2, attack_value=999, defense_value=1)
+
+        self.assertLess(self.char2.db.hp, 100)
+
+    def _make_weapon(self, accuracy_bonus=0, weapon_category="light_blade", damage_range=(5, 10)):
+        from evennia.utils import create
+        from world.combat import CombatWeapon
+
+        weapon = create.create_object(CombatWeapon, key="test weapon")
+        weapon.db.accuracy_bonus = accuracy_bonus
+        weapon.db.weapon_category = weapon_category
+        weapon.db.damage_range = damage_range
+        weapon.db.weapon_type_name = "test weapon"
+        return weapon
+
+
 class TestHitChanceCalibration(CombatTestBase):
     """
     The one deliberately un-mocked, statistical test - covers priority
