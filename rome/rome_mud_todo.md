@@ -6,6 +6,17 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## ⚔️ Per-weapon-category combat messages — ✅ this session
+
+- [x] **Every weapon type used to share one generic "strikes/misses/bounces harmlessly off" template** in `resolve_attack()` (`world/combat.py`) - a dagger and a waraxe read identically except for the noun. Found while explaining the weaponsmith shop's flavor to the player and being asked directly whether combat itself has any per-weapon flavor - it didn't.
+- [x] **New `WEAPON_CATEGORY_MESSAGES`**: each of the 6 categories (light_blade/heavy_blade/polearm/ranged/staff/heavy_weapon) gets its own hit/miss/bounce phrasing - e.g. ranged now reads "finds its mark, striking..." on a hit and "whistles past... missing entirely!" on a miss, instead of the old flat "strikes"/"misses" every other weapon also used.
+- [x] **New `WEAPON_TYPE_MESSAGE_OVERRIDES`** for one-off narrative weapons where the category alone undersells them - Jupiter's thunderbolt is mechanically a `polearm` but always reads as a bolt of divine lightning arriving on the target, never "skewers." Checked before the category table in `get_weapon_attack_messages()`.
+- [x] Unarmed attacks and any future uncategorized weapon type still fall back to the original generic templates (`DEFAULT_WEAPON_MESSAGES`) - nothing regresses for content that predates this.
+- [x] 10 new tests (pure-logic lookup/fallback/override coverage in `world/tests_combat.py`, end-to-end `CmdAttack` phrasing checks in `world/tests_combat_commands.py`). Full suite 298/298 passing (1 intentional skip). Verified live post-reload with a real simulated attack across 7 weapon types plus unarmed, covering hit/miss/bounce for each.
+- [x] **Found, but deliberately left alone**: `resolve_attack`'s `if not damage_value:` check (as opposed to the `is None` checks used for `attack_value`/`defense_value` a few lines above it in the same function) means an explicitly-passed `damage_value=0` gets silently recalculated rather than respected, since `0` is falsy. Pre-existing, unrelated to this change - only surfaced because testing the "bounce" (0-damage) message path required working around it. Worth a real fix later, not bundled into this one.
+
+---
+
 ## ⚒️ Ludus weaponsmith shop — ✅ this session
 
 - [x] **Built and deployed the first real weapon/armor shop**, wiring up `compute_weapon_stats`/`compute_armor_stats` (`world/combat.py`) for the first time outside chargen. The `LUDUS_WEAPONSMITH` prototype already existed (flavor text only, never stocked or placed) - now a real `LudusWeaponsmith(NPCMerchant)` typeclass (`world/economy.py`) that stocks itself entirely from `at_object_creation()`, so spawning her once always produces a complete, correctly-priced shop with nothing else to remember or keep in sync.
