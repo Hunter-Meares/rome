@@ -6,6 +6,23 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## ⚒️ Ludus weaponsmith shop — ✅ this session
+
+- [x] **Built and deployed the first real weapon/armor shop**, wiring up `compute_weapon_stats`/`compute_armor_stats` (`world/combat.py`) for the first time outside chargen. The `LUDUS_WEAPONSMITH` prototype already existed (flavor text only, never stocked or placed) - now a real `LudusWeaponsmith(NPCMerchant)` typeclass (`world/economy.py`) that stocks itself entirely from `at_object_creation()`, so spawning her once always produces a complete, correctly-priced shop with nothing else to remember or keep in sync.
+- [x] **Three tiers, each a genuinely distinct item** - Novice/Veteran/Champion (levels 2/6/10, matching the Ludus's own tier bands), one weapon per category (dagger/gladius/spear/shortbow/waraxe) plus all 3 body-armor and shield categories, 33 items total. Explicit design direction was to avoid a same-item-bigger-numbers reskin - e.g. the gladius goes "an unmarked training gladius" -> "a nicked veteran's gladius" -> "a gilt-hilted gladius", each with its own flavor text (`world/prototypes.py`, new `SMITH_*` prototypes).
+- [x] **This closes out the `CLAUDE.md`/economy-section note** that a Ludus weaponsmith selling real gear didn't actually exist live and was a natural next use for the formula - now it does.
+- [x] 7 new tests (`world/tests_economy.py`); full suite 290/290 passing (1 intentional skip).
+- [x] Deployed live in Ludus Entrance (#320) and verified directly: 33 items present, prices scale correctly (31-64 gold at level 2, up to 51-128 gold at level 10).
+
+---
+
+## 🧹 Disk quota cleanup (unrelated, found mid-session) — ✅ this session
+
+- [x] User hit a 101% disk-quota warning on the shared host. Turned out to have nothing to do with the game - `~/.vscode-server` (a stale, incomplete `.staging` server install, 590MB) and `~/.claude/remote/ccd-cli` (an old CLI version, 320MB) accounted for nearly the entire 2.5GB quota. Deleted both (neither had an open file handle - verified with `lsof` first), dropping usage from 2537MB to 1642MB.
+- [x] Also found and fixed a real, unrelated repo hygiene bug while investigating: a compiled `sqlite-autoconf-3490100/` source-build tree (~53MB, including binaries like `sqlite3.o`/`libsqlite3.a`) was committed to git despite already being covered by `.gitignore`'s own `sqlite-autoconf-*` rule - it must have been force-added at some point. Untracked and deleted from disk (the real installed `sqlite3` lives separately at `~/sqlite/bin/`, unaffected). Note: this shrinks the working tree but the old blobs remain in git history until an explicit, separate history rewrite - not done here, since that requires a disruptive force-push.
+
+---
+
 ## 🔍 `worldcheck` — reusable connectivity/duplicate-check admin tool — ✅ this session
 
 - [x] **Built `world/worldcheck.py`**: 7 read-only checks, each modeled directly on a real past live-database incident this project already hit and fixed by hand once - duplicate room names (Capitoline Hill's naming collision), exit-direction collisions (Grove of Champions' two `west` exits), broken exits (null/deleted destinations), full BFS reachability from the start location (the Underworld v1/v2 duplicate-network incident), one-way exit detection (Maintenance Tunnel's missing return path), missing direction aliases (the 201-exit Forum batch-script gap), and thin/empty descriptions (Gardens of the Fortunate). Registered as the `worldcheck` command (Builder+), usable with no argument (runs all 7) or a specific check name. Never auto-fixes anything - lists findings for a human to review, same pattern as `cleanupnpcs`/`cleanupitems`.
