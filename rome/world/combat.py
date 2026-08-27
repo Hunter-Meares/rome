@@ -340,6 +340,82 @@ LEVEL_UP_SP_GAIN = 4
 # Failing still costs the full turn - you don't get a free retry.
 DISENGAGE_SUCCESS_CHANCE = 55
 
+# ----------------------------------------------------------------------------
+# PER-WEAPON-CATEGORY COMBAT MESSAGES - resolve_attack() used one single
+# generic "strikes/misses/bounces harmlessly off" template for every weapon
+# in the game, so a dagger and a waraxe read identically in the combat log
+# except for the noun. Keyed by weapon_category (WEAPON_CATEGORIES below),
+# with a couple of specific weapon_type_name overrides for one-of-a-kind
+# narrative weapons (Jupiter's thunderbolt) where the category alone
+# undersells what the weapon actually is. Each entry needs "hit" (6 args:
+# attacker, weapon, defender, damage, defender, hp_status_phrase - matching
+# resolve_attack's own call), "miss" (3 args: attacker, weapon, defender),
+# and "bounce" (3 args, used for the rare zero-damage-but-still-a-hit case).
+# DEFAULT_WEAPON_MESSAGES is the original generic set - used for unarmed
+# ("attack" placeholder) and as a safety net for any category not listed.
+# ----------------------------------------------------------------------------
+DEFAULT_WEAPON_MESSAGES = {
+    "hit": "%s's %s strikes %s for |r%i|n damage - %s %s!",
+    "miss": "|w%s's %s misses %s!|n",
+    "bounce": "|w%s's %s bounces harmlessly off %s!|n",
+}
+
+WEAPON_CATEGORY_MESSAGES = {
+    "light_blade": {
+        "hit": "%s's %s slashes across %s for |r%i|n damage - %s %s!",
+        "miss": "|w%s's %s slashes at %s, but finds only air!|n",
+        "bounce": "|w%s's %s nicks %s without ever breaking through!|n",
+    },
+    "heavy_blade": {
+        "hit": "%s's %s cleaves into %s for |r%i|n damage - %s %s!",
+        "miss": "|w%s's %s cleaves through empty air as %s steps clear!|n",
+        "bounce": "|w%s's %s crashes into %s's guard and is turned aside!|n",
+    },
+    "polearm": {
+        "hit": "%s's %s skewers %s for |r%i|n damage - %s %s!",
+        "miss": "|w%s's %s thrusts at %s, but the point falls short!|n",
+        "bounce": "|w%s's %s glances off %s without finding purchase!|n",
+    },
+    "ranged": {
+        "hit": "%s's %s finds its mark, striking %s for |r%i|n damage - %s %s!",
+        "miss": "|w%s's %s whistles past %s, missing entirely!|n",
+        "bounce": "|w%s's %s thuds into %s's armor without penetrating!|n",
+    },
+    "staff": {
+        "hit": "%s's %s cracks against %s for |r%i|n damage - %s %s!",
+        "miss": "|w%s's %s sweeps wide of %s!|n",
+        "bounce": "|w%s's %s connects but fails to hurt %s!|n",
+    },
+    "heavy_weapon": {
+        "hit": "%s's %s crushes down on %s for |r%i|n damage - %s %s!",
+        "miss": "|w%s's %s crashes into the ground as %s dodges clear!|n",
+        "bounce": "|w%s's %s slams into %s but fails to break through!|n",
+    },
+}
+
+# weapon_type_name overrides - checked before the category table above.
+WEAPON_TYPE_MESSAGE_OVERRIDES = {
+    "thunderbolt": {
+        "hit": "%s's %s arrives upon %s in a crack of divine lightning for |r%i|n damage - %s %s!",
+        "miss": "|w%s's %s splits the air beside %s, thunder rolling as it passes!|n",
+        "bounce": "|w%s's %s scorches %s, but the lightning finds no purchase!|n",
+    },
+}
+
+
+def get_weapon_attack_messages(weapon_type_name, weapon_category):
+    """
+    Returns the (hit, miss, bounce) message-template dict for a given
+    weapon, checking the weapon_type_name override table first, then
+    its category, then falling back to the original generic templates.
+    """
+    if weapon_type_name in WEAPON_TYPE_MESSAGE_OVERRIDES:
+        return WEAPON_TYPE_MESSAGE_OVERRIDES[weapon_type_name]
+    if weapon_category in WEAPON_CATEGORY_MESSAGES:
+        return WEAPON_CATEGORY_MESSAGES[weapon_category]
+    return DEFAULT_WEAPON_MESSAGES
+
+
 """
 ----------------------------------------------------------------------------
 COMBAT RULES - MERGED
@@ -1041,8 +1117,11 @@ class CombatRules:
         attacker.db.combat_last_target = defender
 
         attackers_weapon = "attack"
+        weapon_category = None
         if attacker.db.wielded_weapon:
             attackers_weapon = attacker.db.wielded_weapon.db.weapon_type_name
+            weapon_category = attacker.db.wielded_weapon.db.weapon_category
+        messages = get_weapon_attack_messages(attackers_weapon, weapon_category)
 
         # is None (not a plain falsy check) - attack_value/defense_value
         # can legitimately be 0 or negative with enough penalties, and
@@ -1064,7 +1143,7 @@ class CombatRules:
             )
         elif attack_value < defense_value:
             attacker.location.msg_contents(
-                "|w%s's %s misses %s!|n" % (attacker, attackers_weapon, defender)
+                messages["miss"] % (attacker, attackers_weapon, defender)
             )
             return
 
@@ -1073,7 +1152,7 @@ class CombatRules:
 
         if damage_value > 0:
             attacker.location.msg_contents(
-                "%s's %s strikes %s for |r%i|n damage - %s %s!"
+                messages["hit"]
                 % (
                     attacker, attackers_weapon, defender, damage_value,
                     defender, self.hp_status_phrase(defender),
@@ -1081,7 +1160,7 @@ class CombatRules:
             )
         else:
             attacker.location.msg_contents(
-                "|w%s's %s bounces harmlessly off %s!|n" % (attacker, attackers_weapon, defender)
+                messages["bounce"] % (attacker, attackers_weapon, defender)
             )
 
         self.apply_damage(defender, damage_value, attacker=attacker)

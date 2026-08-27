@@ -14,6 +14,7 @@ calibration target) is deliberately left un-mocked, but constructed so
 its analytically-true probability is 100% - see that test's docstring.
 """
 
+import unittest
 from unittest.mock import patch
 
 from evennia.utils.test_resources import EvenniaTest
@@ -29,7 +30,54 @@ from world.combat import (
     AMBUSH_DAMAGE_BONUS,
     MARKED_FOR_DEATH_DAMAGE_BONUS,
     GOLD_PER_XP_DIVISOR,
+    get_weapon_attack_messages,
+    WEAPON_CATEGORY_MESSAGES,
+    WEAPON_TYPE_MESSAGE_OVERRIDES,
+    DEFAULT_WEAPON_MESSAGES,
 )
+
+
+class TestGetWeaponAttackMessages(unittest.TestCase):
+    """
+    Pure logic, no DB needed - get_weapon_attack_messages just picks
+    which template dict resolve_attack should use. Regression coverage
+    for the fix that gave every weapon category (and a couple of
+    one-off weapons like Jupiter's thunderbolt) its own combat-log
+    flavor instead of one single generic "strikes/misses/bounces
+    harmlessly off" sentence for every weapon in the game.
+    """
+
+    def test_known_category_returns_its_own_templates(self):
+        messages = get_weapon_attack_messages("shortbow", "ranged")
+        self.assertEqual(messages, WEAPON_CATEGORY_MESSAGES["ranged"])
+
+    def test_weapon_type_override_wins_over_its_own_category(self):
+        # Thunderbolt is mechanically a polearm, but it should never
+        # read as one - the override table must win.
+        messages = get_weapon_attack_messages("thunderbolt", "polearm")
+        self.assertEqual(messages, WEAPON_TYPE_MESSAGE_OVERRIDES["thunderbolt"])
+        self.assertNotEqual(messages, WEAPON_CATEGORY_MESSAGES["polearm"])
+
+    def test_unarmed_falls_back_to_default_generic_messages(self):
+        messages = get_weapon_attack_messages("attack", None)
+        self.assertEqual(messages, DEFAULT_WEAPON_MESSAGES)
+
+    def test_unknown_category_falls_back_to_default_generic_messages(self):
+        messages = get_weapon_attack_messages("some future weapon", "some future category")
+        self.assertEqual(messages, DEFAULT_WEAPON_MESSAGES)
+
+    def test_every_message_set_has_all_three_keys_and_is_formattable(self):
+        all_sets = list(WEAPON_CATEGORY_MESSAGES.values()) + list(
+            WEAPON_TYPE_MESSAGE_OVERRIDES.values()
+        ) + [DEFAULT_WEAPON_MESSAGES]
+        for messages in all_sets:
+            self.assertEqual(set(messages), {"hit", "miss", "bounce"})
+            # hit takes 6 args (attacker, weapon, defender, damage, defender, hp phrase);
+            # miss/bounce take 3 (attacker, weapon, defender). Would raise on a typo'd
+            # placeholder count/type - real regression risk with this many hand-written strings.
+            messages["hit"] % ("A", "sword", "B", 5, "B", "looks wounded")
+            messages["miss"] % ("A", "sword", "B")
+            messages["bounce"] % ("A", "sword", "B")
 
 
 class CombatTestBase(EvenniaTest):

@@ -150,6 +150,36 @@ class TestCmdAttack(CombatCommandTestBase):
         result = self.call(CmdAttack(), "Char2", caller=self.char1)
         self.assertIn("dead", result)
 
+    def _equip_weapon(self, char, weapon_type_name, weapon_category, accuracy_bonus=100):
+        weapon = create.create_object("world.combat.CombatWeapon", key="a %s" % weapon_type_name)
+        weapon.db.weapon_type_name = weapon_type_name
+        weapon.db.weapon_category = weapon_category
+        weapon.db.accuracy_bonus = accuracy_bonus
+        char.db.wielded_weapon = weapon
+        return weapon
+
+    def test_ranged_weapon_hit_uses_ranged_specific_message(self):
+        self._start_duel()
+        self._equip_weapon(self.char1, "shortbow", "ranged")
+        with patch("world.combat.randint", return_value=50):
+            result = self.call(CmdAttack(), "Char2", caller=self.char1)
+        self.assertIn("finds its mark", result)
+
+    def test_thunderbolt_hit_uses_its_own_override_message_not_polearms(self):
+        self._start_duel()
+        # Mechanically a polearm, but should never read as one.
+        self._equip_weapon(self.char1, "thunderbolt", "polearm")
+        with patch("world.combat.randint", return_value=50):
+            result = self.call(CmdAttack(), "Char2", caller=self.char1)
+        self.assertIn("divine lightning", result)
+        self.assertNotIn("skewers", result)
+
+    def test_unarmed_attack_still_uses_the_original_generic_message(self):
+        self._start_duel()
+        with patch("world.combat.randint", return_value=50):
+            result = self.call(CmdAttack(), "Char2", caller=self.char1)
+        self.assertIn("strikes", result)
+
 
 class TestCmdPowerAttack(CombatCommandTestBase):
     def test_requires_enough_sp(self):
