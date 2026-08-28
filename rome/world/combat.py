@@ -4612,6 +4612,28 @@ class CombatTurnHandler(DefaultScript):
         if self.db.turn > len(self.db.fighters) - 1:
             self.db.turn = 0
         newchar = self.db.fighters[self.db.turn]
+
+        # Skip anyone already defeated (0 HP) rather than handing them
+        # a real turn and stalling combat until TURN_TIMEOUT eventually
+        # forces a disengage. handle_player_defeat() already removes a
+        # defeated REAL PLAYER from db.fighters outright - but that's
+        # gated on the character having an account, so anything else
+        # that can end up defeated-but-still-listed (a persistent
+        # RespawningNPC mid-schedule_respawn, which only moves it to
+        # location=None without touching db.fighters at all, or any
+        # future case that isn't cleaned up the same way) would
+        # otherwise sit in the rotation forever. Bounded by
+        # len(self.db.fighters): the living_sides check just above
+        # already guarantees at least one living fighter exists, so
+        # this always terminates.
+        skip_guard = 0
+        while newchar.db.hp == 0 and skip_guard < len(self.db.fighters):
+            self.db.turn += 1
+            if self.db.turn > len(self.db.fighters) - 1:
+                self.db.turn = 0
+            newchar = self.db.fighters[self.db.turn]
+            skip_guard += 1
+
         # time_until_next_repeat() returns None if the script's own
         # repeating timer hasn't actually started yet - true the very
         # first time next_turn() runs, since the script is created

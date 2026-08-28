@@ -689,6 +689,75 @@ class TestNextTurnFighterPruning(CombatTestBase):
         self.assertFalse(handler.pk)
 
 
+class TestNextTurnSkipsDefeatedFighters(CombatTestBase):
+    """
+    Regression coverage for a real bug found via a live 2v2 party
+    fight test: a defeated (0 HP) fighter whose SIDE still has a
+    living member (so the fight correctly doesn't end) was never
+    removed from db.fighters and never skipped either - next_turn()'s
+    round-robin advance handed them a real turn like anyone else.
+    handle_player_defeat() does clean a defeated REAL PLAYER out of
+    db.fighters, but only for characters with an account - anything
+    else that ends up defeated-but-still-listed (confirmed live: a
+    plain Character with no account, matching how a persistent
+    RespawningNPC also has none) got stuck cycling through dead turns
+    that CmdAttack silently no-ops on, relying purely on the
+    (separately unverified) TURN_TIMEOUT to eventually force a
+    disengage. Fixed at the single choke point instead - next_turn()
+    itself now skips any 0-HP entry it lands on.
+    """
+
+    def _make_handler(self):
+        from evennia.utils import create
+
+        return create.create_script(CombatTurnHandler, obj=self.room1, autostart=False)
+
+    def test_defeated_ally_is_skipped_not_given_a_turn(self):
+        from evennia.utils import create
+
+        ally1 = create.create_object("typeclasses.characters.Character", key="ally1", location=self.room1)
+        ally2 = create.create_object("typeclasses.characters.Character", key="ally2", location=self.room1)
+
+        handler = self._make_handler()
+        self.char1.db.hp, self.char1.db.combat_side = 100, "team_0"
+        ally1.db.hp, ally1.db.combat_side = 0, "team_0"  # defeated, but team_0 still lives via char1
+        self.char2.db.hp, self.char2.db.combat_side = 100, "team_1"
+        ally2.db.hp, ally2.db.combat_side = 100, "team_1"
+
+        # Turn order: char1 -> ally1 (defeated) -> char2 -> ally2.
+        # char1 just acted, so the naive next entry would be ally1.
+        handler.db.fighters = [self.char1, ally1, self.char2, ally2]
+        handler.db.turn = 0
+
+        handler.next_turn()
+
+        self.assertTrue(handler.pk)  # fight correctly still running
+        newchar = handler.db.fighters[handler.db.turn]
+        self.assertNotEqual(newchar, ally1)
+        self.assertGreater(newchar.db.hp, 0)
+
+    def test_two_consecutive_defeated_fighters_are_both_skipped(self):
+        from evennia.utils import create
+
+        ally1 = create.create_object("typeclasses.characters.Character", key="ally1", location=self.room1)
+        ally2 = create.create_object("typeclasses.characters.Character", key="ally2", location=self.room1)
+
+        handler = self._make_handler()
+        self.char1.db.hp, self.char1.db.combat_side = 100, "team_0"
+        ally1.db.hp, ally1.db.combat_side = 0, "team_0"
+        ally2.db.hp, ally2.db.combat_side = 0, "team_0"
+        self.char2.db.hp, self.char2.db.combat_side = 100, "team_1"
+
+        # char1 acts, then both ally1 and ally2 (defeated) should be
+        # skipped in a row, landing on char2.
+        handler.db.fighters = [self.char1, ally1, ally2, self.char2]
+        handler.db.turn = 0
+
+        handler.next_turn()
+
+        self.assertEqual(handler.db.fighters[handler.db.turn], self.char2)
+
+
 class TestSideBasedVictory(CombatTestBase):
     """
     A genuine 2v2 group-fight side check - the "never tested with an
