@@ -6,6 +6,15 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## 🎮 Real 2v2 party fight test — ✅ done, one real bug found and fixed
+
+- [x] **The genuine untested-item from CLAUDE.md's known-untested list, finally done**: 4 real characters (Marcus/legionary, Quintus/medicus, Titus/gladiator, Gaius/venator), created via the actual chargen race/class application (not synthetic stat blobs), formed into two real 2-person parties via real `party invite`/`party accept`, then a real `fight all`. Confirmed party-based side grouping works correctly (a clean 2v2, not 4 individuals), turn order cycled correctly, and the new per-weapon-category combat messages (see below) fired correctly under real multi-fighter load.
+- [x] **Real bug found and fixed**: once a party member with a still-living ally hit 0 HP, their name kept coming back up in the turn rotation anyway - `next_turn()` only pruned literal `None`/deleted references (the older, already-fixed stuck-loop bug), never checked HP. `handle_player_defeat()` does clean a defeated real player out of `db.fighters`, but only when the character has an account - anything else defeated-but-still-listed (confirmed live via a plain, account-less Character, which matches how a persistent `RespawningNPC` also has no account) got handed a real turn every rotation, relying purely on the 30-second `TURN_TIMEOUT` to eventually force a disengage instead of being skipped outright. Fixed at the single choke point (`next_turn()` itself now skips forward past any 0-HP fighter) rather than chasing every individual defeat-handling code path. Re-ran the exact same live 2v2 scenario after the fix: full fight now runs to completion correctly, defeated fighters never handed a turn again, ends cleanly with "Only X remains!"
+- [x] **A real methodology note worth keeping**: verifying this over a genuinely running server, not just a disposable `evennia shell` process, mattered - an early attempt to also confirm whether the 30-second `TURN_TIMEOUT` alone would have masked this bug hit the same cross-process Twisted-timer limitation already documented for `RespawnTimer`/`ItemDecayManager` (a script's repeat timer created via a short-lived shell process never gets picked up by the actual server's reactor without a reload). Left genuinely unresolved/unneeded once the root-cause fix made the timeout irrelevant to this specific bug either way.
+- [x] 2 new regression tests (`world/tests_combat.py`). Full suite 302/302 passing (1 intentional skip).
+
+---
+
 ## ⚔️ Per-weapon-category combat messages — ✅ this session
 
 - [x] **Every weapon type used to share one generic "strikes/misses/bounces harmlessly off" template** in `resolve_attack()` (`world/combat.py`) - a dagger and a waraxe read identically except for the noun. Found while explaining the weaponsmith shop's flavor to the player and being asked directly whether combat itself has any per-weapon flavor - it didn't.

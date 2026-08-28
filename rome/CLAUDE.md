@@ -128,10 +128,9 @@ Requires `ACHIEVEMENT_CONTRIB_MODULES = ["world.achievements"]` in `server/conf/
 ## Current known-untested items (built, not yet confirmed working live)
 
 Pulled from the project to-do list — check there for the full, current list, but these are the standout ones:
-- A genuine multi-person party fight (2v2/3v3) — sides/teams has never been tested with an actual group
 - `RespawningNPC` surviving a server reload mid-respawn-wait (the entire reason it's a persistent Script)
-- XP/gold splitting in a real group kill; a pure-support Medicus leveling from casting XP alone
-- Party system itself (invite/accept/decline/leave/kick) — never explicitly confirmed this project
+- XP/gold splitting in a real group kill against an NPC; a pure-support Medicus leveling from casting XP alone (the real 2v2 party fight test confirmed sides/turn order/damage all work under a real group, but PvP kills correctly award no XP/gold by design - `xp_reward` is an NPC-only concept - so this specific split still needs a real group-vs-NPC kill to confirm)
+- `party decline`/`leave`/`kick` — `invite`/`accept` are now confirmed live (see rome_mud_todo.md's 2v2 party fight test), the rest of the command isn't yet
 - `slay` used on an actual player character (only ever tested on NPCs)
 
 ---
