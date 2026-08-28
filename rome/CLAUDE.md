@@ -65,7 +65,7 @@ Four core stats: **Virtus** (melee power), **Agilitas** (accuracy/dodge/ranged p
 - **Shops are effectively infinite-stock**: buying spawns a fresh copy from the ware's `prototype_key` rather than moving/depleting the actual display item. Selling back deletes the item outright (not moved into the merchant's inventory) — both deliberate, to avoid a shop ever running dry and to avoid sold goods piling up as confusing duplicate listings.
 - **Sell-back rate**: 50% of an item's price (`SELL_BACK_RATE` in `economy.py`).
 - **Five real merchants deployed**: four flavor-goods vendors (Colosseum vendor, Forum bookseller/goldsmith/perfumer/food vendor) plus the Ludus weaponsmith (`world.economy.LudusWeaponsmith`, standing in Ludus Entrance, room #320) — the first shop actually selling real combat gear. She stocks herself automatically from `LUDUS_WEAPONSMITH_STOCK` — three tiers (Novice/Veteran/Champion, levels 2/6/10), each a distinctly-named/flavored item rather than a numeric reskin, using `compute_weapon_stats`/`compute_armor_stats` (`world/combat.py`) for pricing/stats.
-- **Not yet solved**: `learnspell`/`learnskill` still don't cost gold — open design question, not forgotten.
+- **`learnspell`/`learnskill` now cost gold and require an in-person trainer.** Two trainers (`world.combat.SpellSkillTrainer`): the Ludus weapons master (Ludus Entrance) teaches skills, the Flamen of the Cella (Main Cella - Jupiter, Capitoline Hill) teaches spells. Cost scales with level via `compute_learn_cost()`. `trainer` lists what a specific trainer offers your class, with cost and level shown.
 
 ---
 
@@ -89,7 +89,7 @@ Requires `ACHIEVEMENT_CONTRIB_MODULES = ["world.achievements"]` in `server/conf/
 | `ingame_map_display` | `map` command | Friendlier docstring layered on via subclass, real logic untouched |
 | `debugpy` | Live VS Code breakpoint debugging | Locked to Developer permission via subclass (contrib's own default lock wasn't verified safe). **Client-side VS Code `launch.json` setup was deferred/skipped** — server-side code is deployed and harmless sitting unused |
 
-**Chosen but not yet built** (see to-do list): `crafting`, `extended_room`, `mail` (in-character half), `ingame_reports`, `health_bar`, `auditing`, `git_integration`, `building_menu`.
+**Chosen but not yet built** (see to-do list): `crafting`, `extended_room`, `ingame_reports`. `mail` (in-character half) and `health_bar` are now built; `auditing` and `building_menu` are now built; `git_integration` was explained and deliberately skipped (this project's external dev workflow already covers what it'd add, with better safety - no in-game code-pull path exists on purpose).
 
 **Explicitly discussed for the future, not started**: `wilderness` + `slow_exit` together, for eventual travel between Rome and other cities — deliberately scoped as "once a second city actually exists to travel to," not before.
 
