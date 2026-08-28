@@ -305,7 +305,7 @@ def create_all_help_entries():
             "Jupiter, Capitoline Hill) teaches magic spells - Augur, "
             "Haruspex, and Medicus.\n\n"
             "Once you're standing with the right one:\n"
-            "  trainer                 - see everything they can "
+            "  trainer (or 'train')    - see everything they can "
             "teach your class, its level requirement, and its gold "
             "cost, split into known / ready now / not yet available\n"
             "  learnspell <name>       - learn a spell (Flamen only)\n"

@@ -7041,6 +7041,7 @@ class CmdTrainer(Command):
 
     Usage:
       trainer
+      train
 
     Only works while you're standing in the same room as an actual
     trainer NPC - it lists everything relevant to your class that
@@ -7051,6 +7052,7 @@ class CmdTrainer(Command):
     """
 
     key = "trainer"
+    aliases = ["train"]
     help_category = "general"
 
     def func(self):

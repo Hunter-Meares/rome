@@ -494,6 +494,9 @@ class TestSpellSkillTrainers(CombatCommandTestBase):
         result = self.call(CmdTrainer(), "", caller=self.char1)
         self.assertIn("no trainer here", result)
 
+    def test_train_is_a_working_alias_for_trainer(self):
+        self.assertIn("train", CmdTrainer.aliases)
+
     def test_trainer_command_shows_known_ready_and_locked(self):
         self._make_trainer("skills")
         self.char1.db.player_class = "legionary"
