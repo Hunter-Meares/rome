@@ -1005,3 +1005,129 @@ class TestIsAlly(CombatTestBase):
         self.char1.db.party_leader = None
         self.char1.db.party_members = None
         self.assertFalse(COMBAT_RULES.is_ally(self.char1, self.char2))
+
+
+class TestRegenCombatResources(CombatTestBase):
+    """
+    MP/SP previously never recovered mid-fight at all - see
+    COMBAT_REGEN_PERCENT's own comment in world/combat.py for why
+    that made every long fight collapse into plain 'attack' the
+    moment early spending ran out.
+    """
+
+    def test_restores_a_percentage_of_max_mp_and_sp(self):
+        self.char1.db.max_mp = 100
+        self.char1.db.mp = 40
+        self.char1.db.max_sp = 100
+        self.char1.db.sp = 40
+
+        COMBAT_RULES.regen_combat_resources(self.char1)
+
+        self.assertEqual(self.char1.db.mp, 45)  # 40 + 5% of 100
+        self.assertEqual(self.char1.db.sp, 45)
+
+    def test_never_exceeds_max(self):
+        self.char1.db.max_mp = 100
+        self.char1.db.mp = 99
+        self.char1.db.max_sp = 100
+        self.char1.db.sp = 100
+
+        COMBAT_RULES.regen_combat_resources(self.char1)
+
+        self.assertEqual(self.char1.db.mp, 100)
+        self.assertEqual(self.char1.db.sp, 100)
+
+    def test_zero_max_pool_is_left_alone(self):
+        # A pure-melee character with no real MP pool shouldn't get a
+        # meaningless minimum-1 gain toward a pool that does nothing.
+        self.char1.db.max_mp = 0
+        self.char1.db.mp = 0
+        self.char1.db.max_sp = 100
+        self.char1.db.sp = 50
+
+        COMBAT_RULES.regen_combat_resources(self.char1)
+
+        self.assertEqual(self.char1.db.mp, 0)
+        self.assertEqual(self.char1.db.sp, 55)
+
+    def test_small_max_pool_still_gains_at_least_one(self):
+        self.char1.db.max_mp = 10
+        self.char1.db.mp = 0
+        self.char1.db.max_sp = 0
+
+        COMBAT_RULES.regen_combat_resources(self.char1)
+
+        self.assertEqual(self.char1.db.mp, 1)  # round(10*0.05)=1 already, but guards the floor
+
+
+class TestTryAutoAttack(CombatTestBase):
+    """
+    Regression coverage for the auto-attack toggle's core safety
+    property: a manual action a player takes on their own turn must
+    always win the race against the delayed auto-attack callback,
+    never double-act alongside it.
+    """
+
+    def _make_handler(self):
+        from evennia.utils import create
+        from world.combat import CombatTurnHandler
+
+        return create.create_script(CombatTurnHandler, obj=self.room1, autostart=False)
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.auto_attack = True
+        self.char1.db.hp = 100
+        self.char1.db.combat_side = "A"
+        self.char2.db.hp = 100
+        self.char2.db.combat_side = "B"
+        self.handler = self._make_handler()
+        self.handler.db.fighters = [self.char1, self.char2]
+        self.handler.db.turn = 0
+        self.char1.db.combat_turnhandler = self.handler
+        self.char1.db.combat_actionsleft = 1
+
+    def test_fires_when_nothing_else_has_happened(self):
+        COMBAT_RULES.try_auto_attack(self.char1)
+        self.assertLess(self.char2.db.hp, 100)
+        self.assertEqual(self.char1.db.combat_actionsleft, 0)
+
+    def test_does_not_fire_if_player_already_acted(self):
+        # Simulates a manual attack/cast/etc already having spent the turn's action.
+        self.char1.db.combat_actionsleft = 0
+        COMBAT_RULES.try_auto_attack(self.char1)
+        self.assertEqual(self.char2.db.hp, 100)  # untouched
+
+    def test_does_not_fire_when_toggled_off(self):
+        self.char1.db.auto_attack = False
+        COMBAT_RULES.try_auto_attack(self.char1)
+        self.assertEqual(self.char2.db.hp, 100)
+
+    def test_does_not_fire_if_defeated(self):
+        self.char1.db.hp = 0
+        COMBAT_RULES.try_auto_attack(self.char1)
+        self.assertEqual(self.char2.db.hp, 100)
+
+    def test_does_not_fire_if_turn_already_moved_on(self):
+        self.handler.db.turn = 1  # now char2's turn, not char1's
+        COMBAT_RULES.try_auto_attack(self.char1)
+        self.assertEqual(self.char2.db.hp, 100)
+
+    def test_falls_back_to_sole_living_opponent_if_last_target_invalid(self):
+        self.char1.db.combat_last_target = None
+        COMBAT_RULES.try_auto_attack(self.char1)
+        self.assertLess(self.char2.db.hp, 100)
+
+    def test_refuses_to_guess_with_multiple_possible_targets(self):
+        from evennia.utils import create
+
+        ally = create.create_object("typeclasses.characters.Character", key="ally3", location=self.room1)
+        ally.db.hp = 100
+        ally.db.combat_side = "B"
+        self.handler.db.fighters = [self.char1, self.char2, ally]
+        self.char1.db.combat_last_target = None
+
+        COMBAT_RULES.try_auto_attack(self.char1)
+
+        self.assertEqual(self.char2.db.hp, 100)
+        self.assertEqual(ally.db.hp, 100)

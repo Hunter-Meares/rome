@@ -50,8 +50,25 @@ OPTIONS
 ----------------------------------------------------------------------------
 """
 
-TURN_TIMEOUT = 30  # Time before turns automatically end, in seconds
+TURN_TIMEOUT = 20  # Time before turns automatically end, in seconds
 ACTIONS_PER_TURN = 1  # Number of actions allowed per turn
+
+# How many seconds into a character's own turn auto-attack (see
+# CmdAutoAttack/CombatCharacter.at_turn_start) waits before actually
+# firing - long enough for a real player to type something else
+# first (cast, powerattack, useskill, a different attack target) and
+# have that take priority, short enough not to feel like a delay for
+# someone who really did just want the default attack.
+AUTO_ATTACK_DELAY = 5
+
+# Percentage of max MP/SP restored at the start of a character's own
+# turn. MP/SP previously never recovered mid-fight at all (only
+# 'rest', out of combat, touched them) - meaning every fight's later
+# turns collapsed into plain 'attack' the moment early-fight ability
+# spending ran out, since there was no way to ever afford anything
+# else again until the fight ended. Kept modest - a helping hand
+# across a long fight, not enough to make resources feel unlimited.
+COMBAT_REGEN_PERCENT = 0.05
 NONCOMBAT_TURN_TIME = 30  # Time per turn count out of combat (for condition tickdown)
 
 # Condition modifiers
@@ -1244,6 +1261,64 @@ class CombatRules:
             if character.db.combat_actionsleft < 0:
                 character.db.combat_actionsleft = 0
         character.db.combat_turnhandler.turn_end_check(character)
+
+    def regen_combat_resources(self, character):
+        """
+        Restores COMBAT_REGEN_PERCENT of max MP/SP at the start of a
+        character's own turn - see the constant's own comment for why
+        this exists. Skips a resource entirely if the character has no
+        max pool of it at all (e.g. a pure-melee class with 0 max_mp),
+        rather than handing out a meaningless minimum-1 gain toward a
+        pool that was never meant to do anything.
+        """
+        if character.db.max_mp:
+            gain = max(1, round(character.db.max_mp * COMBAT_REGEN_PERCENT))
+            character.db.mp = min(character.db.max_mp, (character.db.mp or 0) + gain)
+        if character.db.max_sp:
+            gain = max(1, round(character.db.max_sp * COMBAT_REGEN_PERCENT))
+            character.db.sp = min(character.db.max_sp, (character.db.sp or 0) + gain)
+
+    def try_auto_attack(self, character):
+        """
+        Delayed callback scheduled by CombatCharacter.at_turn_start()
+        when db.auto_attack is on (see AUTO_ATTACK_DELAY). Only
+        actually attacks if the character hasn't already acted on
+        their own turn by the time this fires - checked via
+        combat_actionsleft, which any manual combat command (attack,
+        powerattack, cast, useskill, disengage, pass) spends first, so
+        typing anything yourself always wins the race and this becomes
+        a no-op rather than a double action.
+
+        Deliberately conservative about target choice: reuses
+        combat_last_target if it's still valid, otherwise only
+        auto-targets when exactly one living opponent remains - with
+        more than one, it's not this method's place to guess who the
+        player actually wants to keep fighting.
+        """
+        if not character.pk or not character.db.hp or character.db.is_dead:
+            return
+        if not character.db.auto_attack:
+            return
+
+        turnhandler = character.db.combat_turnhandler
+        if not turnhandler or not turnhandler.pk:
+            return
+        fighters = turnhandler.db.fighters or []
+        if not fighters or fighters[turnhandler.db.turn] != character:
+            return  # turn already moved on
+        if not character.db.combat_actionsleft:
+            return  # already acted manually this turn
+
+        target = character.db.combat_last_target
+        if not target or target not in fighters or not target.db.hp:
+            living_others = [f for f in fighters if f != character and f.db.hp]
+            target = living_others[0] if len(living_others) == 1 else None
+        if not target:
+            return
+
+        character.msg("|w(Auto-attacking %s.)|n" % target)
+        self.resolve_attack(character, target)
+        self.spend_action(character, 1, action_name="attack")
 
     # ------------------------------------------------------------------
     # CONDITIONS
@@ -4156,6 +4231,12 @@ class CombatCharacter(ContribRPCharacter):
         self.db.worn_feet = None
         self.db.unarmed_damage_range = (5, 15)
         self.db.unarmed_accuracy = 30
+        # Auto-attack (see CmdAutoAttack/CombatRules.try_auto_attack) -
+        # on by default so a straightforward fight never requires
+        # retyping 'attack' every round; a real command of your own
+        # (attack, powerattack, cast, useskill, disengage, pass)
+        # always takes priority over it whenever you do want to act.
+        self.db.auto_attack = True
         # Conditions
         self.db.conditions = {}
         # Level and experience (see xp_for_level/award_xp on CombatRules)
@@ -4316,9 +4397,13 @@ class CombatCharacter(ContribRPCharacter):
     def at_turn_start(self):
         """
         Called at the start of this character's turn in combat (by the
-        turn handler). Sends the HP/MP/SP prompt and applies any
-        conditions that trigger at turn start.
+        turn handler). Regenerates a small amount of MP/SP, sends the
+        HP/MP/SP prompt, applies any conditions that trigger at turn
+        start, and - if auto_attack is on - schedules an automatic
+        attack a few seconds later (see try_auto_attack), giving a
+        real player time to act manually first if they want to.
         """
+        self.rules.regen_combat_resources(self)
         self.msg(
             "|wIt's your turn! HP: %i/%i  MP: %i/%i  SP: %i/%i|n"
             % (
@@ -4331,6 +4416,9 @@ class CombatCharacter(ContribRPCharacter):
             )
         )
         self.rules.apply_turn_conditions(self)
+
+        if self.db.auto_attack:
+            evennia_utils.delay(AUTO_ATTACK_DELAY, self.rules.try_auto_attack, self)
 
     def at_update(self):
         """Fires every NONCOMBAT_TURN_TIME seconds, out of combat."""
@@ -4908,6 +4996,57 @@ class CmdAttack(Command):
 
         self.rules.resolve_attack(attacker, defender)
         self.rules.spend_action(self.caller, 1, action_name="attack")
+
+
+class CmdAutoAttack(Command):
+    """
+    Show or set whether your character auto-attacks on their turn.
+
+    Usage:
+      autoattack
+      autoattack on
+      autoattack off
+
+    On (the default) means a few seconds into each of your turns,
+    if you haven't done anything else yet, your character
+    automatically attacks whoever you're currently fighting - no
+    need to retype 'attack' every single round of a straightforward
+    fight. Typing any other combat command first - attack, powerattack,
+    cast, useskill, disengage, pass - always takes priority; the
+    automatic attack only happens if you haven't acted on your own
+    by then.
+
+    Off means nothing happens on your turn until you type a command
+    yourself, same as before this existed.
+
+    With no argument, just shows whether it's currently on or off.
+    """
+
+    key = "autoattack"
+    aliases = ["auto"]
+    help_category = "combat"
+
+    def func(self):
+        caller = self.caller
+        arg = self.args.strip().lower() if self.args else ""
+
+        if not arg:
+            state = "ON" if caller.db.auto_attack else "OFF"
+            caller.msg(
+                "Auto-attack is currently |g%s|n. Use 'autoattack on' or "
+                "'autoattack off' to change it." % state
+            )
+            return
+
+        if arg in ("on", "yes", "enable"):
+            caller.db.auto_attack = True
+        elif arg in ("off", "no", "disable"):
+            caller.db.auto_attack = False
+        else:
+            caller.msg("Usage: autoattack, autoattack on, autoattack off")
+            return
+
+        caller.msg("Auto-attack is now |g%s|n." % ("ON" if caller.db.auto_attack else "OFF"))
 
 
 class CmdPowerAttack(Command):
@@ -7064,6 +7203,7 @@ class BattleCmdSet(CharacterCmdSet):
         super().at_cmdset_creation()
         self.add(CmdFight())
         self.add(CmdAttack())
+        self.add(CmdAutoAttack())
         self.add(CmdPowerAttack())
         self.add(CmdRest())
         self.add(CmdStand())

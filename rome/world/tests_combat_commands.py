@@ -26,6 +26,7 @@ from world.combat import (
     CombatTurnHandler,
     CmdFight,
     CmdAttack,
+    CmdAutoAttack,
     CmdPowerAttack,
     CmdPass,
     CmdDisengage,
@@ -35,6 +36,7 @@ from world.combat import (
     CmdCoreStats,
     POWERATTACK_SP_COST,
     DISENGAGE_SUCCESS_CHANCE,
+    AUTO_ATTACK_DELAY,
 )
 
 
@@ -179,6 +181,55 @@ class TestCmdAttack(CombatCommandTestBase):
         with patch("world.combat.randint", return_value=50):
             result = self.call(CmdAttack(), "Char2", caller=self.char1)
         self.assertIn("strikes", result)
+
+
+class TestCmdAutoAttack(CombatCommandTestBase):
+    def test_on_by_default_for_a_fresh_character(self):
+        self.assertTrue(self.char1.db.auto_attack)
+
+    def test_no_argument_shows_current_state_without_changing_it(self):
+        self.char1.db.auto_attack = True
+        result = self.call(CmdAutoAttack(), "", caller=self.char1)
+        self.assertIn("ON", result)
+        self.assertTrue(self.char1.db.auto_attack)  # unchanged, just shown
+
+    def test_off_turns_it_off(self):
+        result = self.call(CmdAutoAttack(), "off", caller=self.char1)
+        self.assertFalse(self.char1.db.auto_attack)
+        self.assertIn("OFF", result)
+
+    def test_on_turns_it_on(self):
+        self.char1.db.auto_attack = False
+        result = self.call(CmdAutoAttack(), "on", caller=self.char1)
+        self.assertTrue(self.char1.db.auto_attack)
+        self.assertIn("ON", result)
+
+    def test_garbage_argument_shows_usage_and_does_not_change_state(self):
+        self.char1.db.auto_attack = True
+        result = self.call(CmdAutoAttack(), "banana", caller=self.char1)
+        self.assertIn("Usage:", result)
+        self.assertTrue(self.char1.db.auto_attack)
+
+    def test_at_turn_start_schedules_the_delayed_auto_attack(self):
+        # Confirms the wiring (at_turn_start -> evennia_utils.delay) is
+        # actually in place, without needing a real elapsed delay -
+        # the delay mechanism itself only ever fires correctly on a
+        # live running server, not from a test/shell process (same
+        # class of limitation already documented for RespawnTimer).
+        self._start_duel()
+        self.char1.db.auto_attack = True
+        with patch("world.combat.evennia_utils.delay") as mock_delay:
+            self.char1.at_turn_start()
+        mock_delay.assert_called_once_with(
+            AUTO_ATTACK_DELAY, COMBAT_RULES.try_auto_attack, self.char1
+        )
+
+    def test_at_turn_start_does_not_schedule_when_toggled_off(self):
+        self._start_duel()
+        self.char1.db.auto_attack = False
+        with patch("world.combat.evennia_utils.delay") as mock_delay:
+            self.char1.at_turn_start()
+        mock_delay.assert_not_called()
 
 
 class TestCmdPowerAttack(CombatCommandTestBase):
