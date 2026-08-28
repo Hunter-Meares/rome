@@ -34,8 +34,7 @@ from world.combat import (
     CmdCast,
     CmdUseSkill,
     CmdCoreStats,
-    CmdLearnSpell,
-    CmdLearnSkill,
+    CmdLearn,
     CmdTrainer,
     POWERATTACK_SP_COST,
     DISENGAGE_SUCCESS_CHANCE,
@@ -83,6 +82,18 @@ class TestCmdFight(CombatCommandTestBase):
         self.call(CmdFight(), "Char2", caller=self.char1)
         self.assertTrue(COMBAT_RULES.is_in_combat(self.char1))
         self.assertTrue(COMBAT_RULES.is_in_combat(self.char2))
+
+    def test_no_combat_zone_blocks_a_named_duel(self):
+        self.room1.tags.add("no_combat_zone", category="zone")
+        result = self.call(CmdFight(), "Char2", caller=self.char1)
+        self.assertIn("forbids violence", result)
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
+
+    def test_no_combat_zone_blocks_fight_all(self):
+        self.room1.tags.add("no_combat_zone", category="zone")
+        result = self.call(CmdFight(), "all", caller=self.char1)
+        self.assertIn("forbids violence", result)
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
 
     def test_no_target_auto_picks_lone_other_fighter(self):
         self.call(CmdFight(), "", caller=self.char1)
@@ -418,12 +429,18 @@ class TestStatsHealthBar(CombatCommandTestBase):
 
 class TestSpellSkillTrainers(CombatCommandTestBase):
     """
-    learnspell/learnskill now require both gold and being in the same
-    room as the right trainer (world.combat.SpellSkillTrainer,
+    'learn' (formerly separate learnspell/learnskill commands, now
+    merged into one - see 'learnspell'/'learnskill' kept as aliases
+    for backward compatibility) requires both gold and being in the
+    same room as the right trainer (world.combat.SpellSkillTrainer,
     CmdTrainer). Uses real spells/skills from the actual SPELLS/SKILLS
     dicts rather than fakes, so a formula or gating change elsewhere
     would actually be caught here.
     """
+
+    def test_old_learnspell_and_learnskill_names_still_work_as_aliases(self):
+        self.assertIn("learnspell", CmdLearn.aliases)
+        self.assertIn("learnskill", CmdLearn.aliases)
 
     def _make_trainer(self, teaches, location=None):
         from evennia.utils import create
@@ -446,7 +463,7 @@ class TestSpellSkillTrainers(CombatCommandTestBase):
         self.char1.db.player_class = "legionary"
         self.char1.db.level = 50
         self.char1.db.gold = 9999
-        result = self.call(CmdLearnSkill(), "hold the line", caller=self.char1)
+        result = self.call(CmdLearn(), "hold the line", caller=self.char1)
         self.assertIn("need to find a trainer", result)
         self.assertNotIn("hold the line", self.char1.db.skills_known)
 
@@ -455,7 +472,7 @@ class TestSpellSkillTrainers(CombatCommandTestBase):
         self.char1.db.player_class = "legionary"
         self.char1.db.level = 50
         self.char1.db.gold = 0
-        result = self.call(CmdLearnSkill(), "hold the line", caller=self.char1)
+        result = self.call(CmdLearn(), "hold the line", caller=self.char1)
         self.assertIn("costs", result)
         self.assertNotIn("hold the line", self.char1.db.skills_known)
 
@@ -464,7 +481,7 @@ class TestSpellSkillTrainers(CombatCommandTestBase):
         self.char1.db.player_class = "legionary"
         self.char1.db.level = 50
         self.char1.db.gold = 100
-        self.call(CmdLearnSkill(), "hold the line", caller=self.char1)
+        self.call(CmdLearn(), "hold the line", caller=self.char1)
         self.assertIn("hold the line", self.char1.db.skills_known)
         # level_required=1 for "hold the line" -> cost 23
         self.assertEqual(self.char1.db.gold, 77)
@@ -474,11 +491,11 @@ class TestSpellSkillTrainers(CombatCommandTestBase):
         self.char1.db.player_class = "medicus"
         self.char1.db.level = 50
         self.char1.db.gold = 100
-        result = self.call(CmdLearnSpell(), "cure wounds", caller=self.char1)
+        result = self.call(CmdLearn(), "cure wounds", caller=self.char1)
         self.assertIn("need to find a trainer", result)
 
         self._make_trainer("spells")  # now the right type is also here
-        self.call(CmdLearnSpell(), "cure wounds", caller=self.char1)
+        self.call(CmdLearn(), "cure wounds", caller=self.char1)
         self.assertIn("cure wounds", self.char1.db.spells_known)
 
     def test_already_known_short_circuits_before_gold_or_trainer_checks(self):
@@ -487,7 +504,7 @@ class TestSpellSkillTrainers(CombatCommandTestBase):
         self.char1.db.level = 50
         self.char1.db.gold = 0
         self.char1.db.skills_known = ["hold the line"]
-        result = self.call(CmdLearnSkill(), "hold the line", caller=self.char1)
+        result = self.call(CmdLearn(), "hold the line", caller=self.char1)
         self.assertIn("already know", result)
 
     def test_trainer_command_with_no_trainer_present(self):

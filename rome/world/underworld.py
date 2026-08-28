@@ -13,9 +13,47 @@ COMBAT_RULES.resurrect() directly, same as the riddle-solve below does.
 
 from evennia import default_cmds, DefaultExit
 from evennia.scripts.scripts import DefaultScript
+from evennia.utils.search import search_tag
 
 from commands.command import Command
-from world.combat import COMBAT_RULES
+from world.combat import COMBAT_RULES, NO_COMBAT_ZONE_TAG
+
+
+def tag_underworld_as_no_combat_zone():
+    """
+    Tags every room reachable from the Underworld entrance (a plain
+    exit-following BFS, same technique world/worldcheck.py uses for
+    reachability) as a no-combat zone - see NO_COMBAT_ZONE_TAG in
+    world/combat.py. The afterlife shouldn't be a place fights can be
+    started, PvP or otherwise; this reaches every room in the zone
+    without needing to hand-list them, so re-running it after any
+    future Underworld expansion picks up the new rooms automatically.
+
+    Idempotent - tags.add() on an already-tagged room is a no-op, so
+    safe to run again any time. Run once, in-game, as Developer/
+    superuser:
+
+        py from world.underworld import tag_underworld_as_no_combat_zone as t; t()
+    """
+    entrances = search_tag("underworld_entrance", category="underworld")
+    if not entrances:
+        return 0
+
+    key, category = NO_COMBAT_ZONE_TAG
+    visited = set()
+    queue = [entrances[0]]
+    while queue:
+        room = queue.pop()
+        if not room or not room.pk or room.pk in visited:
+            continue
+        visited.add(room.pk)
+        room.tags.add(key, category=category)
+        for ex in room.exits:
+            dest = ex.destination
+            if dest and dest.pk and dest.pk not in visited:
+                queue.append(dest)
+
+    return len(visited)
 
 
 class CharonTimer(DefaultScript):

@@ -13,8 +13,8 @@ CharonTimer, CharonFerryExit's gating, and CmdAnswerRiddle.
 from evennia.utils.test_resources import EvenniaTest, EvenniaCommandTest
 from evennia.utils import create
 
-from world.combat import COMBAT_RULES, CombatTurnHandler
-from world.underworld import CharonTimer, CharonFerryExit, CmdAnswerRiddle
+from world.combat import COMBAT_RULES, CombatTurnHandler, is_no_combat_zone
+from world.underworld import CharonTimer, CharonFerryExit, CmdAnswerRiddle, tag_underworld_as_no_combat_zone
 
 
 class UnderworldTestBase(EvenniaTest):
@@ -371,3 +371,52 @@ class TestCmdAnswerRiddle(EvenniaCommandTest):
 
         self.assertFalse(self.char1.db.is_dead)
         self.assertEqual(self.char1.db.hp, self.char1.db.max_hp)
+
+
+class TestTagUnderworldAsNoCombatZone(EvenniaTest):
+    """
+    Real request: no combat should be startable in the afterlife.
+    Rather than hand-tagging the Underworld's rooms once and hoping
+    nobody adds more without remembering, this BFS-walks from the
+    entrance (same technique world/worldcheck.py uses for
+    reachability) and tags whatever it finds - re-running it after a
+    future expansion picks up new rooms automatically.
+    """
+
+    def _make_zone(self):
+        from evennia.utils import create
+
+        entrance = create.create_object("typeclasses.rooms.Room", key="Shores of the Styx")
+        entrance.tags.add("underworld_entrance", category="underworld")
+        deeper = create.create_object("typeclasses.rooms.Room", key="Deeper In")
+        create.create_object(
+            "typeclasses.exits.Exit", key="onward", location=entrance, destination=deeper
+        )
+        return entrance, deeper
+
+    def test_tags_every_room_reachable_from_the_entrance(self):
+        entrance, deeper = self._make_zone()
+        count = tag_underworld_as_no_combat_zone()
+        self.assertEqual(count, 2)
+        self.assertTrue(is_no_combat_zone(entrance))
+        self.assertTrue(is_no_combat_zone(deeper))
+
+    def test_does_not_tag_rooms_outside_the_zone(self):
+        self._make_zone()
+        tag_underworld_as_no_combat_zone()
+        self.assertFalse(is_no_combat_zone(self.room1))
+
+    def test_returns_zero_if_no_entrance_is_tagged(self):
+        self.assertEqual(tag_underworld_as_no_combat_zone(), 0)
+
+
+class TestIsNoCombatZone(EvenniaTest):
+    def test_untagged_room_is_not_a_no_combat_zone(self):
+        self.assertFalse(is_no_combat_zone(self.room1))
+
+    def test_tagged_room_is_a_no_combat_zone(self):
+        self.room1.tags.add("no_combat_zone", category="zone")
+        self.assertTrue(is_no_combat_zone(self.room1))
+
+    def test_none_location_is_handled_safely(self):
+        self.assertFalse(is_no_combat_zone(None))

@@ -72,6 +72,25 @@ AUTO_ATTACK_DELAY = 5
 COMBAT_REGEN_PERCENT = 0.05
 NONCOMBAT_TURN_TIME = 30  # Time per turn count out of combat (for condition tickdown)
 
+# A room tagged (this key, this category) is a hard no-combat zone - no
+# fight can be started there at all, PvP or otherwise. Currently applied
+# to every room in the Underworld (see world/underworld.py's setup
+# script): the afterlife is meant to be a somber, dangerous-to-navigate
+# place, not one where the newly dead (or anyone else standing there)
+# can be dragged into a fight. Checked at every place a fight can
+# actually START (CmdFight, skill_ambush) - once a fight is already
+# running elsewhere, nothing moves a live encounter into one of these
+# rooms, so there's no separate mid-fight check needed.
+NO_COMBAT_ZONE_TAG = ("no_combat_zone", "zone")
+
+
+def is_no_combat_zone(room):
+    """True if a fight cannot be started in this room at all."""
+    if not room:
+        return False
+    key, category = NO_COMBAT_ZONE_TAG
+    return bool(room.tags.get(key, category=category))
+
 # Condition modifiers
 REGEN_RATE = (4, 8)
 POISON_RATE = (4, 8)
@@ -2067,6 +2086,9 @@ class CombatRules:
             return
         if self.is_in_combat(user):
             user.msg("You're already in a fight!")
+            return
+        if is_no_combat_zone(here):
+            user.msg("Something about this place forbids violence - you can't start a fight here.")
             return
         if not target.db.hp or target.db.is_dead:
             user.msg("There's no one there to ambush.")
@@ -4843,6 +4865,9 @@ class CmdFight(Command):
         if caller.db.resting:
             caller.msg("You're resting. Type 'stand' first if you want to fight.")
             return
+        if is_no_combat_zone(here):
+            caller.msg("Something about this place forbids violence - you can't start a fight here.")
+            return
 
         arg = self.args.strip().lower() if self.args else ""
 
@@ -6318,7 +6343,7 @@ class CmdUse(MuxCommand):
 # venator (checked directly against both dicts' own "classes" fields, not
 # guessed) - a clean two-way split, so one trainer per learning TYPE covers
 # every class without needing a third gating concept beyond what
-# CmdLearnSpell/CmdLearnSkill's own class check already does.
+# CmdLearn's own class check already does.
 # ----------------------------------------------------------------------------
 class SpellSkillTrainer(DefaultCharacter):
     """
@@ -6353,85 +6378,97 @@ def find_trainer(location, teaches):
     return None
 
 
-class CmdLearnSpell(Command):
+class CmdLearn(Command):
     """
-    Learn a magic spell from a trainer.
+    Learn a new spell or skill from a trainer.
 
     Usage:
-        learnspell <spell name>
+        learn <name>
 
-    Costs gold (more for a higher-level spell) and requires actually
-    being in the same room as a trainer who teaches spells - see
-    'help trainer' to find where, and 'trainer' once you're there to
-    see exactly what's on offer and what each one costs.
+    Works for both spells and skills, whichever your class actually
+    has - there's no real ambiguity between the two in practice, since
+    every class is locked to exactly one system. Costs gold (more for
+    a higher-level pick) and requires actually being in the same room
+    as the right trainer - see 'help trainer' to find where, and
+    'trainer' once you're there to see exactly what's on offer and
+    what each one costs.
     """
 
-    key = "learnspell"
-    help_category = "magic"
+    key = "learn"
+    aliases = ["learnspell", "learnskill"]
+    help_category = "general"
+
+    # (source dict, db attribute name for what's already known, the
+    # word used in messages, what a trainer's db.teaches must equal)
+    _SOURCES = (
+        (SPELLS, "spells_known", "spell", "spells"),
+        (SKILLS, "skills_known", "skill", "skills"),
+    )
 
     def func(self):
-        spell_list = sorted(SPELLS.keys())
-        args = self.args.lower().strip(" ")
         caller = self.caller
-        spell_to_learn = []
+        args = self.args.lower().strip(" ")
 
         if not args or len(args) < 3:
             caller.msg(
-                "Usage: learnspell <spell name>\n"
-                "Not sure what's available? Try 'spellinfo' to see your full spellbook, "
-                "or 'trainer' if you're standing with one to see costs too."
+                "Usage: learn <name>\n"
+                "Not sure what's available? Try 'skillinfo'/'spellinfo' to see your "
+                "full list, or 'trainer' if you're standing with one to see costs too."
             )
             return
 
-        # Prefer an exact match first, to avoid ambiguity between spells
-        # whose names are substrings of one another (e.g. "cure wounds"
-        # vs. "mass cure wounds").
-        if args in spell_list:
-            spell_to_learn = [args]
-        else:
-            for spell in spell_list:
-                if args in spell.lower():
-                    spell_to_learn.append(spell)
+        # No real ambiguity risk between the two dicts - SPELLS and
+        # SKILLS share no names at all (checked directly), and every
+        # class is class-gated to exactly one of the two - so trying
+        # SPELLS first and only falling through to SKILLS on a total
+        # miss is safe, not order-dependent guessing.
+        for source, known_attr, kind, teaches in self._SOURCES:
+            name_list = sorted(source.keys())
+            if args in name_list:
+                matches = [args]
+            else:
+                matches = [n for n in name_list if args in n.lower()]
+            if matches:
+                self._learn(caller, source, known_attr, kind, teaches, matches)
+                return
 
-        if not spell_to_learn:
-            caller.msg("There is no spell with that name.")
-            return
-        if len(spell_to_learn) > 1:
-            matched_spells = ", ".join(spell_to_learn)
-            caller.msg("Which spell do you mean: %s?" % matched_spells)
-            return
+        caller.msg("There is no spell or skill with that name.")
 
-        spell_to_learn = spell_to_learn[0]
-
-        if spell_to_learn in caller.db.spells_known:
-            caller.msg("You already know the spell '%s'!" % spell_to_learn)
+    def _learn(self, caller, source, known_attr, kind, teaches, matches):
+        if len(matches) > 1:
+            caller.msg("Which %s do you mean: %s?" % (kind, ", ".join(matches)))
             return
 
-        # Class-gating: a spell with a "classes" list can only be
+        name = matches[0]
+        known = getattr(caller.db, known_attr)
+
+        if name in known:
+            caller.msg("You already know the %s '%s'!" % (kind, name))
+            return
+
+        # Class-gating: an entry with a "classes" list can only be
         # learned by characters whose player_class is in that list.
-        # Spells with no "classes" key (like cactus conjuration) are
-        # open to everyone.
-        allowed_classes = SPELLS[spell_to_learn].get("classes")
+        allowed_classes = source[name].get("classes")
         if allowed_classes and caller.db.player_class not in allowed_classes:
             caller.msg(
-                "Your training doesn't include the spell '%s'. That knowledge "
-                "belongs to another path." % spell_to_learn
+                "Your training doesn't include the %s '%s'. That knowledge "
+                "belongs to another path." % (kind, name)
             )
             return
 
-        level_required = SPELLS[spell_to_learn].get("level_required", 1)
+        level_required = source[name].get("level_required", 1)
         caller_level = caller.db.level or 1
         if caller_level < level_required:
             caller.msg(
                 "You aren't experienced enough for '%s' yet - it requires level %d "
-                "(you are level %d)." % (spell_to_learn, level_required, caller_level)
+                "(you are level %d)." % (name, level_required, caller_level)
             )
             return
 
-        if not find_trainer(caller.location, "spells"):
+        if not find_trainer(caller.location, teaches):
             caller.msg(
                 "You need to find a trainer to learn '%s' - see 'help trainer' for "
-                "where to look." % spell_to_learn
+                "where to look." % name
             )
             return
 
@@ -6439,13 +6476,13 @@ class CmdLearnSpell(Command):
         if (caller.db.gold or 0) < cost:
             caller.msg(
                 "Learning '%s' costs %d gold - you only have %d."
-                % (spell_to_learn, cost, caller.db.gold or 0)
+                % (name, cost, caller.db.gold or 0)
             )
             return
 
         caller.db.gold -= cost
-        caller.db.spells_known.append(spell_to_learn)
-        caller.msg("You pay %d gold and learn the spell '%s'!" % (cost, spell_to_learn))
+        known.append(name)
+        caller.msg("You pay %d gold and learn the %s '%s'!" % (cost, kind, name))
 
 
 class CmdCast(MuxCommand):
@@ -6948,93 +6985,6 @@ class CmdUseSkill(MuxCommand):
             log_trace("Error in callback for skill: %s." % skill_to_use)
 
 
-class CmdLearnSkill(Command):
-    """
-    Learn a combat skill from a trainer.
-
-    Usage:
-        learnskill <skill name>
-
-    Costs gold (more for a higher-level skill) and requires actually
-    being in the same room as a trainer who teaches skills - see
-    'help trainer' to find where, and 'trainer' once you're there to
-    see exactly what's on offer and what each one costs.
-    """
-
-    key = "learnskill"
-    help_category = "combat"
-
-    def func(self):
-        skill_list = sorted(SKILLS.keys())
-        args = self.args.lower().strip(" ")
-        caller = self.caller
-        skill_to_learn = []
-
-        if not args or len(args) < 3:
-            caller.msg(
-                "Usage: learnskill <skill name>\n"
-                "Not sure what's available? Try 'skillinfo' to see your full skill list, "
-                "or 'trainer' if you're standing with one to see costs too."
-            )
-            return
-
-        if args in skill_list:
-            skill_to_learn = [args]
-        else:
-            for skill in skill_list:
-                if args in skill.lower():
-                    skill_to_learn.append(skill)
-
-        if not skill_to_learn:
-            caller.msg("There is no skill with that name.")
-            return
-        if len(skill_to_learn) > 1:
-            caller.msg("Which skill do you mean: %s?" % ", ".join(skill_to_learn))
-            return
-
-        skill_to_learn = skill_to_learn[0]
-
-        if skill_to_learn in caller.db.skills_known:
-            caller.msg("You already know the skill '%s'!" % skill_to_learn)
-            return
-
-        allowed_classes = SKILLS[skill_to_learn].get("classes")
-        if allowed_classes and caller.db.player_class not in allowed_classes:
-            caller.msg(
-                "Your training doesn't include the skill '%s'. That knowledge "
-                "belongs to another path." % skill_to_learn
-            )
-            return
-
-        level_required = SKILLS[skill_to_learn].get("level_required", 1)
-        caller_level = caller.db.level or 1
-        if caller_level < level_required:
-            caller.msg(
-                "You aren't experienced enough for '%s' yet - it requires level %d "
-                "(you are level %d)." % (skill_to_learn, level_required, caller_level)
-            )
-            return
-
-        if not find_trainer(caller.location, "skills"):
-            caller.msg(
-                "You need to find a trainer to learn '%s' - see 'help trainer' for "
-                "where to look." % skill_to_learn
-            )
-            return
-
-        cost = compute_learn_cost(level_required)
-        if (caller.db.gold or 0) < cost:
-            caller.msg(
-                "Learning '%s' costs %d gold - you only have %d."
-                % (skill_to_learn, cost, caller.db.gold or 0)
-            )
-            return
-
-        caller.db.gold -= cost
-        caller.db.skills_known.append(skill_to_learn)
-        caller.msg("You pay %d gold and learn the skill '%s'!" % (cost, skill_to_learn))
-
-
 class CmdTrainer(Command):
     """
     See what the trainer in your current room teaches.
@@ -7381,7 +7331,7 @@ class BattleCmdSet(CharacterCmdSet):
         self.add(CmdDoff())
         self.add(CmdInventory())
         self.add(CmdUse())
-        self.add(CmdLearnSpell())
+        self.add(CmdLearn())
         self.add(CmdCast())
         self.add(CmdStatus())
         self.add(CmdCoreStats())
@@ -7389,6 +7339,5 @@ class BattleCmdSet(CharacterCmdSet):
         self.add(CmdChallenge())
         self.add(CmdSpellInfo())
         self.add(CmdUseSkill())
-        self.add(CmdLearnSkill())
         self.add(CmdSkillInfo())
         self.add(CmdTrainer())
