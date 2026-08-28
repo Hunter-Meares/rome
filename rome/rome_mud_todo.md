@@ -6,6 +6,14 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## 🛠️ `ingame_reports` installed; pantheon discrepancy resolved (Apollo added) — ✅ this session
+
+- [x] **`ingame_reports` contrib installed** on `AccountCmdSet` (`ReportsCmdSet`, `commands/default_cmdsets.py`) - `bug`, `report <player> = <message>`, `idea`/`ideas`, and the Developer-only `manage reports`/`manage bugs`/`manage players`/`manage ideas` commands. No migration needed - each report type auto-creates its own "hub" Script on first use. New `world/tests_ingame_reports.py` (4 tests): confirms the cmdset actually registers the four commands, and real end-to-end filing for `idea`, `bug`, and `report` (the last one account-caller, so the target search resolves by Account key, not Character key - worth remembering if this is ever extended). Full suite 352/352 passing (1 intentional skip).
+- [x] **Pantheon discrepancy resolved.** The in-game pantheon (`world/god_help.py`) was missing Apollo; the website (`gods.html`) had Apollo in "The Twelve Olympians" grid but Bacchus in Vesta's spot instead of Vesta herself. Recommendation followed: the real historical Twelve (Dii Consentes) - Jupiter, Juno, Neptune, Minerva, Mars, Venus, Apollo, Diana, Vulcan, Vesta, Mercury, Ceres - with Bacchus, Pluto, and Trivia grouped together as non-Olympian "Other Powers." Apollo's new help entry ties directly into the Augur class's prophecy/omen theme. Added Apollo to `PANTHEON` and regenerated help entries live (`create_god_help_entries()` - confirmed all 15 god topics plus `god`/`gods` present). Website updated to match: Vesta now sits in the Twelve grid, Bacchus moved down to Other Powers alongside Pluto and Trivia.
+- [x] **Brutal faction feedback given** (7 factions on `factions.html`): flagged a 6-to-1 non-evil/evil imbalance (only Cult of Hecate is Evil-aligned), uneven mechanical depth (Mithras/Orphic Mysteries/Hecate have real hooks, Praetorian Order/Hellenic Resistance/Cult of Bacchus are narrative-only), Augur and Medicus having zero faction ties despite every other class being covered, and the whole roster clustering into military/political/mystery-cult with nothing for commerce or a state priesthood. Cult of Bacchus singled out as the weakest entry - a mood, not a mechanic. Fix options for these were requested next, not yet decided.
+
+---
+
 ## ⚖️ PvP: reward, rules, and enforcement decided — ✅ this session, follow-up to the entry below
 
 The open questions the previous PvP entry flagged (consent model, reward, framing) now have real answers, given directly rather than left as further open questions:

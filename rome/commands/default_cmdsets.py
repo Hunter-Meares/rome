@@ -32,6 +32,7 @@ from evennia.contrib.grid.ingame_map_display.ingame_map_display import CmdMap
 from evennia.contrib.game_systems import barter
 from evennia.contrib.game_systems.achievements.achievements import CmdAchieve
 from evennia.contrib.game_systems.mail import CmdMailCharacter
+from evennia.contrib.base_systems.ingame_reports import ReportsCmdSet
 from commands import social
 
 
@@ -170,6 +171,7 @@ class AccountCmdSet(default_cmds.AccountCmdSet):
         self.add(ContribChargenCmdSet)
         self.add(social.CmdWho())
         self.add(motd.MOTDCmdSet())
+        self.add(ReportsCmdSet)
 
 
 class UnloggedinCmdSet(default_cmds.UnloggedinCmdSet):

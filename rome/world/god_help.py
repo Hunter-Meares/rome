@@ -100,6 +100,18 @@ PANTHEON = {
         "the stag. Roman equivalent of the Greek Artemis.",
         "Goddess of the Hunt",
     ),
+    "apollo": (
+        "Apollo",
+        "God of prophecy, light, music, and healing - and the one major god "
+        "who crossed from Greek worship into Roman without even a new name. "
+        "His gift of foresight comes at a price: the oracles who speak in "
+        "his name rarely speak plainly, and reading his signs - the flight "
+        "of birds, the shape of entrails, the shiver of a sacred flame - is "
+        "a discipline as demanding as any blade. Every augur who has ever "
+        "read the sky for Rome does so, whether they name him or not, in "
+        "his shadow. Sacred animal: the raven. Symbol: the laurel.",
+        "God of Prophecy and Light",
+    ),
     "vulcan": (
         "Vulcan",
         "God of fire, the forge, and every craftsman who works metal for a "
