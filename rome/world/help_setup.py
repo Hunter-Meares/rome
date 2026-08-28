@@ -77,7 +77,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "groupcombat", "gold", "trade", "achievements"]
+        + ["races", "classes", "corestats", "groupcombat", "gold", "trade", "achievements", "languages", "trainers"]
     )
 
     # Clean slate for anything this script manages, so re-running it
@@ -287,5 +287,68 @@ def create_all_help_entries():
         db_lock_storage="view:all()",
     )
 
-    total = len(RACES) + len(CLASSES) + len(STAT_HELP) + 7
+    # --- Spell/skill trainers ---
+    HelpEntry.objects.create(
+        db_key="trainers",
+        db_help_category="General",
+        db_entrytext=(
+            "|wTrainers|n\n\n"
+            "Learning a new spell or skill costs gold and requires "
+            "finding the right trainer in person - 'learnspell'/"
+            "'learnskill' both refuse from anywhere else, even if "
+            "you've got the gold and the level for it.\n\n"
+            "Two trainers exist, one per learning path:\n"
+            "  - The |wLudus weapons master|n (Ludus Entrance) teaches "
+            "combat skills - Legionary, Gladiator, Barbarian, "
+            "Speculator, and Venator.\n"
+            "  - The |wFlamen of the Cella|n (Main Cella, Temple of "
+            "Jupiter, Capitoline Hill) teaches magic spells - Augur, "
+            "Haruspex, and Medicus.\n\n"
+            "Once you're standing with the right one:\n"
+            "  trainer                 - see everything they can "
+            "teach your class, its level requirement, and its gold "
+            "cost, split into known / ready now / not yet available\n"
+            "  learnspell <name>       - learn a spell (Flamen only)\n"
+            "  learnskill <name>       - learn a skill (weapons "
+            "master only)\n\n"
+            "Cost scales with how powerful the spell/skill is - a "
+            "level 1 pick is cheap, a level 90 one is a real "
+            "investment. See 'help gold' for how to earn it."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Languages (rplanguage contrib) ---
+    HelpEntry.objects.create(
+        db_key="languages",
+        db_help_category="General",
+        db_entrytext=(
+            "|wLanguages|n\n\n"
+            "Every character starts knowing only Latin, the setting's own "
+            "common tongue. Everything you say, pose, or emote goes out in "
+            "whichever language you're currently speaking - anyone nearby "
+            "who doesn't know that language hears it scrambled into real, "
+            "consistent-sounding nonsense (not a flat 'you don't "
+            "understand' message), the same way overhearing an unfamiliar "
+            "real language sounds like noise you can still tell apart from "
+            "other noise.\n\n"
+            "Four more languages exist to learn: Greek, Celtic, Germanic, "
+            "and Egyptian - each with its own distinct sound when "
+            "scrambled, not the same gibberish under a different label.\n\n"
+            "|wCommands:|n\n"
+            "  speak                  - show what you're currently "
+            "speaking, and everything you know\n"
+            "  speak <language>       - switch which language you speak\n"
+            "  learnlanguage <language> - learn a new one\n\n"
+            "Gods (level 101 and above) understand every language "
+            "unconditionally, regardless of what they've 'learned' - "
+            "nothing is ever scrambled for them.\n\n"
+            "Very short words can occasionally come out dropped entirely "
+            "rather than garbled, for grammars that don't cover that exact "
+            "word length - this reads as extra scrambling, not a bug."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    total = len(RACES) + len(CLASSES) + len(STAT_HELP) + 9
     print("Created %d help entries." % total)

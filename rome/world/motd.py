@@ -19,42 +19,41 @@ from evennia import CmdSet
 
 from commands.command import Command
 
-RECENT_UPDATES_DATE = "2026-08-23"
+RECENT_UPDATES_DATE = "2026-08-28"
 
 RECENT_UPDATES_TEXT = (
-    "The Capitoline Hill is now open past the Forum - Jupiter's\n"
-    "temple, the Arx, and more. City NPCs actually talk now, and\n"
-    "'learnlanguage' lets you pick up tongues beyond the Latin\n"
-    "everyone starts with."
+    "The Ludus has a real weaponsmith now, and learning spells/skills\n"
+    "costs gold from a trainer (try 'trainer'). Combat feels more\n"
+    "alive - unique per-weapon flavor, 'autoattack', and in-character 'mail'."
 )
 
 
 def get_motd():
     return (
         "|Y==================================================|n\n"
-        "Welcome to |wRome: The Eternal City|n\n"
+        "         Welcome to |wRome: The Eternal City|n\n"
         "|Y--------------------------------------------------|n\n"
-        "Website: http://rome.vineyard.haus/\n"
-        "Email:   zeus@rome.vineyard.haus (Admin)\n"
+        "Website: |whttp://rome.vineyard.haus/|n\n"
+        "Email:   |wzeus@rome.vineyard.haus|n |x(Admin - bugs, ideas, feedback)|n\n"
         "|Y--------------------------------------------------|n\n"
-        "You are exploring a world still being built - the gods,\n"
+        "You're exploring a world still being built - the gods,\n"
         "the streets of Rome, and everyone in between are all a\n"
         "work in progress. Things will change, break, and grow.\n"
-        "Your patience, curiosity, and feedback all help shape\n"
-        "where this goes next.\n"
+        "Your patience, curiosity, and feedback shape where this\n"
+        "goes next.\n"
         "\n"
-        "|wGetting started:|n\n"
+        "|r>> Getting Started|n\n"
         "  |whelp|n         - full command list and how things work\n"
         "  |wwho|n          - see who else is out there right now\n"
         "  |wtitle|n        - set a custom title shown next to your name\n"
         "  |wpublic <msg>|n - talk to everyone online, even if you can't see them\n"
         "  |wmotd|n         - see this message again any time\n"
         "\n"
-        "|wRecent updates|n |x(%s)|n:\n"
+        "|r>> Recent Updates|n |x(%s)|n\n"
         "%s\n"
         "\n"
-        "Got a bug, an idea, or just want to talk shop? Reach out\n"
-        "any time at |wzeus@rome.vineyard.haus|n - we read everything.\n"
+        "Got a bug, an idea, or just want to talk shop? We read\n"
+        "everything - reach out any time, the email's right above.\n"
         "|Y--------------------------------------------------|n\n"
         "May the gods watch over you as you ascend the Aventine.\n"
         "|Y==================================================|n"

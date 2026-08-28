@@ -1087,7 +1087,21 @@ class TestTryAutoAttack(CombatTestBase):
         self.char1.db.combat_turnhandler = self.handler
         self.char1.db.combat_actionsleft = 1
 
-    def test_fires_when_nothing_else_has_happened(self):
+    @patch("world.combat.randint")
+    def test_fires_when_nothing_else_has_happened(self, mock_randint):
+        # A real, unmocked accuracy/damage roll made this test genuinely
+        # flaky - it could legitimately miss or land 0 damage by chance,
+        # exactly the un-guaranteed-probability testing mistake CLAUDE.md's
+        # own testing conventions warn against. Force a guaranteed hit -
+        # but NOT exactly 100 (char2's max_hp): mocking every randint()
+        # call to a flat 100 makes the damage roll one-shot char2 to
+        # precisely 0 HP, triggering the real defeat/respawn flow, which
+        # then restores hp back to max as part of the "level<=5, no real
+        # penalty" safe-respawn path - silently undoing the very damage
+        # this test means to check for. Same trap already documented and
+        # avoided elsewhere in this file (test_attack_on_your_turn_deals_
+        # damage) - non-lethal 30 avoids it here too.
+        mock_randint.return_value = 30
         COMBAT_RULES.try_auto_attack(self.char1)
         self.assertLess(self.char2.db.hp, 100)
         self.assertEqual(self.char1.db.combat_actionsleft, 0)
@@ -1113,7 +1127,12 @@ class TestTryAutoAttack(CombatTestBase):
         COMBAT_RULES.try_auto_attack(self.char1)
         self.assertEqual(self.char2.db.hp, 100)
 
-    def test_falls_back_to_sole_living_opponent_if_last_target_invalid(self):
+    @patch("world.combat.randint")
+    def test_falls_back_to_sole_living_opponent_if_last_target_invalid(self, mock_randint):
+        # Non-lethal roll - see the comment on test_fires_when_nothing_
+        # else_has_happened above for why exactly 100 (char2's max_hp)
+        # would silently self-defeat this test via the respawn flow.
+        mock_randint.return_value = 30
         self.char1.db.combat_last_target = None
         COMBAT_RULES.try_auto_attack(self.char1)
         self.assertLess(self.char2.db.hp, 100)

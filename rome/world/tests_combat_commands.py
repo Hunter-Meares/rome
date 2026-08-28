@@ -34,10 +34,14 @@ from world.combat import (
     CmdCast,
     CmdUseSkill,
     CmdCoreStats,
+    CmdLearnSpell,
+    CmdLearnSkill,
+    CmdTrainer,
     POWERATTACK_SP_COST,
     DISENGAGE_SUCCESS_CHANCE,
     AUTO_ATTACK_DELAY,
 )
+from evennia.contrib.game_systems.mail import CmdMailCharacter
 
 
 class CombatCommandTestBase(EvenniaCommandTest):
@@ -382,6 +386,147 @@ class TestCmdUseSkillNamedTargeting(CombatCommandTestBase):
     def test_skill_unknown_rejected(self):
         result = self.call(CmdUseSkill(), "made up skill = Char2", caller=self.char1)
         self.assertIn("don't know a skill", result)
+
+
+class TestStatsHealthBar(CombatCommandTestBase):
+    """
+    'stats' now shows HP/MP/SP as visual meters (health_bar contrib)
+    rather than bare 'HP: X/Y' text - covers the real edge case that
+    made this worth double-checking: a pure-melee character with
+    max_mp=0 (display_meter guards divide-by-zero internally, but
+    worth confirming that actually holds here rather than trusting it).
+    """
+
+    def test_stats_shows_hp_mp_sp_meters(self):
+        self.char1.db.hp, self.char1.db.max_hp = 50, 100
+        self.char1.db.mp, self.char1.db.max_mp = 10, 20
+        self.char1.db.sp, self.char1.db.max_sp = 15, 30
+        result = self.call(CmdCoreStats(), "", caller=self.char1)
+        self.assertIn("HP ", result)
+        self.assertIn("MP ", result)
+        self.assertIn("SP ", result)
+        self.assertIn("50 / 100", result)
+        self.assertIn("10 / 20", result)
+        self.assertIn("15 / 30", result)
+
+    def test_stats_does_not_crash_with_zero_max_mp(self):
+        self.char1.db.max_mp = 0
+        self.char1.db.mp = 0
+        result = self.call(CmdCoreStats(), "", caller=self.char1)
+        self.assertIn("0 / 0", result)
+
+
+class TestSpellSkillTrainers(CombatCommandTestBase):
+    """
+    learnspell/learnskill now require both gold and being in the same
+    room as the right trainer (world.combat.SpellSkillTrainer,
+    CmdTrainer). Uses real spells/skills from the actual SPELLS/SKILLS
+    dicts rather than fakes, so a formula or gating change elsewhere
+    would actually be caught here.
+    """
+
+    def _make_trainer(self, teaches, location=None):
+        from evennia.utils import create
+        from world.combat import SpellSkillTrainer
+
+        trainer = create.create_object(
+            SpellSkillTrainer, key="Test Trainer (%s)" % teaches, location=location or self.room1
+        )
+        trainer.db.teaches = teaches
+        return trainer
+
+    def test_compute_learn_cost_scales_with_level(self):
+        from world.combat import compute_learn_cost
+
+        self.assertEqual(compute_learn_cost(1), 23)
+        self.assertEqual(compute_learn_cost(90), 290)
+        self.assertLess(compute_learn_cost(1), compute_learn_cost(90))
+
+    def test_learnskill_blocked_without_a_trainer_present(self):
+        self.char1.db.player_class = "legionary"
+        self.char1.db.level = 50
+        self.char1.db.gold = 9999
+        result = self.call(CmdLearnSkill(), "hold the line", caller=self.char1)
+        self.assertIn("need to find a trainer", result)
+        self.assertNotIn("hold the line", self.char1.db.skills_known)
+
+    def test_learnskill_blocked_without_enough_gold(self):
+        self._make_trainer("skills")
+        self.char1.db.player_class = "legionary"
+        self.char1.db.level = 50
+        self.char1.db.gold = 0
+        result = self.call(CmdLearnSkill(), "hold the line", caller=self.char1)
+        self.assertIn("costs", result)
+        self.assertNotIn("hold the line", self.char1.db.skills_known)
+
+    def test_learnskill_succeeds_and_deducts_gold(self):
+        self._make_trainer("skills")
+        self.char1.db.player_class = "legionary"
+        self.char1.db.level = 50
+        self.char1.db.gold = 100
+        self.call(CmdLearnSkill(), "hold the line", caller=self.char1)
+        self.assertIn("hold the line", self.char1.db.skills_known)
+        # level_required=1 for "hold the line" -> cost 23
+        self.assertEqual(self.char1.db.gold, 77)
+
+    def test_learnspell_succeeds_at_the_spell_trainer_not_the_skill_one(self):
+        self._make_trainer("skills")  # wrong type present
+        self.char1.db.player_class = "medicus"
+        self.char1.db.level = 50
+        self.char1.db.gold = 100
+        result = self.call(CmdLearnSpell(), "cure wounds", caller=self.char1)
+        self.assertIn("need to find a trainer", result)
+
+        self._make_trainer("spells")  # now the right type is also here
+        self.call(CmdLearnSpell(), "cure wounds", caller=self.char1)
+        self.assertIn("cure wounds", self.char1.db.spells_known)
+
+    def test_already_known_short_circuits_before_gold_or_trainer_checks(self):
+        # No trainer, no gold - but already known, so neither should matter.
+        self.char1.db.player_class = "legionary"
+        self.char1.db.level = 50
+        self.char1.db.gold = 0
+        self.char1.db.skills_known = ["hold the line"]
+        result = self.call(CmdLearnSkill(), "hold the line", caller=self.char1)
+        self.assertIn("already know", result)
+
+    def test_trainer_command_with_no_trainer_present(self):
+        result = self.call(CmdTrainer(), "", caller=self.char1)
+        self.assertIn("no trainer here", result)
+
+    def test_trainer_command_shows_known_ready_and_locked(self):
+        self._make_trainer("skills")
+        self.char1.db.player_class = "legionary"
+        self.char1.db.level = 5
+        self.char1.db.gold = 1000
+        self.char1.db.skills_known = ["hold the line"]  # level_required=1
+
+        result = self.call(CmdTrainer(), "", caller=self.char1)
+
+        self.assertIn("Hold The Line", result)
+        self.assertIn("Known:", result)
+        self.assertIn("Ready to learn", result)
+        # A level-90 skill should show up locked for a level-5 character.
+        self.assertIn("Not yet available", result)
+
+
+class TestInCharacterMail(CombatCommandTestBase):
+    """
+    Light integration coverage for the mail contrib (CmdMailCharacter,
+    installed on CharacterCmdSet) - not re-testing the contrib's own
+    internals (it ships its own test suite), just confirming it's
+    actually wired up correctly and a real send/receive round-trip
+    works between two of this game's real Character objects.
+    """
+
+    def test_send_and_receive_between_characters(self):
+        self.call(
+            CmdMailCharacter(),
+            "Char2=A test letter/Hail from across the Forum.",
+            caller=self.char1,
+        )
+        result = self.call(CmdMailCharacter(), "", caller=self.char2)
+        self.assertIn("A test letter", result)
 
 
 class TestCustomTitleDisplay(CombatCommandTestBase):

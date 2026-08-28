@@ -1284,6 +1284,44 @@ LUDUS_WEAPONSMITH = {
     "locks": "puppet:false()",
 }
 
+# ----------------------------------------------------------------------------
+# SPELL/SKILL TRAINERS - see world.combat.SpellSkillTrainer/CmdTrainer.
+# Two trainers, one per learning type (SKILLS is class-gated to barbarian/
+# gladiator/legionary/speculator/venator, SPELLS to augur/haruspex/medicus -
+# checked directly against both dicts, a clean two-way split), rather than
+# one per class.
+# ----------------------------------------------------------------------------
+
+LUDUS_WEAPONS_MASTER = {
+    "key": "the Ludus weapons master",
+    "aliases": ["weapons master", "trainer"],
+    "typeclass": "world.combat.SpellSkillTrainer",
+    "desc": (
+        "Old scars map a lifetime of close calls across his forearms, but "
+        "his stance never wavers - decades in the Ludus have worn away "
+        "everything except what actually keeps a fighter alive. He watches "
+        "new arrivals the way a smith checks a blade: not unkindly, just "
+        "looking for where it might break."
+    ),
+    "teaches": "skills",
+    "locks": "puppet:false()",
+}
+
+FLAMEN_TRAINER = {
+    "key": "the Flamen of the Cella",
+    "aliases": ["flamen", "trainer"],
+    "typeclass": "world.combat.SpellSkillTrainer",
+    "desc": (
+        "Robed in unbleached wool and never quite still, the Flamen moves "
+        "through the cella's incense-smoke like it doesn't concern him. He "
+        "has taught the sky-signs, the blood-rites, and the healing arts to "
+        "more petitioners than he can name - and judges each new one "
+        "silently before he ever agrees to speak."
+    ),
+    "teaches": "spells",
+    "locks": "puppet:false()",
+}
+
 """
 ----------------------------------------------------------------------------
 LUDUS WEAPONSMITH STOCK - three tiers (Novice/Veteran/Champion, roughly

@@ -42,6 +42,7 @@ from evennia.commands.default.account import CmdQuit as DefaultCmdQuit
 from evennia.prototypes.spawner import spawn
 from evennia.utils.logger import log_trace
 from evennia.utils import utils as evennia_utils
+from evennia.contrib.rpg.health_bar import display_meter
 from typeclasses.objects import ObjectParent
 
 """
@@ -4405,14 +4406,11 @@ class CombatCharacter(ContribRPCharacter):
         """
         self.rules.regen_combat_resources(self)
         self.msg(
-            "|wIt's your turn! HP: %i/%i  MP: %i/%i  SP: %i/%i|n"
+            "|wIt's your turn!|n\n%s\n%s\n%s"
             % (
-                self.db.hp,
-                self.db.max_hp,
-                self.db.mp,
-                self.db.max_mp,
-                self.db.sp,
-                self.db.max_sp,
+                display_meter(self.db.hp, self.db.max_hp, length=20, fill_color=["r", "y", "g"], pre_text="HP "),
+                display_meter(self.db.mp, self.db.max_mp, length=20, fill_color=["c"], pre_text="MP "),
+                display_meter(self.db.sp, self.db.max_sp, length=20, fill_color=["y"], pre_text="SP "),
             )
         )
         self.rules.apply_turn_conditions(self)
@@ -5389,14 +5387,9 @@ class CmdCoreStats(Command):
             lines.append("  XP: max level reached")
 
         lines.append("")
-        lines.append(
-            "|wHP:|n %d/%d  |cMP:|n %d/%d  |gSP:|n %d/%d"
-            % (
-                char.db.hp, char.db.max_hp,
-                char.db.mp, char.db.max_mp,
-                char.db.sp, char.db.max_sp,
-            )
-        )
+        lines.append(display_meter(char.db.hp, char.db.max_hp, length=30, fill_color=["r", "y", "g"], pre_text="HP "))
+        lines.append(display_meter(char.db.mp, char.db.max_mp, length=30, fill_color=["c"], pre_text="MP "))
+        lines.append(display_meter(char.db.sp, char.db.max_sp, length=30, fill_color=["y"], pre_text="SP "))
         lines.append("|YGold:|n %d" % (char.db.gold or 0))
 
         lines.append("")
@@ -6317,12 +6310,60 @@ class CmdUse(MuxCommand):
         self.rules.use_item(self.caller, item, target)
 
 
+# ----------------------------------------------------------------------------
+# SPELL/SKILL TRAINERS - learnspell/learnskill require both gold and being
+# physically in the same room as the right trainer. Deliberately only two
+# trainers exist rather than one per class: SPELLS is class-gated to augur/
+# haruspex/medicus and SKILLS to barbarian/gladiator/legionary/speculator/
+# venator (checked directly against both dicts' own "classes" fields, not
+# guessed) - a clean two-way split, so one trainer per learning TYPE covers
+# every class without needing a third gating concept beyond what
+# CmdLearnSpell/CmdLearnSkill's own class check already does.
+# ----------------------------------------------------------------------------
+class SpellSkillTrainer(DefaultCharacter):
+    """
+    A trainer NPC - being in the same room as one (with the right
+    db.teaches value) is required to learnspell/learnskill. Plain
+    DefaultCharacter, not CombatCharacter - a trainer has no reason to
+    fight, matching the same pattern already used for merchants.
+    """
+
+    def at_object_creation(self):
+        self.locks.add("puppet:false()")
+
+
+def compute_learn_cost(level_required):
+    """
+    Gold cost to learn a spell/skill, scaled by its level_required -
+    mirrors the weaponsmith's own "price scales with power" pattern
+    (compute_weapon_stats/compute_armor_stats) rather than a flat fee
+    that undersells how much stronger a high-level ability actually is.
+    """
+    return 20 + level_required * 3
+
+
+def find_trainer(location, teaches):
+    """Returns the first SpellSkillTrainer in location teaching `teaches`
+    ("spells" or "skills"), or None if there isn't one here."""
+    if not location:
+        return None
+    for obj in location.contents:
+        if obj.is_typeclass(SpellSkillTrainer, exact=False) and obj.db.teaches == teaches:
+            return obj
+    return None
+
+
 class CmdLearnSpell(Command):
     """
-    Learn a magic spell.
+    Learn a magic spell from a trainer.
 
     Usage:
         learnspell <spell name>
+
+    Costs gold (more for a higher-level spell) and requires actually
+    being in the same room as a trainer who teaches spells - see
+    'help trainer' to find where, and 'trainer' once you're there to
+    see exactly what's on offer and what each one costs.
     """
 
     key = "learnspell"
@@ -6337,7 +6378,8 @@ class CmdLearnSpell(Command):
         if not args or len(args) < 3:
             caller.msg(
                 "Usage: learnspell <spell name>\n"
-                "Not sure what's available? Try 'spellinfo' to see your full spellbook."
+                "Not sure what's available? Try 'spellinfo' to see your full spellbook, "
+                "or 'trainer' if you're standing with one to see costs too."
             )
             return
 
@@ -6361,6 +6403,10 @@ class CmdLearnSpell(Command):
 
         spell_to_learn = spell_to_learn[0]
 
+        if spell_to_learn in caller.db.spells_known:
+            caller.msg("You already know the spell '%s'!" % spell_to_learn)
+            return
+
         # Class-gating: a spell with a "classes" list can only be
         # learned by characters whose player_class is in that list.
         # Spells with no "classes" key (like cactus conjuration) are
@@ -6382,11 +6428,24 @@ class CmdLearnSpell(Command):
             )
             return
 
-        if spell_to_learn not in caller.db.spells_known:
-            caller.db.spells_known.append(spell_to_learn)
-            caller.msg("You learn the spell '%s'!" % spell_to_learn)
-        else:
-            caller.msg("You already know the spell '%s'!" % spell_to_learn)
+        if not find_trainer(caller.location, "spells"):
+            caller.msg(
+                "You need to find a trainer to learn '%s' - see 'help trainer' for "
+                "where to look." % spell_to_learn
+            )
+            return
+
+        cost = compute_learn_cost(level_required)
+        if (caller.db.gold or 0) < cost:
+            caller.msg(
+                "Learning '%s' costs %d gold - you only have %d."
+                % (spell_to_learn, cost, caller.db.gold or 0)
+            )
+            return
+
+        caller.db.gold -= cost
+        caller.db.spells_known.append(spell_to_learn)
+        caller.msg("You pay %d gold and learn the spell '%s'!" % (cost, spell_to_learn))
 
 
 class CmdCast(MuxCommand):
@@ -6891,10 +6950,15 @@ class CmdUseSkill(MuxCommand):
 
 class CmdLearnSkill(Command):
     """
-    Learn a combat skill.
+    Learn a combat skill from a trainer.
 
     Usage:
         learnskill <skill name>
+
+    Costs gold (more for a higher-level skill) and requires actually
+    being in the same room as a trainer who teaches skills - see
+    'help trainer' to find where, and 'trainer' once you're there to
+    see exactly what's on offer and what each one costs.
     """
 
     key = "learnskill"
@@ -6909,7 +6973,8 @@ class CmdLearnSkill(Command):
         if not args or len(args) < 3:
             caller.msg(
                 "Usage: learnskill <skill name>\n"
-                "Not sure what's available? Try 'skillinfo' to see your full skill list."
+                "Not sure what's available? Try 'skillinfo' to see your full skill list, "
+                "or 'trainer' if you're standing with one to see costs too."
             )
             return
 
@@ -6929,6 +6994,10 @@ class CmdLearnSkill(Command):
 
         skill_to_learn = skill_to_learn[0]
 
+        if skill_to_learn in caller.db.skills_known:
+            caller.msg("You already know the skill '%s'!" % skill_to_learn)
+            return
+
         allowed_classes = SKILLS[skill_to_learn].get("classes")
         if allowed_classes and caller.db.player_class not in allowed_classes:
             caller.msg(
@@ -6946,11 +7015,105 @@ class CmdLearnSkill(Command):
             )
             return
 
-        if skill_to_learn not in caller.db.skills_known:
-            caller.db.skills_known.append(skill_to_learn)
-            caller.msg("You learn the skill '%s'!" % skill_to_learn)
+        if not find_trainer(caller.location, "skills"):
+            caller.msg(
+                "You need to find a trainer to learn '%s' - see 'help trainer' for "
+                "where to look." % skill_to_learn
+            )
+            return
+
+        cost = compute_learn_cost(level_required)
+        if (caller.db.gold or 0) < cost:
+            caller.msg(
+                "Learning '%s' costs %d gold - you only have %d."
+                % (skill_to_learn, cost, caller.db.gold or 0)
+            )
+            return
+
+        caller.db.gold -= cost
+        caller.db.skills_known.append(skill_to_learn)
+        caller.msg("You pay %d gold and learn the skill '%s'!" % (cost, skill_to_learn))
+
+
+class CmdTrainer(Command):
+    """
+    See what the trainer in your current room teaches.
+
+    Usage:
+      trainer
+
+    Only works while you're standing in the same room as an actual
+    trainer NPC - it lists everything relevant to your class that
+    they can teach you, with the level and gold cost of each, split
+    into what you already know, what you're ready to learn right now,
+    and what's still locked behind a higher level. Use 'learnspell' or
+    'learnskill' (still from right here) to actually learn one.
+    """
+
+    key = "trainer"
+    help_category = "general"
+
+    def func(self):
+        caller = self.caller
+        location = caller.location
+
+        trainer = find_trainer(location, "spells") or find_trainer(location, "skills")
+        if not trainer:
+            caller.msg("There's no trainer here.")
+            return
+
+        if trainer.db.teaches == "spells":
+            source, known, verb = SPELLS, set(caller.db.spells_known or []), "learnspell"
         else:
-            caller.msg("You already know the skill '%s'!" % skill_to_learn)
+            source, known, verb = SKILLS, set(caller.db.skills_known or []), "learnskill"
+
+        player_class = caller.db.player_class
+        available = sorted(
+            (
+                name for name, data in source.items()
+                if not data.get("classes") or player_class in data.get("classes", [])
+            ),
+            key=lambda n: source[n].get("level_required", 1),
+        )
+
+        if not available:
+            caller.msg("%s has nothing to teach your class." % trainer.key)
+            return
+
+        caller_level = caller.db.level or 1
+        caller_gold = caller.db.gold or 0
+        known_lines, ready_lines, locked_lines = [], [], []
+
+        for name in available:
+            data = source[name]
+            level_req = data.get("level_required", 1)
+            cost = compute_learn_cost(level_req)
+            if name in known:
+                known_lines.append("  %s (Lv %d)" % (name.title(), level_req))
+            elif caller_level < level_req:
+                locked_lines.append(
+                    "  %s (Lv %d - you are Lv %d, costs %d gold)"
+                    % (name.title(), level_req, caller_level, cost)
+                )
+            elif caller_gold < cost:
+                ready_lines.append(
+                    "  %s (Lv %d, costs %d gold - you have %d, short %d)"
+                    % (name.title(), level_req, cost, caller_gold, cost - caller_gold)
+                )
+            else:
+                ready_lines.append(
+                    "  %s (Lv %d, costs %d gold - ready to learn now!)"
+                    % (name.title(), level_req, cost)
+                )
+
+        msg = "|w%s teaches:|n\n" % trainer.key
+        msg += "\n|gKnown:|n\n" + ("\n".join(known_lines) if known_lines else "  (none yet)")
+        if ready_lines:
+            msg += "\n\n|yReady to learn (use '%s'):|n\n" % verb + "\n".join(ready_lines)
+        if locked_lines:
+            msg += "\n\n|xNot yet available:|n\n" + "\n".join(locked_lines)
+
+        caller.msg(msg)
 
 
 class CmdSkillInfo(Command):
@@ -7226,3 +7389,4 @@ class BattleCmdSet(CharacterCmdSet):
         self.add(CmdUseSkill())
         self.add(CmdLearnSkill())
         self.add(CmdSkillInfo())
+        self.add(CmdTrainer())

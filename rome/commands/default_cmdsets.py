@@ -31,6 +31,7 @@ from evennia.contrib.grid.ingame_map_display import MapDisplayCmdSet
 from evennia.contrib.grid.ingame_map_display.ingame_map_display import CmdMap
 from evennia.contrib.game_systems import barter
 from evennia.contrib.game_systems.achievements.achievements import CmdAchieve
+from evennia.contrib.game_systems.mail import CmdMailCharacter
 from commands import social
 
 
@@ -110,6 +111,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(languages.LanguageCmdSet())
         self.add(building_menu.RomeBuildingCmdSet())
         self.add(worldcheck.CmdWorldCheck())
+        self.add(CmdMailCharacter())
 
 
 from world.character_creator import ContribChargenCmdSet
