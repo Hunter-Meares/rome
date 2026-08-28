@@ -239,6 +239,16 @@ SPECTATOR_KILL_LINES = [
 # per NPC.
 GOLD_PER_XP_DIVISOR = 3
 
+# XP reward for defeating another real player (see at_defeat's PvP
+# branch) - expressed as a fraction of xp_for_level() at the DEFEATED
+# player's own level, mirroring how NPCs already work ("higher-level
+# NPCs pay more, automatically"). 0.06 matches the actual ratio real
+# NPC xp_reward values already land at relative to xp_for_level: the
+# Arena Fighter (level 20, xp_reward 380) is ~6.4%, the Arena Master
+# (level 25, xp_reward 550) is ~6.1% - not an arbitrary number, the
+# rate this project's own NPCs already use.
+PVP_XP_REWARD_PERCENT = 0.06
+
 LEVEL_XP_BASE = 20
 LEVEL_XP_EXPONENT = 1.9
 MAX_LEVEL = 100  # 101 ("God") is assigned manually, never earned via XP
@@ -876,6 +886,43 @@ class CombatRules:
                         self.award_xp(contributor, share)
             elif attacker:
                 self.award_xp(attacker, defeated.db.xp_reward)
+
+        # --- PvP XP reward: defeating another real player now earns
+        # XP too, split the same fair, proportional-damage way as an
+        # NPC kill. Gated on `.account` (a real, persistent account
+        # LINK) rather than `.has_account` (evennia.objects.objects.
+        # DefaultObject.has_account is actually `self.sessions.count()`
+        # - whether someone is connected RIGHT NOW, not whether this is
+        # a player-created character at all). Using has_account here
+        # would silently fail to reward a real PvP kill the instant the
+        # loser's connection hiccups at the wrong moment - `.account`
+        # is the same persistent-link check handle_player_defeat's own
+        # dispatcher already uses a few lines below for exactly this
+        # reason. Checked on BOTH ends: without also checking it on the
+        # rewarded side, this would incorrectly fire every time an
+        # ordinary monster kills a player (a normal, constant PvE
+        # occurrence), quietly trying to "award XP" to a monster that
+        # has no use for it. Only matters when defeated has no
+        # xp_reward of their own (a real player never does), so this
+        # can never double-pay an NPC kill. Deliberately XP only, not
+        # gold, unlike NPC kills - not asked for, a trivial addition
+        # later if wanted.
+        elif getattr(defeated, "account", None):
+            defeated_level = defeated.db.level or 1
+            pvp_pool = max(1, round(PVP_XP_REWARD_PERCENT * self.xp_for_level(defeated_level)))
+            damage_log = defeated.db.damage_log or {}
+            player_damage = {
+                c: d for c, d in damage_log.items()
+                if c is not None and c.pk and getattr(c, "account", None)
+            }
+            total_damage = sum(player_damage.values())
+            if total_damage > 0:
+                for contributor, dealt in player_damage.items():
+                    share = int(round(pvp_pool * (dealt / total_damage)))
+                    if share > 0:
+                        self.award_xp(contributor, share)
+            elif attacker and getattr(attacker, "account", None):
+                self.award_xp(attacker, pvp_pool)
 
         # --- Gold reward, derived from xp_reward rather than a
         # separate hand-tuned field per NPC - xp_reward already

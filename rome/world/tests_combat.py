@@ -586,6 +586,145 @@ class TestAtDefeatXpGoldSplit(CombatTestBase):
         self.assertEqual(self.char1.db.xp, 8)  # round(15 * 50/100) == 8
 
 
+class TestPvPXpReward(CombatTestBase):
+    """
+    Real request: defeating another real player should earn XP too,
+    the same fair proportional-damage way an NPC kill already does.
+    The critical safety property is the flip side of that: an
+    ORDINARY monster killing a player (a normal, constant PvE
+    occurrence, not PvP at all) must never try to "award XP" to that
+    monster - the persistent account link is checked on the rewarded side
+    to prevent that.
+    """
+
+    def test_defeating_a_real_player_awards_the_attacker_xp(self):
+        self.char2.db.level = 1  # xp_for_level(1) = 20 -> pool = round(0.06*20) = 1
+        self.char2.db.hp = 0
+        self.char2.db.damage_log = {}
+        self.char1.db.xp = 0
+
+        COMBAT_RULES.at_defeat(self.char2, attacker=self.char1)
+
+        self.assertEqual(self.char1.db.xp, 1)
+
+    def test_higher_level_victim_is_worth_more_xp(self):
+        # char1 kept at a high level of its own (with a matching high
+        # xp_for_level threshold) so the awarded pool can't trigger a
+        # level-up mid-test - award_xp's leveling loop actively
+        # subtracts from db.xp as it advances, which would make a
+        # direct "how much landed" assertion meaningless otherwise
+        # (see TestAtDefeatXpGoldSplit's own comment on this exact trap).
+        self.char1.db.level = 50
+        self.char1.db.xp = 0
+        self.char2.db.level = 50
+        self.char2.db.hp = 0
+        self.char2.db.damage_log = {}
+
+        COMBAT_RULES.at_defeat(self.char2, attacker=self.char1)
+
+        expected = max(1, round(0.06 * COMBAT_RULES.xp_for_level(50)))
+        self.assertEqual(self.char1.db.xp, expected)
+        self.assertGreater(expected, 1)
+
+    def test_splits_proportionally_across_multiple_real_attackers(self):
+        from evennia.utils import create
+
+        ally = create.create_object("typeclasses.characters.Character", key="ally_pvp", location=self.room1)
+        # A freshly create_object()'d Character has no account link at
+        # all by default (unlike char1/char2, which EvenniaTest's own
+        # fixture setup links for us) - reusing account2 here is only
+        # to make getattr(ally, "account", None) truthy for this
+        # check, not to exercise any real session/puppet behavior.
+        ally.account = self.account2
+        # High level on both recipients, matching the note above - the
+        # awarded pool must stay under xp_for_level(their own level)
+        # or award_xp's leveling loop eats into the exact number being
+        # asserted on.
+        ally.db.level = 50
+        ally.db.xp = 0
+        self.char1.db.level = 50
+        self.char1.db.xp = 0
+        self.char2.db.level = 50
+        self.char2.db.hp = 0
+        self.char2.db.damage_log = {self.char1: 80, ally: 20}
+
+        COMBAT_RULES.at_defeat(self.char2, attacker=self.char1)
+
+        pool = max(1, round(0.06 * COMBAT_RULES.xp_for_level(50)))
+        self.assertEqual(self.char1.db.xp, int(round(pool * 0.8)))
+        self.assertEqual(ally.db.xp, int(round(pool * 0.2)))
+
+    def test_an_ordinary_monster_killing_a_player_awards_the_monster_nothing(self):
+        """
+        The critical safety case: a player dying to a regular NPC in
+        normal PvE (constant, ordinary) must never try to give that
+        NPC "XP" - the persistent account link on the attacker/contributor side is
+        what prevents this from firing on every routine PvE death.
+        """
+        from evennia.utils import create
+        from world.combat import AutoStatNPC
+
+        monster = create.create_object(AutoStatNPC, key="a wolf", location=self.room1)
+        monster.db.xp = 0
+        monster.db.level = 1
+        self.char1.db.level = 1
+        self.char1.db.hp = 0
+        self.char1.db.damage_log = {monster: 100}
+
+        COMBAT_RULES.at_defeat(self.char1, attacker=monster)
+
+        self.assertEqual(monster.db.xp, 0)
+
+    def test_mixed_damage_log_only_counts_real_player_contributions(self):
+        """
+        A player's summoned ally/monster helper dealing some of the
+        damage in a PvP fight shouldn't dilute or steal from the real
+        player's share - only real, account-linked contributors count at all,
+        both for the total used to compute shares and for who gets paid.
+        """
+        from evennia.utils import create
+        from world.combat import AutoStatNPC
+
+        familiar = create.create_object(AutoStatNPC, key="a familiar", location=self.room1)
+        self.char1.db.level = 50  # keep the awarded pool under this level's own threshold
+        self.char1.db.xp = 0
+        self.char2.db.level = 50
+        self.char2.db.hp = 0
+        self.char2.db.damage_log = {self.char1: 50, familiar: 50}
+
+        COMBAT_RULES.at_defeat(self.char2, attacker=self.char1)
+
+        pool = max(1, round(0.06 * COMBAT_RULES.xp_for_level(50)))
+        # char1 dealt half the RAW damage, but 100% of the PLAYER
+        # damage - should get the full pool, not half of it.
+        self.assertEqual(self.char1.db.xp, pool)
+
+    def test_pvp_kill_awards_no_gold(self):
+        self.char2.db.level = 50
+        self.char2.db.hp = 0
+        self.char2.db.damage_log = {}
+        self.char1.db.gold = 0
+
+        COMBAT_RULES.at_defeat(self.char2, attacker=self.char1)
+
+        self.assertEqual(self.char1.db.gold, 0)
+
+    def test_never_double_pays_when_defeated_has_a_real_xp_reward(self):
+        # Defensive: an NPC somehow account-linked (shouldn't
+        # normally happen) but a real xp_reward set must still only
+        # ever pay out via the NPC branch, never both.
+        self.char1.db.level = 50  # keep the award under this level's own threshold
+        self.char1.db.xp = 0
+        self.char2.db.xp_reward = 100
+        self.char2.db.level = 50
+        self.char2.db.hp = 0
+        self.char2.db.damage_log = {}
+
+        COMBAT_RULES.at_defeat(self.char2, attacker=self.char1)
+
+        self.assertEqual(self.char1.db.xp, 100)  # the NPC-style reward, not the PvP one
+
+
 class TestAwardXp(CombatTestBase):
     def test_level_up_restores_and_raises_max_pools(self):
         self.char1.db.level = 1

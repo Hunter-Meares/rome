@@ -77,7 +77,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "groupcombat", "gold", "trade", "achievements", "languages", "trainers"]
+        + ["races", "classes", "corestats", "groupcombat", "gold", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem"]
     )
 
     # Clean slate for anything this script manages, so re-running it
@@ -318,6 +318,81 @@ def create_all_help_entries():
         db_lock_storage="view:all()",
     )
 
+    # --- PvP conduct ---
+    HelpEntry.objects.create(
+        db_key="pvp",
+        db_help_category="General",
+        db_entrytext=(
+            "|wPlayer vs. Player Combat|n\n\n"
+            "Yes, you can fight another player. 'fight <name>' and "
+            "'attack' don't check whether your target is flesh and "
+            "blood or a trainer dummy - nothing in the rules stops "
+            "you. What matters is why.\n\n"
+            "|wThe rule, stated plainly:|n\n"
+            "PvP must come from real in-character justification - "
+            "roleplay, not impulse. A grudge, an insult that can't "
+            "stand, betrayed trust, a duel of honor, a Cult's or "
+            "faction's business, a blood feud your character actually "
+            "has a reason to carry. If you can't say - in character - "
+            "why your sword is out, it shouldn't be. Attacking someone "
+            "with no in-character reason at all, to grief, to farm "
+            "them for XP, or to settle a score that's actually yours "
+            "and not your character's, is not roleplay. It's a rules "
+            "violation, full stop.\n\n"
+            "|wWhat happens if you break it:|n\n"
+            "Jupiter deals justice to the gods of Olympus themselves - "
+            "he was never going to look away from a mortal who draws "
+            "blood without cause. Violate this rule and the response "
+            "will be swift, direct, and entirely at the discretion of "
+            "the gods watching. There is no warning shot and no "
+            "appeal once it lands. What form it takes is theirs to "
+            "decide, not yours to negotiate - so don't test it to "
+            "find out.\n\n"
+            "|wOne place this never applies, justified or not:|n\n"
+            "No fight can be started in the Underworld, full stop. "
+            "The afterlife is not an arena - not for the newly dead, "
+            "not for anyone else standing in it.\n\n"
+            "See 'help jupiter' and 'help gods' for who's actually "
+            "watching."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- In-character mail (game_systems.mail contrib, character half) ---
+    HelpEntry.objects.create(
+        db_key="mailsystem",
+        db_help_category="General",
+        db_entrytext=(
+            "|wIn-Character Mail|n\n\n"
+            "Send letters to other characters, in character - a real "
+            "way to reach someone who isn't online right now, or to "
+            "leave a written record of something in the story. Only "
+            "the in-character half of this system is installed here: "
+            "mail goes between CHARACTERS, not between out-of-"
+            "character accounts, and it only works while you're "
+            "actually logged in and playing - there's no OOC mailbox "
+            "to check.\n\n"
+            "|wCommands:|n\n"
+            "  mail                                    - see everything "
+            "in your mailbox\n"
+            "  mail <#>                                - read a "
+            "specific message\n"
+            "  mail <name>=<subject>/<message>         - send a "
+            "letter (comma-separate names to send to more than one "
+            "character at once)\n"
+            "  mail/reply <#>=<message>                - reply, with "
+            "the original message attached beneath\n"
+            "  mail/forward <name>=<#>[/<message>]     - forward a "
+            "message on to someone else, with an optional note of "
+            "your own\n"
+            "  mail/delete <#>                         - delete a "
+            "message\n\n"
+            "Nothing here is announced out loud - checking your mail "
+            "is entirely your character's own business."
+        ),
+        db_lock_storage="view:all()",
+    )
+
     # --- Languages (rplanguage contrib) ---
     HelpEntry.objects.create(
         db_key="languages",
@@ -350,5 +425,5 @@ def create_all_help_entries():
         db_lock_storage="view:all()",
     )
 
-    total = len(RACES) + len(CLASSES) + len(STAT_HELP) + 9
+    total = len(RACES) + len(CLASSES) + len(STAT_HELP) + 10
     print("Created %d help entries." % total)

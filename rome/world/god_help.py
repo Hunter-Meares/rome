@@ -22,10 +22,13 @@ PANTHEON = {
         "Jupiter",
         "King of the gods, master of sky and thunder. Jupiter's word is law on "
         "Olympus as much as it is in the Senate he's said to favor - Rome's own "
-        "authority is supposed to be a reflection of his. He rarely intervenes "
-        "directly; when he does, no one mistakes it for anything less than the "
-        "sky itself taking notice. Sacred animal: the eagle. Symbol: the "
-        "thunderbolt. Roman equivalent of the Greek Zeus.",
+        "authority is supposed to be a reflection of his. He deals justice to "
+        "the gods of Olympus themselves, not just to mortals below - no god's "
+        "rank places them beyond his judgment, and a mortal who spills blood "
+        "without real cause should expect his attention too. He rarely "
+        "intervenes directly; when he does, no one mistakes it for anything "
+        "less than the sky itself taking notice. Sacred animal: the eagle. "
+        "Symbol: the thunderbolt. Roman equivalent of the Greek Zeus.",
         "King of the Sky",
     ),
     "juno": (

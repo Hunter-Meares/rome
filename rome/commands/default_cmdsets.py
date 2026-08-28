@@ -67,6 +67,34 @@ class FriendlyCmdMap(CmdMap):
     # from the real CmdMap this subclasses.
 
 
+class FriendlyCmdMailCharacter(CmdMailCharacter):
+    """
+    Send and receive in-character letters with other characters.
+
+    Usage:
+      mail                                 - see everything in your mailbox
+      mail <#>                             - read a specific message
+      mail <name>=<subject>/<message>      - send a letter (comma-separate
+                                              names to reach more than one
+                                              character at once)
+      mail/reply <#>=<message>             - reply, with the original
+                                              message attached beneath
+      mail/forward <name>=<#>[/<message>]  - forward a message on, with
+                                              an optional note of your own
+      mail/delete <#>                      - delete a message
+
+    This is the in-character half of the mail system only - letters go
+    between characters, not out-of-character accounts, and only work
+    while you're actually logged in and playing. See 'help mailsystem'
+    for the bigger picture.
+    """
+
+    # No func() override - this only replaces the help text above (the
+    # contrib's own docstring is written for @mail's Account-level
+    # sibling, which isn't installed here). The actual send/read/
+    # reply/forward/delete logic is entirely inherited, unchanged.
+
+
 class CharacterCmdSet(default_cmds.CharacterCmdSet):
     """
     The `CharacterCmdSet` contains general in-game commands like `look`,
@@ -111,7 +139,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(languages.LanguageCmdSet())
         self.add(building_menu.RomeBuildingCmdSet())
         self.add(worldcheck.CmdWorldCheck())
-        self.add(CmdMailCharacter())
+        self.add(FriendlyCmdMailCharacter())
 
 
 from world.character_creator import ContribChargenCmdSet
