@@ -132,6 +132,42 @@ class TestOrphanedCharacterTicking(CombatTestBase):
         self.assertIn("Haste", self.char1.db.conditions)
 
 
+class TestPoisonDeathAttributesThePoisoner(CombatTestBase):
+    """
+    Real gap found live: a kill delivered by Poisoned ticking down at
+    the start of a fighter's own turn called at_defeat(character) with
+    no attacker at all, silently skipping anything gated on one - the
+    colosseum escape-on-victory check ("if attacker and ...") included,
+    and damage_log never crediting the poisoner's share either. The
+    condition's own stored turnchar (see add_condition) is exactly who
+    inflicted it, so there's no need to leave attacker unset.
+    """
+
+    def test_lethal_poison_tick_passes_the_poisoner_as_attacker(self):
+        self.char1.db.hp = 3
+        self.char1.db.max_hp = 100
+        self.char1.db.conditions = {"Poisoned": [4, self.char2]}
+        self.char1.db.damage_log = {}
+
+        with patch("world.combat.randint", return_value=50):
+            with patch.object(COMBAT_RULES, "at_defeat") as mock_at_defeat:
+                COMBAT_RULES.apply_turn_conditions(self.char1)
+
+        mock_at_defeat.assert_called_once_with(self.char1, attacker=self.char2)
+
+    def test_lethal_poison_tick_credits_the_poisoner_in_damage_log(self):
+        self.char1.db.hp = 50
+        self.char1.db.max_hp = 100
+        self.char1.db.conditions = {"Poisoned": [4, self.char2]}
+        self.char1.db.damage_log = {}
+
+        with patch("world.combat.randint", return_value=5):
+            COMBAT_RULES.apply_turn_conditions(self.char1)
+
+        self.assertIn(self.char2, self.char1.db.damage_log)
+        self.assertGreater(self.char1.db.damage_log[self.char2], 0)
+
+
 class TestGetDefense(CombatTestBase):
     """get_defense has zero random component - fully deterministic."""
 
@@ -1259,6 +1295,18 @@ class TestTryAutoAttack(CombatTestBase):
     def test_does_not_fire_if_defeated(self):
         self.char1.db.hp = 0
         COMBAT_RULES.try_auto_attack(self.char1)
+        self.assertEqual(self.char2.db.hp, 100)
+
+    def test_does_not_crash_if_character_has_no_location(self):
+        """
+        Real crash found live: a character deleted (or otherwise left
+        locationless) while this delayed callback was still pending
+        reached resolve_attack, which unconditionally does
+        attacker.location.msg_contents(...) with no guard of its own -
+        an AttributeError on a live server, not a quiet no-op.
+        """
+        self.char1.location = None
+        COMBAT_RULES.try_auto_attack(self.char1)  # must not raise
         self.assertEqual(self.char2.db.hp, 100)
 
     def test_does_not_fire_if_turn_already_moved_on(self):

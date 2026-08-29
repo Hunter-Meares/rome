@@ -1391,6 +1391,14 @@ class CombatRules:
             return
         if not character.db.auto_attack:
             return
+        if not character.location:
+            # Real crash found live: a character deleted (or otherwise
+            # left locationless - e.g. logged out) while this delayed
+            # callback was still pending would reach resolve_attack,
+            # which unconditionally does attacker.location.msg_contents(...)
+            # with no guard of its own, crashing on a plain AttributeError
+            # instead of just quietly doing nothing.
+            return
 
         turnhandler = character.db.combat_turnhandler
         if not turnhandler or not turnhandler.pk:
@@ -1478,14 +1486,26 @@ class CombatRules:
                 )
 
         if "Poisoned" in self.get_conditions(character):
+            # The condition's own stored turnchar (see add_condition) is
+            # whoever's turn it was when the Poisoned condition was
+            # applied - for a hostile condition inflicted via an attack,
+            # that's the actual poisoner. Threading it through here
+            # fixes a real gap: without it, a kill delivered by poison
+            # ticking down (rather than a direct hit) called at_defeat
+            # with no attacker at all, silently skipping anything keyed
+            # on one - the colosseum escape-on-victory check included,
+            # since that's an "if attacker and ..." guard. Also fixes
+            # poison damage never being credited in db.damage_log,
+            # which apply_damage's own attacker param exists for.
+            poisoner = self.get_conditions(character)["Poisoned"][1]
             to_hurt = randint(POISON_RATE[0], POISON_RATE[1])
-            self.apply_damage(character, to_hurt)
+            self.apply_damage(character, to_hurt, attacker=poisoner)
             if character.location:
                 character.location.msg_contents(
                     "%s takes %i damage from being Poisoned." % (character, to_hurt)
                 )
             if character.db.hp <= 0:
-                self.at_defeat(character)
+                self.at_defeat(character, attacker=poisoner)
 
         if self.is_in_combat(character) and "Haste" in self.get_conditions(character):
             character.db.combat_actionsleft += 1

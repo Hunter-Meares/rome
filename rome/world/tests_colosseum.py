@@ -28,6 +28,55 @@ class ColosseumTestBase(EvenniaCommandTest):
         self.char1.location = self.room1
 
 
+class TestDefeatingTheTrainerSetsColosseumEscaped(ColosseumTestBase):
+    """
+    Real gap found live: escaping via the combat route (defeat
+    Rutilus) was never actually covered by any automated test - only
+    the stealth sneak/solve route was (see TestCmdSolve below). This
+    tests CombatRules.at_defeat's own "colosseum escape-on-victory"
+    branch directly, the same code path CmdChallenge's opponent
+    ultimately triggers when its HP reaches 0 via resolve_attack.
+    """
+
+    def test_defeating_a_tagged_trainer_sets_the_flag(self):
+        from world.combat import COMBAT_RULES
+
+        trainer = create.create_object(
+            "evennia.objects.objects.DefaultObject", key="a test trainer"
+        )
+        trainer.tags.add("colosseum_trainer", category="npc_role")
+        trainer.db.hp = 0
+
+        COMBAT_RULES.at_defeat(trainer, attacker=self.char1)
+
+        self.assertTrue(self.char1.db.colosseum_escaped)
+
+    def test_does_not_set_the_flag_without_an_attacker(self):
+        from world.combat import COMBAT_RULES
+
+        trainer = create.create_object(
+            "evennia.objects.objects.DefaultObject", key="a test trainer 2"
+        )
+        trainer.tags.add("colosseum_trainer", category="npc_role")
+        trainer.db.hp = 0
+
+        COMBAT_RULES.at_defeat(trainer, attacker=None)
+
+        self.assertFalse(self.char1.db.colosseum_escaped)
+
+    def test_untagged_defeat_does_not_set_the_flag(self):
+        from world.combat import COMBAT_RULES
+
+        not_a_trainer = create.create_object(
+            "evennia.objects.objects.DefaultObject", key="an ordinary target"
+        )
+        not_a_trainer.db.hp = 0
+
+        COMBAT_RULES.at_defeat(not_a_trainer, attacker=self.char1)
+
+        self.assertFalse(self.char1.db.colosseum_escaped)
+
+
 class TestGateOfLifeExit(ColosseumTestBase):
     def test_blocked_without_earning_freedom(self):
         room2 = create.create_object("typeclasses.rooms.Room", key="Atrium")
