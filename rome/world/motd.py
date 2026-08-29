@@ -22,9 +22,10 @@ from commands.command import Command
 RECENT_UPDATES_DATE = "2026-08-29"
 
 RECENT_UPDATES_TEXT = (
-    "You can now file bug reports, share ideas, or report another player\n"
-    "straight from in-character - try 'bug', 'idea', or 'report <player> =\n"
-    "<message>'. Staff read every one."
+    "Rome just got much bigger - the Subura, Trajan's Market, the Pantheon,\n"
+    "the Baths, Palatine Hill, and a new housing district are all open to\n"
+    "explore. Skills and spells also got real cooldowns - no more spamming\n"
+    "your strongest move every single turn."
 )
 
 
