@@ -350,7 +350,15 @@ Previously "not started, still fully open." A first, deliberately small piece is
 - [x] Ground level: a covered arcade entrance, the Great Hall (the market's real largest interior space, acting as the ground-floor hub), and 4 trade wings (spice, silk/textile, pottery/glass, foreign curiosities). Upper level: a gallery hub, the Grain Dole Hall (the real *cura annonae* - Rome's free grain distribution, a genuine civic-life detail distinct from ordinary shopping), two rows of upper shops, and a records office. Plus a rooftop terrace (built into the hillside, a real historical detail) and an administrative office (permits/taxes, a real hook for a future player-owned-stall mechanic if one's ever built).
 - [x] 6 NPCs total (2 merchants + a grain-dole administrator, an appraiser, a curiosities dealer, and a wandering market crowd) plus 3 `get:false()` scenery objects (the grain-dole ledger, the permit ledger, the vaulted ceiling) and ambient echoes in 3 rooms.
 - [x] Verified live: 277 total rooms game-wide (up from 264), zero duplicate names, zero exit collisions, zero broken exits, fully reachable, no new one-way exits. Both merchants confirmed correctly stocked and priced.
-- [ ] **Next real step**: the Pantheon, per the build-order review.
+- [ ] **Next real step**: the Pantheon, per the build-order review. - **done, see below.**
+
+## 🏛️ The Pantheon is built - 6 rooms off Via Triumphalis — ✅ this session
+
+- [x] Attaches to the real, already-built "Via Triumphalis" room (#664) via its unused `north` exit - genuinely the direction the room's own flavor text already promised ("the road curves north, toward districts of the city not yet built"), not just a free direction picked at random. Same validated-data-first process (`world/batch_pantheon_data.py`).
+- [x] Deliberately kept small per the original plan - the portico approach, the rotunda (the centerpiece, with the oculus as a real lookable object), two side niches for minor gods, the altar (dedicated to all the gods at once - a genuine, deliberate contrast to every single-deity temple built so far), and a plain priest's chamber.
+- [x] One dedicated priest, explicitly written as a calmer, lower-ceremony contrast to the Capitoline's Flamen. The oculus gets ambient echoes simulating weather passing through it (rain, light, sound) - a contained way to deliver the "weather-reactive" detail from the original plan without building an actual weather system.
+- [x] Verified live: 283 total rooms game-wide (up from 277), zero duplicate names, zero exit collisions, zero broken exits, fully reachable, no new one-way exits.
+- [ ] **Next real step**: the Baths (Thermae), per the build-order review.
 
 ---
 
