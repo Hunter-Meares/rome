@@ -358,7 +358,15 @@ Previously "not started, still fully open." A first, deliberately small piece is
 - [x] Deliberately kept small per the original plan - the portico approach, the rotunda (the centerpiece, with the oculus as a real lookable object), two side niches for minor gods, the altar (dedicated to all the gods at once - a genuine, deliberate contrast to every single-deity temple built so far), and a plain priest's chamber.
 - [x] One dedicated priest, explicitly written as a calmer, lower-ceremony contrast to the Capitoline's Flamen. The oculus gets ambient echoes simulating weather passing through it (rain, light, sound) - a contained way to deliver the "weather-reactive" detail from the original plan without building an actual weather system.
 - [x] Verified live: 283 total rooms game-wide (up from 277), zero duplicate names, zero exit collisions, zero broken exits, fully reachable, no new one-way exits.
-- [ ] **Next real step**: the Baths (Thermae), per the build-order review.
+- [ ] **Next real step**: the Baths (Thermae), per the build-order review. - **done, see below.**
+
+## 🛁 The Baths are built - 11 rooms off the Subura's Insula Courtyard — ✅ this session
+
+- [x] Built as a neighborhood balneum, not a monumental standalone Thermae - attaches via the Subura's "Insula Courtyard" room (#2641)'s unused `north` exit, deliberately reasoned: smaller neighborhood baths genuinely were dotted through residential districts exactly like this, distinct in character from a grand imperial bath complex. Same validated-data-first process (`world/batch_baths_data.py`).
+- [x] A real bathing sequence, not just a room list: apodyterium (changing) → palaestra (exercise first, Romans bathe *after* exercising) → frigidarium (cold plunge) → tepidarium (warm transition) → caldarium (hot room), plus the unctorium (massage/oil, strigils as a real flavor object - no soap, matching real Roman practice), a library (a genuinely real, often-surprising detail about larger Roman baths), two social lounges, an attendant's station, and the hypocaust (the underfloor furnace, placed directly beneath the caldarium it heats - a real, unglamorous engineering room, not just flavor text about engineering).
+- [x] **The "gossiping regulars whose dialogue rotates in current server news" idea from the original plan needed zero new code** - `NPCChatter` (`world/colosseum.py`) already has a built-in `db.tells_rumors`/`db.rumor_chance` feature wired to `world/rumors.py`. Two regulars in the social lounges use it; confirmed live (`tells_rumors: True`, script attached).
+- [x] Verified live: 294 total rooms game-wide (up from 283), zero duplicate names, zero exit collisions, zero broken exits, fully reachable, no new one-way exits.
+- [ ] **Next real step**: Palatine Hill, per the build-order review - though note the earlier caveat: its "reputation/quest-gated access" premise depends on a faction-membership system that doesn't exist in-game yet. Ship it open initially, or build the gating alongside it - a real decision to make when this is picked up, not before.
 
 ---
 
