@@ -343,6 +343,15 @@ Previously "not started, still fully open." A first, deliberately small piece is
   - Verified live afterward: 264 total rooms game-wide (up from 248), zero duplicate names, zero exit collisions, zero broken exits, confirmed fully reachable from the Colosseum via the Forum/Argiletum, confirmed zero new one-way exits introduced (the only one-way exits anywhere in the game remain the pre-existing, deliberate ones - the Underworld's ferry/riddle-door system).
   - **Next real step, per the build-order review**: Trajan's Market (also attaches near the Forum, reuses the existing economy system, zero new-mechanic dependencies) is next up, followed by the Pantheon, the Baths, then Palatine Hill. Circus Maximus is explicitly on hold - no chariot-racing mechanic exists anywhere in the codebase yet, confirmed by direct search, despite the original build plan assuming one already did.
 
+## 🏛️ Trajan's Market is built - 13 rooms off the Forum's Market Stretch — ✅ this session
+
+- [x] Attaches to the real, already-built "The Market Stretch" room (#760) via its unused `west` exit - a food-market room is a natural, thematically consistent jumping-off point toward a larger complex. Same validated-data-first process as the Forum and Subura (`world/batch_trajan_market_data.py`, kept in the repo): standalone validator, zero collisions on the first pass.
+- [x] **Genuinely expands the economy system, not just flavor** - two real `NPCMerchant`s (a spice trader, an imported-silk merchant), each stocked with 3 brand-new item prototypes (`world/prototypes.py`: pepper, cinnamon, saffron, silk bolts/sashes/scarves) that don't overlap with anything the Forum's own merchants already sell. This was the one thing deliberately skipped for Subura's market (no reusable "cheap goods" stock existed there) - Trajan's Market is exactly the zone where building it out was worth the cost.
+- [x] Ground level: a covered arcade entrance, the Great Hall (the market's real largest interior space, acting as the ground-floor hub), and 4 trade wings (spice, silk/textile, pottery/glass, foreign curiosities). Upper level: a gallery hub, the Grain Dole Hall (the real *cura annonae* - Rome's free grain distribution, a genuine civic-life detail distinct from ordinary shopping), two rows of upper shops, and a records office. Plus a rooftop terrace (built into the hillside, a real historical detail) and an administrative office (permits/taxes, a real hook for a future player-owned-stall mechanic if one's ever built).
+- [x] 6 NPCs total (2 merchants + a grain-dole administrator, an appraiser, a curiosities dealer, and a wandering market crowd) plus 3 `get:false()` scenery objects (the grain-dole ledger, the permit ledger, the vaulted ceiling) and ambient echoes in 3 rooms.
+- [x] Verified live: 277 total rooms game-wide (up from 264), zero duplicate names, zero exit collisions, zero broken exits, fully reachable, no new one-way exits. Both merchants confirmed correctly stocked and priced.
+- [ ] **Next real step**: the Pantheon, per the build-order review.
+
 ---
 
 ## 🚨 Do this first

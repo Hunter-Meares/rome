@@ -735,6 +735,45 @@ HONEYED_BREAD = {
     "price": 3,
 }
 
+# Trajan's Market wares - genuinely different from anything the Forum's
+# own merchants sell, matching the market's real historical role as an
+# import-heavy commercial hub rather than a reskin of existing goods.
+SACK_OF_PEPPER = {
+    "key": "a sack of Indian pepper",
+    "desc": "A tightly-bound sack of dried peppercorns, carried the length of a trade route most people here couldn't point to on a map. Worth close to its weight in silver back where it started.",
+    "price": 15,
+}
+
+JAR_OF_CINNAMON = {
+    "key": "a jar of cinnamon bark",
+    "desc": "Curled sticks of dried bark, packed into a sealed clay jar - the scent alone is enough to draw a crowd when the lid comes off.",
+    "price": 12,
+}
+
+BUNDLE_OF_SAFFRON = {
+    "key": "a bundle of saffron threads",
+    "desc": "A small, carefully wrapped bundle of deep red-gold threads - by weight, one of the most expensive things sold anywhere in the market, and it isn't close.",
+    "price": 30,
+}
+
+BOLT_OF_SILK = {
+    "key": "a bolt of imported silk",
+    "desc": "A full bolt of silk, impossibly smooth to the touch, carried overland from somewhere far past the empire's eastern edge. Half the price is the cloth; the other half is the distance it traveled.",
+    "price": 50,
+}
+
+EMBROIDERED_SILK_SASH = {
+    "key": "an embroidered silk sash",
+    "desc": "A silk sash worked with fine embroidery, clearly meant for someone who wants their wealth noticed without having to say so.",
+    "price": 35,
+}
+
+DYED_SILK_SCARF = {
+    "key": "a dyed silk scarf",
+    "desc": "A length of silk dyed a rich, even color no local wool ever quite manages - a small, wearable luxury.",
+    "price": 20,
+}
+
 
 """
 ----------------------------------------------------------------------------
