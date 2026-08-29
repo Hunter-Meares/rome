@@ -12,6 +12,7 @@ from evennia.utils.test_resources import EvenniaCommandTest
 from commands.social import (
     CmdWho,
     CmdTitle,
+    FriendlyCmdPage,
     _colored_rank,
     _colored_level,
     _rank_color_code,
@@ -174,3 +175,39 @@ class TestCmdTitle(EvenniaCommandTest):
         title = "x" * 40
         self.call(CmdTitle(), title, caller=self.char1)
         self.assertEqual(self.char1.db.custom_title, title)
+
+
+class TestFriendlyCmdPage(EvenniaCommandTest):
+    """
+    Regression coverage for a real, reported live bug: the contrib's
+    own CmdPage looks up a page target by ACCOUNT name (the one you
+    log in with), not the CHARACTER name shown everywhere else in the
+    game ('who', combat, room descriptions) - so paging someone by the
+    name a player actually sees them by always failed the lookup, and
+    silently fell back to re-sending your own last page to yourself
+    instead of giving any error at all. EvenniaTest's setUp() already
+    registers a real session for self.account/self.char1, which is
+    what makes self.char1's name resolvable as "online" here.
+    """
+
+    def test_paging_online_character_by_name_succeeds(self):
+        result = self.call(
+            FriendlyCmdPage(), "%s test message" % self.char1.key, caller=self.account2
+        )
+        self.assertIn("You paged", result)
+        self.assertNotIn("No one online", result)
+
+    def test_paging_nonexistent_character_gives_a_clear_error(self):
+        result = self.call(
+            FriendlyCmdPage(), "NobodyHereAtAll test message", caller=self.account2
+        )
+        self.assertIn("No one online is playing a character named", result)
+        self.assertNotIn("You paged", result)
+
+    def test_does_not_silently_self_page_on_missing_target(self):
+        from evennia.comms.models import Msg
+
+        before = Msg.objects.count()
+        self.call(FriendlyCmdPage(), "NobodyHereAtAll test message", caller=self.account2)
+        after = Msg.objects.count()
+        self.assertEqual(before, after)

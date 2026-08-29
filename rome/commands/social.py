@@ -16,7 +16,8 @@ from world.combat import rank_title
 
 import evennia
 from evennia.commands.default.account import CmdWho as DefaultCmdWho
-from evennia.utils import utils
+from evennia.commands.default.comms import CmdPage as DefaultCmdPage
+from evennia.utils import create, utils
 
 from commands.command import Command
 
@@ -255,6 +256,118 @@ class CmdWho(DefaultCmdWho):
         self.msg(str(table))
         naccounts = evennia.SESSION_HANDLER.account_count()
         self.msg("%d account%s logged in." % (naccounts, "" if naccounts == 1 else "s"))
+
+
+class FriendlyCmdPage(DefaultCmdPage):
+    """
+    Send a private message to another connected player, by character name.
+
+    Usage:
+      page <character> <message>
+      page <character>,<character>,... = <message>
+      tell        ''
+      page <number>   - show your last <number> pages
+      page/last       - show who you last paged
+      page/list       - show your message history
+
+    Real bug fixed here: the contrib's own target search looks
+    someone up by their ACCOUNT name (the one you log in with), not
+    their CHARACTER name (the one shown everywhere else in the game -
+    'who', combat, room descriptions). Since those two are almost
+    never the same thing, paging someone by the name you actually see
+    them by always failed the lookup - and silently fell back to
+    re-sending your own last page to yourself instead of giving any
+    error, which is exactly the "paged a name that doesn't exist and
+    it went through anyway" bug this replaces. This version looks
+    people up by character name among who's actually online instead,
+    and says plainly when nobody by that name is connected.
+    """
+
+    def func(self):
+        caller = self.caller  # an Account - account_caller=True, inherited
+
+        args = self.args.strip() if self.args else ""
+
+        # Nothing being sent right now - viewing history, /last, /list,
+        # or a bare number - none of that needs character-name lookup
+        # at all, so just defer to the contrib's own working logic.
+        if not args or args.isnumeric() or "last" in self.switches or "list" in self.switches:
+            super().func()
+            return
+
+        if self.rhs:
+            names = self.lhslist
+            message = self.rhs.strip()
+        else:
+            parts = args.split(" ", 1)
+            if len(parts) < 2:
+                caller.msg("Usage: page <character> <message>")
+                return
+            names, message = [parts[0]], parts[1].strip()
+
+        if not message:
+            caller.msg("Usage: page <character> <message>")
+            return
+
+        targets = []
+        missing = []
+        seen_ids = set()
+        for name in names:
+            name = name.strip()
+            match = None
+            for session in evennia.SESSION_HANDLER.get_sessions():
+                puppet = session.get_puppet()
+                if puppet and puppet.key.lower() == name.lower():
+                    match = session.get_account()
+                    break
+            if match and match.id not in seen_ids:
+                seen_ids.add(match.id)
+                targets.append(match)
+            elif not match:
+                missing.append(name)
+
+        if missing:
+            caller.msg(
+                "No one online is playing a character named '%s'." % "' or '".join(missing)
+            )
+        if not targets:
+            return
+
+        header = "|wAccount|n |c%s|n |wpages:|n" % caller.key
+        if message.startswith(":"):
+            message = "%s %s" % (caller.key, message.strip(":").strip())
+
+        target_perms = " or ".join("id(%d)" % t.id for t in targets + [caller])
+        create.create_message(
+            caller,
+            message,
+            receivers=targets,
+            locks=(
+                "read:%s or perm(Admin);"
+                "delete:id(%d) or perm(Admin);"
+                "edit:id(%d) or perm(Admin)" % (target_perms, caller.id, caller.id)
+            ),
+            tags=[("page", "comms")],
+        )
+
+        received = []
+        rstrings = []
+        for target in targets:
+            if not target.access(caller, "msg"):
+                rstrings.append("You are not allowed to page %s." % target)
+                continue
+            target.msg("%s %s" % (header, message))
+            if hasattr(target, "sessions") and not target.sessions.count():
+                received.append("|C%s|n" % target.name)
+                rstrings.append(
+                    "%s is offline. They will see your message if they list "
+                    "their pages later." % received[-1]
+                )
+            else:
+                received.append("|c%s|n" % target.name)
+        if rstrings:
+            caller.msg("\n".join(rstrings))
+        caller.msg("You paged %s with: '%s'." % (", ".join(received), message))
 
 
 class CmdTitle(Command):

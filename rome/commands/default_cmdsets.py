@@ -170,6 +170,7 @@ class AccountCmdSet(default_cmds.AccountCmdSet):
         self.add(combat.CmdQuit())
         self.add(ContribChargenCmdSet)
         self.add(social.CmdWho())
+        self.add(social.FriendlyCmdPage())
         self.add(motd.MOTDCmdSet())
         self.add(ReportsCmdSet)
 
