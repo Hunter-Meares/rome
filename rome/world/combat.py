@@ -2007,12 +2007,13 @@ class CombatRules:
         Summons a divine familiar to the caster's side, its strength
         scaling with the caster's own level - same tier breakpoints as
         Conjure Weapon, and same personal-instance mechanism as the
-        Ludus trainers (spawn_personal_npc). Like every other personal/
-        summoned NPC in the game right now, it has no AI of its own -
-        it appears and joins the fight, but won't act automatically.
-        That's a real, honest limitation shared with the Ludus
-        trainers, not something unique to this spell - true NPC AI is
-        its own future system.
+        Ludus trainers (spawn_personal_npc). Unlike a plain personal-
+        instance NPC (the Ludus trainers, which genuinely have no AI),
+        this spawns as SummonedAlly specifically - it has real, if
+        simple, automatic behavior: it mirrors the caster's last
+        attack target each turn (or picks any valid target if the
+        caster hasn't attacked yet this fight), with no player input
+        needed. See SummonedAlly.at_turn_start().
         """
         level = caster.db.level or 1
         if level < 30:
@@ -2044,8 +2045,8 @@ class CombatRules:
         same tier breakpoints AND HP curve as Augur's Summon Familiar,
         so both classes' summon spells stay balanced against each
         other at equal level rather than one quietly outscaling the
-        other. Same "no AI" limitation as every other personal-instance
-        NPC in the game right now.
+        other. Also a SummonedAlly, same automatic per-turn behavior
+        as the familiar above - see spell_summon_familiar's docstring.
         """
         level = caster.db.level or 1
         if level < 30:
