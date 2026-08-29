@@ -19,12 +19,12 @@ from evennia import CmdSet
 
 from commands.command import Command
 
-RECENT_UPDATES_DATE = "2026-08-28"
+RECENT_UPDATES_DATE = "2026-08-29"
 
 RECENT_UPDATES_TEXT = (
-    "The Ludus has a real weaponsmith now, and learning spells/skills\n"
-    "costs gold from a trainer (try 'trainer'). Combat feels more\n"
-    "alive - unique per-weapon flavor, 'autoattack', and in-character 'mail'."
+    "You can now file bug reports, share ideas, or report another player\n"
+    "straight from in-character - try 'bug', 'idea', or 'report <player> =\n"
+    "<message>'. Staff read every one."
 )
 
 
@@ -52,8 +52,8 @@ def get_motd():
         "|r>> Recent Updates|n |x(%s)|n\n"
         "%s\n"
         "\n"
-        "Got a bug, an idea, or just want to talk shop? We read\n"
-        "everything - reach out any time, the email's right above.\n"
+        "Got a bug, an idea, or a player to report? Use 'bug', 'idea', or\n"
+        "'report' in-character, or just email us - either way, we read it.\n"
         "|Y--------------------------------------------------|n\n"
         "May the gods watch over you as you ascend the Aventine.\n"
         "|Y==================================================|n"

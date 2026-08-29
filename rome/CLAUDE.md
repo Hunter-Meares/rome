@@ -9,8 +9,8 @@ This file is a working reference, not a finished spec — the game is under acti
 ## Project shape
 
 - **Theme**: Roman Empire, starting with a Colosseum gladiator-escape questline, expanding toward Rome proper and eventually other cities.
-- **Current playable content**: Colosseum (holding cells → escape → Atrium → Ludus training area → Deeper Sands arena), a small Underworld (post-death), a basic economy with two merchants.
-- **Not yet built**: Rome the city itself (~500-room goal, explicitly deprioritized until retention data justified it), a second city, wilderness travel between cities.
+- **Current playable content**: Colosseum (holding cells → escape → Atrium → Ludus training area → Deeper Sands arena), a real Underworld (post-death, 32 rooms), a basic economy with several merchants, and a substantial Forum Romanum/Capitoline Hill complex (Tabularium, Temple of Vesta, the Senatorial Podium, an Argiletum stub toward a future Subura) - 248 rooms total as of this writing. **This directly supersedes the "not yet built" note this line used to carry** - that was true early in the project but is stale now; verify against a live room count before trusting either version.
+- **Not yet built**: a second city, wilderness travel between cities. Further Rome-city expansion beyond the Forum/Capitoline is an active, ongoing direction, not a deferred one - see rome_mud_todo.md for current build-project status.
 - **Players so far**: small, real player base already hitting real bugs — this is not purely a solo dev sandbox anymore.
 
 ---
@@ -113,6 +113,8 @@ Requires `ACHIEVEMENT_CONTRIB_MODULES = ["world.achievements"]` in `server/conf/
 7. **`track_achievements()` returns the newly-completed keys specifically so you can announce them — using the return value is a separate step from calling the function.** Don't assume completion is auto-announced by any contrib unless you've wired it yourself.
 
 8. **When debugging something that "looks correct in code review," get real evidence before continuing to reason abstractly.** The stuck-loop bug took three separate rounds of adding/removing temporary diagnostic `msg()` calls before the real root cause (see gotcha #2) was found — careful reading of correct-looking code missed it repeatedly. `debugpy` is now integrated specifically to make this faster next time (server-side only currently; VS Code client setup still pending).
+
+9. **`evennia reload` has twice now shut the server down without the portal actually bringing it back up**, leaving only the portal process alive and the game fully unreachable until `evennia start` is run manually to relaunch just the server component (`Portal is already running... Not restarted. Server starting ... Server started.`). Both incidents happened directly after a code deploy, both times with a real account connected. Always check `server/logs/server.log` for a "Server successfully reloaded" line (or its absence) right after any `reload`, rather than assuming it worked - don't rely on the command's own exit output, since it always times out from this tool's side regardless of outcome.
 
 ---
 

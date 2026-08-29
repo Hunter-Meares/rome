@@ -579,3 +579,113 @@ class TestCustomTitleDisplay(CombatCommandTestBase):
         self.char1.db.desc = "A tall, scarred fighter."
         appearance = self.char1.return_appearance(self.char2)
         self.assertIn("A tall, scarred fighter.", appearance)
+
+
+class TestEquippedItemsShowSlotLabelsOnLook(CombatCommandTestBase):
+    """
+    Regression coverage for a real display bug: 'look'/'look self' used
+    to dump every worn/wielded item into the same flat, alphabetically
+    sorted "You see: a, b, and c" line as ordinary carried items - no
+    indication of where anything was actually equipped. get_display_things
+    now special-cases equipped items into the same slot-labeled format
+    'inventory' already used (see EQUIPPED_SLOTS/format_equipped_lines).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.weapon = create.create_object(
+            "typeclasses.objects.Object", key="a test sword", location=self.char1
+        )
+        self.weapon.db.two_handed = False
+        self.armor = create.create_object(
+            "typeclasses.objects.Object", key="a test breastplate", location=self.char1
+        )
+        self.trinket = create.create_object(
+            "typeclasses.objects.Object", key="a plain trinket", location=self.char1
+        )
+        self.char1.db.wielded_weapon = self.weapon
+        self.char1.db.worn_armor = self.armor
+
+    def test_equipped_items_show_with_slot_labels(self):
+        appearance = self.char1.return_appearance(self.char1)
+        self.assertIn("Wielded (in hand):", appearance)
+        self.assertIn("a test sword", appearance)
+        self.assertIn("Worn (as armor):", appearance)
+        self.assertIn("a test breastplate", appearance)
+
+    def test_two_handed_weapon_says_so(self):
+        self.weapon.db.two_handed = True
+        appearance = self.char1.return_appearance(self.char1)
+        self.assertIn("Wielded (in both hands):", appearance)
+
+    def test_equipped_items_excluded_from_plain_carrying_line(self):
+        appearance = self.char1.return_appearance(self.char1)
+        self.assertIn("You see:", appearance)
+        self.assertIn("a plain trinket", appearance)
+        # The sword/breastplate must appear ONLY via their slot-labeled
+        # lines above, not also swept into the generic "You see:" line.
+        you_see_line = next(line for line in appearance.split("\n") if line.startswith("|wYou see:|n") or "You see:" in line)
+        self.assertNotIn("test sword", you_see_line)
+        self.assertNotIn("test breastplate", you_see_line)
+
+    def test_no_equipment_falls_back_to_plain_carrying_line_only(self):
+        self.char1.db.wielded_weapon = None
+        self.char1.db.worn_armor = None
+        appearance = self.char1.return_appearance(self.char1)
+        self.assertNotIn("Wielded", appearance)
+        self.assertNotIn("Worn", appearance)
+        self.assertIn("a plain trinket", appearance)
+
+
+class TestCooldowns(CombatCommandTestBase):
+    """
+    First-pass fix for the long-flagged gap in rome_mud_todo.md: "zero
+    cooldowns exist anywhere in world/combat.py" - a level-tiered
+    default (cooldown_for_level) applied automatically via CmdCast and
+    CmdUseSkill, so a powerful ability can't be spammed every turn the
+    instant its MP/SP cost is affordable again.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.permissions.remove("Developer")
+        self.char1.db.mp = 20
+        self.char1.db.max_mp = 20
+        self.char1.db.sp = 20
+        self.char1.db.max_sp = 20
+
+    def test_low_level_spell_gets_no_cooldown(self):
+        self.char1.db.spells_known = ["cure wounds"]  # level_required 1
+        with patch("world.combat.randint", return_value=20):
+            self.call(CmdCast(), "cure wounds", caller=self.char1)
+        self.assertNotIn("cure wounds", self.char1.db.cooldowns)
+
+    def test_casting_a_tier_20_spell_sets_a_cooldown(self):
+        self.char1.db.spells_known = ["vigor"]  # level_required 25 -> cooldown 2
+        self.call(CmdCast(), "vigor", caller=self.char1)
+        self.assertEqual(self.char1.db.cooldowns.get("vigor"), 2)
+
+    def test_recasting_before_cooldown_expires_is_refused(self):
+        self.char1.db.spells_known = ["vigor"]
+        self.call(CmdCast(), "vigor", caller=self.char1)
+        self.char1.db.mp = 20  # refill so MP itself isn't the blocker
+        result = self.call(CmdCast(), "vigor", caller=self.char1)
+        self.assertIn("recovering", result)
+
+    def test_cooldown_ticks_down_and_clears(self):
+        self.char1.db.spells_known = ["vigor"]
+        self.call(CmdCast(), "vigor", caller=self.char1)
+        self.assertEqual(self.char1.db.cooldowns.get("vigor"), 2)
+        COMBAT_RULES.tick_cooldowns(self.char1)
+        self.assertEqual(self.char1.db.cooldowns.get("vigor"), 1)
+        COMBAT_RULES.tick_cooldowns(self.char1)
+        self.assertNotIn("vigor", self.char1.db.cooldowns)
+
+    def test_skill_cooldown_enforced_the_same_way(self):
+        self.char1.db.skills_known = ["shield wall"]  # level_required 25
+        self.call(CmdUseSkill(), "shield wall", caller=self.char1)
+        self.assertEqual(self.char1.db.cooldowns.get("shield wall"), 2)
+
+        self.char1.db.sp = 20
+        result = self.call(CmdUseSkill(), "shield wall", caller=self.char1)
+        self.assertIn("recovering", result)

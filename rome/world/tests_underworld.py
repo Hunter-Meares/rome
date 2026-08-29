@@ -214,6 +214,57 @@ class TestResurrectAndSendToUnderworld(UnderworldTestBase):
         self.assertEqual(self.char1.location, entrance)
 
 
+class TestSpellResurrectRequiresCrossing(UnderworldTestBase):
+    """
+    Regression coverage for a real gap: Blessing of Asclepius searches
+    globally for a dead target (spell_resurrect's whole point is that
+    the target isn't physically nearby), which meant it could reach a
+    character the instant they died - before the mandatory ~15-minute
+    wait for Charon ever mattered. Resurrection should only be possible
+    once the target has actually crossed the river (db.charon_arrived).
+    """
+
+    def _make_dead(self, char, charon_arrived):
+        char.db.is_dead = True
+        char.db.charon_arrived = charon_arrived
+        char.db.max_hp = 100
+        char.db.hp = 0
+        char.db.max_mp = 20
+        char.db.mp = 0
+
+    def test_refuses_target_who_has_not_crossed_yet(self):
+        self._make_dead(self.char2, charon_arrived=False)
+        self.char1.db.mp = 100
+
+        COMBAT_RULES.spell_resurrect(self.char1, "blessing of asclepius", [self.char2], 18)
+
+        self.assertTrue(self.char2.db.is_dead)
+        self.assertEqual(self.char1.db.mp, 100)  # nothing happened - no MP spent
+
+    def test_succeeds_once_charon_has_arrived(self):
+        from evennia.objects.models import ObjectDB
+        from django.conf import settings
+
+        if not ObjectDB.objects.get_id(settings.START_LOCATION):
+            self.skipTest("START_LOCATION not resolvable in this test DB")
+
+        self._make_dead(self.char2, charon_arrived=True)
+        self.char1.db.mp = 100
+
+        COMBAT_RULES.spell_resurrect(self.char1, "blessing of asclepius", [self.char2], 18)
+
+        self.assertFalse(self.char2.db.is_dead)
+        self.assertEqual(self.char1.db.mp, 82)
+
+    def test_target_not_dead_at_all_still_refused_as_before(self):
+        self.char2.db.is_dead = False
+        self.char1.db.mp = 100
+
+        COMBAT_RULES.spell_resurrect(self.char1, "blessing of asclepius", [self.char2], 18)
+
+        self.assertEqual(self.char1.db.mp, 100)
+
+
 class TestCharonTimer(UnderworldTestBase):
     def test_charon_arrival_flips_flag_and_stops(self):
         self.char1.db.is_dead = True

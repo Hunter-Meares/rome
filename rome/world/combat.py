@@ -28,6 +28,7 @@ To install:
 """
 
 from random import randint
+from collections import defaultdict
 
 from evennia import TICKER_HANDLER as tickerhandler
 from evennia import DefaultScript, create_object, create_script
@@ -71,6 +72,30 @@ AUTO_ATTACK_DELAY = 5
 # across a long fight, not enough to make resources feel unlimited.
 COMBAT_REGEN_PERCENT = 0.05
 NONCOMBAT_TURN_TIME = 30  # Time per turn count out of combat (for condition tickdown)
+
+
+def cooldown_for_level(level_required):
+    """
+    Derives a default tactical cooldown, in turns, from a spell/skill's
+    level_required - so a powerful ability can't just be spammed every
+    turn the instant a character can afford its MP/SP cost, which was
+    the real, explicitly-flagged gap identified during the original
+    combat feedback pass (see rome_mud_todo.md): "zero cooldowns exist
+    anywhere in world/combat.py". Low-tier bread-and-butter
+    spells/skills stay uncooled - cost is enough of a gate for those.
+    A "turn" here means the same thing it does for a condition's
+    duration: one tick of that character's own at_turn_start in
+    combat, or one at_update tick out of combat (see tick_cooldowns).
+    """
+    if level_required >= 90:
+        return 5
+    if level_required >= 70:
+        return 4
+    if level_required >= 45:
+        return 3
+    if level_required >= 20:
+        return 2
+    return 0
 
 # A room tagged (this key, this category) is a hard no-combat zone - no
 # fight can be started there at all, PvP or otherwise. Currently applied
@@ -1388,8 +1413,31 @@ class CombatRules:
         self.spend_action(character, 1, action_name="attack")
 
     # ------------------------------------------------------------------
-    # CONDITIONS
+    # COOLDOWNS
     # ------------------------------------------------------------------
+
+    def get_cooldowns(self, character):
+        """Lazily initializes and returns character.db.cooldowns - same
+        pattern as get_conditions, so a character created before this
+        system existed doesn't crash on a missing attribute."""
+        if character.db.cooldowns is None:
+            character.db.cooldowns = {}
+        return character.db.cooldowns
+
+    def tick_cooldowns(self, character):
+        """
+        Ticks every active cooldown on `character` down by one turn,
+        clearing any that reach zero. Called once per that character's
+        own turn - at_turn_start in combat, at_update out of combat -
+        so a cooldown always counts down in terms of the character's
+        own turns, never anyone else's, and works identically whether
+        or not they're actually in a fight right now.
+        """
+        cooldowns = self.get_cooldowns(character)
+        for name in list(cooldowns):
+            cooldowns[name] -= 1
+            if cooldowns[name] <= 0:
+                del cooldowns[name]
 
     def condition_tickdown(self, character, turnchar):
         """Ticks down condition durations at the start of turnchar's turn."""
@@ -1675,6 +1723,13 @@ class CombatRules:
         "deadchar" target type resolving via a global search instead of
         a room search (see CmdCast). MP is only spent if something
         actually happened, so a failed/empty cast doesn't cost anything.
+
+        Deliberately can't reach a target who hasn't yet crossed the
+        river (db.charon_arrived) - the mandatory ~15-minute wait for
+        Charon (see world/underworld.py's CharonTimer) is real stakes,
+        not a formality, and this spell bypassing it entirely would
+        let a Medicus undo a death before the Underworld's own pacing
+        ever got a chance to matter.
         """
         spell_msg = "%s casts %s!" % (caster, spell_name)
         revived_any = False
@@ -1682,6 +1737,12 @@ class CombatRules:
         for target in targets:
             if not target.db.is_dead:
                 caster.msg("%s is not dead - there is nothing to resurrect." % target.key)
+                continue
+            if not target.db.charon_arrived:
+                caster.msg(
+                    "%s has not yet crossed into the Underworld proper - your magic "
+                    "can't reach them until Charon has come for them." % target.key
+                )
                 continue
             self.resurrect(target)
             spell_msg += " %s is pulled back from the realm of the dead!" % target.key
@@ -3585,6 +3646,54 @@ def find_equipped_slot(character, item):
     return None
 
 
+# (attribute name, display label), in the order they should be shown -
+# shared by CmdInventory and CombatCharacter.get_display_things (the
+# 'look'/'look self' display), so both ways of seeing what someone's
+# wearing use the exact same slot-aware format instead of one of them
+# falling back to a flat, unlabeled list of names.
+EQUIPPED_SLOTS = (
+    ("wielded_weapon", "Wielded (in hand)"),
+    ("worn_shield", "Shield"),
+    ("worn_armor", "Worn (as armor)"),
+    ("worn_head", "Worn (on head)"),
+    ("worn_arms", "Worn (on arms)"),
+    ("worn_hands", "Worn (on hands)"),
+    ("worn_legs", "Worn (on legs)"),
+    ("worn_feet", "Worn (on feet)"),
+)
+
+
+def get_equipped_items(character):
+    """Returns {attr: item} for every EQUIPPED_SLOTS attribute that's
+    actually occupied on `character` right now."""
+    equipped = {}
+    for attr, label in EQUIPPED_SLOTS:
+        item = getattr(character.db, attr, None)
+        if item:
+            equipped[attr] = item
+    return equipped
+
+
+def _equipped_slot_label(attr, default_label, item):
+    # A two-handed weapon leaves nothing free for a shield - say so
+    # explicitly rather than the generic "in hand", which reads as if
+    # a hand were still free.
+    if attr == "wielded_weapon" and item.db.two_handed:
+        return "Wielded (in both hands)"
+    return default_label
+
+
+def format_equipped_lines(character, looker):
+    """Returns a list of '|wLabel:|n  Name' strings, one per occupied
+    EQUIPPED_SLOTS attribute on `character`, as seen by `looker`."""
+    equipped = get_equipped_items(character)
+    return [
+        "|w%s:|n  %s" % (_equipped_slot_label(attr, label, equipped[attr]), equipped[attr].get_display_name(looker))
+        for attr, label in EQUIPPED_SLOTS
+        if attr in equipped
+    ]
+
+
 def _clamp_current_resources(character):
     """Keeps current hp/mp/sp from exceeding a max that just shrank -
     e.g. doffing a +max_hp item mid-session while at full health."""
@@ -4276,6 +4385,42 @@ class CombatCharacter(ContribRPCharacter):
             return "|Y%s|n\n%s" % (self.db.custom_title, appearance)
         return appearance
 
+    def get_display_things(self, looker, **kwargs):
+        """
+        Overrides the default flat "You see: a, b, and c" contents
+        listing so wielded/worn equipment shows with the same
+        slot-labeled format 'inventory' already uses (see
+        format_equipped_lines), instead of being dumped into that list
+        alongside ordinary carried items with no indication of where
+        it's actually equipped. Equipped items are excluded from the
+        plain "You see:" line below - they're never lost from view,
+        just shown in their own section instead of a flat alphabetical
+        dump undistinguishable from anything else being carried.
+        """
+        equipped_lines = format_equipped_lines(self, looker)
+        equipped_items = set(get_equipped_items(self).values())
+
+        things = [
+            thing
+            for thing in self.filter_visible(self.contents_get(content_type="object"), looker, **kwargs)
+            if thing not in equipped_items
+        ]
+        grouped_things = defaultdict(list)
+        for thing in things:
+            grouped_things[thing.get_display_name(looker, **kwargs)].append(thing)
+
+        thing_names = []
+        for thingname, thinglist in sorted(grouped_things.items()):
+            nthings = len(thinglist)
+            thing = thinglist[0]
+            singular, plural = thing.get_numbered_name(nthings, looker, key=thingname)
+            thing_names.append(singular if nthings == 1 else plural)
+        thing_names = evennia_utils.iter_to_str(thing_names, endsep=", and")
+        carrying_line = "|wYou see:|n %s" % thing_names if thing_names else ""
+
+        parts = [line for line in (("\n".join(equipped_lines) if equipped_lines else ""), carrying_line) if line]
+        return "\n".join(parts)
+
     def at_object_creation(self):
         """Called once, when this object is first created."""
         super().at_object_creation()
@@ -4287,6 +4432,7 @@ class CombatCharacter(ContribRPCharacter):
         self.db.mp = self.db.max_mp
         self.db.spells_known = []
         self.db.skills_known = []
+        self.db.cooldowns = {}
         # SP
         self.db.max_sp = 30
         self.db.sp = self.db.max_sp
@@ -4483,6 +4629,7 @@ class CombatCharacter(ContribRPCharacter):
             )
         )
         self.rules.apply_turn_conditions(self)
+        self.rules.tick_cooldowns(self)
 
         if self.db.auto_attack:
             evennia_utils.delay(AUTO_ATTACK_DELAY, self.rules.try_auto_attack, self)
@@ -4505,6 +4652,7 @@ class CombatCharacter(ContribRPCharacter):
                 self.db.conditions[key][1] = self
             self.rules.apply_turn_conditions(self)
             self.rules.condition_tickdown(self, self)
+            self.rules.tick_cooldowns(self)
 
 
 """
@@ -6274,25 +6422,9 @@ class CmdInventory(Command):
     locks = "cmd:all()"
     help_category = "general"
 
-    # (attribute name, display label), in the order they should be shown.
-    _EQUIPPED_SLOTS = (
-        ("wielded_weapon", "Wielded (in hand)"),
-        ("worn_shield", "Shield"),
-        ("worn_armor", "Worn (as armor)"),
-        ("worn_head", "Worn (on head)"),
-        ("worn_arms", "Worn (on arms)"),
-        ("worn_hands", "Worn (on hands)"),
-        ("worn_legs", "Worn (on legs)"),
-        ("worn_feet", "Worn (on feet)"),
-    )
-
     def func(self):
         caller = self.caller
-        equipped = {}
-        for attr, label in self._EQUIPPED_SLOTS:
-            item = getattr(caller.db, attr, None)
-            if item:
-                equipped[attr] = item
+        equipped = get_equipped_items(caller)
 
         carried = [obj for obj in caller.contents if obj not in equipped.values()]
 
@@ -6300,19 +6432,7 @@ class CmdInventory(Command):
             caller.msg("You are not carrying anything.")
             return
 
-        def _slot_label(attr, default_label, item):
-            # A two-handed weapon leaves nothing free for a shield -
-            # say so explicitly rather than the generic "in hand",
-            # which reads as if a hand were still free.
-            if attr == "wielded_weapon" and item.db.two_handed:
-                return "Wielded (in both hands)"
-            return default_label
-
-        equipped_lines = [
-            "|w%s:|n  %s" % (_slot_label(attr, label, equipped[attr]), equipped[attr].get_display_name(caller))
-            for attr, label in self._EQUIPPED_SLOTS
-            if attr in equipped
-        ]
+        equipped_lines = format_equipped_lines(caller, caller)
         if equipped_lines:
             caller.msg("\n".join(equipped_lines))
 
@@ -6633,6 +6753,7 @@ class CmdCast(MuxCommand):
         spelldata.setdefault("combat_spell", True)
         spelldata.setdefault("noncombat_spell", True)
         spelldata.setdefault("max_targets", 1)
+        spelldata.setdefault("cooldown", cooldown_for_level(spelldata.get("level_required", 1)))
 
         kwargs = {}
         spelldata_opts = [
@@ -6645,6 +6766,7 @@ class CmdCast(MuxCommand):
             "classes",
             "desc",
             "level_required",
+            "cooldown",
         ]
         for key in spelldata:
             if key not in spelldata_opts:
@@ -6652,6 +6774,14 @@ class CmdCast(MuxCommand):
 
         if spelldata["cost"] > caller.db.mp:
             caller.msg("You don't have enough MP to cast '%s'." % spell_to_cast)
+            return
+
+        turns_left = self.rules.get_cooldowns(caller).get(spell_to_cast, 0)
+        if turns_left > 0:
+            caller.msg(
+                "'%s' is still recovering - %i more turn%s."
+                % (spell_to_cast, turns_left, "" if turns_left == 1 else "s")
+            )
             return
 
         if spelldata["combat_spell"] is False and self.rules.is_in_combat(caller):
@@ -6803,6 +6933,8 @@ class CmdCast(MuxCommand):
                 caller, spell_to_cast, spell_targets, spelldata["cost"], **kwargs
             )
             self.rules.award_cast_xp(caller, spelldata["cost"])
+            if spelldata["cooldown"] > 0:
+                self.rules.get_cooldowns(caller)[spell_to_cast] = spelldata["cooldown"]
         except Exception:
             log_trace("Error in callback for spell: %s." % spell_to_cast)
 
@@ -6902,6 +7034,7 @@ class CmdUseSkill(MuxCommand):
         skilldata.setdefault("combat_spell", True)
         skilldata.setdefault("noncombat_spell", True)
         skilldata.setdefault("max_targets", 1)
+        skilldata.setdefault("cooldown", cooldown_for_level(skilldata.get("level_required", 1)))
 
         kwargs = {}
         skilldata_opts = [
@@ -6914,6 +7047,7 @@ class CmdUseSkill(MuxCommand):
             "classes",
             "desc",
             "level_required",
+            "cooldown",
         ]
         for key in skilldata:
             if key not in skilldata_opts:
@@ -6921,6 +7055,14 @@ class CmdUseSkill(MuxCommand):
 
         if skilldata["cost"] > user.db.sp:
             user.msg("You don't have enough SP to use '%s'." % skill_to_use)
+            return
+
+        turns_left = self.rules.get_cooldowns(user).get(skill_to_use, 0)
+        if turns_left > 0:
+            user.msg(
+                "'%s' is still recovering - %i more turn%s."
+                % (skill_to_use, turns_left, "" if turns_left == 1 else "s")
+            )
             return
 
         if skilldata["combat_spell"] is False and self.rules.is_in_combat(user):
@@ -7028,6 +7170,8 @@ class CmdUseSkill(MuxCommand):
                 user, skill_to_use, skill_targets, skilldata["cost"], **kwargs
             )
             self.rules.award_cast_xp(user, skilldata["cost"])
+            if skilldata["cooldown"] > 0:
+                self.rules.get_cooldowns(user)[skill_to_use] = skilldata["cooldown"]
         except Exception:
             log_trace("Error in callback for skill: %s." % skill_to_use)
 
