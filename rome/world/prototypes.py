@@ -1767,3 +1767,319 @@ COLOSSEUM_MENAGERIE_HANDLER = {
     ),
     "locks": "puppet:false()",
 }
+
+# ----------------------------------------------------------------------
+# CLOACA MAXIMA (sewer leveling zone) - RespawningNPC population.
+# Same pattern as the Arena Fighters above: race/player_class/level set
+# on the prototype, HostileNPC/AutoStatNPC derive real stats and a real
+# class kit automatically. xp_reward values are interpolated against
+# the Arena Fighters' own already-tuned curve (level 3->35 through
+# level 25->550), not independently guessed. Tagged "sewer_npc" for the
+# live setup script to find and spawn multiple instances of each into
+# its assigned rooms - not every NPC needs a unique prototype, matching
+# how Deeper Sands itself works.
+# ----------------------------------------------------------------------
+
+SEWER_LUDUS_RUNAWAY = {
+    "key": "a runaway slave",
+    "aliases": ["slave", "runaway"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Thin, wary, and armed with whatever he could grab on the way out "
+        "- he's clearly still getting used to fighting for himself rather "
+        "than for someone else's amusement."
+    ),
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 5,
+    "xp_reward": 55,
+    "respawn_delay": 45,
+    "tags": [("sewer_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+SEWER_SUBURA_FOOTPAD = {
+    "key": "a Subura footpad",
+    "aliases": ["footpad"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Quick, unbothered, and clearly no stranger to these tunnels - "
+        "this is someone else's territory, and she knows it better than "
+        "you ever will."
+    ),
+    "race": "human",
+    "player_class": "speculator",
+    "level": 5,
+    "xp_reward": 55,
+    "respawn_delay": 50,
+    "tags": [("sewer_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+SEWER_FORUM_DESERTER = {
+    "key": "a deserting legionary",
+    "aliases": ["deserter", "legionary"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Still in half his kit, clearly hiding from his own century - "
+        "whatever he did to end up down here, he's decided it's worth "
+        "fighting to keep quiet."
+    ),
+    "race": "human",
+    "player_class": "legionary",
+    "level": 6,
+    "xp_reward": 65,
+    "respawn_delay": 55,
+    "tags": [("sewer_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+SEWER_GANG_THUG = {
+    "key": "a territorial gang thug",
+    "aliases": ["thug", "gang"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "One of at least two rival groups claiming this junction as "
+        "their own - he's not interested in explaining which one, only "
+        "in making sure you leave."
+    ),
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 7,
+    "xp_reward": 85,
+    "respawn_delay": 70,
+    "tags": [("sewer_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+SEWER_GANG_SCOUT = {
+    "key": "a rival gang scout",
+    "aliases": ["scout"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Watching the junction from a bad angle he clearly thinks is a "
+        "good one, reporting back to whoever sent him the moment "
+        "anything worth reporting happens."
+    ),
+    "race": "human",
+    "player_class": "venator",
+    "level": 8,
+    "xp_reward": 110,
+    "respawn_delay": 75,
+    "tags": [("sewer_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+SEWER_CLOACA_BANDIT = {
+    "key": "a Cloaca bandit",
+    "aliases": ["bandit"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "A real, organized bandit who's made these cart-scale tunnels a "
+        "genuine home base - confident, well-armed, and entirely used to "
+        "fighting on this ground."
+    ),
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 10,
+    "xp_reward": 145,
+    "respawn_delay": 90,
+    "tags": [("sewer_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+SEWER_HECATE_CULTIST = {
+    "key": "a cultist of Hecate",
+    "aliases": ["cultist"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Performing the Crossroads Queen's rites far from anyone who "
+        "might object, three-faced amulet in hand - interrupted, and "
+        "not remotely apologetic about the fact that she's armed."
+    ),
+    "race": "human",
+    "player_class": "haruspex",
+    "level": 11,
+    "xp_reward": 160,
+    "respawn_delay": 100,
+    "tags": [("sewer_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+SEWER_VIGILES_FUGITIVE = {
+    "key": "a fugitive of the Vigiles",
+    "aliases": ["fugitive"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Hiding from the city watch in a dead-end he's chosen specifically "
+        "because it's easy to defend - whatever he's actually wanted for, "
+        "he's not eager to find out what happens if he's caught."
+    ),
+    "race": "human",
+    "player_class": "speculator",
+    "level": 12,
+    "xp_reward": 180,
+    "respawn_delay": 110,
+    "tags": [("sewer_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+SEWER_SMUGGLER = {
+    "key": "a sewer smuggler",
+    "aliases": ["smuggler"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Working the flooded tunnels like they're a real trade route - "
+        "which, for goods that need to avoid every checkpoint in the "
+        "city, they genuinely are."
+    ),
+    "race": "human",
+    "player_class": "venator",
+    "level": 14,
+    "xp_reward": 215,
+    "respawn_delay": 120,
+    "tags": [("sewer_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+SEWER_FERAL_MUTANT = {
+    "key": "a feral sewer mutant",
+    "aliases": ["mutant"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Whatever this was before, years in the flooded dark have shaped "
+        "it into something else entirely - pale, waterlogged, and "
+        "hostile to anything that isn't already part of this place."
+    ),
+    "level": 15,
+    "xp_reward": 235,
+    "respawn_delay": 130,
+    "tags": [("sewer_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+SEWER_MINOTAUR_GLADIATOR = {
+    "key": "a Minotaur gladiator",
+    "aliases": ["minotaur", "gladiator"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Built for the arena, fighting far better down here in the "
+        "cramped, flooded dark than any open sand would ever let him - "
+        "the water barely seems to slow him down at all."
+    ),
+    "race": "minotaur",
+    "player_class": "gladiator",
+    "level": 16,
+    "xp_reward": 260,
+    "respawn_delay": 150,
+    "tags": [("sewer_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+SEWER_SETTLEMENT_GUARD = {
+    "key": "a settlement guard",
+    "aliases": ["guard"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "A real, organized guard for the buried settlement's boundary - "
+        "disciplined in a way nothing in the tunnels above quite "
+        "managed to be."
+    ),
+    "race": "human",
+    "player_class": "legionary",
+    "level": 18,
+    "xp_reward": 310,
+    "respawn_delay": 160,
+    "tags": [("sewer_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+SEWER_SETTLEMENT_ENFORCER = {
+    "key": "a settlement enforcer",
+    "aliases": ["enforcer"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Whatever order the buried settlement actually keeps, she's "
+        "clearly the one enforcing it - and treats an intruder as just "
+        "one more piece of business to handle."
+    ),
+    "race": "human",
+    "player_class": "barbarian",
+    "level": 19,
+    "xp_reward": 340,
+    "respawn_delay": 170,
+    "tags": [("sewer_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+SEWER_CYCLOPS_BARBARIAN = {
+    "key": "a feral Cyclops",
+    "aliases": ["cyclops"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Whatever civilization this Cyclops once had has worn away "
+        "entirely down here - it no longer distinguishes between prey "
+        "and intruder, and hasn't for a long time."
+    ),
+    "race": "cyclops",
+    "player_class": "barbarian",
+    "level": 21,
+    "xp_reward": 410,
+    "respawn_delay": 200,
+    "tags": [("sewer_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+SEWER_NYMPH_AUGUR = {
+    "key": "a Nymph augur",
+    "aliases": ["nymph", "augur"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Reading omens from bird bones far from any actual sky, leading "
+        "something down here that's clearly stopped being simple "
+        "divination a long time ago."
+    ),
+    "race": "nymph",
+    "player_class": "augur",
+    "level": 22,
+    "xp_reward": 440,
+    "respawn_delay": 210,
+    "tags": [("sewer_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+SEWER_CISTERN_LURKER = {
+    "key": "a cistern lurker",
+    "aliases": ["lurker"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Something that has clearly made the deepest, oldest water in "
+        "the entire network its own - it doesn't hunt so much as simply "
+        "wait for you to be there."
+    ),
+    "level": 24,
+    "xp_reward": 520,
+    "respawn_delay": 280,
+    "tags": [("sewer_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+SEWER_BOSS_DROWNED_SENTINEL = {
+    "key": "the Drowned Sentinel",
+    "aliases": ["sentinel", "drowned sentinel"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Whatever this was meant to guard, it has clearly never once "
+        "stopped - ancient, waterlogged, and entirely undiminished by "
+        "however many centuries it's spent down here alone. Named, "
+        "unique, and genuinely rare - this is the Cloaca Maxima's real "
+        "final encounter, not a farmable stop along the way."
+    ),
+    "race": "cyclops",
+    "player_class": "barbarian",
+    "level": 25,
+    "xp_reward": 600,
+    "respawn_delay": 900,
+    "tags": [("sewer_npc", "npc_role"), ("sewer_boss", "npc_role")],
+    "locks": "puppet:false()",
+}

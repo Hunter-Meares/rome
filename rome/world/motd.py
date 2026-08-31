@@ -22,10 +22,10 @@ from commands.command import Command
 RECENT_UPDATES_DATE = "2026-08-31"
 
 RECENT_UPDATES_TEXT = (
-    "Factions have arrived! Eight of them, each with a unique recruiter NPC\n"
-    "somewhere in the city (level 10+ to join) - each grants its own set of\n"
-    "exclusive skills and a private faction channel. Use 'faction' to check\n"
-    "your standing once you've joined one."
+    "The Cloaca Maxima is open - a real leveling zone beneath the city,\n"
+    "reached through sewer grates near the Ludus, the Subura, and the Forum.\n"
+    "Stats now grow past chargen too: every 3rd level, use 'statup' to spend\n"
+    "a point. Try 'help statup' and 'help factions' if you missed either."
 )
 
 

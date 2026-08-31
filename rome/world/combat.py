@@ -938,6 +938,14 @@ class CombatRules:
             elif attacker:
                 self.award_xp(attacker, defeated.db.xp_reward)
 
+        # --- Loot drop (currently sewer_npc-tagged NPCs only - see
+        # world/loot.py) - same "any NPC with xp_reward" gate as the
+        # XP award just above, since a lootable defeat is always also
+        # an XP-earning one.
+        if defeated.db.xp_reward:
+            from world.loot import roll_loot_drop
+            roll_loot_drop(defeated, attacker=attacker)
+
         # --- PvP XP reward: defeating another real player now earns
         # XP too, split the same fair, proportional-damage way as an
         # NPC kill. Gated on `.account` (a real, persistent account
