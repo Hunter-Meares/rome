@@ -2688,6 +2688,10 @@ class CombatRules:
             character.msg(
                 "|G*** You have reached level %d! ***|n" % character.db.level
             )
+
+            if character.db.level % 3 == 0:
+                from world.leveling import grant_level_up_point
+                grant_level_up_point(character)
             if character.db.level == MAX_LEVEL and character.has_account:
                 from evennia.contrib.game_systems.achievements import track_achievements
                 from world.achievements import announce_achievements
@@ -5973,6 +5977,13 @@ class CmdCoreStats(Command):
         lines.append("  Agilitas (Agility):      %d  - accuracy, dodge, initiative, ranged/light weapon damage" % char.db.agilitas)
         lines.append("  Ingenium (Intelligence): %d  - spell damage and healing" % char.db.ingenium)
         lines.append("  Vigor (Constitution):    %d  - extra Max HP/MP, flat damage reduction" % char.db.vigor)
+
+        if char.db.unspent_stat_points:
+            lines.append("")
+            lines.append(
+                "|yYou have %d unspent stat point(s) - use 'statup' to spend "
+                "them.|n" % char.db.unspent_stat_points
+            )
 
         char.msg("\n".join(lines))
 

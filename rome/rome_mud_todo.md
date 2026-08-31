@@ -650,6 +650,8 @@ _(Unchanged except: Underworld/Hades zone entries below now point to the fuller 
 
 _(Unchanged - website copy update still open.)_
 
+- [x] **New, direct request: post-chargen stat growth.** Stats are no longer static after chargen - every 3rd level grants one unspent stat point (`world/leveling.py`, `statup` command). Real design process: the first version of the idea (any stat, one uniform cap, resource-pool-dump only after capping) was checked against the actual `get_attack()` formula before implementing, which found `ACCURACY_STAT_MULTIPLIER = 7` makes Agilitas uniquely fragile - even 1-2 points above the old 16 ceiling starts making hits land regardless of the roll, since a weak defender's `defense_value` sits around 50 and the old ceiling already produces a +42 bonus calibrated for ~90%, not 100%. Landed on: Agilitas caps at 18 for every race (hard math constraint, not negotiable per-race), Virtus/Ingenium/Vigor cap at 20 normally or 22 if it's already that race's established chargen specialty (derived from `RACES`' own `stat_mods`, not a separately hand-maintained table). Per further direct request, HP/MP/SP conversion is a real parallel choice available from the very first point (`statup hp|mp|sp`), not only offered once a stat happens to be capped - simpler to implement too, since it removes the conditional logic entirely. 14 new tests, full suite green. `CmdCoreStats` (`stats`) now shows unspent points; `help statup` and an updated `help corestats` cover it in-game.
+
 ## 🎭 rpsystem contrib — ✅ built
 
 _(Unchanged, except: `find_combat_target`'s fix turned out to be needed in several more places than originally thought - see the top section above.)_

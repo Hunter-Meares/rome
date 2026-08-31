@@ -78,7 +78,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "groupcombat", "gold", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
+        + ["races", "classes", "corestats", "statup", "groupcombat", "gold", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
     )
 
@@ -169,8 +169,33 @@ def create_all_help_entries():
         db_entrytext=(
             "|wCore Stats|n\n\n"
             "Every character has four core stats, set at creation by your "
-            "race and class and visible any time with the 'stats' command.\n\n"
+            "race and class and visible any time with the 'stats' command. "
+            "They can also grow after chargen - see 'help statup'.\n\n"
             "Type 'help <stat name>' for details on any of these:\n\n" + stat_list
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Post-chargen stat growth ---
+    HelpEntry.objects.create(
+        db_key="statup",
+        db_help_category="Stats",
+        db_entrytext=(
+            "|wStat Growth|n\n\n"
+            "Every 3rd level (3, 6, 9, ...) grants one unspent stat "
+            "point. Spend it with:\n\n"
+            "  statup                - see your unspent points and caps\n"
+            "  statup <stat>          - virtus, agilitas, ingenium, or "
+            "vigor\n"
+            "  statup hp|mp|sp        - a flat resource boost instead - "
+            "a real choice any time, not just once a stat is capped\n\n"
+            "Every core stat has a lifetime cap. |wAgilitas caps at 18 for "
+            "every race|n - it powers accuracy directly, and the math "
+            "breaks down past that point (hits would start landing "
+            "regardless of the roll). Virtus, ingenium, and vigor cap at "
+            "20 normally, or 22 if that stat is already your race's "
+            "established specialty (check 'help <race>' for your own "
+            "leans)."
         ),
         db_lock_storage="view:all()",
     )
@@ -511,5 +536,5 @@ def create_all_help_entries():
         db_lock_storage="view:all()",
     )
 
-    total = len(RACES) + len(CLASSES) + len(STAT_HELP) + 10
+    total = len(RACES) + len(CLASSES) + len(STAT_HELP) + 11
     print("Created %d help entries." % total)

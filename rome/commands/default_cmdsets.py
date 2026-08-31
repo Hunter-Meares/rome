@@ -21,6 +21,7 @@ from world import colosseum
 from world import party
 from world import underworld
 from world import factions
+from world import leveling
 from world import doors
 from world import economy
 from world import languages
@@ -152,6 +153,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(factions.CmdScry())
         self.add(factions.CmdRequisition())
         self.add(factions.CmdSafehouse())
+        self.add(leveling.CmdStatUp())
 
 
 from world.character_creator import ContribChargenCmdSet
