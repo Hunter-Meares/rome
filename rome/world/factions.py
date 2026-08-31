@@ -362,17 +362,25 @@ class CmdFaction(Command):
 
     Usage:
       faction                    - show your faction and rank
-      faction join <name>        - join the faction of an inductor NPC
-                                    standing here (requires level 10+)
-      faction leave              - leave your current faction
+      faction join <name>        - hear an inductor NPC's warning
+                                    about what joining means
+      faction join <name> confirm
+                                  - actually join, having heard it
+      faction leave              - leader: step down from leadership
+                                    only, still bound as a member.
+                                    god: leave outright.
       faction invest <char> = <faction>
                                   - god or faction-leader only: add
                                     someone as a member directly
       faction expel <char>       - god or faction-leader only: remove
                                     someone from their faction
 
-    Joining is one at a time - joining a new faction leaves your old
-    one automatically. See 'help factions' for what each one offers.
+    Joining a faction is permanent - there is no walking away from it
+    on your own once you're in. An ordinary member can't self-leave at
+    all. A leader's 'faction leave' only sheds the leadership role -
+    they remain bound to the faction for life like anyone else, and
+    getting out entirely still requires a god's 'faction expel'. See
+    'help factions' for the full policy and what each faction offers.
     """
 
     key = "faction"
@@ -400,14 +408,49 @@ class CmdFaction(Command):
         if sub == "join":
             self._join(caller, rest)
         elif sub == "leave":
-            if not leave_faction(caller):
-                caller.msg("You are not a member of any faction.")
+            self._leave(caller)
         elif sub == "invest":
             self._invest(caller, rest)
         elif sub == "expel":
             self._expel(caller, rest)
         else:
             caller.msg("Usage: faction [join <name>|leave|invest <char> = <faction>|expel <char>]")
+
+    def _leave(self, caller):
+        current = caller.db.faction
+        if not current:
+            caller.msg("You are not a member of any faction.")
+            return
+
+        is_superuser = bool(caller.account and caller.account.is_superuser)
+        is_god = is_superuser or (caller.db.level or 0) > GOD_LEVEL_THRESHOLD
+
+        if caller.db.faction_rank == "leader" and not is_god:
+            # Stepping down from leadership is not the same vow as
+            # membership itself - a leader shouldn't be trapped running
+            # a faction forever just because they were once willing to
+            # lead it. This only sheds the role; the lifelong
+            # membership commitment underneath it is untouched, same
+            # as any other member's - a former leader who wants out
+            # entirely still needs a god to expel them, same as anyone.
+            caller.db.faction_rank = "member"
+            caller.msg(
+                "You step down as leader of the %s, though you remain "
+                "bound to it for life, same as any other member."
+                % FACTIONS[current]["name"]
+            )
+            return
+
+        if not is_god:
+            caller.msg(
+                "You swore yourself to the %s for life - there is no walking "
+                "away from that on your own. Petition your faction's leader, "
+                "or the gods themselves, if you truly want out."
+                % FACTIONS[current]["name"]
+            )
+            return
+
+        leave_faction(caller)
 
     def _join(self, caller, name):
         if not name:
@@ -417,6 +460,20 @@ class CmdFaction(Command):
         level = caller.db.level or 1
         if level < MIN_JOIN_LEVEL:
             caller.msg("You aren't experienced enough yet - factions require level %d." % MIN_JOIN_LEVEL)
+            return
+
+        # "faction join <name> confirm" - the trailing word is stripped
+        # off before the inductor-name matching below, so it never
+        # interferes with matching a name/faction that happens to
+        # contain "confirm" as a substring (none currently do, but this
+        # keeps the two concerns cleanly separate regardless).
+        confirmed = False
+        words = name.split()
+        if words and words[-1].lower() == "confirm":
+            confirmed = True
+            name = " ".join(words[:-1])
+        if not name:
+            caller.msg("Join whom, or which faction? There's no one here to be inducted by.")
             return
 
         # Accepts either the inductor's own name ("faction join gaius")
@@ -439,6 +496,20 @@ class CmdFaction(Command):
                 break
         if not inductor:
             caller.msg("There's no one here by that name to induct you into a faction.")
+            return
+
+        faction_name = FACTIONS[inductor.db.faction]["name"]
+
+        if not confirmed:
+            caller.msg(
+                "%s fixes you with a level look. \"Think carefully before you "
+                "answer. Join the %s and you belong to it for the rest of your "
+                "life - there is no walking away from this whenever you please. "
+                "The only way out, once you're in, is a petition to the "
+                "faction's leader, or to the gods themselves. If you are "
+                "certain, say so plainly: |wfaction join %s confirm|n.\""
+                % (inductor.key, faction_name, inductor.key)
+            )
             return
 
         join_faction(caller, inductor.db.faction)

@@ -5,7 +5,7 @@ single-leader-at-a-time rule, invest/expel permission checks, and the
 Oath Sworn mutual-buff/betrayal-penalty combat hook in world/combat.py.
 """
 
-from evennia.utils.test_resources import EvenniaTest
+from evennia.utils.test_resources import EvenniaTest, EvenniaCommandTest
 
 from world.factions import (
     FACTIONS,
@@ -13,6 +13,8 @@ from world.factions import (
     leave_faction,
     set_faction_leader,
     can_manage_faction,
+    CmdFaction,
+    FactionInductorNPC,
 )
 from world.combat import COMBAT_RULES, CombatTurnHandler
 
@@ -180,3 +182,102 @@ class TestOathSworn(FactionTestBase):
 
         self.assertEqual(self.char1.db.oath_partner, self.char2)
         self.assertEqual(self.char2.db.oath_partner, self.char1)
+
+
+class CmdFactionTestBase(EvenniaCommandTest):
+    def setUp(self):
+        super().setUp()
+        for char in (self.char1, self.char2):
+            char.db.skills_known = []
+            char.db.faction = None
+            char.db.faction_rank = None
+            char.db.level = 10
+        from evennia.utils import create
+
+        self.inductor = create.create_object(
+            FactionInductorNPC, key="Test Inductor", location=self.room1
+        )
+        self.inductor.db.faction = "cult_of_bacchus"
+
+
+class TestFactionJoinConfirmation(CmdFactionTestBase):
+    """
+    Joining is a deliberate, two-step commitment now, per direct
+    request: the first 'faction join <name>' only shows the
+    recruiter's in-character warning that this is permanent - it must
+    NOT actually grant membership. Only 'faction join <name> confirm'
+    does.
+    """
+
+    def test_join_without_confirm_does_not_grant_membership(self):
+        result = self.call(CmdFaction(), "join Test Inductor", caller=self.char1)
+
+        self.assertIsNone(self.char1.db.faction)
+        self.assertIn("confirm", result.lower())
+
+    def test_join_without_confirm_warns_about_permanence(self):
+        result = self.call(CmdFaction(), "join Test Inductor", caller=self.char1)
+
+        self.assertIn("life", result.lower())
+
+    def test_join_with_confirm_grants_membership(self):
+        self.call(CmdFaction(), "join Test Inductor", caller=self.char1)
+        self.call(CmdFaction(), "join Test Inductor confirm", caller=self.char1)
+
+        self.assertEqual(self.char1.db.faction, "cult_of_bacchus")
+
+    def test_join_by_faction_name_with_confirm_works(self):
+        self.call(CmdFaction(), "join bacchus confirm", caller=self.char1)
+
+        self.assertEqual(self.char1.db.faction, "cult_of_bacchus")
+
+
+class TestFactionLeaveRestriction(CmdFactionTestBase):
+    """
+    Factions are meant to be a lifelong commitment - an ordinary
+    member should never be able to just walk away with 'faction
+    leave'. Only that faction's own leader (stepping down) or a god
+    can use it; getting an ordinary member out requires someone else
+    to 'faction expel' them.
+    """
+
+    def test_plain_member_cannot_leave(self):
+        join_faction(self.char1, "cult_of_bacchus")
+
+        result = self.call(CmdFaction(), "leave", caller=self.char1)
+
+        self.assertEqual(self.char1.db.faction, "cult_of_bacchus")
+        self.assertIn("petition", result.lower())
+
+    def test_leader_leave_only_steps_down_not_a_full_exit(self):
+        """
+        Real design refinement, direct request: a leader shouldn't be
+        trapped running a faction forever, but stepping down from
+        leadership is not the same vow as membership itself - only the
+        rank should change, not full departure.
+        """
+        join_faction(self.char1, "cult_of_bacchus")
+        self.char1.db.faction_rank = "leader"
+
+        self.call(CmdFaction(), "leave", caller=self.char1)
+
+        self.assertEqual(self.char1.db.faction, "cult_of_bacchus")
+        self.assertEqual(self.char1.db.faction_rank, "member")
+
+    def test_a_former_leader_is_bound_by_the_same_rule_as_any_member(self):
+        join_faction(self.char1, "cult_of_bacchus")
+        self.char1.db.faction_rank = "leader"
+        self.call(CmdFaction(), "leave", caller=self.char1)  # steps down to member
+
+        result = self.call(CmdFaction(), "leave", caller=self.char1)
+
+        self.assertEqual(self.char1.db.faction, "cult_of_bacchus")
+        self.assertIn("petition", result.lower())
+
+    def test_a_god_can_leave_even_as_a_plain_member(self):
+        join_faction(self.char1, "cult_of_bacchus")
+        self.char1.db.level = 101
+
+        self.call(CmdFaction(), "leave", caller=self.char1)
+
+        self.assertIsNone(self.char1.db.faction)

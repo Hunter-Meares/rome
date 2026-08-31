@@ -185,12 +185,25 @@ class TestFriendlyCmdPage(EvenniaCommandTest):
     game ('who', combat, room descriptions) - so paging someone by the
     name a player actually sees them by always failed the lookup, and
     silently fell back to re-sending your own last page to yourself
-    instead of giving any error at all. EvenniaTest's setUp() already
-    registers a real session for self.account/self.char1, which is
-    what makes self.char1's name resolvable as "online" here.
+    instead of giving any error at all.
+
+    Real root cause found and fixed for the "succeeds" test below:
+    EvenniaTest's setUp() logs self.account in on a real session, but
+    never puppets self.char1 onto it - that only happens automatically
+    under Evennia's own default AUTO_PUPPET_ON_LOGIN, which this
+    project deliberately sets to False (server/conf/settings.py) - a
+    real player here logs in, then separately puppets a character
+    (confirmed live: a "Puppet Success" server-log event distinct from
+    "Logged in"). The test's own docstring assumed the session already
+    had a puppet, which was simply wrong for this project's settings -
+    it likely only ever passed against Evennia's own default config,
+    not this game's. Fixed by explicitly puppeting char1 onto the
+    session before the call, matching what actually happens live.
     """
 
     def test_paging_online_character_by_name_succeeds(self):
+        self.account.puppet_object(self.session, self.char1)
+
         result = self.call(
             FriendlyCmdPage(), "%s test message" % self.char1.key, caller=self.account2
         )
