@@ -376,11 +376,13 @@ class CmdFaction(Command):
                                     someone from their faction
 
     Joining a faction is permanent - there is no walking away from it
-    on your own once you're in. An ordinary member can't self-leave at
-    all. A leader's 'faction leave' only sheds the leadership role -
-    they remain bound to the faction for life like anyone else, and
-    getting out entirely still requires a god's 'faction expel'. See
-    'help factions' for the full policy and what each faction offers.
+    on your own once you're in, and no switching to a different one
+    either (that would just be leaving through the back door). An
+    ordinary member can't self-leave at all. A leader's 'faction leave'
+    only sheds the leadership role - they remain bound to the faction
+    for life like anyone else, and getting out entirely still requires
+    a god's 'faction expel'. See 'help factions' for the full policy
+    and what each faction offers.
     """
 
     key = "faction"
@@ -499,6 +501,27 @@ class CmdFaction(Command):
             return
 
         faction_name = FACTIONS[inductor.db.faction]["name"]
+
+        # A member already bound to a (different) faction can't just
+        # switch by walking up to a new recruiter - that would let
+        # anyone route around the entire "no self-leave" rule above by
+        # treating "join elsewhere" as a backdoor form of leaving. Same
+        # petition-or-god's-expel path applies here as to leaving
+        # outright. Gods are exempt, same as everywhere else in this
+        # system - this only blocks an ordinary member switching on
+        # their own initiative.
+        current = caller.db.faction
+        if current and current != inductor.db.faction:
+            is_superuser = bool(caller.account and caller.account.is_superuser)
+            is_god = is_superuser or (caller.db.level or 0) > GOD_LEVEL_THRESHOLD
+            if not is_god:
+                caller.msg(
+                    "You are already bound to the %s for life - you can't "
+                    "simply switch allegiance to the %s. Petition your "
+                    "faction's leader, or the gods themselves, if you truly "
+                    "want out first." % (FACTIONS[current]["name"], faction_name)
+                )
+                return
 
         if not confirmed:
             caller.msg(

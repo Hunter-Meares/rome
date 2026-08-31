@@ -231,6 +231,30 @@ class TestFactionJoinConfirmation(CmdFactionTestBase):
 
         self.assertEqual(self.char1.db.faction, "cult_of_bacchus")
 
+    def test_existing_member_cannot_switch_to_a_different_faction(self):
+        """
+        Real gap found and closed: without this, an ordinary member
+        could route around the entire "no self-leave" rule by just
+        walking up to a different faction's recruiter and joining -
+        join_faction's own auto-leave-old-first behavior would silently
+        let that count as "leaving." Switching must be blocked exactly
+        like leaving is, for the same reason.
+        """
+        join_faction(self.char1, "imperial_legion")
+
+        result = self.call(CmdFaction(), "join bacchus confirm", caller=self.char1)
+
+        self.assertEqual(self.char1.db.faction, "imperial_legion")
+        self.assertIn("petition", result.lower())
+
+    def test_a_god_can_still_switch_factions_directly(self):
+        join_faction(self.char1, "imperial_legion")
+        self.char1.db.level = 101
+
+        self.call(CmdFaction(), "join bacchus confirm", caller=self.char1)
+
+        self.assertEqual(self.char1.db.faction, "cult_of_bacchus")
+
 
 class TestFactionLeaveRestriction(CmdFactionTestBase):
     """
