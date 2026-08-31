@@ -15,6 +15,7 @@ additional balancing work.
 """
 
 import random
+import time
 
 from world.combat import spawn_leveled_weapon, spawn_leveled_armor
 
@@ -55,5 +56,14 @@ def roll_loot_drop(defeated, attacker=None):
     else:
         prototype = random.choice(ARMOR_PROTOTYPES)
         item = spawn_leveled_armor(prototype, level, location=location)
+
+    # Real bug found and fixed: spawn_leveled_weapon/armor place the
+    # item via move_to(), which never calls at_drop() - the hook that
+    # normally stamps db.dropped_at for the existing 24-hour clutter
+    # sweep (ItemDecayManager/find_decayed_items, world/combat.py).
+    # Without this, loot would sit on the ground forever, accumulating
+    # without bound across the whole zone. Stamped manually here so a
+    # loot drop decays exactly like any player-dropped item does.
+    item.db.dropped_at = time.time()
 
     location.msg_contents("|YSomething drops from %s: %s!|n" % (defeated.key, item.key))

@@ -4,6 +4,7 @@ strictly on the "sewer_npc" tag so existing NPCs (Arena Fighters,
 Colosseum trainers) keep their current, untouched drop behavior.
 """
 
+import time
 from unittest.mock import patch
 
 from evennia.utils.test_resources import EvenniaTest
@@ -75,3 +76,34 @@ class TestRollLootDrop(EvenniaTest):
         self.npc.location = None
         with patch("world.loot.random.randint", return_value=1):
             roll_loot_drop(self.npc)  # should not raise
+
+    @patch("world.loot.random.random")
+    @patch("world.loot.random.randint")
+    def test_dropped_loot_participates_in_the_existing_decay_sweep(self, mock_randint, mock_random):
+        """
+        Real bug found and fixed: spawn_leveled_weapon/armor place the
+        item via move_to(), which never calls at_drop() - the hook
+        that normally stamps db.dropped_at for the 24-hour clutter
+        sweep (find_decayed_items/is_junk_eligible, world/combat.py).
+        Without the fix, loot would never decay - checked directly
+        against the real is_junk_eligible/find_decayed_items logic,
+        not just "was dropped_at set to something."
+        """
+        from world.combat import is_junk_eligible, JUNK_DECAY_SECONDS
+
+        self.npc.tags.add("sewer_npc", category="npc_role")
+        mock_randint.return_value = 1
+        mock_random.return_value = 0.1
+
+        roll_loot_drop(self.npc)
+
+        dropped = self._new_drops()[0]
+        self.assertIsNotNone(dropped.db.dropped_at)
+        self.assertTrue(is_junk_eligible(dropped))
+        # A drop from "just now" shouldn't look decayed yet...
+        self.assertGreater(dropped.db.dropped_at, time.time() - 5)
+        # ...but backdating it past the real decay window confirms
+        # it's genuinely wired into the same clock the sweep uses.
+        dropped.db.dropped_at -= JUNK_DECAY_SECONDS + 1
+        from world.combat import find_decayed_items
+        self.assertIn(dropped, find_decayed_items())
