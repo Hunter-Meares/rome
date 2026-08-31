@@ -34,6 +34,7 @@ from world.combat import (
     WEAPON_CATEGORY_MESSAGES,
     WEAPON_TYPE_MESSAGE_OVERRIDES,
     DEFAULT_WEAPON_MESSAGES,
+    wizinvis_hides_from,
 )
 
 
@@ -1337,3 +1338,45 @@ class TestTryAutoAttack(CombatTestBase):
 
         self.assertEqual(self.char2.db.hp, 100)
         self.assertEqual(ally.db.hp, 100)
+
+
+class TestWizinvis(CombatTestBase):
+    """
+    Regression coverage for wizinvis: hidden from a lower-level looker,
+    visible to an equal-or-higher one or a true superuser, and its
+    effect on get_display_name (used for both the who-list check in
+    commands/social.py and, since say/pose both resolve a speaker's
+    name via get_display_name per listener, for masking speech/emotes
+    too).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.wizinvis = True
+        self.char1.db.level = 105
+        self.char2.db.level = 10
+
+    def test_hidden_from_a_lower_level_looker(self):
+        self.assertTrue(wizinvis_hides_from(self.char1, self.char2))
+
+    def test_visible_to_an_equal_or_higher_level_looker(self):
+        self.char2.db.level = 105
+        self.assertFalse(wizinvis_hides_from(self.char1, self.char2))
+
+    def test_visible_to_a_true_superuser(self):
+        self.account2.is_superuser = True
+        self.assertFalse(wizinvis_hides_from(self.char1, self.char2))
+
+    def test_not_hidden_when_wizinvis_is_off(self):
+        self.char1.db.wizinvis = False
+        self.assertFalse(wizinvis_hides_from(self.char1, self.char2))
+
+    def test_never_hidden_from_self(self):
+        self.assertFalse(wizinvis_hides_from(self.char1, self.char1))
+
+    def test_get_display_name_returns_someone_to_a_lower_level_looker(self):
+        self.assertEqual(self.char1.get_display_name(self.char2), "Someone")
+
+    def test_get_display_name_returns_real_name_to_an_equal_level_looker(self):
+        self.char2.db.level = 105
+        self.assertEqual(self.char1.get_display_name(self.char2), self.char1.key)

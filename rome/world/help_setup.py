@@ -18,6 +18,7 @@ every entry it manages, rather than leaving stale duplicates behind.
 from evennia.help.models import HelpEntry
 
 from world.chargen_menu import RACES, CLASSES
+from world.factions import FACTIONS
 
 
 STAT_HELP = {
@@ -77,7 +78,8 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "groupcombat", "gold", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem"]
+        + ["races", "classes", "corestats", "groupcombat", "gold", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
+        + [skill for data in FACTIONS.values() for skill in data["skills"]]
     )
 
     # Clean slate for anything this script manages, so re-running it
@@ -286,6 +288,72 @@ def create_all_help_entries():
         ),
         db_lock_storage="view:all()",
     )
+
+    # --- Factions ---
+    HelpEntry.objects.create(
+        db_key="factions",
+        db_help_category="General",
+        db_entrytext=(
+            "|wFactions|n\n\n"
+            "Eight factions are active in the world, each represented by a "
+            "unique recruiter NPC somewhere in the city. Requires level 10.\n\n"
+            "  faction                    - see your faction and rank\n"
+            "  faction join <name>        - join, standing with a recruiter "
+            "(matches either their name or the faction's own name)\n"
+            "  faction leave              - leave your current faction\n\n"
+            "You can only belong to one faction at a time - joining a new "
+            "one automatically leaves the old one behind, including its "
+            "exclusive skills. Joining grants a small set of faction-only "
+            "abilities (see 'skillinfo') and connects you to that faction's "
+            "private channel automatically.\n\n"
+            "Ranks are member and leader - a faction has exactly one leader "
+            "at a time, designated by a god. A faction's leader (and any "
+            "god) can 'faction invest <char> = <faction>' or 'faction "
+            "expel <char>' to manage membership directly.\n\n"
+            "The eight factions: Imperial Legion, Praetorian Order, "
+            "Hellenic Resistance, Cult of Mithras, Orphic Mysteries, Cult "
+            "of Hecate, Cult of Bacchus, and Collegium Umbrae."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Individual faction abilities ---
+    #
+    # Pulled directly from world.combat.SKILLS (the same "desc"/"cost"/
+    # "level_required"/"command_name" fields skillinfo itself reads),
+    # not re-typed here, so these entries can't drift from the real
+    # mechanics the way a hand-written duplicate could.
+    from world.combat import SKILLS
+
+    for faction_key, data in FACTIONS.items():
+        for skill_name in data["skills"]:
+            skill_data = SKILLS[skill_name]
+            command_name = skill_data.get("command_name")
+            usage = (
+                "  %s\n\n" % command_name
+                if command_name
+                else "  skill %s = <target>\n\n" % skill_name
+            )
+            cost = skill_data.get("cost", 0)
+            cost_text = "%d SP" % cost if cost else "Free"
+            HelpEntry.objects.create(
+                db_key=skill_name,
+                db_help_category="Factions",
+                db_entrytext=(
+                    "|w%s|n\n\n"
+                    "A %s ability (level %d, %s). See 'faction' to join.\n\n"
+                    "%s"
+                    "%s"
+                ) % (
+                    skill_name.title(),
+                    data["name"],
+                    skill_data.get("level_required", 10),
+                    cost_text,
+                    usage,
+                    skill_data.get("desc", ""),
+                ),
+                db_lock_storage="view:all()",
+            )
 
     # --- Spell/skill trainers ---
     HelpEntry.objects.create(

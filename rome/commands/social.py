@@ -12,7 +12,7 @@ on the who list (e.g. "the Undefeated", "Senator of Rome").
 """
 
 import time
-from world.combat import rank_title
+from world.combat import rank_title, wizinvis_hides_from
 
 import evennia
 from evennia.commands.default.account import CmdWho as DefaultCmdWho
@@ -114,6 +114,15 @@ class CmdWho(DefaultCmdWho):
         show_admin_data = account.check_permstring("Developer") or account.check_permstring(
             "Admins"
         )
+        # Whoever is actually running this who command - wizinvis
+        # (world/combat.py's wizinvis_hides_from) hides a wizinvis'd
+        # god from anyone whose own level is lower, in every table
+        # below including the admin ones - "Admins" the Evennia
+        # permission and "gods" the in-game level system are two
+        # separate things (see CLAUDE.md), so an Admin-permissioned
+        # low-level character shouldn't see a high-tier wizinvis'd god
+        # just because they can see the technical /full columns.
+        viewer = self.session.get_puppet() if self.session else None
 
         session_list = evennia.SESSION_HANDLER.get_sessions()
         session_list = sorted(session_list, key=lambda o: o.account.key)
@@ -147,6 +156,8 @@ class CmdWho(DefaultCmdWho):
                 delta_conn = time.time() - session.conn_time
                 sess_account = session.get_account()
                 puppet = session.get_puppet()
+                if wizinvis_hides_from(puppet, viewer):
+                    continue
                 location = puppet.location.key if puppet and puppet.location else "None"
 
                 title = puppet.db.custom_title if puppet else ""
@@ -195,6 +206,8 @@ class CmdWho(DefaultCmdWho):
                 delta_cmd = time.time() - session.cmd_last_visible
                 sess_account = session.get_account()
                 puppet = session.get_puppet()
+                if wizinvis_hides_from(puppet, viewer):
+                    continue
                 location = puppet.location.key if puppet and puppet.location else "None"
 
                 title = puppet.db.custom_title if puppet else ""
@@ -230,6 +243,8 @@ class CmdWho(DefaultCmdWho):
                 continue
 
             char = session.get_puppet()
+            if wizinvis_hides_from(char, viewer):
+                continue
 
             if char:
                 name = char.key

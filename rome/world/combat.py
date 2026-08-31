@@ -116,6 +116,32 @@ def is_no_combat_zone(room):
     key, category = NO_COMBAT_ZONE_TAG
     return bool(room.tags.get(key, category=category))
 
+
+def wizinvis_hides_from(character, looker):
+    """
+    True if character is wizinvis and looker is someone it should be
+    hidden from - anyone whose level is lower than character's own,
+    unless looker is a true superuser. Shared by
+    CombatCharacter.get_display_name/access (look, room contents,
+    movement announcements, and - since both say and rpsystem's
+    emote/pose system resolve a speaker's name via get_display_name
+    per listener - speech and poses too) and CmdWho (commands/social.py),
+    so all of wizinvis's effects stay in sync with one definition
+    rather than each call site re-deriving the same comparison.
+    """
+    if character is None or looker is character:
+        return False
+    if not character.db.wizinvis:
+        return False
+    looker_account = getattr(looker, "account", None) if looker is not None else None
+    if looker_account and looker_account.is_superuser:
+        return False
+    # No looker (or one with no db, e.g. a bare Session/Account with no
+    # puppet) is treated as a plain mortal - safer default than
+    # accidentally treating "unknown" as "sees everything."
+    looker_level = (looker.db.level or 0) if (looker is not None and hasattr(looker, "db")) else 0
+    return looker_level < (character.db.level or 0)
+
 # Condition modifiers
 REGEN_RATE = (4, 8)
 POISON_RATE = (4, 8)
@@ -1225,6 +1251,25 @@ class CombatRules:
         # one method.
         attacker.db.combat_last_target = defender
 
+        # Cult of Mithras' Oath Sworn (see world/factions.py's CmdOath):
+        # attacking your own oath-partner breaks the pact immediately -
+        # both lose whatever mutual Accuracy Up the oath was granting
+        # (see initialize_for_combat) and both take Defense Down as the
+        # real, felt cost of the betrayal, rather than just quietly
+        # clearing an attribute.
+        if attacker.db.oath_partner is defender and defender is not None:
+            attacker.db.oath_partner = None
+            defender.db.oath_partner = None
+            for key in ("Accuracy Up",):
+                self.get_conditions(attacker).pop(key, None)
+                self.get_conditions(defender).pop(key, None)
+            self.add_condition(attacker, attacker, "Defense Down", 5)
+            self.add_condition(defender, attacker, "Defense Down", 5)
+            attacker.location.msg_contents(
+                "|rAn oath sworn before Mithras shatters - %s has struck %s!|n"
+                % (attacker, defender)
+            )
+
         attackers_weapon = "attack"
         weapon_category = None
         if attacker.db.wielded_weapon:
@@ -2193,6 +2238,20 @@ class CombatRules:
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
+
+    def skill_faction_utility_redirect(self, user, skill_name, targets, cost, **kwargs):
+        """
+        Placeholder skillfunc for the handful of faction abilities that
+        don't fit the generic character-targeting dispatch (movement,
+        NPC dialogue, item inspection, and similar - see the dedicated
+        commands in world/factions.py: march, interrogate, commune,
+        oath, scry, requisition, safehouse). Doesn't cost anything or
+        do anything on its own - just points a player who tries the
+        generic 'skill <name>' command at the real dedicated command
+        instead of silently failing or charging SP for nothing.
+        """
+        command_name = kwargs.get("command_name", skill_name)
+        user.msg("Use the '%s' command for that, not 'skill'." % command_name)
 
     def skill_ambush(self, user, skill_name, targets, cost, **kwargs):
         """
@@ -3623,6 +3682,252 @@ SKILLS = {
         "classes": ["barbarian"],
         "desc": "Mythic tier. A storm of axe and fury the legions still tell campfire stories about - a massive multi-hit rage attack striking up to five enemies at once.",
     },
+    # ------------------------------------------------------------------
+    # FACTION ABILITIES
+    #
+    # Granted directly on joining a faction (world/factions.py's
+    # join_faction), not learnable via the normal learnskill/trainer
+    # path - "classes": ["faction"] is a sentinel no real player_class
+    # ever equals, so CmdLearn's class-gating check and CmdSkillInfo's
+    # "available to your class" listing both correctly treat these as
+    # off-limits to everyone except whoever already has them in
+    # skills_known. "factions" names which faction actually grants it,
+    # for anything that wants to look that up without re-flattening
+    # world.factions.FACTIONS itself.
+    # ------------------------------------------------------------------
+    "muster": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "self",
+        "cost": 6,
+        "level_required": 10,
+        "conditions": [("Accuracy Up", 4)],
+        "classes": ["faction"],
+        "factions": ["imperial_legion"],
+        "desc": "Steadies your strikes through sheer disciplined drilling.",
+    },
+    "forced march": {
+        "skillfunc": COMBAT_RULES.skill_faction_utility_redirect,
+        "target": "self",
+        "cost": 5,
+        "level_required": 10,
+        "command_name": "march",
+        "classes": ["faction"],
+        "factions": ["imperial_legion"],
+        "desc": "Cross several connected rooms in one command. Use the 'march' command.",
+    },
+    "requisition": {
+        "skillfunc": COMBAT_RULES.skill_faction_utility_redirect,
+        "target": "self",
+        "cost": 0,
+        "level_required": 10,
+        "command_name": "requisition",
+        "classes": ["faction"],
+        "factions": ["imperial_legion"],
+        "desc": "Once per day, demand supply from a Legion-aligned contact. Use the 'requisition' command.",
+    },
+    "coerce": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "otherchar",
+        "cost": 8,
+        "level_required": 10,
+        "conditions": [("Paralyzed", 1)],
+        "classes": ["faction"],
+        "factions": ["praetorian_order"],
+        "desc": "Freezes a target with sheer authority, forcing them to skip their turn.",
+    },
+    "censure": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "otherchar",
+        "cost": 7,
+        "level_required": 10,
+        "conditions": [("Silenced", 3)],
+        "classes": ["faction"],
+        "factions": ["praetorian_order"],
+        "desc": "Formally silences a target, denying them their spells for a time.",
+    },
+    "interrogate": {
+        "skillfunc": COMBAT_RULES.skill_faction_utility_redirect,
+        "target": "otherchar",
+        "cost": 5,
+        "level_required": 10,
+        "command_name": "interrogate",
+        "classes": ["faction"],
+        "factions": ["praetorian_order"],
+        "desc": "Extract real information from someone. Use the 'interrogate' command.",
+    },
+    "raid": {
+        "skillfunc": COMBAT_RULES.skill_attack,
+        "target": "otherchar",
+        "cost": 6,
+        "level_required": 10,
+        "damage_range": (18, 28),
+        "classes": ["faction"],
+        "factions": ["hellenic_resistance"],
+        "desc": "One hard guerrilla strike.",
+    },
+    "safehouse": {
+        "skillfunc": COMBAT_RULES.skill_faction_utility_redirect,
+        "target": "self",
+        "cost": 0,
+        "level_required": 10,
+        "command_name": "safehouse",
+        "classes": ["faction"],
+        "factions": ["hellenic_resistance"],
+        "desc": "Once per day, a sympathizer patches you up fully out of combat. Use the 'safehouse' command.",
+    },
+    "vow": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "self",
+        "cost": 6,
+        "level_required": 10,
+        "conditions": [("Defense Up", 4)],
+        "classes": ["faction"],
+        "factions": ["cult_of_mithras"],
+        "desc": "An oath of protection, harder to hit while it holds.",
+    },
+    "aegis": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "otherchar",
+        "cost": 7,
+        "level_required": 10,
+        "conditions": [("Shielded", 6)],
+        "classes": ["faction"],
+        "factions": ["cult_of_mithras"],
+        "desc": "The brotherhood protects its own - negates the next hit against an ally.",
+    },
+    "oath sworn": {
+        "skillfunc": COMBAT_RULES.skill_faction_utility_redirect,
+        "target": "otherchar",
+        "cost": 0,
+        "level_required": 10,
+        "command_name": "oath",
+        "classes": ["faction"],
+        "factions": ["cult_of_mithras"],
+        "desc": "Swear a binding pact with another player. Use the 'oath' command.",
+    },
+    "dirge": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "otherchar",
+        "cost": 7,
+        "level_required": 10,
+        "conditions": [("Frightened", 4)],
+        "classes": ["faction"],
+        "factions": ["orphic_mysteries"],
+        "desc": "A funeral lament turned weapon, unsettling a target badly.",
+    },
+    "rebirth": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "anychar",
+        "cost": 8,
+        "level_required": 10,
+        "conditions": [("Death Ward", 6)],
+        "classes": ["faction"],
+        "factions": ["orphic_mysteries"],
+        "desc": "The next fatal hit instead leaves the target at 1 HP.",
+    },
+    "speak with dead": {
+        "skillfunc": COMBAT_RULES.skill_faction_utility_redirect,
+        "target": "otherchar",
+        "cost": 6,
+        "level_required": 10,
+        "command_name": "commune",
+        "classes": ["faction"],
+        "factions": ["orphic_mysteries"],
+        "desc": "Ask the dead one question. Use the 'commune' command.",
+    },
+    "hex": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "otherchar",
+        "cost": 7,
+        "level_required": 10,
+        "conditions": [("Poisoned", 4)],
+        "classes": ["faction"],
+        "factions": ["cult_of_hecate"],
+        "desc": "A classic witch's curse - damage over time.",
+    },
+    "curse": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "otherchar",
+        "cost": 8,
+        "level_required": 10,
+        "conditions": [("Marked for Death", 5)],
+        "classes": ["faction"],
+        "factions": ["cult_of_hecate"],
+        "desc": "Marks a target for doom - the next hit against them can't miss, plus bonus damage.",
+    },
+    "scrying": {
+        "skillfunc": COMBAT_RULES.skill_faction_utility_redirect,
+        "target": "self",
+        "cost": 5,
+        "level_required": 10,
+        "command_name": "scry",
+        "classes": ["faction"],
+        "factions": ["cult_of_hecate"],
+        "desc": "Inspect an item's real properties before buying it. Use the 'scry' command.",
+    },
+    "frenzy": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "self",
+        "cost": 7,
+        "level_required": 10,
+        "conditions": [("Damage Up", 4), ("Accuracy Down", 4)],
+        "classes": ["faction"],
+        "factions": ["cult_of_bacchus"],
+        "desc": "Reckless ecstatic power - real damage boost, real accuracy drawback.",
+    },
+    "wild rite": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "anychar",
+        "cost": 10,
+        "level_required": 10,
+        "max_targets": 5,
+        "conditions": [("Damage Up", 4)],
+        "classes": ["faction"],
+        "factions": ["cult_of_bacchus"],
+        "desc": "A shared ritual granting up to five allies a damage boost at once.",
+    },
+    "libation": {
+        "skillfunc": COMBAT_RULES.spell_cure_condition,
+        "target": "anychar",
+        "cost": 6,
+        "level_required": 10,
+        "to_cure": ["Poisoned", "Frightened", "Accuracy Down", "Damage Down", "Defense Down"],
+        "classes": ["faction"],
+        "factions": ["cult_of_bacchus"],
+        "desc": "A ritual wine-offering that cures a harmful condition on an ally, in or out of combat.",
+    },
+    "evasion": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "self",
+        "cost": 6,
+        "level_required": 10,
+        "conditions": [("Invisible", 3)],
+        "classes": ["faction"],
+        "factions": ["collegium_umbrae"],
+        "desc": "Harder to hit for a short time.",
+    },
+    "wither": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "otherchar",
+        "cost": 7,
+        "level_required": 10,
+        "conditions": [("Damage Down", 4)],
+        "classes": ["faction"],
+        "factions": ["collegium_umbrae"],
+        "desc": "A corrupted apothecary's touch - the target hits softer.",
+    },
+    "cloak": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "self",
+        "cost": 8,
+        "level_required": 10,
+        "conditions": [("Invisible", 6)],
+        "combat_spell": True,
+        "noncombat_spell": True,
+        "classes": ["faction"],
+        "factions": ["collegium_umbrae"],
+        "desc": "A longer-lasting evasion, castable before a fight even starts so you're already hard to hit the moment one begins.",
+    },
 }
 
 """
@@ -4292,8 +4597,21 @@ class CombatCharacter(ContribRPCharacter):
 
     def get_display_name(self, looker, **kwargs):
         """
-        Checks, in order: (1) is the looker a god (level over 100)?
-        Gods see the truth unconditionally, same spirit as a
+        Checks, in order: (0) is this character wizinvis, and is the
+        looker someone who can't see through it? Same exemption as
+        access()'s 'view' check below (anyone at or above this
+        character's own level, or a true superuser, sees the real
+        name regardless) - checked first so it overrides even the god
+        branch just below it: a lower-tier god looking at a
+        higher-tier wizinvis'd god still shouldn't see their name,
+        the same way they wouldn't see them in a room's contents.
+        This is also what makes speech/poses/emotes say "Someone" to
+        a mortal instead of naming the speaker - every listener's
+        at_say/pose broadcast resolves the speaker's name through
+        this exact method, once per listener (see msg_contents'
+        per-recipient mapping resolution), so there's no separate
+        hook needed for that. (1) is the looker a god (level over
+        100)? Gods see the truth unconditionally, same spirit as a
         superuser bypassing locks - no mask or sdesc hides anything
         from them. (2) Does the looker have a verified_identities
         entry for this character - set by the greet command when
@@ -4306,6 +4624,9 @@ class CombatCharacter(ContribRPCharacter):
         casual, unverified recog still isn't. (3) Otherwise, defer to
         the contrib's normal sdesc/mask/recog behavior.
         """
+        if wizinvis_hides_from(self, looker):
+            return "Someone"
+
         if looker is not None:
             looker_level = looker.db.level or 0
             if looker_level > 100:
@@ -4328,15 +4649,8 @@ class CombatCharacter(ContribRPCharacter):
         already knows to look (matches real wizinvis behavior in
         other codebases: hidden from casual notice, not truly gone).
         """
-        if access_type == "view" and self.db.wizinvis and accessing_obj is not self:
-            looker_account = getattr(accessing_obj, "account", None)
-            if not (looker_account and looker_account.is_superuser):
-                looker_level = 0
-                if hasattr(accessing_obj, "db"):
-                    looker_level = accessing_obj.db.level or 0
-                self_level = self.db.level or 0
-                if looker_level < self_level:
-                    return False
+        if access_type == "view" and wizinvis_hides_from(self, accessing_obj):
+            return False
         return super().access(accessing_obj, access_type=access_type, default=default, **kwargs)
 
     def process_language(self, text, speaker, language, **kwargs):
@@ -4597,6 +4911,8 @@ class CombatCharacter(ContribRPCharacter):
         if self.has_account:
             from world.analytics import log_room_visit
             log_room_visit(self)
+        from world.factions import record_room_visit
+        record_room_visit(self)
 
     def at_post_puppet(self, **kwargs):
         """
@@ -4846,6 +5162,19 @@ class CombatTurnHandler(DefaultScript):
         # CombatCharacter), hence the defensive check.
         if hasattr(character, "stop_resting"):
             character.stop_resting()
+
+        # Cult of Mithras' Oath Sworn: fighting alongside your own
+        # oath-partner (same turnhandler = same fight) grants both of
+        # you Accuracy Up for as long as you're both in it. Applied
+        # here rather than at oath-swearing time since the whole point
+        # is a bonus for fighting together, not just for having sworn
+        # - and applied to both regardless of which partner's
+        # initialize_for_combat call actually triggers it, so it
+        # doesn't matter who joined the fight first.
+        partner = character.db.oath_partner
+        if partner is not None and partner.db.combat_turnhandler is self:
+            self.rules.add_condition(character, character, "Accuracy Up", 99)
+            self.rules.add_condition(partner, partner, "Accuracy Up", 99)
 
     def start_turn(self, character):
         """Readies a character for their turn and sends the prompt."""
@@ -5622,6 +5951,11 @@ class CmdCoreStats(Command):
             "  %s, %s" % (race_display, class_display),
             "  Level %d (%s)" % (level, title),
         ]
+        if char.db.faction:
+            from world.factions import FACTIONS
+            faction_name = FACTIONS.get(char.db.faction, {}).get("name", char.db.faction)
+            rank = (char.db.faction_rank or "member").title()
+            lines.append("  Faction: %s (%s)" % (faction_name, rank))
         if xp_needed is not None:
             lines.append("  XP: %d / %d to next level" % (xp, xp_needed))
         else:
@@ -5936,6 +6270,8 @@ class CmdGodLevel(Command):
         if new_level > 100 and old_level <= 100:
             target.db.mortal_race_display = target.db.race_display
             target.db.mortal_class_display = target.db.class_display
+            from world.factions import connect_god_to_all_faction_channels
+            connect_god_to_all_faction_channels(target)
         if new_level > 100:
             target.db.race_display = "Olympian"
             target.db.class_display = "Divine"

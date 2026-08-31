@@ -19,13 +19,13 @@ from evennia import CmdSet
 
 from commands.command import Command
 
-RECENT_UPDATES_DATE = "2026-08-29"
+RECENT_UPDATES_DATE = "2026-08-31"
 
 RECENT_UPDATES_TEXT = (
-    "Rome just got much bigger - the Subura, Trajan's Market, the Pantheon,\n"
-    "the Baths, Palatine Hill, and a new housing district are all open to\n"
-    "explore. Skills and spells also got real cooldowns - no more spamming\n"
-    "your strongest move every single turn."
+    "Factions have arrived! Eight of them, each with a unique recruiter NPC\n"
+    "somewhere in the city (level 10+ to join) - each grants its own set of\n"
+    "exclusive skills and a private faction channel. Use 'faction' to check\n"
+    "your standing once you've joined one."
 )
 
 

@@ -20,6 +20,7 @@ from evennia.contrib.rpg.rpsystem import RPSystemCmdSet
 from world import colosseum
 from world import party
 from world import underworld
+from world import factions
 from world import doors
 from world import economy
 from world import languages
@@ -141,6 +142,16 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(building_menu.RomeBuildingCmdSet())
         self.add(worldcheck.CmdWorldCheck())
         self.add(FriendlyCmdMailCharacter())
+        self.add(factions.CmdFaction())
+        self.add(factions.CmdFactionLeader())
+        self.add(factions.CmdChannelKick())
+        self.add(factions.CmdMarch())
+        self.add(factions.CmdInterrogate())
+        self.add(factions.CmdCommune())
+        self.add(factions.CmdOath())
+        self.add(factions.CmdScry())
+        self.add(factions.CmdRequisition())
+        self.add(factions.CmdSafehouse())
 
 
 from world.character_creator import ContribChargenCmdSet
