@@ -633,9 +633,13 @@ _(Unchanged.)_
 - [x] **Loot drops** - see the entry above, built specifically for this zone.
 - [x] **Structural validation is real, not just eyeballed**: `world/batch_sewers_data.py`'s own standalone `validate()` (no Django needed) checks every exit target is a defined room, every room is reachable from all three grates via a real BFS, and no room accidentally has two exits in the same direction (would silently clobber one on live creation) - the exact class of bug `worldcheck` was built to catch in previous zones, checked here before a single database write.
 
-## 🏛️ Rome the city (500-room recreation — big, multi-phase project)
+## 🏛️ Rome the city (500-room recreation — big, multi-phase project) — STALE ENTRY, corrected below
 
-Not started. Still fully open - but see the note in the "Do this first" framing above: the Underworld expansion needed a human to manually catch three separate real bugs (a silently-no-op'd `@destroy`, invisible text, and a full duplicate network from re-running a batch file without cleanup) across roughly 30 rooms. That failure rate isn't something manual review scales to at 500+ rooms. The reusable connectivity/duplicate-check tool this note used to call for is now built - see `worldcheck` above - run it before/after the next big batch-build push, not just before Rome specifically.
+**This entry said "Not started" for a long time after that stopped being true** - a duplicate of the "Rome the city — first real world-building has started" section above that was never merged or removed once real building actually began there. Caught directly when asked to explain this entry and it didn't hold up against the game's actual current state. Real status: **407 rooms exist under this exact banner as of the Cloaca Maxima's completion** (Colosseum/Ludus, Forum Romanum, Capitoline Hill, the Subura, Trajan's Market, the Pantheon, the Baths, Palatine Hill, the housing district, the Cloaca Maxima) - roughly 81% of the original ~500-room estimate, not "not started."
+
+What's actually still missing, concretely, rather than "the whole city": of the traditional Seven Hills, only the Capitoline and Palatine are built - the **Aventine, Caelian, Esquiline, Viminal, and Quirinal** aren't. **Campus Martius** and **Trastevere** (across the Tiber) don't exist. The **Circus Maximus** is explicitly on hold (no chariot-racing mechanic exists anywhere in the codebase, confirmed by direct search). The **Theater of Marcellus** is referenced elsewhere as unbuilt. Any future "build more of Rome" work should pick one specific district from this list - the same validated-data-first, one-zone-at-a-time approach already proven across every district built so far - not be scoped as one undifferentiated 500-room push.
+
+The general connectivity/duplicate-check tooling concern this entry originally raised is resolved either way - `worldcheck` (see above) is built and has been run clean after every major zone since, including the sewers.
 
 ## 💰 Economy system — ✅ built this session, one major bug found and fixed
 

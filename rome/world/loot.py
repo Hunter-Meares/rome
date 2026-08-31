@@ -21,11 +21,21 @@ from world.combat import spawn_leveled_weapon, spawn_leveled_armor
 
 LOOT_DROP_CHANCE = 20  # percent, checked once per defeat
 
+# Deliberately NOT the plain DAGGER/BROADSWORD/LEATHERARMOR/etc.
+# prototypes - those are exactly what chargen hands multiple classes
+# for free, and the Ludus weaponsmith's SMITH_* stock already sells
+# the rest. A sewer drop needs to feel like a genuine find, not an
+# indistinguishable copy of something a player already owns or could
+# just buy - see the SEWER_LOOT_* prototypes in world/prototypes.py,
+# each with its own real identity and a tie back to a specific
+# tier/faction of the zone, even though they reuse the exact same
+# weapon_type_name/armor_category values (and therefore the exact
+# same balance) as everything else in the game.
 WEAPON_PROTOTYPES = [
-    "DAGGER", "BROADSWORD", "GREATSWORD", "GLADIUS", "SPEAR",
-    "TRIDENT", "JAVELIN", "SHORTBOW", "WARAXE", "RITUAL_STAFF",
+    "SEWER_LOOT_GLADIUS", "SEWER_LOOT_DAGGER", "SEWER_LOOT_SPEAR",
+    "SEWER_LOOT_WARAXE", "SEWER_LOOT_RITUAL_STAFF", "SEWER_LOOT_SHORTBOW",
 ]
-ARMOR_PROTOTYPES = ["LEATHERARMOR", "SCALEMAIL", "PLATEMAIL"]
+ARMOR_PROTOTYPES = ["SEWER_LOOT_LEATHER", "SEWER_LOOT_SCALE", "SEWER_LOOT_PLATE"]
 
 
 def roll_loot_drop(defeated, attacker=None):

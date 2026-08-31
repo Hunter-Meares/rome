@@ -2083,3 +2083,155 @@ SEWER_BOSS_DROWNED_SENTINEL = {
     "tags": [("sewer_npc", "npc_role"), ("sewer_boss", "npc_role")],
     "locks": "puppet:false()",
 }
+
+# ----------------------------------------------------------------------
+# CLOACA MAXIMA LOOT - genuinely distinct from both chargen's starting
+# gear and the Ludus weaponsmith's SMITH_* shop stock, per direct
+# request (a sewer drop shouldn't be indistinguishable from something
+# a player already owns for free or could just buy). Reuses the same
+# weapon_type_name/weapon_category/armor_category values the rest of
+# the game's math depends on - compute_weapon_stats/compute_armor_stats
+# (world/combat.py) key off those, not off the prototype's own name -
+# so balance stays perfectly consistent with everything else; only the
+# identity (key/desc) is new. Each is flavored to tie back to a
+# specific tier/faction of the zone it drops in, rather than being
+# generic reskins.
+# ----------------------------------------------------------------------
+
+SEWER_LOOT_GLADIUS = {
+    "prototype_parent": "BASEWEAPON",
+    "price": 25,
+    "damage_range": (10, 20),
+    "accuracy_bonus": -5,
+    "key": "a corroded gladius",
+    "desc": (
+        "Pitted with rust and stained by years in the flooded dark, but "
+        "the edge still bites - pried from a bandit who clearly isn't "
+        "using it anymore."
+    ),
+    "weapon_type_name": "gladius",
+    "weapon_category": "light_blade",
+    "two_handed": False,
+}
+
+SEWER_LOOT_DAGGER = {
+    "prototype_parent": "BASEWEAPON",
+    "price": 25,
+    "damage_range": (10, 20),
+    "accuracy_bonus": 30,
+    "key": "a smuggler's dagger",
+    "desc": (
+        "Balanced for close, fast work in cramped tunnels - exactly the "
+        "kind of blade someone moving contraband through flooded "
+        "passages would want close at hand."
+    ),
+    "weapon_type_name": "dagger",
+    "weapon_category": "light_blade",
+    "two_handed": False,
+}
+
+SEWER_LOOT_SPEAR = {
+    "prototype_parent": "BASEWEAPON",
+    "price": 25,
+    "damage_range": (12, 22),
+    "accuracy_bonus": 2,
+    "key": "a settlement guard's spear",
+    "desc": (
+        "Well-maintained despite its surroundings - whoever carried "
+        "this took real, disciplined pride in it, more than anything "
+        "else found down here suggests."
+    ),
+    "weapon_type_name": "spear",
+    "weapon_category": "polearm",
+    "two_handed": False,
+}
+
+SEWER_LOOT_WARAXE = {
+    "prototype_parent": "BASEWEAPON",
+    "price": 90,
+    "damage_range": (25, 45),
+    "accuracy_bonus": -10,
+    "key": "a bandit's notched waraxe",
+    "desc": (
+        "Heavy, brutal, and clearly used hard - the notches along its "
+        "edge tell their own story about exactly how this bandit spent "
+        "his time down here."
+    ),
+    "weapon_type_name": "waraxe",
+    "weapon_category": "heavy_weapon",
+    "two_handed": True,
+}
+
+SEWER_LOOT_RITUAL_STAFF = {
+    "prototype_parent": "BASEWEAPON",
+    "price": 45,
+    "damage_range": (6, 14),
+    "accuracy_bonus": 25,
+    "key": "a Hecate-blessed ritual staff",
+    "desc": (
+        "Carved with the same three-faced sigil scratched into the "
+        "cult's rite chamber walls - whoever carried this answered to "
+        "the Crossroads Queen directly."
+    ),
+    "weapon_type_name": "ritual staff",
+    "weapon_category": "staff",
+    "two_handed": True,
+}
+
+SEWER_LOOT_SHORTBOW = {
+    "prototype_parent": "BASEWEAPON",
+    "price": 25,
+    "damage_range": (8, 18),
+    "accuracy_bonus": 20,
+    "key": "a hunter's worn shortbow",
+    "desc": (
+        "The string's been replaced more than once, but the stave "
+        "itself has seen real, extensive use - whoever hunted with "
+        "this down here got good at it."
+    ),
+    "weapon_type_name": "shortbow",
+    "weapon_category": "ranged",
+    "two_handed": False,
+}
+
+SEWER_LOOT_LEATHER = {
+    "prototype_parent": "BASEARMOR",
+    "price": 30,
+    "damage_reduction": 2,
+    "defense_modifier": -2,
+    "armor_category": "light",
+    "key": "sewer-hardened leather",
+    "desc": (
+        "Treated, somehow, to actually hold up against the constant "
+        "damp - stiffer and heavier than ordinary leather, but it "
+        "clearly hasn't rotted through like it should have."
+    ),
+}
+
+SEWER_LOOT_SCALE = {
+    "prototype_parent": "BASEARMOR",
+    "price": 60,
+    "damage_reduction": 4,
+    "defense_modifier": -4,
+    "armor_category": "medium",
+    "key": "waterlogged scale mail",
+    "desc": (
+        "Genuinely functional despite years of standing water - some "
+        "of the scales have gone green, but none of them have actually "
+        "failed."
+    ),
+}
+
+SEWER_LOOT_PLATE = {
+    "prototype_parent": "BASEARMOR",
+    "price": 100,
+    "damage_reduction": 6,
+    "defense_modifier": -6,
+    "armor_category": "heavy",
+    "key": "a bandit's salvaged plate",
+    "desc": (
+        "Mismatched pieces, clearly scavenged from more than one "
+        "source and hammered into something wearable - ugly, but it "
+        "stops a blade exactly the same as anything prettier would."
+    ),
+}
