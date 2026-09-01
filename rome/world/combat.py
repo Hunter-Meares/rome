@@ -73,6 +73,21 @@ AUTO_ATTACK_DELAY = 5
 COMBAT_REGEN_PERCENT = 0.05
 NONCOMBAT_TURN_TIME = 30  # Time per turn count out of combat (for condition tickdown)
 
+# SP cost per room moved through, for real player characters only.
+# Applies everywhere (Option A, per direct request) rather than just
+# on the road/"journey" zones flagged as the safer default during
+# design - deliberately chosen despite the tedium risk on the game's
+# largest zones, so long-distance travel actually requires occasional
+# rest stops without needing every zone to carry a special tag. Gods
+# (db.level > 100, the same threshold used everywhere else in this
+# file) and dead characters (db.is_dead - see handle_player_defeat/
+# resurrect) are exempt; a dead character's SP is deliberately pinned
+# at 0 the whole time they're dead, so exempting them here is what
+# makes the Underworld still walkable rather than an accidental
+# softlock.
+MOVEMENT_SP_COST = 1
+MOVEMENT_SP_WARN_THRESHOLD = 0.25  # warn once when a move leaves SP at/below this fraction of max
+
 
 def cooldown_for_level(level_required):
     """
@@ -1111,21 +1126,34 @@ class CombatRules:
             defeated.db.hp = defeated.db.max_hp
             defeated.db.mp = defeated.db.max_mp
             defeated.db.sp = defeated.db.max_sp
+            defeated.db.sp_low_warned = False
 
             cells = ObjectDB.objects.get_id(settings.START_LOCATION)
             defeated.msg(
                 "|mDarkness takes you... but the gods are not yet done with you.|n"
             )
             if cells:
-                defeated.move_to(cells, quiet=False)
+                defeated.move_to(cells, quiet=False, move_type="teleport")
                 defeated.msg(
                     "You awaken in the holding cells beneath the Colosseum, alive once more."
                 )
             return
 
-        # Level 6+: real death. Stats stay at 0 - nothing to restore
-        # until they actually make it back.
+        # Level 6+: real death. HP/MP/SP are all explicitly pinned at
+        # 0 - not just left wherever they happened to land from the
+        # killing blow - and stay there until resurrect() restores
+        # them. This is what makes a dead character unable to cast a
+        # spell or use a skill (both already separately blocked by
+        # their own is_dead checks in CmdCast/CmdUseSkill, but zeroing
+        # the resources here means that's true by construction, not
+        # only because every future spell/skill command remembers its
+        # own guard) while still leaving them able to move around the
+        # Underworld for free (see _check_and_pay_movement_sp's is_dead
+        # exemption).
         defeated.db.is_dead = True
+        defeated.db.hp = 0
+        defeated.db.mp = 0
+        defeated.db.sp = 0
         defeated.db.xp = (defeated.db.xp or 0) // 2
 
         defeated.msg(
@@ -1141,7 +1169,9 @@ class CombatRules:
             # force_move: see CombatCharacter.at_pre_move - this move
             # deliberately happens while hp is still 0, so the normal
             # "can't move while defeated" block must be bypassed here.
-            defeated.move_to(underworld_entrance[0], quiet=False, force_move=True)
+            defeated.move_to(
+                underworld_entrance[0], quiet=False, force_move=True, move_type="teleport"
+            )
             defeated.msg(
                 "You find yourself on the far shore of a dark river, the world of "
                 "the living somewhere behind you now. There is no boat yet - you'll "
@@ -1162,9 +1192,10 @@ class CombatRules:
             defeated.db.hp = defeated.db.max_hp
             defeated.db.mp = defeated.db.max_mp
             defeated.db.sp = defeated.db.max_sp
+            defeated.db.sp_low_warned = False
             cells = ObjectDB.objects.get_id(settings.START_LOCATION)
             if cells:
-                defeated.move_to(cells, quiet=False)
+                defeated.move_to(cells, quiet=False, move_type="teleport")
 
     def send_to_underworld(self, character):
         """
@@ -1178,7 +1209,7 @@ class CombatRules:
         character.db.is_dead = True
         underworld_entrance = search_tag("underworld_entrance", category="underworld")
         if underworld_entrance:
-            character.move_to(underworld_entrance[0], quiet=False)
+            character.move_to(underworld_entrance[0], quiet=False, move_type="teleport")
 
     def resurrect(self, character):
         """
@@ -1209,6 +1240,7 @@ class CombatRules:
         character.db.hp = character.db.max_hp
         character.db.mp = character.db.max_mp
         character.db.sp = character.db.max_sp
+        character.db.sp_low_warned = False
 
         level = character.db.level or 1
         destination = None
@@ -1229,7 +1261,7 @@ class CombatRules:
             )
 
         if destination:
-            character.move_to(destination, quiet=False)
+            character.move_to(destination, quiet=False, move_type="teleport")
         character.msg(arrival_msg)
         return True
 
@@ -2185,7 +2217,7 @@ class CombatRules:
             "%s vanishes in a shimmer of divine light!" % caster, exclude=caster
         )
         caster.db.mp -= cost
-        caster.move_to(rooms[0], quiet=False)
+        caster.move_to(rooms[0], quiet=False, move_type="teleport")
         caster.msg("You step through a gate of light and arrive elsewhere.")
 
     def spell_scry(self, caster, spell_name, targets, cost, **kwargs):
@@ -4863,6 +4895,50 @@ class CombatCharacter(ContribRPCharacter):
         if self.db.resting:
             self.msg("You're resting. Type 'stand' first if you want to move.")
             return False
+        if not self._check_and_pay_movement_sp(move_type):
+            return False
+        return True
+
+    def _check_and_pay_movement_sp(self, move_type):
+        """
+        Deducts MOVEMENT_SP_COST for an ordinary player move, blocking
+        the move outright if there isn't enough SP left to pay for it -
+        see MOVEMENT_SP_COST's own comment for the full reasoning.
+
+        Exempt, in order: anything that isn't a real typed exit
+        traversal (move_type != "move" - NPC wandering uses "wander",
+        teleports use "teleport", so both already fall outside this
+        for free), anything without a real account behind it (a bare
+        NPC safety net, belt-and-suspenders alongside the move_type
+        check above), gods (db.level > 100), and dead characters
+        (db.is_dead - SP is deliberately pinned at 0 the whole time
+        they're dead, so charging them here would make the Underworld
+        unwalkable).
+        """
+        if move_type != "move":
+            return True
+        if self.account is None:
+            return True
+        if (self.db.level or 0) > 100:
+            return True
+        if self.db.is_dead:
+            return True
+
+        current_sp = self.db.sp or 0
+        if current_sp < MOVEMENT_SP_COST:
+            self.msg("You're too exhausted to go on - rest here first.")
+            return False
+
+        new_sp = current_sp - MOVEMENT_SP_COST
+        self.db.sp = new_sp
+
+        max_sp = self.db.max_sp or 1
+        if new_sp <= max_sp * MOVEMENT_SP_WARN_THRESHOLD and not self.db.sp_low_warned:
+            self.msg("|yYou're growing tired.|n")
+            self.db.sp_low_warned = True
+        elif new_sp > max_sp * MOVEMENT_SP_WARN_THRESHOLD:
+            self.db.sp_low_warned = False
+
         return True
 
     # Tunables for the resting/regen system - percentage of max
@@ -5844,6 +5920,9 @@ class CmdRest(Command):
 
     def func(self):
         caller = self.caller
+        if caller.db.is_dead:
+            caller.msg("The dead have no strength left to recover - only returning to life will restore you.")
+            return
         if self.rules.is_in_combat(caller):
             caller.msg("You can't rest while you're in combat.")
             return

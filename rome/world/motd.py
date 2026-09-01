@@ -23,9 +23,9 @@ RECENT_UPDATES_DATE = "2026-09-01"
 
 RECENT_UPDATES_TEXT = (
     "Rome just got much bigger: the Bibliotheca Ulpia, the buried Domus\n"
-    "Aurea, the Aventine Hill, and now Campus Martius - the Ara Pacis,\n"
-    "the Saepta Julia, the Temple of Isis, and the Mausoleum of Augustus.\n"
-    "The road from Via Triumphalis to the Pantheon is a real journey now."
+    "Aurea, the Aventine Hill, and Campus Martius are all open now.\n"
+    "Also new: movement costs SP, so long journeys may need a rest stop\n"
+    "along the way. See 'help sp' for the details."
 )
 
 

@@ -120,7 +120,7 @@ class CharonTimer(DefaultScript):
                 # it, this move silently fails right after the
                 # narration above claims it already happened.
                 carried_across = character.move_to(
-                    ferry_exit.destination, quiet=False, force_move=True
+                    ferry_exit.destination, quiet=False, force_move=True, move_type="teleport"
                 )
 
         # Only shown as a fallback (no ferry exit found in the room,

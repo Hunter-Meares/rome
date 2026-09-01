@@ -90,6 +90,30 @@ class TestHandlePlayerDefeatHighLevel(UnderworldTestBase):
             any(isinstance(s, CharonTimer) for s in self.char1.scripts.all())
         )
 
+    def test_high_level_defeat_zeroes_hp_mp_sp_explicitly(self):
+        """
+        A real death pins HP/MP/SP all at 0, not just whatever they
+        happened to be at the killing blow - this is what makes a dead
+        character unable to cast a spell or use a skill (both already
+        separately guarded by their own is_dead checks) true by
+        construction, and what corestats should honestly display while
+        dead, rather than leftover nonzero MP/SP.
+        """
+        self._tag_underworld_entrance()
+
+        self.char1.db.level = 10
+        self.char1.db.hp = 0
+        self.char1.db.max_mp = 20
+        self.char1.db.mp = 15
+        self.char1.db.max_sp = 30
+        self.char1.db.sp = 25
+
+        COMBAT_RULES.handle_player_defeat(self.char1, attacker=self.char2)
+
+        self.assertEqual(self.char1.db.hp, 0)
+        self.assertEqual(self.char1.db.mp, 0)
+        self.assertEqual(self.char1.db.sp, 0)
+
     def test_high_level_defeat_boundary_at_exactly_level_6(self):
         self._tag_underworld_entrance()
         self.char1.db.level = 6
@@ -192,6 +216,9 @@ class TestResurrectAndSendToUnderworld(UnderworldTestBase):
         self.char1.db.hp = 0
         self.char1.db.max_mp = 20
         self.char1.db.mp = 0
+        self.char1.db.max_sp = 30
+        self.char1.db.sp = 0
+        self.char1.db.sp_low_warned = True
 
         result = COMBAT_RULES.resurrect(self.char1)
 
@@ -199,6 +226,8 @@ class TestResurrectAndSendToUnderworld(UnderworldTestBase):
         self.assertFalse(self.char1.db.is_dead)
         self.assertEqual(self.char1.db.hp, self.char1.db.max_hp)
         self.assertEqual(self.char1.db.mp, self.char1.db.max_mp)
+        self.assertEqual(self.char1.db.sp, self.char1.db.max_sp)
+        self.assertFalse(self.char1.db.sp_low_warned)
         self.assertEqual(self.char1.location, cells)
 
     def test_send_to_underworld_sets_is_dead_and_moves_if_entrance_tagged(self):

@@ -36,9 +36,12 @@ from world.combat import (
     CmdCoreStats,
     CmdLearn,
     CmdTrainer,
+    CmdRest,
     POWERATTACK_SP_COST,
     DISENGAGE_SUCCESS_CHANCE,
     AUTO_ATTACK_DELAY,
+    MOVEMENT_SP_COST,
+    MOVEMENT_SP_WARN_THRESHOLD,
 )
 from evennia.contrib.game_systems.mail import CmdMailCharacter
 
@@ -689,3 +692,101 @@ class TestCooldowns(CombatCommandTestBase):
         self.char1.db.sp = 20
         result = self.call(CmdUseSkill(), "shield wall", caller=self.char1)
         self.assertIn("recovering", result)
+
+
+class TestCmdRestBlockedWhileDead(CombatCommandTestBase):
+    """
+    A dead character's HP/MP/SP are deliberately pinned at 0 the whole
+    time they're dead (see handle_player_defeat) - resting must not be
+    able to creep them back up before an actual resurrection, or "stats
+    stay at 0 until you make it back" stops being true.
+    """
+
+    def test_rest_refused_while_dead(self):
+        self.char1.db.is_dead = True
+        self.char1.db.hp = 0
+        self.char1.db.mp = 0
+        self.char1.db.sp = 0
+
+        result = self.call(CmdRest(), "", caller=self.char1)
+
+        self.assertIn("only returning to life", result)
+        self.assertFalse(self.char1.db.resting)
+
+    def test_rest_works_normally_once_alive(self):
+        self.char1.db.is_dead = False
+        self.char1.db.hp = 50
+        result = self.call(CmdRest(), "", caller=self.char1)
+        self.assertIn("settles in to rest", result)
+        self.assertTrue(self.char1.db.resting)
+
+
+class TestMovementSPCost(CombatCommandTestBase):
+    """
+    at_pre_move's movement-SP gate (world/combat.py) - MOVEMENT_SP_COST
+    per ordinary player move, blocked outright if there isn't enough
+    SP left, with gods/dead characters/non-"move" move_types (NPC
+    wander, teleports) exempt. Called directly against at_pre_move
+    rather than through a real Exit object - the hook only needs a
+    destination and a move_type, so no exit wiring is needed to
+    exercise it.
+    """
+
+    def test_ordinary_move_deducts_the_cost(self):
+        self.char1.db.sp = 10
+        allowed = self.char1.at_pre_move(self.room2, move_type="move")
+        self.assertTrue(allowed)
+        self.assertEqual(self.char1.db.sp, 10 - MOVEMENT_SP_COST)
+
+    def test_move_blocked_when_sp_below_cost(self):
+        self.char1.db.sp = 0
+        allowed = self.char1.at_pre_move(self.room2, move_type="move")
+        self.assertFalse(allowed)
+        self.assertEqual(self.char1.db.sp, 0)
+
+    def test_god_tier_exempt_from_cost(self):
+        self.char1.db.level = 101
+        self.char1.db.sp = 0
+        allowed = self.char1.at_pre_move(self.room2, move_type="move")
+        self.assertTrue(allowed)
+        self.assertEqual(self.char1.db.sp, 0)
+
+    def test_dead_character_exempt_from_cost(self):
+        self.char1.db.is_dead = True
+        self.char1.db.sp = 0
+        allowed = self.char1.at_pre_move(self.room2, move_type="move")
+        self.assertTrue(allowed)
+        self.assertEqual(self.char1.db.sp, 0)
+
+    def test_non_move_move_types_are_exempt(self):
+        """NPC wandering ("wander") and teleports ("teleport") never pay this cost."""
+        self.char1.db.sp = 0
+        self.assertTrue(self.char1.at_pre_move(self.room2, move_type="wander"))
+        self.assertTrue(self.char1.at_pre_move(self.room2, move_type="teleport"))
+        self.assertEqual(self.char1.db.sp, 0)
+
+    def test_accountless_object_exempt_as_npc_safety_net(self):
+        npc = create.create_object(
+            "typeclasses.characters.Character", key="a test npc", location=self.room1
+        )
+        npc.db.sp = 0
+        npc.db.is_dead = False
+        npc.db.level = 1
+        self.assertIsNone(npc.account)
+        allowed = npc.at_pre_move(self.room2, move_type="move")
+        self.assertTrue(allowed)
+
+    def test_low_sp_warning_fires_once_then_resets_above_threshold(self):
+        self.char1.db.max_sp = 10
+        self.char1.db.sp = MOVEMENT_SP_COST + int(10 * MOVEMENT_SP_WARN_THRESHOLD)
+        self.char1.db.sp_low_warned = False
+
+        # This move should land exactly at/below the warn threshold.
+        self.char1.at_pre_move(self.room2, move_type="move")
+        self.assertTrue(self.char1.db.sp_low_warned)
+
+        # Restoring SP well above the threshold should clear the flag
+        # so a future dip can warn again.
+        self.char1.db.sp = 10
+        self.char1.at_pre_move(self.room2, move_type="move")
+        self.assertFalse(self.char1.db.sp_low_warned)

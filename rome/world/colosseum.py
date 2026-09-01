@@ -359,7 +359,7 @@ class CmdSneak(Command):
             )
             dest = search_tag("colosseum_maintenance_tunnel", category="colosseum")
             if dest:
-                caller.move_to(dest[0], quiet=True)
+                caller.move_to(dest[0], quiet=True, move_type="teleport")
         else:
             caller.msg(
                 "|rThe guard stirs - you freeze, heart pounding, but he settles "
@@ -404,7 +404,7 @@ class CmdSolve(Command):
             caller.db.colosseum_escaped = True
             dest = search_tag("colosseum_hidden_stairwell", category="colosseum")
             if dest:
-                caller.move_to(dest[0], quiet=True)
+                caller.move_to(dest[0], quiet=True, move_type="teleport")
         else:
             caller.msg("|rThe inscription remains dark and silent. That is not the answer.|n")
 
@@ -445,7 +445,7 @@ class CmdRecall(Command):
             "|cYou close your eyes. The roar of a distant crowd rises around you, "
             "and the world shifts.|n"
         )
-        caller.move_to(dest[0], quiet=True)
+        caller.move_to(dest[0], quiet=True, move_type="teleport")
 
 
 #########################################################

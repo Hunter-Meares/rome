@@ -78,7 +78,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "groupcombat", "gold", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
     )
 
@@ -196,6 +196,36 @@ def create_all_help_entries():
             "20 normally, or 22 if that stat is already your race's "
             "established specialty (check 'help <race>' for your own "
             "leans)."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Stamina Points (SP) ---
+    HelpEntry.objects.create(
+        db_key="sp",
+        db_help_category="Stats",
+        db_entrytext=(
+            "|wStamina Points (SP)|n\n\n"
+            "SP fuels combat skills (see 'help useskill') - most skills "
+            "cost somewhere between a handful and a couple dozen SP to "
+            "use, shown on each skill's own help entry.\n\n"
+            "|wSP also fuels movement itself.|n Every step you take through "
+            "an exit costs 1 SP, on top of anything you spend on skills. "
+            "This applies everywhere, not just in combat or on especially "
+            "long roads - a short walk barely dents your pool, but "
+            "crossing real distance across the city adds up. If you run "
+            "out mid-journey, you won't be able to keep moving until you "
+            "recover some back.\n\n"
+            "Resting ('help rest') restores HP, MP, and SP together over "
+            "time - if a long trip runs you dry, resting partway through "
+            "is the normal way to finish it. Your current SP is always "
+            "visible with 'stats'. SP grows automatically as you level, "
+            "and you can put a stat point toward more of it directly - "
+            "see 'help statup'.\n\n"
+            "Gods and the dead are exempt from the movement cost - a god "
+            "isn't bound by mortal limits, and the dead have no strength "
+            "to spend in the first place (their HP/MP/SP all stay at 0 "
+            "until they return to life, but they can still move freely)."
         ),
         db_lock_storage="view:all()",
     )
