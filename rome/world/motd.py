@@ -22,10 +22,10 @@ from commands.command import Command
 RECENT_UPDATES_DATE = "2026-09-01"
 
 RECENT_UPDATES_TEXT = (
-    "Three new areas are open: the Bibliotheca Ulpia (Rome's twin\n"
-    "libraries), the buried Domus Aurea off the Meta Sudans, and now\n"
-    "the Aventine Hill off the Palatine - the old plebeian district,\n"
-    "the river port, and the strange hill built of broken pottery."
+    "Rome just got much bigger: the Bibliotheca Ulpia, the buried Domus\n"
+    "Aurea, the Aventine Hill, and now Campus Martius - the Ara Pacis,\n"
+    "the Saepta Julia, the Temple of Isis, and the Mausoleum of Augustus.\n"
+    "The road from Via Triumphalis to the Pantheon is a real journey now."
 )
 
 
