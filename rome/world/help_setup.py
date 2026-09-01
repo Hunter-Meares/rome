@@ -78,7 +78,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
     )
 
@@ -295,6 +295,34 @@ def create_all_help_entries():
             "an item's normal value, a genuine used-goods price rather "
             "than what it originally cost new.\n\n"
             "See 'help shop' for the actual command."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Bounty board ---
+    HelpEntry.objects.create(
+        db_key="bounty",
+        db_help_category="General",
+        db_entrytext=(
+            "|wThe Bounty Board|n\n\n"
+            "A real, physical board near the Forum's Rostra - the same "
+            "spot Romans actually posted public notices. It offers "
+            "repeatable jobs: hunt down a specific number of a specific "
+            "kind of hostile in the Cloaca Maxima, then report back for "
+            "a real reward on top of whatever you'd already earn from "
+            "the kills themselves.\n\n"
+            "|wUsage (while standing at the board):|n\n"
+            "  bounty            - check your current bounty, or how to get one\n"
+            "  bounty accept     - take a fresh bounty, matched to your own level\n"
+            "  bounty turnin     - collect your reward once you've finished\n"
+            "  bounty abandon    - give up your current bounty, no penalty\n\n"
+            "One bounty at a time. Finishing the kill count doesn't pay "
+            "out by itself - you have to actually come back and turn it "
+            "in. Your bounty is personal to you; a friend fighting "
+            "alongside you can be working their own, completely "
+            "different bounty off the exact same fight, and a real "
+            "party also earns a separate bonus on the fight's own "
+            "combat XP for grouping up - see 'help groupcombat'."
         ),
         db_lock_storage="view:all()",
     )

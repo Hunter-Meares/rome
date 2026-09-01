@@ -974,6 +974,13 @@ class CombatRules:
             from world.loot import roll_loot_drop
             roll_loot_drop(defeated, attacker=attacker)
 
+        # --- Bounty progress (world/bounties.py) - checks the same
+        # damage_log population as the XP/gold split above against
+        # every contributor's own active bounty, if any.
+        if defeated.db.xp_reward:
+            from world.bounties import credit_bounty_progress
+            credit_bounty_progress(defeated)
+
         # --- PvP XP reward: defeating another real player now earns
         # XP too, split the same fair, proportional-damage way as an
         # NPC kill. Gated on `.account` (a real, persistent account

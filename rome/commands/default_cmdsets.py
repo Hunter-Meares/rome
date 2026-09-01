@@ -28,6 +28,7 @@ from world import languages
 from world import building_menu
 from world import motd
 from world import worldcheck
+from world import bounties
 from evennia.contrib.utils.debugpy import CmdDebugPy
 from evennia.contrib.grid.ingame_map_display import MapDisplayCmdSet
 from evennia.contrib.grid.ingame_map_display.ingame_map_display import CmdMap
@@ -154,6 +155,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(factions.CmdRequisition())
         self.add(factions.CmdSafehouse())
         self.add(leveling.CmdStatUp())
+        self.add(bounties.CmdBounty())
 
 
 from world.character_creator import ContribChargenCmdSet
