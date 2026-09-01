@@ -22,10 +22,10 @@ from commands.command import Command
 RECENT_UPDATES_DATE = "2026-09-01"
 
 RECENT_UPDATES_TEXT = (
-    "The Bibliotheca Ulpia is open - Rome's twin Latin/Greek libraries,\n"
-    "reached from Trajan's Market's rooftop terrace. Explore the reading\n"
-    "rooms, the Restricted Archive, and Trajan's Column itself. More of\n"
-    "the city is coming - the Aventine, the Domus Aurea, and beyond."
+    "Two new areas are open: the Bibliotheca Ulpia (Rome's twin Latin/\n"
+    "Greek libraries, off Trajan's Market's rooftop terrace) and the\n"
+    "buried Domus Aurea, Nero's own Golden House, off the Meta Sudans\n"
+    "south of the Colosseum. More of the city is still coming."
 )
 
 
