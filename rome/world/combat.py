@@ -112,6 +112,25 @@ def cooldown_for_level(level_required):
         return 2
     return 0
 
+
+def iter_damage_contributors(damage_log):
+    """
+    Yields every real, still-valid contributor in a damage_log dict -
+    shared by anything that needs to check a defeated NPC's damage_log
+    against per-character state (the XP/gold split above, world/
+    bounties.py's credit_bounty_progress, world/quests.py's kill-step
+    crediting). Not a big abstraction, just the one bit of boilerplate
+    all three would otherwise duplicate: skipping a contributor that
+    resolves to literal None or has no pk (see gotcha #2 in CLAUDE.md -
+    a deleted object's reference, reloaded from a persisted attribute,
+    is None, not an object with pk=None).
+    """
+    for contributor in damage_log:
+        if contributor is None or not contributor.pk:
+            continue
+        yield contributor
+
+
 # A room tagged (this key, this category) is a hard no-combat zone - no
 # fight can be started there at all, PvP or otherwise. Currently applied
 # to every room in the Underworld (see world/underworld.py's setup
@@ -981,6 +1000,14 @@ class CombatRules:
             from world.bounties import credit_bounty_progress
             credit_bounty_progress(defeated)
 
+        # --- Quest "kill" step progress (world/quests.py) - only
+        # fires for a personal-instance NPC explicitly stamped with
+        # db.quest_key by start_quest, harmless no-op for everything
+        # else (checked first, cheaper than the xp_reward gate above).
+        if defeated.db.quest_key:
+            from world.quests import credit_quest_kill
+            credit_quest_kill(defeated)
+
         # --- PvP XP reward: defeating another real player now earns
         # XP too, split the same fair, proportional-damage way as an
         # NPC kill. Gated on `.account` (a real, persistent account
@@ -1001,7 +1028,25 @@ class CombatRules:
         # can never double-pay an NPC kill. Deliberately XP only, not
         # gold, unlike NPC kills - not asked for, a trivial addition
         # later if wanted.
-        elif getattr(defeated, "account", None):
+        #
+        # Explicit `not defeated.db.xp_reward` guard rather than an
+        # `elif` chained to the XP-award `if` above - a real bug,
+        # found and fixed the same day it was introduced: the loot/
+        # bounty/quest hooks between here and the XP-award block are
+        # each their own separate `if`, so an `elif` here silently
+        # binds to whichever one of THOSE happens to sit immediately
+        # above it in the source (Python doesn't look further back
+        # than the nearest preceding if/elif). It stayed harmless as
+        # long as every intervening `if` shared the exact same
+        # `defeated.db.xp_reward` condition (loot, bounty), but broke
+        # the instant one with a genuinely different condition
+        # (quest's `defeated.db.quest_key`) landed in between,
+        # producing a real double-pay caught by
+        # TestPvPXpReward.test_never_double_pays_when_defeated_has_a_
+        # real_xp_reward. An explicit, self-contained condition can't
+        # silently break this way again regardless of what gets
+        # inserted above it in the future.
+        if not defeated.db.xp_reward and getattr(defeated, "account", None):
             defeated_level = defeated.db.level or 1
             pvp_pool = max(1, round(PVP_XP_REWARD_PERCENT * self.xp_for_level(defeated_level)))
             damage_log = defeated.db.damage_log or {}
@@ -5039,6 +5084,9 @@ class CombatCharacter(ContribRPCharacter):
             log_room_visit(self)
         from world.factions import record_room_visit
         record_room_visit(self)
+        if self.db.quest_log:
+            from world.quests import check_quest_visit
+            check_quest_visit(self)
 
     def at_post_puppet(self, **kwargs):
         """

@@ -156,14 +156,10 @@ def credit_bounty_progress(defeated):
     splits ordinary combat XP/gold fairly on a group kill - crediting
     1 point of progress to anyone with a matching active bounty.
     """
-    damage_log = defeated.db.damage_log or {}
-    for contributor in damage_log:
-        # See gotcha #2 in CLAUDE.md: a deleted object's reference,
-        # reloaded from a persisted attribute, resolves to literal
-        # None - not an object with pk=None.
-        if contributor is None or not contributor.pk:
-            continue
+    from world.combat import iter_damage_contributors
 
+    damage_log = defeated.db.damage_log or {}
+    for contributor in iter_damage_contributors(damage_log):
         bounty = contributor.db.active_bounty
         if not bounty or bounty.get("target_key") != defeated.key:
             continue

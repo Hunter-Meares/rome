@@ -78,7 +78,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
     )
 
@@ -323,6 +323,32 @@ def create_all_help_entries():
             "different bounty off the exact same fight, and a real "
             "party also earns a separate bonus on the fight's own "
             "combat XP for grouping up - see 'help groupcombat'."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Quests ---
+    HelpEntry.objects.create(
+        db_key="quest",
+        db_help_category="General",
+        db_entrytext=(
+            "|wQuests|n\n\n"
+            "One-time, narrative objectives from specific NPCs - unlike "
+            "the bounty board, a quest doesn't repeat once you've "
+            "finished it, and it usually has a real story behind it "
+            "rather than just a kill count.\n\n"
+            "|wUsage:|n\n"
+            "  quest             - interact with a quest-giver standing "
+            "here, or (with none present) review your own quest log\n"
+            "  quest <npc>       - be explicit, if a room ever has more "
+            "than one quest-giver\n\n"
+            "Standing near a quest-giver with nothing started yet offers "
+            "their quest; checking back while it's in progress reminds "
+            "you what they're waiting on; checking back once you've "
+            "actually finished it pays out your reward. Nothing here "
+            "auto-completes just because you happened to finish the "
+            "objective somewhere else - you still have to go report "
+            "back in person."
         ),
         db_lock_storage="view:all()",
     )

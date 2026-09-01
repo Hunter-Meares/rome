@@ -821,6 +821,25 @@ COLOSSEUM_HERALD = {
     "locks": "puppet:false()",
 }
 
+QUEST_CORRUPT_SCRIBE = {
+    "key": "a nervous ballot-scribe",
+    "aliases": ["scribe"],
+    "typeclass": "world.combat.HostileNPC",
+    "desc": (
+        "A scribe who startles at every sound, a stack of visibly "
+        "tampered vote tallies half-hidden under a bolt of cloth. "
+        "Whatever he's been paid to falsify, he's clearly not cut out "
+        "for what happens if he's actually caught doing it - see "
+        "world/quests.py, the 'corrupt_official' quest's personal-"
+        "instance spawn, not a persistent world NPC."
+    ),
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 3,
+    "xp_reward": 40,
+    "locks": "puppet:false()",
+}
+
 ARENA_TRAINER = {
     "key": "Rutilus the Trainer",
     "aliases": ["trainer", "rutilus"],
