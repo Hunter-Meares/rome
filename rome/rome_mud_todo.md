@@ -6,6 +6,14 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## 📋 Expand the bounty/quest content - requested, not yet started
+
+Both systems (see the two entries below) shipped with the minimum viable content to prove them out - 1 tier ladder of 16 sewer targets for bounties, exactly 2 starter quests. Direct request to grow this over time rather than leave it at launch size:
+- [ ] **More bounties**: additional `BOUNTY_TIERS` targets once more zones exist to draw from (Colosseum/Deeper Sands were deliberately excluded from v1 as "consensual training, not wanted-criminal fare" - worth revisiting if a real in-fiction reason for arena bounties ever comes up, e.g. betting-ring wanted posters rather than a civic board).
+- [ ] **More quests**: `world/quests.py`'s `QUESTS` dict is built to take more entries with zero framework changes for anything that's a single "kill" or "visit" objective. Good candidates already flagged elsewhere in this file: the housing district's Aurelia rivalry and Fabricia's missing son (real hooks with no mechanical payoff yet), any of the god-tier NPCs, or a quest tied to one of the newer Campus Martius/Aventine locations. A genuine multi-step quest (the data model already anticipates this, see `world/quests.py`'s own docstring) would be a good next real extension of the framework itself, not just more content using what's there.
+
+---
+
 ## 📋 Bounty board is built - ✅ this session, first of two requested systems (bounties, then quests)
 
 - [x] **Design discussed and confirmed before any code was written**, per direct request: kill-only for v1 (no fetch/item objectives - no clean item pool exists yet), a personal/parallel board (no shared contention, no claim/expiry logic needed) explicitly chosen with the follow-up requirement that party kills be handled correctly, a real physical board object rather than a from-anywhere command, and gold/XP/item rewards only (no new earned-titles system bolted on).
