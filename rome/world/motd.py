@@ -19,13 +19,13 @@ from evennia import CmdSet
 
 from commands.command import Command
 
-RECENT_UPDATES_DATE = "2026-08-31"
+RECENT_UPDATES_DATE = "2026-09-01"
 
 RECENT_UPDATES_TEXT = (
-    "The Cloaca Maxima is open - a real leveling zone beneath the city,\n"
-    "reached through sewer grates near the Ludus, the Subura, and the Forum.\n"
-    "Stats now grow past chargen too: every 3rd level, use 'statup' to spend\n"
-    "a point. Try 'help statup' and 'help factions' if you missed either."
+    "The Bibliotheca Ulpia is open - Rome's twin Latin/Greek libraries,\n"
+    "reached from Trajan's Market's rooftop terrace. Explore the reading\n"
+    "rooms, the Restricted Archive, and Trajan's Column itself. More of\n"
+    "the city is coming - the Aventine, the Domus Aurea, and beyond."
 )
 
 
