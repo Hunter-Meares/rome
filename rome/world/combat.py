@@ -315,6 +315,16 @@ GOLD_PER_XP_DIVISOR = 3
 # rate this project's own NPCs already use.
 PVP_XP_REWARD_PERCENT = 0.06
 
+# Bonus applied to the whole XP pool (before the existing proportional
+# damage-share split) when at least 2 of a kill's real contributors
+# belong to the same actual party - not just "multiple different
+# people happened to hit it," which could be two unrelated solo
+# players. A real incentive to group up, on top of (not instead of)
+# the already-fair per-contributor split. Deliberately XP only, not
+# gold, and not applied to the separate PvP XP path - not asked for,
+# a trivial addition later if wanted.
+PARTY_XP_BONUS_PERCENT = 0.20
+
 LEVEL_XP_BASE = 20
 LEVEL_XP_EXPONENT = 1.9
 MAX_LEVEL = 100  # 101 ("God") is assigned manually, never earned via XP
@@ -938,6 +948,9 @@ class CombatRules:
             damage_log = defeated.db.damage_log or {}
             total_damage = sum(damage_log.values())
             if total_damage > 0:
+                xp_pool = defeated.db.xp_reward
+                if self._is_party_kill(damage_log):
+                    xp_pool = int(round(xp_pool * (1 + PARTY_XP_BONUS_PERCENT)))
                 for contributor, dealt in damage_log.items():
                     # See gotcha #2 in CLAUDE.md: a deleted object's
                     # reference, reloaded from a persisted attribute
@@ -947,7 +960,7 @@ class CombatRules:
                     # applied in CombatTurnHandler.next_turn().
                     if contributor is None or not contributor.pk:
                         continue
-                    share = int(round(defeated.db.xp_reward * (dealt / total_damage)))
+                    share = int(round(xp_pool * (dealt / total_damage)))
                     if share > 0:
                         self.award_xp(contributor, share)
             elif attacker:
@@ -2697,6 +2710,24 @@ class CombatRules:
     def xp_for_level(self, level):
         """XP required to advance FROM this level to the next one."""
         return int(LEVEL_XP_BASE * (level ** LEVEL_XP_EXPONENT))
+
+    def _is_party_kill(self, damage_log):
+        """
+        True if at least 2 distinct contributors in damage_log belong
+        to the same real party (share a party_leader, per
+        world.party.get_party_members's own convention - a party of
+        one just uses itself as its own leader). Two unrelated solo
+        players who both happened to hit the same NPC don't share a
+        leader, so this correctly returns False for that case - this
+        is specifically about an actual party, not "multiple people."
+        """
+        groups = {}
+        for contributor in damage_log:
+            if contributor is None or not contributor.pk:
+                continue
+            leader = contributor.db.party_leader or contributor
+            groups.setdefault(leader, set()).add(contributor)
+        return any(len(members) >= 2 for members in groups.values())
 
     def award_xp(self, character, amount):
         """
@@ -5838,6 +5869,7 @@ class CmdDisengage(Command):
 
     Usage:
       disengage
+      flee
 
     Ends your turn and attempts to break away from the fight. Success
     isn't guaranteed - if you fail, you're still in the fight and will
@@ -5845,7 +5877,7 @@ class CmdDisengage(Command):
     """
 
     key = "disengage"
-    aliases = ["spare"]
+    aliases = ["spare", "flee"]
     help_category = "combat"
     rules = COMBAT_RULES
 

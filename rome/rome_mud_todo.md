@@ -6,6 +6,13 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## 🎁 Two small requested fixes ahead of the bounties/quests build — ✅ this session
+
+- [x] **`flee` added as an alias for `disengage`** (`world/combat.py`) - same command, same 55% success chance, just the word a player is more likely to actually type in a fight.
+- [x] **Party kills now earn bonus XP.** A real party (checked by shared `party_leader`, not just "two different people happened to hit the same NPC") gets a 20% (`PARTY_XP_BONUS_PERCENT`) bonus to the whole XP pool before the existing proportional damage-share split - a genuine incentive to group up on top of (not instead of) the already-fair split. Deliberately XP only, not gold, and not applied to the separate PvP XP path. `help groupcombat` updated to mention it.
+
+---
+
 ## 🏛️ Bibliotheca Ulpia (Library of Rome) is built - 16 rooms off Trajan's Market Rooftop Terrace — ✅ this session, first zone under the new geographic-accuracy standard
 
 First piece of a larger 5-location Rome expansion the user proposed (Aventine Hill, Domus Aurea, Mausoleum of Augustus, this Library, and a new Campus Martius district). Built first because it had the cleanest already-identified anchor and needed no retrofit work, per the agreed build-one-zone-at-a-time approach.

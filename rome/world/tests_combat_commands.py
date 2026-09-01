@@ -297,6 +297,10 @@ class TestCmdDisengage(CombatCommandTestBase):
         self.assertIn(self.char1, handler.db.fighters)
         self.assertTrue(COMBAT_RULES.is_in_combat(self.char1))
 
+    def test_flee_is_a_real_alias(self):
+        """'flee' should resolve to the exact same command as 'disengage'."""
+        self.assertIn("flee", CmdDisengage.aliases)
+
 
 class TestCmdChallenge(CombatCommandTestBase):
     def test_no_trainer_here_rejects(self):

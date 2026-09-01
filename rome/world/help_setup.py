@@ -258,7 +258,11 @@ def create_all_help_entries():
             "  - Area-of-effect spells and skills (and the 'enemies' "
             "target keyword) automatically avoid hitting your own side - "
             "you won't catch your own party, or your own summon, in your "
-            "own AoE.\n\n"
+            "own AoE.\n"
+            "  - |wA real party (not just two unrelated attackers) earns a "
+            "20% bonus to the whole XP pool|n on a kill, on top of the "
+            "usual fair split by how much damage each of you actually "
+            "dealt - a genuine reason to group up, not just a wash.\n\n"
             "See 'help party' and 'help fight' for the specific commands."
         ),
         db_lock_storage="view:all()",

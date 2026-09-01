@@ -584,6 +584,51 @@ class TestAtDefeatXpGoldSplit(CombatTestBase):
         self.assertEqual(self.char1.db.gold, 4)
         self.assertEqual(self.char2.db.gold, 1)
 
+    def test_party_kill_gets_a_bonus_to_the_whole_xp_pool_but_not_gold(self):
+        """
+        Two REAL party members (not just two unrelated attackers - see
+        the sibling test below) contributing to the same kill should
+        get the +20% PARTY_XP_BONUS_PERCENT applied to the whole XP
+        pool before it's split, same proportional damage share as
+        always. Gold is deliberately untouched by this bonus.
+        """
+        self.char1.db.party_leader = self.char1
+        self.char1.db.party_members = [self.char1, self.char2]
+        self.char2.db.party_leader = self.char1
+
+        npc = self._make_dummy_npc(xp_reward=15)  # below xp_for_level(1)=20
+        npc.db.damage_log = {self.char1: 80, self.char2: 20}
+
+        self.char1.db.xp = 0
+        self.char2.db.xp = 0
+        self.char1.db.gold = 0
+        self.char2.db.gold = 0
+        self.char1.db.level = 1
+        self.char2.db.level = 1
+
+        COMBAT_RULES.at_defeat(npc, attacker=self.char1)
+
+        # 15 * 1.20 = 18 total pool, split 80/20 -> 14/4
+        self.assertEqual(self.char1.db.xp, 14)
+        self.assertEqual(self.char2.db.xp, 4)
+
+        # Gold still derives from the ORIGINAL xp_reward (15), no bonus.
+        self.assertEqual(self.char1.db.gold, 4)
+        self.assertEqual(self.char2.db.gold, 1)
+
+    def test_two_unpartied_attackers_do_not_get_the_party_bonus(self):
+        """
+        Two different characters both hitting the same NPC, with no
+        real party between them, is exactly the existing
+        test_two_attackers_split_xp_and_gold_proportionally scenario -
+        this makes the "why no bonus" reasoning explicit and directly
+        testable on its own, via _is_party_kill itself.
+        """
+        self.char1.db.party_leader = None
+        self.char2.db.party_leader = None
+        damage_log = {self.char1: 80, self.char2: 20}
+        self.assertFalse(COMBAT_RULES._is_party_kill(damage_log))
+
     def test_solo_kill_with_no_damage_log_falls_back_to_full_reward(self):
         """
         at_defeat's documented fallback: if damage_log is somehow
