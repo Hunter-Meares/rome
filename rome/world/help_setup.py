@@ -78,7 +78,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
     )
 
@@ -349,6 +349,41 @@ def create_all_help_entries():
             "auto-completes just because you happened to finish the "
             "objective somewhere else - you still have to go report "
             "back in person."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- God-only oversight for bounties/quests ---
+    # Not hidden - matches every other god command in this game
+    # (godlevel, wizinvis, etc. have no help lock either; the real
+    # gate is the level check inside each command's own func()) - just
+    # kept in its own topic instead of the player-facing "bounty"/
+    # "quest" entries above, the same separation those other god
+    # commands already get via help_category "admin".
+    HelpEntry.objects.create(
+        db_key="godbounty",
+        db_help_category="Admin",
+        db_entrytext=(
+            "|wBounty Oversight (god-only)|n\n\n"
+            "  bounty list      - every player currently holding an active "
+            "bounty, and their progress\n"
+            "  bounty catalog   - every tier and target the board can "
+            "actually offer, plus the board's own current location\n\n"
+            "Both work from anywhere, not just standing at the board."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    HelpEntry.objects.create(
+        db_key="godquest",
+        db_help_category="Admin",
+        db_entrytext=(
+            "|wQuest Oversight (god-only)|n\n\n"
+            "  quest list       - every player with any quest activity at "
+            "all (in progress, ready to turn in, or completed)\n"
+            "  quest catalog    - every quest that exists, its giver, that "
+            "giver's current real location, and its reward\n\n"
+            "Both work from anywhere, not just standing near a giver."
         ),
         db_lock_storage="view:all()",
     )

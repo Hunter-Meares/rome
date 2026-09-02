@@ -182,6 +182,59 @@ def credit_bounty_progress(defeated):
             )
 
 
+def list_active_bounties():
+    """
+    God-only oversight (`bounty list`): every real player character
+    currently holding an active bounty, with their progress. Live
+    player state, not the static tier/target definitions - see
+    bounty_catalog() for that.
+    """
+    from world.combat import all_player_characters
+
+    lines = []
+    for character in all_player_characters():
+        bounty = character.db.active_bounty
+        if not bounty:
+            continue
+        lines.append(
+            "  %-20s %-10s %-25s %d/%-4d %dg/%dxp"
+            % (
+                character.key, bounty["tier"], bounty["target_display"],
+                bounty["count_progress"], bounty["count_required"],
+                bounty["gold_reward"], bounty["xp_reward"],
+            )
+        )
+
+    if not lines:
+        return "No players currently have an active bounty."
+    return "|wActive Bounties|n\n" + "\n".join(lines)
+
+
+def bounty_catalog():
+    """
+    God-only oversight (`bounty list`): the static tier/target
+    definitions themselves - what's actually offerable, not who
+    currently has what. Reads BOUNTY_TIERS directly, so a future
+    tier or target added there shows up here automatically with no
+    changes needed to this function.
+    """
+    from evennia.utils import search
+
+    boards = search.search_object("a bounty board")
+    board_location = boards[0].location.key if boards else "not currently placed"
+
+    lines = ["|wThe Bounty Board|n (currently at: %s)\n" % board_location]
+    for tier_name, tier_data in BOUNTY_TIERS.items():
+        low, high = tier_data["level_range"]
+        count_low, count_high = tier_data["count_range"]
+        targets = ", ".join(name for _, name in tier_data["targets"])
+        lines.append(
+            "|w%s|n (levels %d-%d, %d-%d kills required)\n  %s"
+            % (tier_name.capitalize(), low, high, count_low, count_high, targets)
+        )
+    return "\n\n".join(lines)
+
+
 class BountyBoard(DefaultObject):
     """
     A real, physical bounty board - see CmdBounty for the actual
@@ -230,6 +283,24 @@ class CmdBounty(Command):
 
     def func(self):
         caller = self.caller
+        arg = self.args.strip().lower()
+
+        # God-only oversight subcommands - checked first so they work
+        # from anywhere, not just standing at a real board (see
+        # world/help_setup.py's separate "godbounty" topic - kept out
+        # of this command's own docstring/the player-facing "bounty"
+        # help entry on purpose, matching how the other subcommands
+        # below stay purely player-facing).
+        if arg in ("list", "catalog"):
+            if (caller.db.level or 0) <= 100:
+                caller.msg("Only gods can do that.")
+                return
+            if arg == "list":
+                caller.msg(list_active_bounties())
+            else:
+                caller.msg(bounty_catalog())
+            return
+
         boards = [
             obj for obj in caller.location.contents
             if obj.is_typeclass(BountyBoard, exact=False)
@@ -238,7 +309,6 @@ class CmdBounty(Command):
             caller.msg("There's no bounty board here.")
             return
 
-        arg = self.args.strip().lower()
         bounty = caller.db.active_bounty
 
         if arg in ("", "check"):

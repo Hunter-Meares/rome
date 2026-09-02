@@ -193,6 +193,61 @@ def check_quest_visit(character):
         character.db.quest_log = log
 
 
+def list_all_quest_activity():
+    """
+    God-only oversight (`quest list`): every real player character
+    with any quest-log activity at all, one row per (character,
+    quest) pair - includes completed quests, not just active ones,
+    since a god wanting a feel for "is anyone finishing these" needs
+    that too. Live player state, not the static definitions - see
+    quest_catalog() for that.
+    """
+    from world.combat import all_player_characters
+
+    labels = {"in_progress": "in progress", "ready": "ready to turn in", "completed": "completed"}
+    lines = []
+    for character in all_player_characters():
+        log = character.db.quest_log or {}
+        for quest_key, state in log.items():
+            quest = QUESTS.get(quest_key)
+            if not quest:
+                continue
+            lines.append(
+                "  %-20s %-30s %s"
+                % (character.key, quest["name"], labels.get(state, state))
+            )
+
+    if not lines:
+        return "No players have any quest activity."
+    return "|wQuest Activity|n\n" + "\n".join(lines)
+
+
+def quest_catalog():
+    """
+    God-only oversight (`quest list`): every quest that exists,
+    reading QUESTS directly so a future quest added there shows up
+    automatically with no changes needed here. The giver's location is
+    looked up live off the real NPC object rather than hardcoded, so
+    it can never drift out of sync with reality - if a giver's own
+    location is ever wrong here, that's a real, visible sign the NPC
+    itself has gone missing or been moved, not a stale reference doc.
+    """
+    from evennia.utils import search
+
+    lines = []
+    for quest_key, quest in QUESTS.items():
+        givers = search.search_object(quest["giver_key"])
+        location = givers[0].location.key if givers and givers[0].location else "not currently placed"
+        lines.append(
+            "|w%s|n\n  giver: %s (%s)\n  type: %s  reward: %dg/%dxp"
+            % (
+                quest["name"], quest["giver_key"], location,
+                quest["step_type"], quest["reward_gold"], quest["reward_xp"],
+            )
+        )
+    return "|wQuests|n\n\n" + "\n\n".join(lines)
+
+
 class CmdQuest(Command):
     """
     Start, check, or turn in a quest with whichever quest-giver is
@@ -220,6 +275,23 @@ class CmdQuest(Command):
     def func(self):
         caller = self.caller
         arg = self.args.strip().lower()
+
+        # God-only oversight subcommands - checked first so they work
+        # from anywhere and can't be shadowed by the giver-lookup
+        # below (which would otherwise just silently fall through to
+        # the caller's OWN log, since no giver is ever named "list").
+        # See world/help_setup.py's separate "godquest" topic - kept
+        # out of this command's own docstring/the player-facing
+        # "quest" help entry on purpose.
+        if arg in ("list", "catalog"):
+            if (caller.db.level or 0) <= 100:
+                caller.msg("Only gods can do that.")
+                return
+            if arg == "list":
+                caller.msg(list_all_quest_activity())
+            else:
+                caller.msg(quest_catalog())
+            return
 
         givers = {}
         for quest_key, quest in QUESTS.items():

@@ -131,6 +131,24 @@ def iter_damage_contributors(damage_log):
         yield contributor
 
 
+def all_player_characters():
+    """
+    Every real player character in the database - a persistent
+    `.account` link, not `.has_account` (which is really "does a
+    session currently have this puppeted" - see the PvP XP-reward
+    branch's own comment on that exact distinction). Shared by
+    world/bounties.py and world/quests.py's god-only oversight
+    commands (`bounty list`, `quest list`) - both need "every real
+    player, online or not" rather than just whoever's currently
+    connected, since a bounty/quest stays active on a character
+    whether or not its player is logged in right now.
+    """
+    from evennia.objects.models import ObjectDB
+
+    characters = ObjectDB.objects.filter(db_typeclass_path="typeclasses.characters.Character")
+    return [c for c in characters if getattr(c, "account", None)]
+
+
 # A room tagged (this key, this category) is a hard no-combat zone - no
 # fight can be started there at all, PvP or otherwise. Currently applied
 # to every room in the Underworld (see world/underworld.py's setup

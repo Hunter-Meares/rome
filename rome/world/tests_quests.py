@@ -17,6 +17,8 @@ from world.quests import (
     start_quest,
     credit_quest_kill,
     check_quest_visit,
+    list_all_quest_activity,
+    quest_catalog,
 )
 
 
@@ -181,3 +183,86 @@ class TestCmdQuest(EvenniaCommandTest):
         self.char1.db.quest_log["secession_memory"] = "completed"
         result = self.call(CmdQuest(), "", caller=self.char1)
         self.assertIn("nothing more for you", result)
+
+
+class TestListAllQuestActivity(EvenniaTest):
+    def setUp(self):
+        super().setUp()
+        self.char1.db.quest_log = {}
+        self.char2.db.quest_log = {}
+
+    def test_empty_state_message(self):
+        self.assertIn("No players have any quest activity", list_all_quest_activity())
+
+    def test_shows_multiple_players_and_states_including_completed(self):
+        self.char1.db.quest_log = {"secession_memory": "completed"}
+        self.char2.db.quest_log = {"corrupt_official": "in_progress"}
+
+        result = list_all_quest_activity()
+
+        self.assertIn(self.char1.key, result)
+        self.assertIn("Memory of the Secession", result)
+        self.assertIn("completed", result)
+        self.assertIn(self.char2.key, result)
+        self.assertIn("The Corrupt Count", result)
+        self.assertIn("in progress", result)
+
+    def test_accountless_character_is_excluded(self):
+        npc = create.create_object(
+            "typeclasses.characters.Character", key="a stray npc", location=self.room1
+        )
+        npc.db.quest_log = {"secession_memory": "in_progress"}
+        self.assertIsNone(npc.account)
+        result = list_all_quest_activity()
+        self.assertIn("No players have any quest activity", result)
+
+
+class TestQuestCatalog(EvenniaTest):
+    def test_includes_every_defined_quest(self):
+        result = quest_catalog()
+        for quest in QUESTS.values():
+            self.assertIn(quest["name"], result)
+            self.assertIn(quest["giver_key"], result)
+
+    def test_reports_not_placed_when_giver_absent_from_test_db(self):
+        result = quest_catalog()
+        self.assertIn("not currently placed", result)
+
+    def test_a_newly_added_quest_appears_with_no_code_changes(self):
+        """
+        Proves the actual design claim: adding a quest to QUESTS at
+        runtime (simulating a future edit to the real dict) makes it
+        show up here with zero changes to quest_catalog() itself.
+        """
+        QUESTS["fake_future_quest"] = {
+            "name": "A Brand New Errand",
+            "giver_key": "someone new",
+            "level_required": 1,
+            "step_type": "visit",
+            "target_room": "Nowhere",
+            "reward_gold": 1,
+            "reward_xp": 1,
+        }
+        try:
+            result = quest_catalog()
+            self.assertIn("A Brand New Errand", result)
+        finally:
+            del QUESTS["fake_future_quest"]
+
+
+class TestCmdQuestOversight(EvenniaCommandTest):
+    def test_non_god_refused(self):
+        self.char1.db.level = 50
+        result = self.call(CmdQuest(), "list", caller=self.char1)
+        self.assertIn("Only gods", result)
+
+    def test_god_gets_list_even_with_no_giver_in_room(self):
+        self.char1.db.level = 101
+        self.char1.db.quest_log = {}
+        result = self.call(CmdQuest(), "list", caller=self.char1)
+        self.assertIn("No players have any quest activity", result)
+
+    def test_god_gets_catalog_even_with_no_giver_in_room(self):
+        self.char1.db.level = 101
+        result = self.call(CmdQuest(), "catalog", caller=self.char1)
+        self.assertIn("Memory of the Secession", result)

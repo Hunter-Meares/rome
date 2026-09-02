@@ -31,6 +31,8 @@ from world.bounties import (
     _tier_for_level,
     roll_bounty,
     credit_bounty_progress,
+    list_active_bounties,
+    bounty_catalog,
 )
 import world.prototypes as protos
 
@@ -243,3 +245,93 @@ class TestCmdBounty(EvenniaCommandTest):
         result = self.call(CmdBounty(), "abandon", caller=self.char1)
         self.assertIn("abandon", result)
         self.assertIsNone(self.char1.db.active_bounty)
+
+
+class TestListActiveBounties(EvenniaTest):
+    def setUp(self):
+        super().setUp()
+        self.char1.db.active_bounty = None
+        self.char2.db.active_bounty = None
+
+    def test_empty_state_message(self):
+        self.assertIn("No players currently", list_active_bounties())
+
+    def test_shows_a_real_active_bounty(self):
+        self.char1.db.active_bounty = {
+            "tier": "novice", "target_key": "x", "target_display": "Subura footpads",
+            "count_required": 4, "count_progress": 2, "xp_reward": 30, "gold_reward": 10,
+        }
+        result = list_active_bounties()
+        self.assertIn(self.char1.key, result)
+        self.assertIn("Subura footpads", result)
+        self.assertIn("2/4", result)
+
+    def test_accountless_character_is_excluded(self):
+        """
+        Same typeclass real players use, but no persistent account
+        link (a flavor NPC built with typeclasses.characters.Character,
+        as most in this game are) accidentally carrying
+        db.active_bounty should never show up here - exercises
+        all_player_characters()'s own account filter specifically,
+        not just the broader typeclass filter.
+        """
+        npc = create.create_object(
+            "typeclasses.characters.Character", key="a stray npc", location=self.room1
+        )
+        npc.db.active_bounty = {
+            "tier": "novice", "target_key": "x", "target_display": "Subura footpads",
+            "count_required": 4, "count_progress": 2, "xp_reward": 30, "gold_reward": 10,
+        }
+        self.assertIsNone(npc.account)
+        result = list_active_bounties()
+        self.assertIn("No players currently", result)
+
+
+class TestBountyCatalog(EvenniaTest):
+    def test_includes_every_defined_tier_and_target(self):
+        result = bounty_catalog()
+        for tier_name in BOUNTY_TIERS:
+            self.assertIn(tier_name.capitalize(), result)
+        for tier_data in BOUNTY_TIERS.values():
+            for _, display_name in tier_data["targets"]:
+                self.assertIn(display_name, result)
+
+    def test_a_newly_added_target_appears_with_no_code_changes(self):
+        """
+        Proves the actual design claim, not just asserts it: adding a
+        target to BOUNTY_TIERS at runtime (simulating a future edit to
+        the real dict) makes it show up here with zero changes to
+        bounty_catalog() itself - it reads the live dict directly.
+        """
+        fake_target = ({"key": "a brand new menace", "xp_reward": 999}, "brand new menaces")
+        BOUNTY_TIERS["novice"]["targets"].append(fake_target)
+        try:
+            result = bounty_catalog()
+            self.assertIn("brand new menaces", result)
+        finally:
+            BOUNTY_TIERS["novice"]["targets"].remove(fake_target)
+
+    def test_reports_board_location_when_no_board_exists_in_test_db(self):
+        result = bounty_catalog()
+        self.assertIn("not currently placed", result)
+
+
+class TestCmdBountyOversight(EvenniaCommandTest):
+    def setUp(self):
+        super().setUp()
+        self.char1.db.active_bounty = None
+
+    def test_non_god_refused(self):
+        self.char1.db.level = 50
+        result = self.call(CmdBounty(), "list", caller=self.char1)
+        self.assertIn("Only gods", result)
+
+    def test_god_gets_list_even_with_no_board_in_room(self):
+        self.char1.db.level = 101
+        result = self.call(CmdBounty(), "list", caller=self.char1)
+        self.assertIn("No players currently", result)
+
+    def test_god_gets_catalog_even_with_no_board_in_room(self):
+        self.char1.db.level = 101
+        result = self.call(CmdBounty(), "catalog", caller=self.char1)
+        self.assertIn("Novice", result)
