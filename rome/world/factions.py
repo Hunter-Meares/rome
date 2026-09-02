@@ -416,7 +416,10 @@ class CmdFaction(Command):
         elif sub == "expel":
             self._expel(caller, rest)
         else:
-            caller.msg("Usage: faction [join <name>|leave|invest <char> = <faction>|expel <char>]")
+            caller.msg(
+                "Usage: faction [join <name>|leave|invest <char> = <faction>|"
+                "expel <char> = <reason>]"
+            )
 
     def _leave(self, caller):
         current = caller.db.faction
@@ -562,11 +565,22 @@ class CmdFaction(Command):
         join_faction(target, faction_key)
         caller.msg("%s has been invested into the %s." % (target.key, FACTIONS[faction_key]["name"]))
 
-    def _expel(self, caller, name):
-        if not name:
-            caller.msg("Usage: faction expel <character>")
+    def _expel(self, caller, args):
+        # Retrofitted to require a reason and log it, matching the
+        # same accountability standard world/religion.py's own expel
+        # was built with from the start - a real, direct request once
+        # that asymmetry was pointed out, not something either system
+        # should be missing.
+        if "=" not in args:
+            caller.msg("Usage: faction expel <character> = <reason>")
             return
-        target = caller.search(name.strip(), global_search=True)
+        lhs, rhs = args.split("=", 1)
+        reason = rhs.strip()
+        if not reason:
+            caller.msg("A reason is required - expelling someone needs a real, in-character cause.")
+            return
+
+        target = caller.search(lhs.strip(), global_search=True)
         if not target:
             return
 
@@ -579,8 +593,17 @@ class CmdFaction(Command):
             caller.msg("You don't have the standing to expel members of that faction.")
             return
 
+        import time
+
         leave_faction(target, silent=True)
-        target.msg("You have been expelled from the %s." % FACTIONS[faction_key]["name"])
+
+        log = target.db.faction_log or []
+        log.append({
+            "action": "expel", "by": caller.key, "reason": reason, "time": time.time(),
+        })
+        target.db.faction_log = log
+
+        target.msg("You have been expelled from the %s: %s" % (FACTIONS[faction_key]["name"], reason))
         caller.msg("%s has been expelled from the %s." % (target.key, FACTIONS[faction_key]["name"]))
 
 

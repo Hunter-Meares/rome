@@ -78,7 +78,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
     )
 
@@ -384,6 +384,64 @@ def create_all_help_entries():
             "  quest catalog    - every quest that exists, its giver, that "
             "giver's current real location, and its reward\n\n"
             "Both work from anywhere, not just standing near a giver."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Religion & piety ---
+    HelpEntry.objects.create(
+        db_key="religion",
+        db_help_category="General",
+        db_entrytext=(
+            "|wReligion & Piety|n\n\n"
+            "A mortal's personal devotion to one of the 14 gods - "
+            "distinct from becoming a god yourself (the Cursus "
+            "Divinorum) and distinct from faction membership (a real "
+            "political/social affiliation, not a religious one - you "
+            "can hold both at once).\n\n"
+            "|wJoining:|n 'pray' at one of the gods' real temples "
+            "(implicitly worships that temple's own god), or 'pray "
+            "<god>' at the Pantheon's Altar of All Gods for any of the "
+            "14. You'll be warned first - only 'pray <god> confirm' "
+            "actually joins. It's permanent: only your religion's "
+            "Pontifex, or a god, can release you afterward ('expel').\n\n"
+            "|wGaining favor:|n praying doesn't earn favor by itself - "
+            "it comes from actually doing something in your god's own "
+            "domain. Right now that's real for four gods: Mars (every "
+            "7 combat kills), Mercury (every 7 trades), Apollo (every "
+            "7 heals cast), and Pluto (each time you die and return). "
+            "The rest are joinable, but honestly have no real trigger "
+            "yet.\n\n"
+            "|wPayoff:|n a real passive bonus at Devoted (75 piety) and "
+            "a bigger one at Beloved (150) - Mars: melee damage, "
+            "Mercury: a shop discount, Apollo: healing power, Pluto: a "
+            "reduced (then zero) XP penalty on death. Check 'stats' or "
+            "'religion' for your own standing.\n\n"
+            "|wDiscipline:|n your religion's Pontifex (or a god) can "
+            "'blemish' you for acting against your god's values - "
+            "always requires a stated reason, always logged."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    HelpEntry.objects.create(
+        db_key="godreligion",
+        db_help_category="Admin",
+        db_entrytext=(
+            "|wReligion Oversight (god-only)|n\n\n"
+            "  pontifex <god> = <player>   - appoint a religion's Pontifex, "
+            "mirrors 'factionleader' exactly\n"
+            "  blemish <player> = <reason> - reduce a member's piety; "
+            "Pontifex-or-god, reason required, logged, 1-hour cooldown "
+            "per (discipliner, target)\n"
+            "  expel <player> = <reason>   - permanently remove someone "
+            "from their religion; Pontifex-or-god, reason required, "
+            "logged; piety is kept, not erased\n"
+            "  religion log <god>          - that religion's recent "
+            "induct/blemish/expel activity, for real accountability "
+            "over the two commands above\n\n"
+            "No religion is blocked from functioning just because it has "
+            "no Pontifex yet - a god can always act in their place."
         ),
         db_lock_storage="view:all()",
     )

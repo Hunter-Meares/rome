@@ -305,3 +305,33 @@ class TestFactionLeaveRestriction(CmdFactionTestBase):
         self.call(CmdFaction(), "leave", caller=self.char1)
 
         self.assertIsNone(self.char1.db.faction)
+
+
+class TestFactionExpelRequiresReasonAndLogs(CmdFactionTestBase):
+    """
+    Retrofitted, direct request: faction expel should require a reason
+    and log it, the same accountability standard world/religion.py's
+    own expel was built with from the start.
+    """
+
+    def setUp(self):
+        super().setUp()
+        join_faction(self.char2, "cult_of_bacchus")
+        self.char1.db.level = 101
+
+    def test_missing_reason_refused(self):
+        result = self.call(CmdFaction(), "expel Char2 =", caller=self.char1)
+        self.assertIn("A reason is required", result)
+        self.assertEqual(self.char2.db.faction, "cult_of_bacchus")
+
+    def test_no_equals_sign_shows_usage(self):
+        result = self.call(CmdFaction(), "expel Char2", caller=self.char1)
+        self.assertIn("Usage: faction expel", result)
+        self.assertEqual(self.char2.db.faction, "cult_of_bacchus")
+
+    def test_expel_with_reason_removes_membership_and_logs_it(self):
+        result = self.call(CmdFaction(), "expel Char2 = betrayed the cult", caller=self.char1)
+        self.assertIn("expelled", result)
+        self.assertIsNone(self.char2.db.faction)
+        self.assertEqual(len(self.char2.db.faction_log), 1)
+        self.assertEqual(self.char2.db.faction_log[0]["reason"], "betrayed the cult")

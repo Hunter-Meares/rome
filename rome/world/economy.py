@@ -187,6 +187,11 @@ def node_inspect_and_buy(caller, raw_string="", **kwargs):
     price = ware.db.price or 0
     desc = ware.db.desc or "No description available."
 
+    from world.religion import religion_bonus
+    discount = religion_bonus(caller, "mercury", "shop_discount")
+    if discount:
+        price = int(price * (1 - discount))
+
     text = "|Y%s|n - %d gold\n\n%s" % (ware.key, price, desc)
 
     def _buy(caller, raw_string="", **kwargs):
@@ -223,6 +228,8 @@ def node_inspect_and_buy(caller, raw_string="", **kwargs):
             ware.move_to(caller, quiet=True)
 
         caller.db.gold = gold - price
+        from world.religion import credit_mercury_trade
+        credit_mercury_trade(caller)
         caller.msg("|gYou buy %s for %d gold.|n" % (ware.key, price))
         from evennia.contrib.game_systems.achievements import track_achievements
         from world.achievements import announce_achievements
@@ -288,6 +295,8 @@ def node_confirm_sell(caller, raw_string="", **kwargs):
         # in the shop listing over time as sold goods piled up.
         item.delete()
         caller.db.gold = (caller.db.gold or 0) + sell_price
+        from world.religion import credit_mercury_trade
+        credit_mercury_trade(caller)
         caller.msg("|gYou sell %s for %d gold.|n" % (item.key, sell_price))
         return "node_shopfront"
 

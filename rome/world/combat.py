@@ -805,10 +805,14 @@ class CombatRules:
                 damage_value += ((attacker.db.agilitas or 10) - 10) // 2
             else:
                 damage_value += ((attacker.db.virtus or 10) - 10) // 2
+                from world.religion import religion_bonus
+                damage_value += religion_bonus(attacker, "mars", "melee_damage_bonus")
         else:
             dmg_range = attacker.db.unarmed_damage_range or (5, 15)
             damage_value = randint(dmg_range[0], dmg_range[1])
             damage_value += ((attacker.db.virtus or 10) - 10) // 2
+            from world.religion import religion_bonus
+            damage_value += religion_bonus(attacker, "mars", "melee_damage_bonus")
 
         if defender.db.worn_armor:
             reduction = defender.db.worn_armor.db.damage_reduction
@@ -1026,6 +1030,12 @@ class CombatRules:
             from world.quests import credit_quest_kill
             credit_quest_kill(defeated)
 
+        # --- Mars piety progress (world/religion.py) - same damage_log
+        # population as the hooks above; only actually does anything
+        # for a contributor currently devoted to Mars.
+        from world.religion import credit_mars_kill
+        credit_mars_kill(defeated)
+
         # --- PvP XP reward: defeating another real player now earns
         # XP too, split the same fair, proportional-damage way as an
         # NPC kill. Gated on `.account` (a real, persistent account
@@ -1237,7 +1247,18 @@ class CombatRules:
         defeated.db.hp = 0
         defeated.db.mp = 0
         defeated.db.sp = 0
-        defeated.db.xp = (defeated.db.xp or 0) // 2
+
+        # Pluto's own devotees have the usual half-XP death penalty
+        # tempered (Devoted: half the normal loss: Beloved: none of
+        # it) - the one death-adjacent bonus tied to the god of the
+        # dead himself, rather than a combat/economy stat like the
+        # other three launch religions.
+        from world.religion import religion_bonus
+        current_xp = defeated.db.xp or 0
+        normal_loss = current_xp - current_xp // 2
+        reduction = religion_bonus(defeated, "pluto", "death_xp_penalty_reduction")
+        actual_loss = int(normal_loss * (1 - reduction))
+        defeated.db.xp = current_xp - actual_loss
 
         defeated.msg(
             "|mYou feel your spirit torn from your body, dragged toward a dark river...|n"
@@ -1346,6 +1367,10 @@ class CombatRules:
         if destination:
             character.move_to(destination, quiet=False, move_type="teleport")
         character.msg(arrival_msg)
+
+        from world.religion import credit_pluto_resurrection
+        credit_pluto_resurrection(character)
+
         return True
 
     def resolve_attack(
@@ -1866,11 +1891,15 @@ class CombatRules:
         min_healing, max_healing = kwargs.get("healing_range", (20, 40))
         ingenium_bonus = ((caster.db.ingenium or 10) - 10) // 2
 
+        from world.religion import religion_bonus
+        heal_multiplier = 1 + religion_bonus(caster, "apollo", "heal_bonus")
+
         for character in targets:
             if heal_percent:
                 to_heal = int(character.db.max_hp * heal_percent)
             else:
                 to_heal = randint(min_healing, max_healing) + ingenium_bonus
+            to_heal = int(to_heal * heal_multiplier)
             if character.db.hp + to_heal > character.db.max_hp:
                 to_heal = character.db.max_hp - character.db.hp
             character.db.hp += to_heal
@@ -1878,6 +1907,9 @@ class CombatRules:
 
         caster.db.mp -= cost
         caster.location.msg_contents(spell_msg)
+
+        from world.religion import credit_apollo_heal
+        credit_apollo_heal(caster)
 
         if self.is_in_combat(caster):
             self.spend_action(caster, 1, action_name="cast")
@@ -6152,6 +6184,14 @@ class CmdCoreStats(Command):
             faction_name = FACTIONS.get(char.db.faction, {}).get("name", char.db.faction)
             rank = (char.db.faction_rank or "member").title()
             lines.append("  Faction: %s (%s)" % (faction_name, rank))
+        if char.db.religion:
+            from world.religion import god_display_name, piety_tier
+            piety_value = (char.db.piety or {}).get(char.db.religion, 0)
+            tier = piety_tier(piety_value) or "Unknown"
+            rank = (char.db.religion_rank or "member").title()
+            lines.append(
+                "  Religion: %s (%s, %s)" % (god_display_name(char.db.religion), tier, rank)
+            )
         if xp_needed is not None:
             lines.append("  XP: %d / %d to next level" % (xp, xp_needed))
         else:
@@ -6475,6 +6515,8 @@ class CmdGodLevel(Command):
             target.db.mortal_class_display = target.db.class_display
             from world.factions import connect_god_to_all_faction_channels
             connect_god_to_all_faction_channels(target)
+            from world.religion import connect_god_to_all_religion_channels
+            connect_god_to_all_religion_channels(target)
         if new_level > 100:
             target.db.race_display = "Olympian"
             target.db.class_display = "Divine"
