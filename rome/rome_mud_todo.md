@@ -6,6 +6,16 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## 🐛 Jupiter/Zeus account had 4 stray Underworld NPCs registered as playable characters — ✅ fixed live
+
+Reported directly by the user: `ic` was offering several NPCs as puppet candidates, and noticeable lag specifically at the moment of typing `ic` (little to none right after login). Investigated live rather than guessed:
+
+- [x] **Root cause found**: `AccountDB.objects.get(username__iexact="zeus").db._playable_characters` had 5 entries - the real Jupiter character, plus Minos the Judge, a watching Fury, a wandering shade, and a lingering hero's shade (all real, live Underworld NPCs). Evennia automatically adds any object to the puppeting account's playable-characters list the moment it's successfully `@ic`'d into, as a superuser can do to anything - almost certainly leftover from testing these NPCs' dialogue/placement during the original Underworld build, never cleaned back out afterward.
+- [x] **Fixed live**: trimmed the account's `_playable_characters` down to just the real Jupiter character. The 4 NPCs themselves were completely untouched - confirmed still live, in their normal Underworld locations, functioning exactly as before. See CLAUDE.md gotcha #15 for the full writeup and the "how to avoid this next time" note for any future dev-testing puppet sessions.
+- [ ] **The lag itself is not fully confirmed resolved yet** - flagged as a plausible contributor (a bloated candidate list gives Evennia's own puppet-resolution more to check through), not a proven root cause. Worth confirming directly: does `ic` still lag now that the account is back to a single character?
+
+---
+
 ## 📋 Expand the bounty/quest content - requested, not yet started
 
 Both systems (see the two entries below) shipped with the minimum viable content to prove them out - 1 tier ladder of 16 sewer targets for bounties, exactly 2 starter quests. Direct request to grow this over time rather than leave it at launch size:
