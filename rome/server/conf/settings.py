@@ -56,6 +56,44 @@ MAX_NR_CHARACTERS = 3
 CHARGEN_MENU = "world.chargen_menu"
 
 ######################################################################
+# SQLite locking fix - root cause diagnosed across many sessions of
+# "database is locked" on nearly every evennia reload/shell/stop.
+#
+# Evennia's default SQLITE3_PRAGMAS (imported above via `from
+# evennia.settings_default import *`) never sets journal_mode, so
+# SQLite falls back to its default rollback-journal locking: any
+# writer's brief exclusive-lock window (the live server commits
+# constantly - TICKER_HANDLER ticks, NPCChatter, idmapper flushes)
+# blocks even a plain read from a second connection outright. Every
+# `evennia reload`/`shell`/`stop` opens a brand-new connection whose
+# very first action (Django's own register_functions probe, then
+# Evennia's sqlite3_prep() applying SQLITE3_PRAGMAS) is exactly that
+# kind of read - if it lands during one of the live server's frequent
+# internal writes, it fails immediately. Combined with Python
+# sqlite3's default 5-second busy-timeout (Django never overrides
+# it), a single unlucky moment was often enough to fail outright
+# rather than just wait it out.
+#
+# Two independent, additive fixes:
+#   1. journal_mode=WAL lets readers and a writer operate
+#      concurrently (a WAL-mode reader sees a consistent snapshot
+#      instead of being blocked by an in-progress write at all) -
+#      this is the fix that actually addresses the root cause, not
+#      just papering over the symptom with a longer wait. Applied via
+#      SQLITE3_PRAGMAS (Evennia's sqlite3_prep() runs every pragma in
+#      this tuple on each new connection), the same supported
+#      mechanism the default pragmas already use - not a one-off
+#      manual migration step.
+#   2. A longer connection timeout (Python sqlite3's own busy-handler
+#      retry window, 5s by default, never overridden anywhere before
+#      this) as a second line of defense for the rarer case that's
+#      still a real momentary collision even under WAL (e.g. two
+#      writers at once - WAL still serializes writers against each
+#      other, just not against readers).
+SQLITE3_PRAGMAS = SQLITE3_PRAGMAS + ("PRAGMA journal_mode=WAL",)
+DATABASES["default"]["OPTIONS"] = {"timeout": 20}
+
+######################################################################
 # Settings given in secret_settings.py override those in this file.
 ######################################################################
 try:
