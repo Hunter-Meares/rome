@@ -31,6 +31,7 @@ def announce_achievements(character, completed_keys):
 
     from evennia.contrib.game_systems.achievements import get_achievement
     from world.rumors import record_rumor
+    from world.titles import ACHIEVEMENT_TITLES, grant_earned_title
 
     for key in completed_keys:
         data = get_achievement(key)
@@ -52,6 +53,10 @@ def announce_achievements(character, completed_keys):
 
         character.msg("\n".join(lines))
         record_rumor(character.key, name)
+
+        title = ACHIEVEMENT_TITLES.get(key)
+        if title:
+            grant_earned_title(character, title)
 
 FIRST_ESCAPE = {
     "key": "first_escape",

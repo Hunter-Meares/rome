@@ -4886,15 +4886,22 @@ class CombatCharacter(ContribRPCharacter):
 
     def return_appearance(self, looker, **kwargs):
         """
-        Adds a custom-title line ahead of the normal appearance text,
-        when one is set. db.custom_title only ever showed up on the
-        who tables before this - there was genuinely no way to see a
-        title in full anywhere else, and no way at all to see another
-        character's title if who's column width had cropped it.
+        Adds a title line ahead of the normal appearance text - an
+        earned title (gold, world/titles.py), a custom title
+        (quoted), or both, when set. db.custom_title only ever
+        showed up on the who tables before this addition - there was
+        genuinely no way to see a title in full anywhere else, and no
+        way at all to see another character's title if who's column
+        width had cropped it.
         """
         appearance = super().return_appearance(looker, **kwargs)
+        lines = []
+        if self.db.active_earned_title:
+            lines.append("|Y%s|n" % self.db.active_earned_title)
         if self.db.custom_title:
-            return "|Y%s|n\n%s" % (self.db.custom_title, appearance)
+            lines.append('"%s"' % self.db.custom_title)
+        if lines:
+            return "%s\n%s" % ("\n".join(lines), appearance)
         return appearance
 
     def get_display_things(self, looker, **kwargs):
@@ -6166,6 +6173,7 @@ class CmdCoreStats(Command):
         class_display = char.db.class_display or "-"
         level = char.db.level or 1
         title = rank_title(level)
+        active_title = char.db.active_earned_title
         custom_title = char.db.custom_title
         xp = char.db.xp or 0
         xp_needed = COMBAT_RULES.xp_for_level(level) if level < MAX_LEVEL else None
@@ -6173,8 +6181,10 @@ class CmdCoreStats(Command):
         lines = [
             "|w%s|n" % char.key,
         ]
+        if active_title:
+            lines.append("  |Y%s|n" % active_title)
         if custom_title:
-            lines.append("  |Y%s|n" % custom_title)
+            lines.append('  "%s"' % custom_title)
         lines += [
             "  %s, %s" % (race_display, class_display),
             "  Level %d (%s)" % (level, title),

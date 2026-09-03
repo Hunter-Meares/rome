@@ -324,6 +324,10 @@ class CmdQuest(Command):
             caller.db.quest_log = log
             caller.msg(quest["complete"])
             caller.msg("|Y+%d gold, +%d XP.|n" % (quest["reward_gold"], quest["reward_xp"]))
+            from world.titles import QUEST_TITLES, grant_earned_title
+            title = QUEST_TITLES.get(quest_key)
+            if title:
+                grant_earned_title(caller, title)
         elif state == "completed":
             caller.msg("%s has nothing more for you." % giver.key)
 

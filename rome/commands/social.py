@@ -160,7 +160,7 @@ class CmdWho(DefaultCmdWho):
                     continue
                 location = puppet.location.key if puppet and puppet.location else "None"
 
-                title = puppet.db.custom_title if puppet else ""
+                title = (puppet.db.active_earned_title or puppet.db.custom_title) if puppet else ""
                 race = _short_flavor_name(puppet.db.race_display if puppet else None)
                 pclass = _short_flavor_name(puppet.db.class_display if puppet else None)
                 level = (puppet.db.level if puppet else None) or 1
@@ -210,7 +210,7 @@ class CmdWho(DefaultCmdWho):
                     continue
                 location = puppet.location.key if puppet and puppet.location else "None"
 
-                title = puppet.db.custom_title if puppet else ""
+                title = (puppet.db.active_earned_title or puppet.db.custom_title) if puppet else ""
                 race = _short_flavor_name(puppet.db.race_display if puppet else None)
                 pclass = _short_flavor_name(puppet.db.class_display if puppet else None)
                 level = (puppet.db.level if puppet else None) or 1
@@ -248,7 +248,7 @@ class CmdWho(DefaultCmdWho):
 
             if char:
                 name = char.key
-                title = char.db.custom_title or ""
+                title = char.db.active_earned_title or char.db.custom_title or ""
                 race = _short_flavor_name(char.db.race_display)
                 pclass = _short_flavor_name(char.db.class_display)
                 level = char.db.level or 1

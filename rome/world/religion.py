@@ -285,6 +285,11 @@ def add_piety(character, god_key, amount):
         character.msg(
             "|Y%s now regards you as %s.|n" % (god_display_name(god_key), new_tier)
         )
+        if new_tier == "Beloved":
+            from world.titles import RELIGION_BELOVED_TITLES, grant_earned_title
+            title = RELIGION_BELOVED_TITLES.get(god_key)
+            if title:
+                grant_earned_title(character, title)
 
 
 def _credit_trigger(character, god_key):

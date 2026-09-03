@@ -78,7 +78,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
     )
 
@@ -442,6 +442,30 @@ def create_all_help_entries():
             "over the two commands above\n\n"
             "No religion is blocked from functioning just because it has "
             "no Pontifex yet - a god can always act in their place."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Earned titles ---
+    HelpEntry.objects.create(
+        db_key="titles",
+        db_help_category="General",
+        db_entrytext=(
+            "|wEarned Titles|n\n\n"
+            "A title granted automatically for a real accomplishment - "
+            "an achievement, a quest, or reaching Beloved with a god - "
+            "as distinct from the ordinary 'title' command's free-text "
+            "custom title. Both can show at once wherever there's "
+            "room ('stats', 'look'); the 'who' list only has room for "
+            "one and shows your earned title there if you have one "
+            "active.\n\n"
+            "Your very first earned title activates automatically. "
+            "After that:\n"
+            "  titles             - list everything you've earned\n"
+            "  titles set <name>  - switch which one is shown\n"
+            "  titles clear       - show no earned title\n\n"
+            "Earning a second (or third) title never overrides an "
+            "already-active one - use 'titles set' to switch."
         ),
         db_lock_storage="view:all()",
     )
