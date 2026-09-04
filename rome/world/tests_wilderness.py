@@ -101,6 +101,29 @@ class TestLiveWilderness(EvenniaTest):
         desc = self.char1.location.get_display_desc(self.char1)
         self.assertNotIn("miles to Rome", desc)
 
+    def test_spawned_encounters_are_real_hostile_npcs(self):
+        # A plain AutoStatNPC has no at_turn_start override at all -
+        # it would just stand there during a fight, never attacking
+        # back. Encounters must be HostileNPC (or a subclass), which
+        # is what actually makes an NPC take a real combat turn - a
+        # real bug found live: this was AutoStatNPC originally.
+        from world.combat import HostileNPC
+
+        self._enter((0, 0))
+        found_one = False
+        for _ in range(60):
+            exits = {e.key: e for e in self.char1.location.exits}
+            ex = exits.get("north")
+            ex.at_traverse(self.char1, ex.destination)
+            npcs = [o for o in self.char1.location.contents if o.db.race]
+            if npcs:
+                found_one = True
+                self.assertTrue(npcs[0].is_typeclass(HostileNPC, exact=False))
+                break
+            south_exits = {e.key: e for e in self.char1.location.exits}
+            south_exits["south"].at_traverse(self.char1, south_exits["south"].destination)
+        self.assertTrue(found_one, "no encounter spawned in 60 attempts - ENCOUNTER_CHANCE regression?")
+
     def test_stale_encounter_is_cleared_on_revisit(self):
         self._enter((0, 10))
         room = self.char1.location

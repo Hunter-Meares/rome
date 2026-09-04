@@ -443,31 +443,77 @@ def rank_title(level):
     return "Novice"
 
 
+def _distribute_npc_stat_points(current, weights, caps, points):
+    """
+    Spends `points` virtual stat points across current (a dict of
+    stat -> value), one at a time, each going to whichever eligible
+    (not-yet-capped) stat currently has the highest weight - ties
+    broken toward whichever stat is furthest from its own cap, so a
+    single dominant weight doesn't starve every other stat completely.
+    Mirrors a player optimizing their own 'statup' choices toward
+    their class/race identity, not a real player's actual choices
+    (NPCs don't have a person behind them making that call) - just a
+    plausible stand-in.
+    """
+    stats = list(current.keys())
+    for _ in range(points):
+        eligible = [s for s in stats if current[s] < caps[s]]
+        if not eligible:
+            break
+        eligible.sort(key=lambda s: (-weights[s], current[s]))
+        current[eligible[0]] += 1
+    return current
+
+
 def derive_npc_stats(race_key, class_key, level):
     """
     Computes HP/MP/SP and core stats for an NPC using the exact same
     formulas real player characters go through at chargen and on
     level-up - base stats + race stat_mods + class stat_mods +
-    per-level growth. Returns a plain dict, ready to merge into a
-    prototype or apply directly to a spawned object's attributes.
+    per-level growth, PLUS the same level-up stat points a real player
+    would have earned and spent by that level (one every 3 levels, see
+    world/leveling.py's grant_level_up_point/CmdStatUp), distributed
+    toward whichever stats the NPC's own race/class already lean into
+    and capped at the exact same lifetime caps a player is capped at
+    (world.leveling.stat_cap). Returns a plain dict, ready to merge
+    into a prototype or apply directly to a spawned object's
+    attributes.
 
     This is what makes "a level 15 Minotaur Barbarian" NPC actually
     hit like a real level 15 Minotaur Barbarian player would, instead
     of a hand-picked number with no real connection to the leveling
     system - closes the exact gap flagged when 'consider' was built.
 
+    Before the stat-point piece was added here, that promise was only
+    ever half true: HP/MP/SP scaled with level, but virtus/agilitas/
+    ingenium/vigor - the stats that actually drive damage, accuracy,
+    and defense - stayed flat at race+class base regardless of level,
+    for every NPC in the game. A real, felt gap: a level 43 NPC hit
+    exactly as hard as a level 5 one of the same race/class, just with
+    more HP to survive behind. Found and fixed after a direct question
+    about wilderness encounter danger exposed it. This changes every
+    existing NPC that goes through this function, not just new
+    content - sewers/Ludus/Deeper Sands NPCs will hit measurably
+    harder at the same level than they did before this landed, which
+    is worth a fresh look at existing difficulty tuning rather than
+    assuming it still holds.
+
     race_key/class_key can be None for NPCs that aren't meant to be a
     "real" playable-archetype character at all (beasts, spirits,
     generic mooks) - in that case this just returns the flat level-1
-    baseline scaled by level, no race/class bonuses layered on.
+    baseline scaled by level, no race/class bonuses and no stat points
+    either (there's no class/race identity to spend them toward).
     """
     from world.chargen_menu import RACES, CLASSES
+    from world.leveling import AGILITAS_CAP, STAT_CAP_BASE, STAT_CAP_BONUS, RACIAL_LEAN_THRESHOLD
 
     virtus = agilitas = ingenium = vigor = 10
     max_hp, max_mp, max_sp = 100, 20, 30
 
+    race_mods = {}
     if race_key and race_key in RACES:
         mods = RACES[race_key]["stat_mods"]
+        race_mods = mods
         max_hp += mods["max_hp"]
         max_mp += mods["max_mp"]
         max_sp += mods["max_sp"]
@@ -476,6 +522,7 @@ def derive_npc_stats(race_key, class_key, level):
         ingenium += mods.get("ingenium", 0)
         vigor += mods.get("vigor", 0)
 
+    class_mods = {}
     if class_key and class_key in CLASSES:
         class_mods = CLASSES[class_key].get("stat_mods", {})
         virtus += class_mods.get("virtus", 0)
@@ -483,8 +530,32 @@ def derive_npc_stats(race_key, class_key, level):
         ingenium += class_mods.get("ingenium", 0)
         vigor += class_mods.get("vigor", 0)
 
+    if race_key or class_key:
+        caps = {
+            "virtus": STAT_CAP_BONUS if race_mods.get("virtus", 0) >= RACIAL_LEAN_THRESHOLD else STAT_CAP_BASE,
+            "agilitas": AGILITAS_CAP,
+            "ingenium": STAT_CAP_BONUS if race_mods.get("ingenium", 0) >= RACIAL_LEAN_THRESHOLD else STAT_CAP_BASE,
+            "vigor": STAT_CAP_BONUS if race_mods.get("vigor", 0) >= RACIAL_LEAN_THRESHOLD else STAT_CAP_BASE,
+        }
+        weights = {
+            stat: 1 + max(0, race_mods.get(stat, 0)) + max(0, class_mods.get(stat, 0))
+            for stat in ("virtus", "agilitas", "ingenium", "vigor")
+        }
+        stats = _distribute_npc_stat_points(
+            {"virtus": virtus, "agilitas": agilitas, "ingenium": ingenium, "vigor": vigor},
+            weights,
+            caps,
+            level // 3,
+        )
+        virtus, agilitas, ingenium, vigor = (
+            stats["virtus"], stats["agilitas"], stats["ingenium"], stats["vigor"]
+        )
+
     # Vigor/Ingenium feed a small amount into Max HP/MP, same formula
     # used at chargen - see world/chargen_menu.py _apply_race_and_class.
+    # Computed from the FINAL (post-stat-points) vigor/ingenium, same
+    # as a real player's own max_hp/max_mp would reflect their actual
+    # current stat, not just their chargen starting point.
     max_hp += (vigor - 10) * 2
     max_mp += (ingenium - 10) * 2
 

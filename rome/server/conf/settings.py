@@ -161,3 +161,21 @@ COMMAND_DEFAULT_CLASS = "commands.command.MuxCommand"
 SERVER_SESSION_CLASS = "evennia.contrib.utils.auditing.server.AuditedServerSession"
 AUDIT_IN = True
 AUDIT_OUT = False
+
+# The wilderness surrounding Rome / the road to Germania
+# (world/wilderness_rome.py). A real bug found live: a WildernessScript
+# created ad hoc via the contrib's own create_wilderness() is never
+# marked active, so Evennia's server-boot script-restart machinery
+# never calls its at_server_start() hook - meaning every wilderness
+# room's in-memory wilderness reference silently went None after a
+# real reload, breaking movement and descriptions outright for anyone
+# still out there. Registering it here instead makes Evennia create,
+# start, and reliably restart it on every boot, which is what actually
+# fires at_server_start() when it's supposed to - the contrib's own
+# docs name this as the fix for exactly this problem.
+GLOBAL_SCRIPTS = {
+    "germania_road": {
+        "typeclass": "world.wilderness_rome.GermaniaWildernessScript",
+        "desc": "The wilderness surrounding Rome, on the road to Germania",
+    },
+}

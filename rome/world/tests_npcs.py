@@ -81,6 +81,67 @@ class TestDeriveNpcStats(EvenniaTest):
         stats = derive_npc_stats("not_a_real_race", "not_a_real_class", level=1)
         self.assertEqual(stats["virtus"], 10)
 
+    # --- Level-up stat points, added after a live question exposed a
+    # real gap: HP/MP/SP scaled with level, but virtus/agilitas/
+    # ingenium/vigor - the stats that actually drive damage/accuracy -
+    # didn't, for every NPC in the game. Fixed by granting NPCs the
+    # same stat points a player would have earned by that level (one
+    # every 3 levels) and distributing them toward whatever the
+    # NPC's own race/class already leans into, capped exactly like a
+    # player's own lifetime caps.
+
+    def test_no_stat_points_below_level_3(self):
+        level1 = derive_npc_stats("minotaur", "barbarian", level=1)
+        level2 = derive_npc_stats("minotaur", "barbarian", level=2)
+        self.assertEqual(level1["virtus"], level2["virtus"])
+
+    def test_exactly_one_point_granted_at_level_3(self):
+        level2 = derive_npc_stats("minotaur", "barbarian", level=2)
+        level3 = derive_npc_stats("minotaur", "barbarian", level=3)
+        total2 = sum(level2[s] for s in ("virtus", "agilitas", "ingenium", "vigor"))
+        total3 = sum(level3[s] for s in ("virtus", "agilitas", "ingenium", "vigor"))
+        self.assertEqual(total3 - total2, 1)
+
+    def test_points_granted_matches_the_real_level_up_cadence(self):
+        # Level 9 = 3 grants (levels 3, 6, 9) - human/haruspex has
+        # plenty of headroom below any cap at this level, so none of
+        # the 3 points get wasted skipping an already-capped stat.
+        level1 = derive_npc_stats("human", "haruspex", level=1)
+        level9 = derive_npc_stats("human", "haruspex", level=9)
+        total1 = sum(level1[s] for s in ("virtus", "agilitas", "ingenium", "vigor"))
+        total9 = sum(level9[s] for s in ("virtus", "agilitas", "ingenium", "vigor"))
+        self.assertEqual(total9 - total1, 3)
+
+    def test_higher_level_means_more_total_stats_for_the_same_build(self):
+        low = derive_npc_stats("minotaur", "barbarian", level=3)
+        high = derive_npc_stats("minotaur", "barbarian", level=30)
+        total_low = sum(low[s] for s in ("virtus", "agilitas", "ingenium", "vigor"))
+        total_high = sum(high[s] for s in ("virtus", "agilitas", "ingenium", "vigor"))
+        self.assertGreater(total_high, total_low)
+
+    def test_agilitas_never_exceeds_its_own_tighter_cap(self):
+        from world.leveling import AGILITAS_CAP
+
+        stats = derive_npc_stats("centaur", "venator", level=100)
+        self.assertLessEqual(stats["agilitas"], AGILITAS_CAP)
+
+    def test_a_leaning_stat_caps_at_the_bonus_ceiling_not_beyond(self):
+        from world.leveling import STAT_CAP_BONUS
+
+        # Minotaur leans virtus at chargen - same bonus cap a player
+        # of that race gets, not an unbounded climb with level.
+        stats = derive_npc_stats("minotaur", "barbarian", level=100)
+        self.assertLessEqual(stats["virtus"], STAT_CAP_BONUS)
+
+    def test_no_race_or_class_gets_no_stat_points_even_at_high_level(self):
+        # No class/race identity to spend points toward - stays flat
+        # baseline regardless of level, exactly like level 1.
+        stats = derive_npc_stats(None, None, level=100)
+        self.assertEqual(stats["virtus"], 10)
+        self.assertEqual(stats["agilitas"], 10)
+        self.assertEqual(stats["ingenium"], 10)
+        self.assertEqual(stats["vigor"], 10)
+
 
 class TestAutoStatNPC(EvenniaTest):
     def test_stats_derived_from_prototype_race_and_class(self):

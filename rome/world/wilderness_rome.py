@@ -205,11 +205,41 @@ _ENCOUNTER_LEVELS = {
     "final_approach": (37, 43),
 }
 
-_ENCOUNTER_NAMES = [
-    ("a wandering bandit", "human", "gladiator"),
-    ("a hungry wolf", "human", "barbarian"),
-    ("a Germanic raiding scout", "human", "venator"),
-]
+# Banded by terrain, not one flat pool - a real gap found by direct
+# question ("are you using a variety of races/classes?"): the original
+# 3-entry pool was all race="human", including "a hungry wolf" (a
+# mismatch this game's race system doesn't really have room for - no
+# playable race is a literal animal, matching how every other "feral"
+# NPC in the game is already built from a real humanoid race+class
+# pair rather than something outside that system). Rebuilt with real
+# variety AND a deliberate escalation - human threats close to Rome,
+# the same non-human races the Germanic settlement's own warband
+# camps are designed around (Minotaur/Cyclops muscle, Centaur
+# scouts, Harpy skirmishers) showing up as the terrain gets wilder,
+# previewing the destination rather than introducing it out of
+# nowhere at the settlement's own gate.
+_ENCOUNTER_NAMES = {
+    "farmland": [
+        ("a wandering bandit", "human", "gladiator"),
+        ("a Subura footpad", "human", "speculator"),
+    ],
+    "scrubland": [
+        ("a wandering bandit", "human", "gladiator"),
+        ("a deserting legionary", "human", "legionary"),
+    ],
+    "forest_edge": [
+        ("a forest raider", "human", "venator"),
+        ("a Centaur scout", "centaur", "venator"),
+    ],
+    "deep_woods": [
+        ("a Centaur scout", "centaur", "venator"),
+        ("a Cyclops raider", "cyclops", "barbarian"),
+    ],
+    "final_approach": [
+        ("a Minotaur warrior", "minotaur", "barbarian"),
+        ("a Harpy skirmisher", "harpy", "venator"),
+    ],
+}
 
 ENCOUNTER_CHANCE = 0.2
 _ENCOUNTER_TAG = ("wilderness_encounter", "wilderness")
@@ -290,9 +320,9 @@ class RomeWildernessMapProvider(wilderness.WildernessMapProvider):
         if caller and random.random() < ENCOUNTER_CHANCE:
             low, high = _ENCOUNTER_LEVELS[band]
             level = random.randint(low, high)
-            name, race, player_class = random.choice(_ENCOUNTER_NAMES)
+            name, race, player_class = random.choice(_ENCOUNTER_NAMES[band])
             npc = create.create_object(
-                "world.combat.AutoStatNPC",
+                "world.combat.HostileNPC",
                 key=name,
                 location=room,
                 attributes=[
@@ -309,20 +339,60 @@ class RomeWildernessMapProvider(wilderness.WildernessMapProvider):
             _schedule_encounter_cleanup(npc)
 
 
+class GermaniaWildernessScript(wilderness.WildernessScript):
+    """
+    Two real, separate bugs were found live getting reload-survival to
+    actually work, not one:
+
+    1. create_wilderness() (the original version of this module) makes
+       a plain WildernessScript with no persistent registration -
+       nothing recreates it if it's ever missing, and nothing
+       guarantees it exists before players start using it after a
+       true process restart. Fixed by registering this typeclass as a
+       GLOBAL_SCRIPTS entry (server/conf/settings.py) instead -
+       Evennia creates and tracks it reliably on every boot.
+
+    2. GLOBAL_SCRIPTS alone was NOT enough, and this is the one that
+       actually broke movement: Evennia's generic script-restart
+       machinery (the thing that's supposed to call a script's own
+       at_server_start(), the hook this class inherits from
+       WildernessScript to restore every room's ndb.wildernessscript)
+       only resumes scripts with a real ticking interval - this
+       script has none, it's a pure data container. Verified directly
+       from inside a real reload: logging every room's
+       ndb.wildernessscript right at boot showed None. The actual fix
+       is in server/conf/at_server_startstop.py's at_server_start() -
+       the one hook Evennia guarantees fires on every boot regardless
+       of script intervals - which explicitly calls this script's
+       at_server_start() by hand.
+
+    (A third, easier trap along the way: testing this via `evennia
+    shell` invocations gives EACH one its own separate Python process
+    with its own empty ndb space, completely disconnected from the
+    live server's - querying ndb through a one-off shell can never
+    prove or disprove reload-survival either way. The real check has
+    to run from inside the live server process itself, e.g. via this
+    same at_server_start() hook.)
+    """
+
+    def at_script_creation(self):
+        super().at_script_creation()
+        self.db.mapprovider = RomeWildernessMapProvider()
+
+
 def setup_germania_wilderness():
     """
-    Creates the wilderness map (idempotent - create_wilderness() is
-    itself a no-op if one already exists with this name) and the real
-    entrance exit from "The Road's True Start" (world/batch_wall_gate_data.py).
-    Run once, in-game, as Developer/superuser:
+    Wires the real entrance exit from "The Road's True Start"
+    (world/batch_wall_gate_data.py) into the wilderness - the
+    wilderness script itself is created and kept running by Evennia's
+    own GLOBAL_SCRIPTS machinery (see server/conf/settings.py's
+    GLOBAL_SCRIPTS["germania_road"]), not by this function. Idempotent
+    - safe to run again any time. Run once, in-game, as Developer/
+    superuser, after a reload has picked up the GLOBAL_SCRIPTS entry:
 
         py from world.wilderness_rome import setup_germania_wilderness as s; s()
     """
     from evennia.utils import search
-
-    wilderness.create_wilderness(
-        name=WILDERNESS_NAME, mapprovider=RomeWildernessMapProvider()
-    )
 
     road_start = search.search_object(
         "The Road's True Start", typeclass="typeclasses.rooms.Room"
@@ -340,27 +410,53 @@ def setup_germania_wilderness():
         location=road_start,
         destination=None,
     )
-    return "Wilderness created and entrance wired up."
+    return "Entrance wired up."
+
+
+def _get_wilderness_script():
+    """
+    Returns the live GermaniaWildernessScript, or None. Deliberately
+    NOT WildernessScript.objects.filter(db_key=...) - a real bug found
+    live: Evennia's typeclass-bound managers filter by EXACT typeclass,
+    so WildernessScript.objects (what the contrib's own
+    enter_wilderness() uses internally) never finds a
+    GermaniaWildernessScript instance at all, silently failing every
+    single time. evennia.GLOBAL_SCRIPTS.<key> - the same lookup
+    GLOBAL_SCRIPTS itself uses - finds it correctly regardless of
+    subclassing, so this bypasses the contrib's own helper function
+    entirely rather than trying to work around its manager.
+    """
+    import evennia
+
+    return getattr(evennia.GLOBAL_SCRIPTS, WILDERNESS_NAME, None)
 
 
 class EnterWildernessExit(DefaultExit):
     """
     A one-way entrance into the Germania wilderness map, from "The
     Road's True Start." Doesn't move the traverser to a normal room -
-    calls wilderness.enter_wilderness() instead, dropping them at
-    (0, 0), the road's own starting tile. Getting back to Rome from
-    inside the wilderness is what 'recall' is for (see world/combat.py's
-    CmdRecall) - there's no return exit built here on purpose.
+    finds the live wilderness script directly (see
+    _get_wilderness_script's own docstring for why not the contrib's
+    own enter_wilderness() helper) and calls its move_obj() to drop
+    the traverser at (0, 0), the road's own starting tile. Getting
+    back to Rome from inside the wilderness is what 'recall' is for
+    (see world/combat.py's CmdRecall) - there's no return exit built
+    here on purpose.
     """
 
     def at_traverse(self, traversing_object, target_location, **kwargs):
+        script = _get_wilderness_script()
+        if not script:
+            traversing_object.msg("Something's wrong - the road north doesn't lead anywhere right now.")
+            return False
+
         if not traversing_object.at_pre_move(None):
             return False
         traversing_object.location.msg_contents(
             "%s heads north, off toward the wilderness." % traversing_object.key,
             exclude=[traversing_object],
         )
-        wilderness.enter_wilderness(traversing_object, coordinates=(0, 0), name=WILDERNESS_NAME)
+        script.move_obj(traversing_object, (0, 0))
         traversing_object.msg(
             "|wThe last real houses of Rome fall behind you - open country ahead now.|n"
         )
