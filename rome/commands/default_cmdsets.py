@@ -167,7 +167,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(religion.CmdExpel())
         self.add(religion.CmdReligion())
         self.add(titles.CmdTitles())
-        self.add(tutorial.CmdWhatNow())
+        self.add(tutorial.CmdJourney())
 
 
 from world.character_creator import ContribChargenCmdSet

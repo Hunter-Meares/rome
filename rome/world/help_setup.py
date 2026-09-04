@@ -454,7 +454,7 @@ def create_all_help_entries():
             "|wSo You Just Woke Up in a Cell|n\n\n"
             "Here's the whole arc, start to finish - each step links to a "
             "real help topic with the actual details. If you'd rather get "
-            "one quick suggestion instead of re-reading this, try 'whatnow' "
+            "one quick suggestion instead of re-reading this, try 'journey' "
             "any time.\n\n"
             "|w1. Get out.|n You're a captive underneath the Colosseum. "
             "'fight' your way out the direct way, or go quiet - 'sneak' "

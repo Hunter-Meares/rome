@@ -50,7 +50,7 @@ CELL_INTRO_MESSAGES = [
     "Type |whelp|n at any time to see the full list of commands available to you.",
     "Type |wpublic <message>|n to talk to other players online right now, even if you can't see them from here.",
     "Type |wstats|n to see your character sheet, or |wspellinfo|n / |wskillinfo|n to see what your class can learn as you grow.",
-    "Type |whelp newbie|n for the full walkthrough of what to do first, or |wwhatnow|n any time for a quick, personal suggestion.",
+    "Type |whelp newbie|n for the full walkthrough of what to do first, or |wjourney|n any time for a quick, personal suggestion.",
     "When you're ready to see what's beyond these cells, look for the way out.",
 ]
 

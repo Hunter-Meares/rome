@@ -6,11 +6,17 @@ New-player orientation - two pieces, doing different jobs:
     rest of Rome -> Germania) with pointers to the real 'help X'
     topics for depth on each step, rather than re-explaining them.
 
-  - CmdWhatNow (this module) is the thing that actually answers "ok,
-    right now, what do I do" - a single, state-aware line rather than
-    the whole topic again, since a lost player shouldn't have to
-    re-read a full page and work out which part currently applies to
-    them. Deliberately reads only state that already exists
+  - CmdJourney ('journey', this module) is the thing that actually
+    answers "ok, right now, what do I do" - a single, state-aware
+    line rather than the whole topic again, since a lost player
+    shouldn't have to re-read a full page and work out which part
+    currently applies to them. Named 'journey' rather than something
+    plainer like 'whatnow' per direct request - too OOC/casual for
+    an otherwise in-character game - but 'whatnow' and 'next' stay on
+    as real aliases: this command exists specifically for players who
+    don't know what to do yet, so it needs to be guessable by
+    instinct too, not just discoverable once you already know its
+    name. Deliberately reads only state that already exists
     (db.level, db.colosseum_escaped, db.is_dead, is_in_combat) rather
     than adding new "have you visited X" tracking across every other
     system - a small, contained addition, not a sprawling one.
@@ -31,12 +37,12 @@ SEWERS_LEVEL_CEILING = 25
 GERMANIA_LEVEL_CEILING = 45
 
 
-class CmdWhatNow(Command):
+class CmdJourney(Command):
     """
     Get a quick, personal suggestion for what to do next.
 
     Usage:
-      whatnow
+      journey
 
     Reads your own actual progress - level, whether you've escaped
     the cells yet, whether you're dead or mid-fight - and gives you
@@ -45,8 +51,8 @@ class CmdWhatNow(Command):
     this is shorthand for.
     """
 
-    key = "whatnow"
-    aliases = ["next"]
+    key = "journey"
+    aliases = ["whatnow", "next"]
     help_category = "general"
 
     def func(self):
