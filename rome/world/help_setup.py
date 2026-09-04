@@ -78,7 +78,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
     )
 
@@ -442,6 +442,23 @@ def create_all_help_entries():
             "over the two commands above\n\n"
             "No religion is blocked from functioning just because it has "
             "no Pontifex yet - a god can always act in their place."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Recall ---
+    HelpEntry.objects.create(
+        db_key="recall",
+        db_help_category="General",
+        db_entrytext=(
+            "|wRecall|n\n\n"
+            "  recall\n\n"
+            "Teleports you back to the Temple of Jupiter Optimus Maximus "
+            "on the Capitoline - the same place a level 6+ character "
+            "returns to after death. Blocked while in combat, and on a "
+            "10-minute cooldown afterward, so it's meant for getting "
+            "back from somewhere genuinely far away, not as an "
+            "escape-from-a-fight button."
         ),
         db_lock_storage="view:all()",
     )

@@ -6040,6 +6040,64 @@ class CmdDisengage(Command):
             self.rules.spend_action(self.caller, "all", action_name="failed_disengage")
 
 
+RECALL_COOLDOWN_SECONDS = 600
+
+
+class CmdRecall(Command):
+    """
+    Teleport back to Rome.
+
+    Usage:
+      recall
+
+    Returns you to the Temple of Jupiter Optimus Maximus on the
+    Capitoline - the same anchor point CombatRules.resurrect() already
+    returns a level 6+ character to after death, reused here rather
+    than inventing a second "home base" concept. Blocked in combat,
+    and on a 10-minute cooldown afterward - it's meant for getting
+    back from somewhere genuinely far away (like the road to
+    Germania), not as a combat-safety escape valve or a substitute
+    for actually traveling there and back.
+    """
+
+    key = "recall"
+    help_category = "general"
+    rules = COMBAT_RULES
+
+    def func(self):
+        import time
+        from evennia.utils.search import search_tag
+
+        caller = self.caller
+
+        if self.rules.is_in_combat(caller):
+            caller.msg("You can't recall while in combat.")
+            return
+
+        cooldown_until = caller.db.recall_cooldown_until or 0
+        remaining = cooldown_until - time.time()
+        if remaining > 0:
+            caller.msg(
+                "You can't recall again so soon - wait %d more second(s)."
+                % (int(remaining) + 1)
+            )
+            return
+
+        temple = search_tag("capitoline_resurrection_point", category="capitoline")
+        if not temple:
+            caller.msg("Something's wrong - there's nowhere to recall to right now.")
+            return
+        destination = temple[0]
+
+        caller.msg("|YYou speak a prayer to Jupiter, and the world folds around you...|n")
+        caller.move_to(destination, quiet=False, move_type="teleport")
+        caller.msg(
+            "|YYou arrive within the Temple of Jupiter Optimus Maximus, breath "
+            "still catching from the journey.|n"
+        )
+        caller.db.recall_cooldown_until = time.time() + RECALL_COOLDOWN_SECONDS
+
+
 class CmdRest(Command):
     """
     Begin resting to gradually recover HP, MP, and SP over time.
@@ -8127,6 +8185,7 @@ class BattleCmdSet(CharacterCmdSet):
         self.add(CmdStand())
         self.add(CmdPass())
         self.add(CmdDisengage())
+        self.add(CmdRecall())
         self.add(CmdCombatHelp())
         self.add(CmdWield())
         self.add(CmdUnwield())
