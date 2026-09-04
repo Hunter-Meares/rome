@@ -169,6 +169,24 @@ def is_no_combat_zone(room):
     return bool(room.tags.get(key, category=category))
 
 
+# A dedicated tag, separate from NO_COMBAT_ZONE_TAG above - that one's
+# generic ("no fights here") and could plausibly get reused by some
+# other zone later; this one specifically means "this room is part of
+# the Underworld," for anything (like CmdRecall) that needs to know
+# that and nothing else. Applied by the same reachability walk as
+# NO_COMBAT_ZONE_TAG - see world/underworld.py's
+# tag_underworld_as_no_combat_zone().
+UNDERWORLD_ZONE_TAG = ("underworld_zone", "zone")
+
+
+def is_in_underworld(room):
+    """True if room is part of the Underworld."""
+    if not room:
+        return False
+    key, category = UNDERWORLD_ZONE_TAG
+    return bool(room.tags.get(key, category=category))
+
+
 def wizinvis_hides_from(character, looker):
     """
     True if character is wizinvis and looker is someone it should be
@@ -6054,10 +6072,12 @@ class CmdRecall(Command):
     Capitoline - the same anchor point CombatRules.resurrect() already
     returns a level 6+ character to after death, reused here rather
     than inventing a second "home base" concept. Blocked in combat,
-    and on a 10-minute cooldown afterward - it's meant for getting
-    back from somewhere genuinely far away (like the road to
-    Germania), not as a combat-safety escape valve or a substitute
-    for actually traveling there and back.
+    blocked while dead or anywhere in the Underworld (the riddle, or a
+    Medicus's resurrection, are the only ways out of there), and on a
+    10-minute cooldown afterward - it's meant for getting back from
+    somewhere genuinely far away (like the road to Germania), not as a
+    combat-safety escape valve or a substitute for actually traveling
+    there and back.
     """
 
     key = "recall"
@@ -6072,6 +6092,10 @@ class CmdRecall(Command):
 
         if self.rules.is_in_combat(caller):
             caller.msg("You can't recall while in combat.")
+            return
+
+        if caller.db.is_dead or is_in_underworld(caller.location):
+            caller.msg("You can't recall out of the Underworld.")
             return
 
         cooldown_until = caller.db.recall_cooldown_until or 0

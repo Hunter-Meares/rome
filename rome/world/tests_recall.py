@@ -21,12 +21,30 @@ class TestCmdRecall(EvenniaCommandTest):
         self.temple.tags.add("capitoline_resurrection_point", category="capitoline")
         self.char1.db.combat_turnhandler = None
         self.char1.db.recall_cooldown_until = None
+        self.char1.db.is_dead = False
 
     def test_blocked_while_in_combat(self):
         self.char1.db.combat_turnhandler = True
         result = self.call(CmdRecall(), "", caller=self.char1)
         self.assertIn("can't recall while in combat", result)
         self.assertNotEqual(self.char1.location, self.temple)
+
+    def test_blocked_while_dead(self):
+        self.char1.db.is_dead = True
+        result = self.call(CmdRecall(), "", caller=self.char1)
+        self.assertIn("can't recall out of the Underworld", result)
+        self.assertNotEqual(self.char1.location, self.temple)
+
+    def test_blocked_while_in_an_underworld_room_even_if_not_flagged_dead(self):
+        underworld_room = create.create_object(
+            "typeclasses.rooms.Room", key="The Fields of Asphodel"
+        )
+        underworld_room.tags.add("underworld_zone", category="zone")
+        self.char1.db.is_dead = False
+        self.char1.location = underworld_room
+        result = self.call(CmdRecall(), "", caller=self.char1)
+        self.assertIn("can't recall out of the Underworld", result)
+        self.assertEqual(self.char1.location, underworld_room)
 
     def test_recalls_to_the_tagged_temple(self):
         self.char1.location = self.room1
