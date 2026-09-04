@@ -6113,11 +6113,11 @@ class CmdRecall(Command):
             return
         destination = temple[0]
 
-        caller.msg("|YYou speak a prayer to Jupiter, and the world folds around you...|n")
+        caller.msg("|YYou pray to the gods for transportation, and the world folds around you...|n")
         caller.move_to(destination, quiet=False, move_type="teleport")
         caller.msg(
-            "|YYou arrive within the Temple of Jupiter Optimus Maximus, breath "
-            "still catching from the journey.|n"
+            "|YThe gods answer. You arrive within the Temple of Jupiter Optimus "
+            "Maximus, breath still catching from the journey.|n"
         )
         caller.db.recall_cooldown_until = time.time() + RECALL_COOLDOWN_SECONDS
 
