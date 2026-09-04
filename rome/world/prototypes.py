@@ -2254,3 +2254,424 @@ SEWER_LOOT_PLATE = {
         "stops a blade exactly the same as anything prettier would."
     ),
 }
+
+# ----------------------------------------------------------------------------
+# The Germanic Stronghold's combat population (levels 27-46), placed by
+# world/setup_germania_live.py - the post-sewers leveling zone. Same
+# HostileNPC/RespawningNPC pattern as the SEWER_* roster above:
+# race/player_class/level set on the prototype, real stats and a real
+# class-appropriate combat AI derived automatically (world.combat's
+# AutoStatNPC/HostileNPC). xp_reward follows the same ~6% of that
+# level's own xp_for_level convention the sewers/Ludus already use;
+# respawn_delay follows the same linear extrapolation of the sewers'
+# own tier-scaled delays. Real race/class variety across the roster,
+# not a single reskinned type at increasing levels - a gap found live
+# by direct question and fixed before this zone was even built.
+# ----------------------------------------------------------------------------
+
+# --- Wolf-kin (levels 27-31) ---
+
+GERMANIA_WOLFKIN_RAIDER = {
+    "key": "a Wolf-kin raider",
+    "aliases": ["raider"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "A young warrior, real wolf teeth strung around his neck as "
+        "proof of something already earned, even this early in his "
+        "own career."
+    ),
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 27,
+    "xp_reward": 629,
+    "respawn_delay": 317,
+    "tags": [("germania_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+GERMANIA_WOLFKIN_BRAWLER = {
+    "key": "a Wolf-kin brawler",
+    "aliases": ["brawler"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Loud, enthusiastic, and genuinely dangerous despite - or "
+        "maybe because of - how little he seems to worry about it."
+    ),
+    "race": "human",
+    "player_class": "barbarian",
+    "level": 29,
+    "xp_reward": 720,
+    "respawn_delay": 342,
+    "tags": [("germania_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+GERMANIA_WOLFKIN_YOUNG_MINOTAUR = {
+    "key": "a young Minotaur of the Wolf-kin",
+    "aliases": ["minotaur"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Still visibly growing into his own raw strength, which "
+        "doesn't make him any less dangerous to actually fight."
+    ),
+    "race": "minotaur",
+    "player_class": "barbarian",
+    "level": 31,
+    "xp_reward": 818,
+    "respawn_delay": 367,
+    "tags": [("germania_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+# --- Boar-marked (levels 31-35) ---
+
+GERMANIA_BOARMARKED_WARRIOR = {
+    "key": "a Boar-marked warrior",
+    "aliases": ["warrior"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Scarred, confident, and visibly tested - this warband has "
+        "actually fought, and it shows in the way he carries "
+        "himself."
+    ),
+    "race": "human",
+    "player_class": "barbarian",
+    "level": 32,
+    "xp_reward": 868,
+    "respawn_delay": 379,
+    "tags": [("germania_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+GERMANIA_BOARMARKED_CYCLOPS = {
+    "key": "a Boar-marked Cyclops",
+    "aliases": ["cyclops"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Real, raw muscle even by this warband's own standards - "
+        "genuinely feared even among warriors who don't scare easily."
+    ),
+    "race": "cyclops",
+    "player_class": "barbarian",
+    "level": 34,
+    "xp_reward": 974,
+    "respawn_delay": 404,
+    "tags": [("germania_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+GERMANIA_BOARMARKED_VETERAN = {
+    "key": "a Boar-marked veteran",
+    "aliases": ["veteran"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Older than most of the camp around him, real trophies from "
+        "real fights earned over real years, not a single season."
+    ),
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 35,
+    "xp_reward": 1030,
+    "respawn_delay": 417,
+    "tags": [("germania_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+# --- Raven's Watch (levels 35-39) ---
+
+GERMANIA_RAVENSWATCH_SCOUT = {
+    "key": "a Raven's Watch scout",
+    "aliases": ["scout"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Genuinely fast, genuinely observant - a Centaur built for "
+        "covering ground, not holding it."
+    ),
+    "race": "centaur",
+    "player_class": "venator",
+    "level": 36,
+    "xp_reward": 1086,
+    "respawn_delay": 429,
+    "tags": [("germania_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+GERMANIA_RAVENSWATCH_RAIDER = {
+    "key": "a Raven's Watch raider",
+    "aliases": ["raider"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Lean and quick, real raven feathers marking her out even "
+        "at a distance - built for a fast strike, not a long fight."
+    ),
+    "race": "human",
+    "player_class": "venator",
+    "level": 38,
+    "xp_reward": 1204,
+    "respawn_delay": 454,
+    "tags": [("germania_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+# --- Storm-callers (levels 39-43) ---
+
+GERMANIA_STORMCALLER_GUARD = {
+    "key": "a Storm-caller guard",
+    "aliases": ["guard"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Real, disciplined muscle - the chieftain's own trust made "
+        "visible in a Minotaur who takes that responsibility "
+        "seriously."
+    ),
+    "race": "minotaur",
+    "player_class": "barbarian",
+    "level": 40,
+    "xp_reward": 1327,
+    "respawn_delay": 479,
+    "tags": [("germania_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+GERMANIA_STORMCALLER_ELITE = {
+    "key": "a Storm-caller elite",
+    "aliases": ["elite"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Genuinely dangerous in the air as much as on the ground - "
+        "a Harpy warrior who's earned a real place among the "
+        "chieftain's own best."
+    ),
+    "race": "harpy",
+    "player_class": "venator",
+    "level": 42,
+    "xp_reward": 1456,
+    "respawn_delay": 503,
+    "tags": [("germania_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+# --- Contested Borderlands (levels 41-45) ---
+
+GERMANIA_BORDERLANDS_RAIDER = {
+    "key": "a borderlands raider",
+    "aliases": ["raider"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Belonging to no warband anyone here recognizes - real, "
+        "contested territory draws exactly this kind of fighter."
+    ),
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 41,
+    "xp_reward": 1391,
+    "respawn_delay": 491,
+    "tags": [("germania_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+GERMANIA_BORDERLANDS_CYCLOPS = {
+    "key": "a borderlands Cyclops",
+    "aliases": ["cyclops"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Genuinely feral by now, whatever warband once claimed him "
+        "long since forgotten out here."
+    ),
+    "race": "cyclops",
+    "player_class": "barbarian",
+    "level": 43,
+    "xp_reward": 1523,
+    "respawn_delay": 516,
+    "tags": [("germania_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+GERMANIA_BORDERLANDS_SCOUT = {
+    "key": "a borderlands scout",
+    "aliases": ["scout"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "A real, dangerous Centaur, watching this contested ground "
+        "the way only someone who's survived it repeatedly can."
+    ),
+    "race": "centaur",
+    "player_class": "venator",
+    "level": 45,
+    "xp_reward": 1660,
+    "respawn_delay": 541,
+    "tags": [("germania_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+# --- Capstone: the Storm-callers' unique champion (level 46) ---
+
+GERMANIA_BOSS_STORMCALLER_CHAMPION = {
+    "key": "Vidrik Storm-Marked",
+    "aliases": ["vidrik", "champion"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "The chieftain's own champion, and it's obvious within a "
+        "single look why - real, earned authority in a Minotaur "
+        "who's never once needed to raise his voice to be obeyed. "
+        "Few who reach this ground turn back, and fewer still walk "
+        "away from what actually happens if they don't."
+    ),
+    "race": "minotaur",
+    "player_class": "barbarian",
+    "level": 46,
+    "xp_reward": 2200,
+    "respawn_delay": 1200,
+    "tags": [("germania_npc", "npc_role"), ("germania_boss", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+# ----------------------------------------------------------------------------
+# The Germanic weaponsmith's stock (world/economy.py's GermanicWeaponsmith,
+# placed in "The Weaponsmith's Stall") - genuinely Germanic-named gear,
+# not reskinned Roman items, per direct request. Reuses the existing
+# weapon_type_name/armor_category balance tables wholesale (the display
+# name is entirely separate from the balance lookup - "a worn seax" can
+# use weapon_type_name "dagger" and get dagger's own real stats) rather
+# than inventing a second, parallel item-power system. Three tiers
+# (25/35/45) matching this zone's own level range, mirroring the
+# Ludus weaponsmith's 2/6/10 three-tier shape.
+# ----------------------------------------------------------------------------
+
+GERMANIA_SEAX_NOVICE = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a worn seax",
+    "desc": "A real, single-edged Germanic blade - well-used, not fancy.",
+    "weapon_type_name": "dagger",
+    "weapon_category": "light_blade",
+    "two_handed": False,
+}
+GERMANIA_SEAX_VETERAN = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a well-balanced seax",
+    "desc": "Real, careful smithing - this blade has clearly seen real fights and come out ahead.",
+    "weapon_type_name": "dagger",
+    "weapon_category": "light_blade",
+    "two_handed": False,
+}
+GERMANIA_SEAX_CHAMPION = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a masterwork seax",
+    "desc": "Genuinely fine work - the kind of blade a warband's own champion actually carries.",
+    "weapon_type_name": "dagger",
+    "weapon_category": "light_blade",
+    "two_handed": False,
+}
+
+GERMANIA_ANGON_NOVICE = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a plain angon",
+    "desc": "A real, heavy throwing-and-thrusting spear - straightforward, effective, unglamorous.",
+    "weapon_type_name": "spear",
+    "weapon_category": "polearm",
+    "two_handed": True,
+}
+GERMANIA_ANGON_VETERAN = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a reinforced angon",
+    "desc": "Real, deliberate reinforcement along the shaft - built to survive real, repeated use.",
+    "weapon_type_name": "spear",
+    "weapon_category": "polearm",
+    "two_handed": True,
+}
+GERMANIA_ANGON_CHAMPION = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a champion's angon",
+    "desc": "Genuinely fine balance and real reach - a weapon built for someone who's already proven themselves.",
+    "weapon_type_name": "spear",
+    "weapon_category": "polearm",
+    "two_handed": True,
+}
+
+GERMANIA_FRANCISCA_NOVICE = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a plain francisca",
+    "desc": "A real Germanic throwing axe - short-hafted, genuinely built to be thrown hard.",
+    "weapon_type_name": "javelin",
+    "weapon_category": "ranged",
+    "two_handed": False,
+}
+GERMANIA_FRANCISCA_VETERAN = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a well-weighted francisca",
+    "desc": "Real, careful balance - this one flies true more often than not.",
+    "weapon_type_name": "javelin",
+    "weapon_category": "ranged",
+    "two_handed": False,
+}
+GERMANIA_FRANCISCA_CHAMPION = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a masterwork francisca",
+    "desc": "Genuinely fine smithing - a throwing axe good enough to be worth actually recovering afterward.",
+    "weapon_type_name": "javelin",
+    "weapon_category": "ranged",
+    "two_handed": False,
+}
+
+GERMANIA_WARAXE_NOVICE = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a plain Germanic waraxe",
+    "desc": "Real, heavy, and entirely unsubtle - exactly what it looks like.",
+    "weapon_type_name": "waraxe",
+    "weapon_category": "heavy_weapon",
+    "two_handed": True,
+}
+GERMANIA_WARAXE_VETERAN = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a battle-worn Germanic waraxe",
+    "desc": "Real, visible nicks along the edge - proof of real, repeated use, not neglect.",
+    "weapon_type_name": "waraxe",
+    "weapon_category": "heavy_weapon",
+    "two_handed": True,
+}
+GERMANIA_WARAXE_CHAMPION = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a champion's Germanic waraxe",
+    "desc": "Genuinely fine, heavy craftsmanship - a real warband champion's own weapon of choice.",
+    "weapon_type_name": "waraxe",
+    "weapon_category": "heavy_weapon",
+    "two_handed": True,
+}
+
+GERMANIA_LAMELLAR_NOVICE = {
+    "prototype_parent": "BASEARMOR",
+    "key": "worn lamellar armor",
+    "desc": "Real overlapping plates, laced and worn - functional, unglamorous.",
+    "armor_category": "medium",
+}
+GERMANIA_LAMELLAR_VETERAN = {
+    "prototype_parent": "BASEARMOR",
+    "key": "well-kept lamellar armor",
+    "desc": "Real, careful maintenance - this warrior's own gear has clearly been looked after.",
+    "armor_category": "medium",
+}
+GERMANIA_LAMELLAR_CHAMPION = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a champion's lamellar armor",
+    "desc": "Genuinely fine craftsmanship - real, deliberate reinforcement in every visible seam.",
+    "armor_category": "medium",
+}
+
+GERMANIA_MAIL_NOVICE = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a plain mail shirt",
+    "desc": "Real, heavy ringmail - unglamorous, effective, exactly what it looks like.",
+    "armor_category": "heavy",
+}
+GERMANIA_MAIL_VETERAN = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a reinforced mail shirt",
+    "desc": "Real, deliberate reinforcement at the vital points - a warrior who's actually been tested.",
+    "armor_category": "heavy",
+}
+GERMANIA_MAIL_CHAMPION = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a champion's mail hauberk",
+    "desc": "Genuinely fine ringmail, real and heavy - the kind only a warband's own best actually wears.",
+    "armor_category": "heavy",
+}

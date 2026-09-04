@@ -32,6 +32,7 @@ from world import bounties
 from world import quests
 from world import religion
 from world import titles
+from world import tutorial
 from evennia.contrib.utils.debugpy import CmdDebugPy
 from evennia.contrib.grid.ingame_map_display import MapDisplayCmdSet
 from evennia.contrib.grid.ingame_map_display.ingame_map_display import CmdMap
@@ -166,6 +167,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(religion.CmdExpel())
         self.add(religion.CmdReligion())
         self.add(titles.CmdTitles())
+        self.add(tutorial.CmdWhatNow())
 
 
 from world.character_creator import ContribChargenCmdSet

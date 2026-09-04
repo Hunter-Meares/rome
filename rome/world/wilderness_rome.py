@@ -283,6 +283,119 @@ def _schedule_encounter_cleanup(npc, in_seconds=ENCOUNTER_CLEANUP_SECONDS):
     delay(in_seconds, _cleanup_encounter_npc, npc, persistent=True)
 
 
+def _aggro_on_sight(npc, caller, room):
+    """
+    Forces combat to start immediately between npc and whoever just
+    walked in on it, by direct request - the one place in the entire
+    game a hostile NPC attacks on sight rather than waiting for the
+    player to type 'fight' first (every other NPC anywhere, including
+    the Germanic Stronghold's own persistent warband population,
+    keeps the normal player-initiated convention; this is deliberately
+    scoped to just the wilderness road, to make leaving Rome's gates
+    feel genuinely dangerous rather than a guided tour).
+
+    Reuses the exact same mechanism CmdFight itself uses
+    (world.combat.CombatTurnHandler's own pending_fighters handoff),
+    not a bespoke duel - so turn order still comes from a real,
+    fair roll_init roll (an ambushed player isn't guaranteed to lose
+    the first exchange, just to not get a choice about whether the
+    fight happens at all), and an active Medicus Sanctuary still
+    holds exactly like it does against a player-initiated fight.
+
+    No-ops for anything without a real account (the encounter's own
+    self-cleanup timer, or some future non-player mover, shouldn't be
+    able to trigger this).
+    """
+    if not caller or not getattr(caller, "has_account", False):
+        return
+
+    from world.combat import COMBAT_RULES, CombatTurnHandler
+
+    if not COMBAT_RULES.try_break_sanctuary(npc, caller):
+        room.msg_contents("%s is here." % npc.key)
+        return
+
+    room.msg_contents("|r%s lunges out and attacks!|n" % npc.key)
+    room.ndb.pending_fighters = [npc, caller]
+    room.scripts.add(CombatTurnHandler)
+
+
+GERMANIA_SETTLEMENT_ENTRY_ROOM = "The Palisade Gate"
+
+
+def _ensure_boundary_exit(room, coordinates):
+    """
+    The wilderness's own room-recycling model means the same physical
+    room object represents a different (x, y) tile every time someone
+    new moves into it - so a special "leave the wilderness here" exit
+    can't just be added once and left alone, or it would misfire the
+    next time this exact room shell gets reused for a completely
+    different, non-boundary coordinate (silently teleporting someone
+    to the settlement from the middle of nowhere). Checked and
+    corrected on every single at_prepare_room call instead: the
+    settlement's north edge (0, ROAD_LENGTH) gets a real
+    LeaveGermaniaWildernessExit in place of the standard "north"
+    WildernessExit; every other coordinate gets the standard one
+    restored if this room shell happens to have carried the special
+    one over from a previous visitor.
+    """
+    x, y = coordinates
+    should_leave = (x == 0 and y == ROAD_LENGTH)
+
+    north_exit = None
+    for ex in room.exits:
+        if ex.key == "north":
+            north_exit = ex
+            break
+    if not north_exit:
+        return
+
+    is_leave_exit = north_exit.is_typeclass(LeaveGermaniaWildernessExit, exact=True)
+    if should_leave and not is_leave_exit:
+        north_exit.delete()
+        create.create_object(
+            "world.wilderness_rome.LeaveGermaniaWildernessExit",
+            key="north", aliases=["n"], location=room, destination=room,
+        )
+    elif not should_leave and is_leave_exit:
+        north_exit.delete()
+        create.create_object(
+            wilderness.WildernessExit,
+            key="north", aliases=["n"], location=room, destination=room,
+        )
+
+
+class LeaveGermaniaWildernessExit(DefaultExit):
+    """
+    The real crossover from the wilderness's north edge (0,
+    ROAD_LENGTH) into the actual, authored Germanic Stronghold - see
+    _ensure_boundary_exit's own docstring for why this can't just be a
+    normal, permanently-placed exit. A genuine room-to-room move via
+    move_to() (not a coordinate shift like WildernessExit uses),
+    which already correctly triggers the wilderness's own cleanup on
+    the way out (the exact same path CmdRecall already proved works
+    from anywhere in the wilderness).
+    """
+
+    def at_traverse(self, traversing_object, target_location, **kwargs):
+        from evennia.utils import search
+
+        real_room = search.search_object(
+            GERMANIA_SETTLEMENT_ENTRY_ROOM, typeclass="typeclasses.rooms.Room"
+        )
+        if not real_room:
+            traversing_object.msg(
+                "Something's wrong - the way ahead doesn't lead anywhere right now."
+            )
+            return False
+
+        traversing_object.msg(
+            "|wThe wilderness finally, genuinely ends - a real palisade rises ahead.|n"
+        )
+        traversing_object.move_to(real_room[0], quiet=False, move_type="teleport")
+        return True
+
+
 class RomeWildernessMapProvider(wilderness.WildernessMapProvider):
     def is_valid_coordinates(self, wildernessscript, coordinates):
         x, y = coordinates
@@ -302,6 +415,8 @@ class RomeWildernessMapProvider(wilderness.WildernessMapProvider):
     def at_prepare_room(self, coordinates, caller, room):
         x, y = coordinates
         band = _band(y)
+
+        _ensure_boundary_exit(room, coordinates)
 
         for old in list(room.contents):
             if old.tags.get(_ENCOUNTER_TAG[0], category=_ENCOUNTER_TAG[1]):
@@ -335,8 +450,8 @@ class RomeWildernessMapProvider(wilderness.WildernessMapProvider):
             )
             npc.tags.add(_ENCOUNTER_TAG[0], category=_ENCOUNTER_TAG[1])
             npc.locks.add("get:false()")
-            room.msg_contents("%s is here." % npc.key)
             _schedule_encounter_cleanup(npc)
+            _aggro_on_sight(npc, caller, room)
 
 
 class GermaniaWildernessScript(wilderness.WildernessScript):

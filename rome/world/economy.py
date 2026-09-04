@@ -136,6 +136,71 @@ class LudusWeaponsmith(NPCMerchant):
             obj.move_to(self, quiet=True)
 
 
+# Three tiers (prototype_key, level) per weapon/armor - mirrors
+# LUDUS_WEAPONSMITH_STOCK's own 3-tier shape, scaled to this zone's
+# own 25-45 level range instead of the Ludus's 2/6/10. Genuinely
+# Germanic-named gear (seax, angon, francisca, waraxe, lamellar,
+# mail), not reskinned Roman items - see world/prototypes.py's
+# GERMANIA_* entries for the design note on why the balance lookup
+# (weapon_type_name/armor_category) is reused wholesale while the
+# display name is entirely separate.
+GERMANIA_WEAPONSMITH_STOCK = [
+    ("GERMANIA_SEAX_NOVICE", 25),
+    ("GERMANIA_SEAX_VETERAN", 35),
+    ("GERMANIA_SEAX_CHAMPION", 45),
+    ("GERMANIA_ANGON_NOVICE", 25),
+    ("GERMANIA_ANGON_VETERAN", 35),
+    ("GERMANIA_ANGON_CHAMPION", 45),
+    ("GERMANIA_FRANCISCA_NOVICE", 25),
+    ("GERMANIA_FRANCISCA_VETERAN", 35),
+    ("GERMANIA_FRANCISCA_CHAMPION", 45),
+    ("GERMANIA_WARAXE_NOVICE", 25),
+    ("GERMANIA_WARAXE_VETERAN", 35),
+    ("GERMANIA_WARAXE_CHAMPION", 45),
+    ("GERMANIA_LAMELLAR_NOVICE", 25),
+    ("GERMANIA_LAMELLAR_VETERAN", 35),
+    ("GERMANIA_LAMELLAR_CHAMPION", 45),
+    ("GERMANIA_MAIL_NOVICE", 25),
+    ("GERMANIA_MAIL_VETERAN", 35),
+    ("GERMANIA_MAIL_CHAMPION", 45),
+]
+
+
+class GermanicWeaponsmith(NPCMerchant):
+    """
+    The Germanic Stronghold's own weaponsmith - same self-stocking
+    pattern as LudusWeaponsmith above (same level-scaled formula, same
+    automatic price/power consistency), just genuinely Germanic gear
+    instead of Roman, per direct request.
+    """
+
+    def at_object_creation(self):
+        super().at_object_creation()
+        self.db.shopname = "the Germanic weaponsmith's stall"
+
+        from world.combat import compute_weapon_stats, compute_armor_stats
+
+        for prototype_key, level in GERMANIA_WEAPONSMITH_STOCK:
+            obj = spawn(prototype_key)[0]
+            if obj.is_typeclass("world.combat.CombatWeapon", exact=True):
+                damage_range, accuracy_bonus, price = compute_weapon_stats(
+                    obj.db.weapon_type_name, level
+                )
+                obj.db.damage_range = damage_range
+                obj.db.accuracy_bonus = accuracy_bonus
+                obj.db.price = price
+                obj.db.item_level = level
+            elif obj.is_typeclass("world.combat.CombatArmor", exact=True):
+                reduction, defense_modifier, price = compute_armor_stats(
+                    obj.db.armor_category, level
+                )
+                obj.db.damage_reduction = reduction
+                obj.db.defense_modifier = defense_modifier
+                obj.db.price = price
+                obj.db.item_level = level
+            obj.move_to(self, quiet=True)
+
+
 def _sellable_wares(merchant):
     """Every item in the merchant's inventory with a price set."""
     return [obj for obj in merchant.contents if obj.db.price]

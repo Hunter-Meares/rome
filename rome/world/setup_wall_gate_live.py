@@ -88,6 +88,17 @@ for room_key, name, kind, desc, extra in NPCS:
     npc = create.create_object(CHARACTER_TYPECLASS, key=name, location=room)
     npc.db.desc = desc
     npc.locks.add("get:false()")
+    if room_key == "wall_gate_passage":
+        # The last guard players pass before actually stepping out -
+        # a real, in-character warning about the wilderness beyond,
+        # added once the road actually became genuinely dangerous
+        # (auto-aggro wilderness encounters, direct request).
+        npc.db.chatter_lines = [
+            "Stay wary out there. Plenty who leave through this gate don't come back the same.",
+            "Whatever's beyond that wall doesn't wait to be provoked - it'll come at you the moment it sees you.",
+            "The road looks quiet enough from here. It isn't, once you're on it.",
+        ]
+        npc.scripts.add("world.colosseum.NPCChatter")
     npc_count += 1
 
 print("Spawned %d NPCs." % npc_count)

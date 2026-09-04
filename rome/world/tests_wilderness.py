@@ -124,6 +124,61 @@ class TestLiveWilderness(EvenniaTest):
             south_exits["south"].at_traverse(self.char1, south_exits["south"].destination)
         self.assertTrue(found_one, "no encounter spawned in 60 attempts - ENCOUNTER_CHANCE regression?")
 
+    def test_encounter_forces_combat_with_a_real_player(self):
+        # By direct request: the one place in the whole game a
+        # hostile NPC attacks on sight rather than waiting for
+        # 'fight' - deliberately scoped to just the wilderness road.
+        # Tests _aggro_on_sight directly rather than relying on a
+        # real ENCOUNTER_CHANCE roll during a live walk (flaky) or on
+        # has_account reflecting a real session (self.sessions.count()
+        # under the hood - a bare EvenniaTest fixture's session.puppet
+        # assignment doesn't actually register one, a real Evennia
+        # testing quirk, not anything specific to this code).
+        from unittest.mock import PropertyMock, patch
+        from world.wilderness_rome import _aggro_on_sight
+
+        npc = create.create_object(
+            "world.combat.HostileNPC",
+            key="a test attacker",
+            location=self.room1,
+            attributes=[("race", "human"), ("player_class", "gladiator"), ("level", 1)],
+        )
+        with patch.object(type(self.char1), "has_account", new_callable=PropertyMock) as mock_has_account:
+            mock_has_account.return_value = True
+            _aggro_on_sight(npc, self.char1, self.room1)
+
+        self.assertIsNotNone(self.room1.db.combat_turnhandler)
+        fighters = self.room1.db.combat_turnhandler.db.fighters
+        self.assertIn(self.char1, fighters)
+        self.assertIn(npc, fighters)
+
+    def test_sanctuary_blocks_the_forced_fight(self):
+        from world.wilderness_rome import _aggro_on_sight
+
+        self.char1.db.sanctuary_active = True
+        self.char1.db.sanctuary_level = 999
+        npc = create.create_object(
+            "world.combat.HostileNPC",
+            key="a test attacker",
+            location=self.room1,
+            attributes=[("race", "human"), ("player_class", "gladiator"), ("level", 1)],
+        )
+        _aggro_on_sight(npc, self.char1, self.room1)
+        self.assertIsNone(self.room1.db.combat_turnhandler)
+
+    def test_non_player_mover_does_not_trigger_aggro(self):
+        from world.wilderness_rome import _aggro_on_sight
+
+        mover = create.create_object("typeclasses.characters.Character", key="a stray NPC mover")
+        npc = create.create_object(
+            "world.combat.HostileNPC",
+            key="a test attacker",
+            location=self.room1,
+            attributes=[("race", "human"), ("player_class", "gladiator"), ("level", 1)],
+        )
+        _aggro_on_sight(npc, mover, self.room1)
+        self.assertIsNone(self.room1.db.combat_turnhandler)
+
     def test_stale_encounter_is_cleared_on_revisit(self):
         self._enter((0, 10))
         room = self.char1.location

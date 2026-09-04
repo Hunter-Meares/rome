@@ -78,7 +78,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
     )
 
@@ -442,6 +442,87 @@ def create_all_help_entries():
             "over the two commands above\n\n"
             "No religion is blocked from functioning just because it has "
             "no Pontifex yet - a god can always act in their place."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- New player orientation ---
+    newbie_entry = HelpEntry.objects.create(
+        db_key="newbie",
+        db_help_category="General",
+        db_entrytext=(
+            "|wSo You Just Woke Up in a Cell|n\n\n"
+            "Here's the whole arc, start to finish - each step links to a "
+            "real help topic with the actual details. If you'd rather get "
+            "one quick suggestion instead of re-reading this, try 'whatnow' "
+            "any time.\n\n"
+            "|w1. Get out.|n You're a captive underneath the Colosseum. "
+            "'fight' your way out the direct way, or go quiet - 'sneak' "
+            "past the guards, then 'solve' the riddle you find. Either way "
+            "gets you free. See 'help fight' and 'help sneak'.\n\n"
+            "|w2. The Ludus.|n Real, safe training - start at the Weapons "
+            "Yard; the Wrestling Pit, Beast Taming Ring, and Champions' "
+            "Court open up as you level. Use 'trainer' in any of them to "
+            "see what your class can learn there, and 'statup' when you "
+            "earn a stat point (every 3 levels).\n\n"
+            "|w3. The Cloaca Maxima.|n Once the Ludus stops being a real "
+            "challenge, the sewers beneath Rome are the real next grind - "
+            "grates from the Ludus, the Subura, or the Forum all lead "
+            "down. Six real depth tiers, roughly levels 5 through 25.\n\n"
+            "|w4. There's more to Rome than fighting.|n 'achievements', "
+            "'bounty', and 'quest' all give you real, structured things to "
+            "chase. Walk the city itself, too - the Forum, the Capitoline, "
+            "the Aventine, Campus Martius are all real, explorable places "
+            "with their own history. Keep your eyes open as you go - Rome "
+            "has genuine depth (real factions, real devotion to the gods) "
+            "that isn't handed to you on a list. If you go looking, you'll "
+            "find it.\n\n"
+            "|w5. Beyond the Walls.|n Once you're strong, Rome's new "
+            "northern gate - the Porta Flaminia - opens onto real "
+            "wilderness and a long road to a genuine Germanic stronghold, "
+            "roughly levels 25 to 45. It's a long way from home, and the "
+            "road itself isn't safe - 'recall' gets you back the moment "
+            "you've had enough.\n\n"
+            "General tips: 'rest' to recover between fights, 'disengage' "
+            "if one's going badly, 'stats' any time to check where you "
+            "stand, and 'help' for absolutely everything else."
+        ),
+        db_lock_storage="view:all()",
+    )
+    newbie_entry.aliases.add("tutorial")
+    newbie_entry.aliases.add("getting started")
+    newbie_entry.aliases.add("start")
+
+    # --- Beyond the Walls (Germania) ---
+    HelpEntry.objects.create(
+        db_key="beyond the walls",
+        db_help_category="General",
+        db_entrytext=(
+            "|wBeyond the Walls|n\n\n"
+            "Rome finally has a real northern gate - the Porta Flaminia, "
+            "reachable from Campus Martius's Centuriate Assembly Ground. "
+            "Past it, the Via Flaminia runs north through genuine "
+            "wilderness - farmland giving way to scrubland, then forest, "
+            "then deep woods, for a real, long march (milestones mark "
+            "the distance the whole way). Wandering off the road is "
+            "fine and even encouraged - it's real, if repeating, "
+            "wilderness in every direction, though it doesn't go on "
+            "forever. Random encounters get more dangerous the further "
+            "north you go, so come ready for a fight, not just a walk.\n\n"
+            "At the road's end: a full Germanic stronghold, built "
+            "nothing like Rome - a wooden palisade, a chieftain's Great "
+            "Hall, a sacred grove, and four distinct warband camps "
+            "(Wolf-kin, Boar-marked, Raven's Watch, the Storm-callers), "
+            "each tougher than the last, plus the genuinely dangerous "
+            "Contested Borderlands. This is real leveling content for "
+            "characters roughly 25-45 - a natural next step once the "
+            "sewers stop being worth the trip. A Germanic weaponsmith "
+            "sells real local gear (seaxes, angons, franciscas, "
+            "waraxes, lamellar and mail), and Germanic is one of the "
+            "languages you can learn (see 'help languages') - but only "
+            "from a trainer who's actually here.\n\n"
+            "It's a genuinely long way from home - 'recall' (see 'help "
+            "recall') is the fast way back once you're ready to return."
         ),
         db_lock_storage="view:all()",
     )
