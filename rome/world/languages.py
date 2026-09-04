@@ -31,12 +31,33 @@ Safe to re-run any time this file changes to add a new language -
 existing languages are left untouched unless force-recreated by hand.
 """
 
+from evennia import DefaultCharacter
 from evennia.contrib.rpg.rpsystem import rplanguage
 from commands.command import Command
 
 KNOWN_LANGUAGES = ["latin", "greek", "celtic", "germanic", "egyptian"]
 
 DEFAULT_LANGUAGE = "latin"
+
+# Latin needs no trainer or gold - every character already starts
+# knowing it. The other four are gated like any other teachable thing
+# in this game (see world/combat.py's CmdLearn/SpellSkillTrainer,
+# reused wholesale rather than a second parallel system): a real
+# trainer NPC standing in a specific, thematically-real room, a level
+# floor, and a gold cost via the same compute_learn_cost() formula
+# every spell/skill already uses. Floors reflect how exotic each
+# language actually is to a Roman, not arbitrary numbers - Greek was
+# genuinely common bilingual knowledge for an educated Roman (barely
+# gated at all); Germanic is the most foreign of the four, and its
+# real gate isn't the level floor anyway - it's that its trainer lives
+# at the Germanic settlement itself, over a thousand miles past the
+# Porta Flaminia, once that zone exists.
+LANGUAGE_LEVEL_REQUIRED = {
+    "greek": 1,
+    "celtic": 5,
+    "egyptian": 10,
+    "germanic": 15,
+}
 
 # Distinct phoneme/grammar/vowel palettes per language, so scrambled
 # text actually sounds different language to language rather than
@@ -136,17 +157,58 @@ class CmdSpeak(Command):
         caller.msg("You are now speaking |w%s|n." % language)
 
 
+class LanguageTrainer(DefaultCharacter):
+    """
+    A language trainer NPC - set db.language to the one language they
+    teach. Plain DefaultCharacter, not CombatCharacter - a trainer has
+    no reason to fight, matching world.combat.SpellSkillTrainer's own
+    pattern exactly.
+    """
+
+    def at_object_creation(self):
+        self.locks.add("puppet:false()")
+
+
+def find_language_trainer(location, language):
+    """Returns the LanguageTrainer teaching `language` in location, or
+    None if there isn't one here."""
+    if not location:
+        return None
+    for obj in location.contents:
+        if obj.is_typeclass(LanguageTrainer, exact=False) and obj.db.language == language:
+            return obj
+    return None
+
+
+def find_language_trainer_anywhere(language):
+    """
+    True if a trainer for `language` exists ANYWHERE in the game, not
+    just the caller's current room - lets CmdLearnLanguage give
+    Germanic specifically an honest "nobody teaches this yet" message
+    instead of the generic "wrong room" one, since that's genuinely
+    true until the Germanic settlement is built.
+    """
+    from evennia.utils.search import search_object_attribute
+
+    for obj in search_object_attribute(key="language", value=language):
+        if obj.is_typeclass(LanguageTrainer, exact=False):
+            return True
+    return False
+
+
 class CmdLearnLanguage(Command):
     """
-    Learn a new language.
+    Learn a new language from a trainer.
 
     Usage:
       learnlanguage <language>
 
     Available languages: latin, greek, celtic, germanic, egyptian.
-    Latin is known from the start - this teaches you one of the rest,
-    letting you both speak it (see 'speak') and understand others who
-    speak it to you, instead of hearing it scrambled.
+    Latin is known from the start, free. Every other language needs a
+    real trainer who actually speaks it, standing in the same room as
+    you - not something picked up on your own - plus enough
+    experience to make sense of it and enough gold to pay for the
+    lessons. See 'help languages' for where each trainer can be found.
     """
 
     key = "learnlanguage"
@@ -174,9 +236,55 @@ class CmdLearnLanguage(Command):
             caller.msg("You already know %s." % language)
             return
 
+        if language == DEFAULT_LANGUAGE:
+            # Every character already starts knowing Latin - this
+            # branch only matters if that's ever somehow not true.
+            known.append(language)
+            caller.db.known_languages = known
+            caller.msg("|gYou have learned %s.|n" % language)
+            return
+
+        level_required = LANGUAGE_LEVEL_REQUIRED[language]
+        caller_level = caller.db.level or 1
+        if caller_level < level_required:
+            caller.msg(
+                "You aren't experienced enough to make real sense of %s yet - "
+                "it takes level %d (you are level %d)."
+                % (language, level_required, caller_level)
+            )
+            return
+
+        trainer = find_language_trainer(caller.location, language)
+        if not trainer:
+            if language == "germanic" and not find_language_trainer_anywhere("germanic"):
+                caller.msg(
+                    "There's nobody in Rome who can teach you Germanic - you'd "
+                    "need to find someone who actually speaks it."
+                )
+            else:
+                caller.msg(
+                    "You need to find someone who actually teaches %s - see "
+                    "'help languages' for where to look." % language
+                )
+            return
+
+        from world.combat import compute_learn_cost
+
+        cost = compute_learn_cost(level_required)
+        if (caller.db.gold or 0) < cost:
+            caller.msg(
+                "Learning %s from %s costs %d gold - you only have %d."
+                % (language, trainer.key, cost, caller.db.gold or 0)
+            )
+            return
+
+        caller.db.gold -= cost
         known.append(language)
         caller.db.known_languages = known
-        caller.msg("|gYou have learned %s.|n" % language)
+        caller.msg(
+            "|gYou pay %d gold and spend real time with %s - you've learned %s!|n"
+            % (cost, trainer.key, language)
+        )
 
 
 from evennia import CmdSet
