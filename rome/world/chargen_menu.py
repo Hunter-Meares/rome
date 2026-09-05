@@ -25,12 +25,87 @@ from evennia.prototypes.spawner import spawn
 from evennia.utils import dedent
 
 #########################################################
+#             PRESENTATION HELPERS
+#########################################################
+# A direct request to make chargen feel considered rather than a form
+# to fill out: Roman numeral option labels, a step tracker showing the
+# journey's shape, and distinct per-race/per-class accent colors and
+# quotes (see RACES/CLASSES below). None of this touches game
+# mechanics - purely how the same choices are presented.
+
+_ROMAN_NUMERALS = {
+    1: "I", 2: "II", 3: "III", 4: "IV", 5: "V",
+    6: "VI", 7: "VII", 8: "VIII", 9: "IX", 10: "X",
+}
+
+
+def _to_roman(n):
+    """
+    Small, deliberately non-general lookup rather than a real
+    subtractive-notation algorithm - chargen never has more than a
+    handful of options on any one page (8 classes is the current
+    max), so a full algorithm would be solving a much bigger problem
+    than this actually has.
+    """
+    return _ROMAN_NUMERALS.get(n, str(n))
+
+
+# (step number, total steps, step name) per node - a direct request
+# for a visible "II of V" style tracker so chargen reads as a journey
+# with a real arc instead of an open-ended sequence of menus. The
+# *_info detail pages (race_info/class_info) share their parent
+# page's step, since picking a specific race/class to read about
+# doesn't advance you to a new stage of the process.
+_TOTAL_STEPS = 5
+_STEP_INFO = {
+    "menunode_choose_race": (1, "Choose Your Race"),
+    "menunode_race_info": (1, "Choose Your Race"),
+    "menunode_choose_class": (2, "Choose Your Path"),
+    "menunode_class_info": (2, "Choose Your Path"),
+    "menunode_choose_gender": (3, "A Matter of Birth"),
+    "menunode_choose_name": (4, "Name Yourself"),
+    "menunode_confirm_name": (5, "Confirm Your Name"),
+}
+
+
+def _numbered_option(index, desc, goto):
+    """
+    Builds one menu option with a Roman-numeral display key, while
+    still accepting the plain digit as real input - the same dual-key
+    pattern this menu already used for Yes/No ("key": ("Yes", "y")).
+    A direct request to make chargen's option lists read as
+    considered rather than a bare, auto-numbered form; costs nothing
+    mechanically since the functional input never changes.
+    """
+    numeral = _to_roman(index)
+    return {"key": (numeral, str(index)), "desc": desc, "goto": goto}
+
+
+def _step_header(nodename):
+    """
+    Returns a one-line "|c[Step II of V -- Choose Your Path]|n" style
+    header for the given node, or "" for a node with no entry in
+    _STEP_INFO (the welcome page and the end screen - neither is
+    really a "step" in the choice sequence).
+    """
+    info = _STEP_INFO.get(nodename)
+    if not info:
+        return ""
+    step, name = info
+    return "|c[Step %s of %s -- %s]|n\n\n" % (
+        _to_roman(step), _to_roman(_TOTAL_STEPS), name
+    )
+
+
+#########################################################
 #                    RACE DATA
 #########################################################
 
 RACES = {
     "human": {
         "display": "Human (Roman Citizen)",
+        "color": "|w",
+        "quote": '"I need no monstrous blood to conquer - only will, and Rome behind me."',
         "desc": dedent(
             """\
             Versatile and adaptable, excelling in civic life, trade, and warfare. Roman citizens navigate politics and command with ease.
@@ -46,6 +121,8 @@ RACES = {
     },
     "minotaur": {
         "display": "Minotaur (Labyrinth Born)",
+        "color": "|420",
+        "quote": '"The maze does not frighten me. I was built to break through walls, not wander them."',
         "desc": dedent(
             """\
             Powerful warriors, descendants of bulls and humans. Fearsome in combat and adept at navigating complex terrain like mazes or fortresses.
@@ -60,6 +137,8 @@ RACES = {
     },
     "centaur": {
         "display": "Centaur (Forest Guardian)",
+        "color": "|140",
+        "quote": '"I have run these woods since before Rome had a wall to hide behind."',
         "desc": dedent(
             """\
             Half-human, half-horse, roaming the wilds as protectors of forests. Skilled archers and scouts, combining intelligence with equine speed and strength.
@@ -74,6 +153,8 @@ RACES = {
     },
     "harpy": {
         "display": "Harpy (Windborne Seeker)",
+        "color": "|335",
+        "quote": '"The wind does not ask permission to enter a room. Neither do I."',
         "desc": dedent(
             """\
             Winged humanoids tied to storms and mountains. Skilled scouts and aerial warriors, perfect for reconnaissance and hit-and-run tactics.
@@ -88,6 +169,8 @@ RACES = {
     },
     "nymph": {
         "display": "Nymph (Descendants of the Wild)",
+        "color": "|151",
+        "quote": '"What\'s left of the wild in me is small, but it does not forget."',
         "desc": dedent(
             """\
             Though their name is drawn from the immortal nature-spirits of old, playable Nymphs are mortal - descendants of a union between nymph and mortal, carrying a fading echo of that divine parent's power. Not goddesses themselves, but never quite ordinary either.
@@ -102,6 +185,8 @@ RACES = {
     },
     "cyclops": {
         "display": "Cyclops (Titanic Brute)",
+        "color": "|222",
+        "quote": '"Two eyes see too much and trust too little. One eye, and I have never been fooled."',
         "desc": dedent(
             """\
             Enormous one-eyed giants famed for strength and craftsmanship. Formidable in battle and expert siege engineers shaping the outcome of conflicts.
@@ -187,6 +272,8 @@ def _format_abilities(abilities):
 CLASSES = {
     "augur": {
         "display": "Augur (Light - Mage/Support)",
+        "color": "|553",
+        "quote": '"The birds cross the sky in patterns no accident could produce. I have only learned to read what was already written."',
         "theme": "Priestly diviners who read signs from the sky and birds to grant foresight and favor.",
         "role": "Support caster - buffs, predictive effects, and short-range battlefield control.",
         "abilities": [
@@ -209,6 +296,8 @@ CLASSES = {
     },
     "medicus": {
         "display": "Medicus (Light - Healer/Support)",
+        "color": "|455",
+        "quote": '"Every wound has a story. Mine is simply to make sure it isn\'t the last chapter."',
         "theme": "Battlefield physicians trained in wound-care, herb-lore, and the old belief that healing hands carry a touch of the divine.",
         "role": "Primary healer - sustained HP recovery, cleansing harmful conditions, and keeping the party standing.",
         "abilities": [
@@ -231,6 +320,8 @@ CLASSES = {
     },
     "haruspex": {
         "display": "Haruspex (Light - Offense Caster)",
+        "color": "|300",
+        "quote": '"The entrails do not lie, even when the man reading them wishes they would."',
         "theme": "Etruscan-influenced ritualists who use blood rites and curses.",
         "role": "Offensive caster - curses, damage-over-time, and dark rituals.",
         "abilities": [
@@ -253,6 +344,8 @@ CLASSES = {
     },
     "speculator": {
         "display": "Speculator (Medium - Rogue/Scout)",
+        "color": "|114",
+        "quote": '"You never saw me. That\'s rather the point."',
         "theme": "Spies and scouts for commanders - masters of infiltration, intelligence, and assassination.",
         "role": "Stealth DPS and utility - traps, poisons, reconnaissance.",
         "abilities": [
@@ -276,6 +369,8 @@ CLASSES = {
     },
     "venator": {
         "display": "Venator (Medium - Ranger/Hunter)",
+        "color": "|321",
+        "quote": '"The frontier doesn\'t care how brave you are. It only cares if you\'re paying attention."',
         "theme": "Frontier hunters and trackers who patrol the wild boundaries of the empire.",
         "role": "Ranged DPS and control - tracking, traps, and animal companions.",
         "abilities": [
@@ -299,6 +394,8 @@ CLASSES = {
     },
     "gladiator": {
         "display": "Gladiator (Medium - Arena Fighter)",
+        "color": "|530",
+        "quote": '"The crowd remembers a good death. I intend to give them a good life instead - mine."',
         "theme": "Trained combatants of the arena; versatile weapon specialists who survive by skill and showmanship.",
         "role": "Versatile midline fighter - crowd control, showy finishers, weapon specializations.",
         "abilities": [
@@ -323,6 +420,8 @@ CLASSES = {
     },
     "legionary": {
         "display": "Legionary (Heavy - Tank)",
+        "color": "|224",
+        "quote": '"I am one shield in a wall of shields. Alone I am nothing. Together, we do not break."',
         "theme": "The disciplined core of Rome's armies; masters of formation and defense.",
         "role": "Tank and group protector - shields, stances, formation-based buffs.",
         "abilities": [
@@ -347,6 +446,8 @@ CLASSES = {
     },
     "barbarian": {
         "display": "Barbarian (Heavy - Berserker/Heavy Fighter)",
+        "color": "|400",
+        "quote": '"Rome calls it savagery. I call it honesty. My sword does not pretend to be anything other than what it is."',
         "theme": "Non-Roman heavy fighters from the frontiers - savage, powerful, and less disciplined but devastating in open combat.",
         "role": "Heavy DPS and disruption - rage mechanics, area bursts, and raw power.",
         "abilities": [
@@ -383,20 +484,21 @@ def menunode_welcome(caller):
     text = dedent(
         """\
         |Y=====================================================|n
-        |YWelcome to Rome: The Eternal City|n
+        |YBefore you stands the threshold of a new life|n
         |Y=====================================================|n
 
-        You are about to create a citizen, creature, or exile who will make
-        their way through the peak of the Roman Empire - through the |rSenate|n,
-        the |rarena|n, the |gfrontier|n, and the |mshadowed places|n between.
+        Somewhere between the |rSenate|n and the |rarena|n, the |gfrontier|n
+        and the |mshadowed places|n between, a life is waiting that has not
+        yet been lived. You are about to decide whose.
 
-        You'll choose a |crace|n (what you are) and a |cclass|n (what you do),
-        then pick a name. You can stop at any point and resume later with
-        |wcharcreate|n.
+        What you are, what you have become skilled at, and what you will
+        be called - three questions, three answers, and Rome will have a
+        new name to reckon with. You may pause this journey at any point
+        and take it up again later with |wcharcreate|n.
         """
     )
     help = "You can explain the commands for exiting and resuming more specifically here."
-    options = {"desc": "Let's begin!", "goto": "menunode_choose_race"}
+    options = {"desc": "Let the Fates begin their work", "goto": "menunode_choose_race"}
     return (text, help), options
 
 
@@ -409,22 +511,27 @@ def menunode_choose_race(caller, raw_string="", **kwargs):
     """List of races to learn about and choose from."""
     caller.new_char.db.chargen_step = "menunode_choose_race"
 
-    text = dedent(
+    text = _step_header("menunode_choose_race") + dedent(
         """\
-        |Y===== Playable Races =====|n
+        |YThe Fates weigh what you are|n
 
-        These are starting templates - roleplay can (and should) exceed
-        mechanical labels. Pick one to read more about it.
+        Before a name, before a purpose, comes the flesh you were born
+        into - or the shape fate carved for you instead. These are
+        starting templates, not a cage: roleplay can, and should, exceed
+        what a mechanical label promises. Choose one to hear what it says
+        of itself.
         """
     )
     help = "Race affects your HP/MP/SP starting bonuses and gives you flavor abilities."
     options = []
-    for race_key in _RACE_ORDER:
+    for i, race_key in enumerate(_RACE_ORDER, start=1):
+        race = RACES[race_key]
         options.append(
-            {
-                "desc": RACES[race_key]["display"],
-                "goto": ("menunode_race_info", {"race_key": race_key}),
-            }
+            _numbered_option(
+                i,
+                "%s%s|n" % (race.get("color", ""), race["display"]),
+                ("menunode_race_info", {"race_key": race_key}),
+            )
         )
     return (text, help), options
 
@@ -436,20 +543,42 @@ def menunode_race_info(caller, raw_string="", race_key=None, **kwargs):
         return "Something went wrong. Please try again.", None
 
     race = RACES[race_key]
+    color = race.get("color", "")
 
     traits_str = ", ".join(race["traits"])
     abilities_str = _format_abilities(race["abilities"])
 
-    text = dedent(
-        f"""\
-        |Y{race["display"]}|n
+    # A real, previously-reported bug: interpolating race["desc"] (which
+    # carries its own trailing newline - see RACES's own dedent() calls)
+    # or abilities_str (whose own lines are indented to match
+    # _format_abilities' own single-leading-space convention, not this
+    # function's 8-space source-code indentation) INSIDE a dedent()
+    # call breaks dedent's own common-prefix calculation - it computes
+    # the SMALLEST indentation across every line of the *final*,
+    # already-interpolated string, so any interpolated line with a
+    # different indentation than this template's own literal lines
+    # drags that minimum down, leaving the template's own lines
+    # under-stripped. Fixed by building each interpolated, multi-line
+    # piece as its own already-clean unit, concatenated after dedent()
+    # has already run on the plain template around it - not (mis)dedented
+    # together with them.
+    text = (
+        _step_header("menunode_race_info")
+        + dedent(
+            f"""\
+            {color}{race["display"]}|n
 
-        |c{race["desc"]}|n
-        |wTraits:|n |g{traits_str}|n
+            |c{race["desc"].strip()}|n
 
-        |wAbilities:|n
-        {abilities_str}
-        """
+            |x{race.get("quote", "")}|n
+
+            |wNature:|n |g{traits_str}|n
+
+            |wGifts:|n
+            """
+        )
+        + abilities_str
+        + "\n"
     )
     help = "Choose this race to move on, or go back to browse the others."
 
@@ -491,23 +620,26 @@ def menunode_choose_class(caller, raw_string="", **kwargs):
     """List of classes to learn about and choose from."""
     caller.new_char.db.chargen_step = "menunode_choose_class"
 
-    text = dedent(
+    text = _step_header("menunode_choose_class") + dedent(
         """\
-        |Y===== Classes & Roles =====|n
+        |YThe path you will walk|n
 
-        Classes are role templates to help you get started. Roleplay,
-        background, and player choices define your character beyond
-        mechanical labels.
+        What you are is settled. What you will spend your life doing is
+        not - that is a discipline, a craft, a role earned through
+        training rather than birth. Roleplay, background, and your own
+        choices will define you well beyond any mechanical label.
         """
     )
     help = "Class determines your starting gear and any spells you begin knowing."
     options = []
-    for class_key in _CLASS_ORDER:
+    for i, class_key in enumerate(_CLASS_ORDER, start=1):
+        pclass = CLASSES[class_key]
         options.append(
-            {
-                "desc": CLASSES[class_key]["display"],
-                "goto": ("menunode_class_info", {"class_key": class_key}),
-            }
+            _numbered_option(
+                i,
+                "%s%s|n" % (pclass.get("color", ""), pclass["display"]),
+                ("menunode_class_info", {"class_key": class_key}),
+            )
         )
     options.append(
         {
@@ -526,20 +658,35 @@ def menunode_class_info(caller, raw_string="", class_key=None, **kwargs):
         return "Something went wrong. Please try again.", None
 
     pclass = CLASSES[class_key]
+    color = pclass.get("color", "")
     abilities_str = _format_abilities(pclass["abilities"])
 
-    text = dedent(
-        f"""\
-        |Y{pclass["display"]}|n
+    # Same real bug and same fix as menunode_race_info above -
+    # abilities_str's own lines (single-leading-space, per
+    # _format_abilities) can't be interpolated inside this template's
+    # own dedent() call without dragging its common-prefix calculation
+    # down and under-stripping every other line in the template.
+    text = (
+        _step_header("menunode_class_info")
+        + dedent(
+            f"""\
+            {color}{pclass["display"]}|n
 
-        |wTheme:|n |c{pclass["theme"]}|n
-        |wRole:|n |g{pclass["role"]}|n
+            |wTheme:|n |c{pclass["theme"]}|n
+            |wRole:|n |g{pclass["role"]}|n
 
-        |wSignature Abilities:|n
-        {abilities_str}
+            |x{pclass.get("quote", "")}|n
 
-        |wStarting Gear:|n {pclass["gear_desc"]}
-        """
+            |wGifts:|n
+            """
+        )
+        + abilities_str
+        + "\n\n"
+        + dedent(
+            f"""\
+            |wEquipped for War:|n {pclass["gear_desc"]}
+            """
+        )
     )
     help = "Choose this class to move on, or go back to browse the others."
 
@@ -610,19 +757,22 @@ def menunode_choose_gender(caller, raw_string="", **kwargs):
     """Gender selection - used for pronouns and the default mask description."""
     caller.new_char.db.chargen_step = "menunode_choose_gender"
 
-    text = dedent(
+    text = _step_header("menunode_choose_gender") + dedent(
         """\
-        |Y===== Choosing a Gender =====|n
+        |YA matter of birth|n
 
-        This is used for pronouns and for how you're described by
-        default before you set anything more specific yourself.
+        Before Rome knows your name, it will know how to speak of you -
+        the small, constant thing that shapes every sentence said about
+        you from here on. This is used for pronouns and for how you're
+        described by default, before you set anything more specific
+        yourself.
         """
     )
     help = "You can always change this later, and it never restricts race or class choice."
     options = [
-        {"desc": "Male", "goto": (_set_gender, {"gender": "male"})},
-        {"desc": "Female", "goto": (_set_gender, {"gender": "female"})},
-        {"desc": "Neuter", "goto": (_set_gender, {"gender": "neuter"})},
+        _numbered_option(1, "Male", (_set_gender, {"gender": "male"})),
+        _numbered_option(2, "Female", (_set_gender, {"gender": "female"})),
+        _numbered_option(3, "Neuter", (_set_gender, {"gender": "neuter"})),
     ]
     return (text, help), options
 
@@ -653,15 +803,15 @@ def menunode_choose_name(caller, raw_string="", **kwargs):
     char.db.chargen_step = "menunode_choose_name"
 
     if error := kwargs.get("error"):
-        prompt_text = f"{error}. Enter a different name."
+        prompt_text = f"{error}. What name will you offer instead?"
     else:
-        prompt_text = "Enter a name here to check if it's available."
+        prompt_text = "Speak the name you would be known by, and Rome will listen."
 
-    text = dedent(
+    text = _step_header("menunode_choose_name") + dedent(
         f"""\
-        |Y===== Choosing a Name =====|n
+        |YName yourself|n
 
-        Choose your character's name.
+        A name is the one thing even the gods cannot choose for you.
 
         |c{prompt_text}|n
         """
@@ -681,7 +831,10 @@ def _check_charname(caller, raw_string="", **kwargs):
     if len(candidates):
         return (
             "menunode_choose_name",
-            {"error": f"|r{charname}|n is unavailable.\n\nEnter a different name."},
+            {
+                "error": f"|rThe name {charname} is already borne by someone else in "
+                f"Rome|n.\n\nEnter a different name."
+            },
         )
     else:
         caller.new_char.key = charname
@@ -692,7 +845,10 @@ def menunode_confirm_name(caller, raw_string="", **kwargs):
     """Confirm the name choice"""
     char = caller.new_char
 
-    text = f"|Y{char.key}|n is available! Confirm?"
+    text = _step_header("menunode_confirm_name") + (
+        f"The name |Y{char.key}|n is yet unclaimed in Rome's records. "
+        f"Will you bear it?"
+    )
     options = [
         {"key": ("Yes", "y"), "goto": "menunode_end"},
         {"key": ("No", "n"), "goto": _reject_name},
@@ -872,15 +1028,26 @@ def menunode_end(caller, raw_string=""):
 
     race_display = char.db.race_display or "Unknown"
     class_display = char.db.class_display or "Unknown"
+    race_data = RACES.get(char.db.race, {})
+    class_data = CLASSES.get(char.db.player_class, {})
+    race_color = race_data.get("color", "|c")
+    class_color = class_data.get("color", "|c")
 
+    # A direct request for the single moment in chargen that most
+    # deserves real weight - this used to be the flattest page of all
+    # of them, a plain "Congratulations" banner, despite being the one
+    # actual rite-of-passage moment in the whole sequence.
     text = dedent(
         f"""\
         |Y=====================================================|n
-        Congratulations, |Y{char.key}|n!
+        |YIt is done.|n
         |Y=====================================================|n
 
-        You have completed character creation as a |c{race_display}|n
-        |c{class_display}|n.
+        The name |Y{char.key}|n is entered into Rome's records, and will
+        not be struck from them again while you draw breath. Let it be
+        known: {race_color}{race_display}|n by birth, {class_color}{class_display}|n
+        by craft - two truths that will follow you through every gate,
+        every arena, every threshold still ahead.
 
         |gHP:|n {char.db.hp}/{char.db.max_hp}  |cMP:|n {char.db.mp}/{char.db.max_mp}  |ySP:|n {char.db.sp}/{char.db.max_sp}
 
@@ -890,7 +1057,8 @@ def menunode_end(caller, raw_string=""):
         way to start. If nobody answers right away, that's alright too -
         try |wwho|n to see who's around, and give it a little time.
 
-        |YEnjoy the game!|n
+        Rome has stood a thousand years. It will stand for however long
+        you decide to matter to it. |YWelcome, {char.key}. Walk well.|n
         """
     )
 

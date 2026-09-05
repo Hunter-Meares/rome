@@ -20,6 +20,14 @@ from world.chargen_menu import (
     _CLASS_ORDER,
     _leans_caster,
     _apply_race_and_class,
+    _to_roman,
+    _numbered_option,
+    _step_header,
+    _TOTAL_STEPS,
+    menunode_choose_race,
+    menunode_choose_class,
+    menunode_race_info,
+    menunode_class_info,
 )
 from world.combat import SPELLS, SKILLS
 
@@ -311,3 +319,186 @@ class TestApplyRaceAndClass(EvenniaTest):
         _apply_race_and_class(char)
         _apply_race_and_class(char)
         self.assertEqual(char.db.spells_known.count("cure wounds"), 1)
+
+
+class TestRaceAndClassPresentationData(EvenniaTest):
+    """
+    Regression coverage for the chargen aesthetic pass - a "color" and
+    a "quote" field were hand-added to all 6 RACES and 8 CLASSES
+    entries individually, exactly the kind of edit where a single
+    entry could silently get skipped without a test catching it.
+    """
+
+    def test_every_race_has_a_color_and_a_quote(self):
+        for race_key in _RACE_ORDER:
+            race = RACES[race_key]
+            self.assertTrue(race.get("color"), "%s has no color" % race_key)
+            self.assertTrue(race.get("quote"), "%s has no quote" % race_key)
+
+    def test_every_class_has_a_color_and_a_quote(self):
+        for class_key in _CLASS_ORDER:
+            pclass = CLASSES[class_key]
+            self.assertTrue(pclass.get("color"), "%s has no color" % class_key)
+            self.assertTrue(pclass.get("quote"), "%s has no quote" % class_key)
+
+    def test_every_race_and_class_color_is_a_distinct_value(self):
+        """
+        Not a hard game-design requirement, but the whole point of
+        this feature was to make each entry visually distinct - two
+        entries sharing the exact same color code would silently
+        defeat that, so this is worth locking in.
+        """
+        all_colors = [RACES[k]["color"] for k in _RACE_ORDER] + [
+            CLASSES[k]["color"] for k in _CLASS_ORDER
+        ]
+        self.assertEqual(len(all_colors), len(set(all_colors)))
+
+
+class TestRomanNumeralHelper(EvenniaTest):
+    def test_known_values(self):
+        expected = {
+            1: "I", 2: "II", 3: "III", 4: "IV", 5: "V",
+            6: "VI", 7: "VII", 8: "VIII", 9: "IX", 10: "X",
+        }
+        for n, roman in expected.items():
+            self.assertEqual(_to_roman(n), roman)
+
+    def test_falls_back_to_plain_digits_past_its_known_range(self):
+        # Deliberately not a general algorithm - chargen never has
+        # more than a handful of options on any page. Falling back to
+        # a plain digit rather than raising is the safe behavior if
+        # that assumption is ever violated.
+        self.assertEqual(_to_roman(11), "11")
+
+
+class TestNumberedOption(EvenniaTest):
+    def test_key_is_roman_numeral_and_plain_digit_both(self):
+        option = _numbered_option(3, "a desc", "a_goto_target")
+        self.assertEqual(option["key"], ("III", "3"))
+        self.assertEqual(option["desc"], "a desc")
+        self.assertEqual(option["goto"], "a_goto_target")
+
+
+class TestStepHeader(EvenniaTest):
+    def test_known_node_includes_step_and_total(self):
+        header = _step_header("menunode_choose_class")
+        self.assertIn("II", header)
+        self.assertIn(_to_roman(_TOTAL_STEPS), header)
+        self.assertIn("Choose Your Path", header)
+
+    def test_unknown_node_returns_empty_string(self):
+        self.assertEqual(_step_header("menunode_welcome"), "")
+        self.assertEqual(_step_header("menunode_end"), "")
+        self.assertEqual(_step_header("not_a_real_node"), "")
+
+    def test_detail_page_shares_its_parent_pages_step(self):
+        """
+        Picking a specific race/class to read about is browsing within
+        a step, not advancing to a new one - race_info and class_info
+        should report the exact same step as their parent list page.
+        """
+        self.assertEqual(
+            _step_header("menunode_choose_race"), _step_header("menunode_race_info")
+        )
+        self.assertEqual(
+            _step_header("menunode_choose_class"), _step_header("menunode_class_info")
+        )
+
+
+class TestChooseRaceAndClassOptionLists(EvenniaTest):
+    """
+    Confirms the actual menu nodes build their option lists using the
+    new Roman-numeral keys, in the established race/class order, with
+    every real option still reachable.
+
+    These node functions read caller.new_char (set on the real
+    session by world/character_creator.py during actual chargen) -
+    a bare EvenniaTest fixture has no such attribute, so a minimal
+    stand-in with just that one attribute is used as the caller here
+    instead of a real Character or session.
+    """
+
+    class _FakeCaller:
+        def __init__(self, new_char):
+            self.new_char = new_char
+
+    def setUp(self):
+        super().setUp()
+        self.caller = self._FakeCaller(self.char1)
+
+    def test_choose_race_options_are_numbered_in_order(self):
+        (text, help_text), options = menunode_choose_race(self.caller)
+        self.assertEqual(len(options), len(_RACE_ORDER))
+        for i, (option, race_key) in enumerate(zip(options, _RACE_ORDER), start=1):
+            self.assertEqual(option["key"], (_to_roman(i), str(i)))
+            self.assertIn(RACES[race_key]["display"], option["desc"])
+
+    def test_choose_class_options_are_numbered_in_order_plus_back(self):
+        (text, help_text), options = menunode_choose_class(self.caller)
+        # One numbered option per class, plus a trailing (Back) option.
+        self.assertEqual(len(options), len(_CLASS_ORDER) + 1)
+        for i, (option, class_key) in enumerate(zip(options, _CLASS_ORDER), start=1):
+            self.assertEqual(option["key"], (_to_roman(i), str(i)))
+            self.assertIn(CLASSES[class_key]["display"], option["desc"])
+        self.assertEqual(options[-1]["desc"], "Go back and change your race")
+
+
+class TestRaceAndClassInfoFormatting(EvenniaTest):
+    """
+    Regression coverage for a real, previously-reported bug ("some of
+    the descriptions of abilities have an extra space in the first
+    line, almost like an indent") - eventually traced to interpolating
+    a multi-line, differently-indented string (either a race's own
+    desc, which carries a trailing newline, or _format_abilities'
+    output, whose lines use their own single-leading-space convention)
+    INSIDE a dedent() call. dedent() computes its common-prefix strip
+    amount from the *final*, already-interpolated string - a stray
+    differently-indented interpolated line drags that minimum down,
+    leaving the template's own literal lines under-stripped. Fixed by
+    building each such piece separately, outside the dedent() scope.
+    """
+
+    class _FakeCaller:
+        def __init__(self, new_char):
+            self.new_char = new_char
+
+    def setUp(self):
+        super().setUp()
+        self.caller = self._FakeCaller(self.char1)
+
+    def test_no_race_info_line_has_stray_leading_whitespace(self):
+        # Up to one leading space is legitimate - _format_abilities'
+        # own deliberate single-space bullet-list indent. More than
+        # that is the actual under-stripped-dedent bug this guards
+        # against.
+        for race_key in _RACE_ORDER:
+            (text, help_text), options = menunode_race_info(self.caller, race_key=race_key)
+            for line in text.split("\n"):
+                if line.strip():
+                    leading = len(line) - len(line.lstrip())
+                    self.assertLessEqual(
+                        leading, 1,
+                        "stray leading whitespace for race '%s': %r" % (race_key, line),
+                    )
+
+    def test_no_class_info_line_has_stray_leading_whitespace(self):
+        for class_key in _CLASS_ORDER:
+            (text, help_text), options = menunode_class_info(self.caller, class_key=class_key)
+            for line in text.split("\n"):
+                if line.strip():
+                    leading = len(line) - len(line.lstrip())
+                    self.assertLessEqual(
+                        leading, 1,
+                        "stray leading whitespace for class '%s': %r" % (class_key, line),
+                    )
+
+    def test_race_desc_trailing_newline_does_not_orphan_the_reset_code(self):
+        # The specific symptom this bug produced: race["desc"] already
+        # ends in "\n", so interpolating it unstripped left a lone
+        # "|n" sitting alone on its own line right after the sentence.
+        (text, help_text), options = menunode_race_info(self.caller, race_key="minotaur")
+        self.assertNotIn("\n|n", text)
+
+    def test_gifts_and_equipped_for_war_have_a_real_blank_line_between_them(self):
+        (text, help_text), options = menunode_class_info(self.caller, class_key="legionary")
+        self.assertIn("\n\n|wEquipped for War:|n", text)
