@@ -45,6 +45,23 @@ class TestCmdJourney(EvenniaCommandTest):
         result = self.call(CmdJourney(), "", caller=self.char1)
         self.assertIn("in a fight right now", result)
 
+    def test_a_god_does_not_get_the_mortal_end_game_message(self):
+        # A real bug found live (Jupiter/Zeus, level 101+): the level
+        # check only had an upper bound, so any level past
+        # GERMANIA_LEVEL_CEILING - including a real god - fell into
+        # the "cleared everything" mortal message.
+        self.char1.db.level = 101
+        result = self.call(CmdJourney(), "", caller=self.char1)
+        self.assertIn("You're a god now", result)
+        self.assertNotIn("cleared every zone", result)
+
+    def test_level_exactly_at_the_god_threshold_still_gets_the_mortal_message(self):
+        from world.factions import GOD_LEVEL_THRESHOLD
+
+        self.char1.db.level = GOD_LEVEL_THRESHOLD
+        result = self.call(CmdJourney(), "", caller=self.char1)
+        self.assertIn("cleared every zone", result)
+
     def test_not_escaped_takes_priority_over_level(self):
         self.char1.db.colosseum_escaped = False
         self.char1.db.level = 100

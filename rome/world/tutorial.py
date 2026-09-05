@@ -75,6 +75,22 @@ class CmdJourney(Command):
             )
             return
 
+        from world.factions import GOD_LEVEL_THRESHOLD
+
+        if (caller.db.level or 1) > GOD_LEVEL_THRESHOLD:
+            # A real bug found live: the level check below only had an
+            # upper bound (< GERMANIA_LEVEL_CEILING), so anyone past it
+            # - including a level 101+ god, whose progression this
+            # command was never meant to track at all - fell into the
+            # "cleared everything" mortal end-game message. Gods don't
+            # have a "journey" this command has any business
+            # commenting on.
+            caller.msg(
+                "|wYou're a god now.|n Whatever 'next' means at your level isn't "
+                "something this command has any business guessing at."
+            )
+            return
+
         if not caller.db.colosseum_escaped:
             caller.msg(
                 "|wFirst things first - you need to actually get out of these "
