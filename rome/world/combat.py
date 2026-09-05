@@ -46,6 +46,7 @@ from evennia.utils.logger import log_trace
 from evennia.utils import utils as evennia_utils
 from evennia.contrib.rpg.health_bar import display_meter
 from typeclasses.objects import ObjectParent
+from world.box_display import box_border, box_line, box_blank
 
 """
 ----------------------------------------------------------------------------
@@ -58,11 +59,16 @@ ACTIONS_PER_TURN = 1  # Number of actions allowed per turn
 
 # How many seconds into a character's own turn auto-attack (see
 # CmdAutoAttack/CombatCharacter.at_turn_start) waits before actually
-# firing - long enough for a real player to type something else
-# first (cast, powerattack, useskill, a different attack target) and
-# have that take priority, short enough not to feel like a delay for
-# someone who really did just want the default attack.
-AUTO_ATTACK_DELAY = 5
+# firing - long enough for a real player to read what just happened,
+# decide on a skill/spell, and type a short partial-name command
+# (cast, powerattack, useskill, a different attack target) before
+# auto-attack pre-empts them, short enough not to feel like a delay
+# for someone who really did just want the default attack. Raised
+# from the original 5s after direct feedback that 5 felt too tight
+# even with 'skill hold'-style partial-name targeting already in
+# place - see world/tests_combat_commands.py's CmdAutoAttack tests
+# (none of which hardcode this exact number) if tuning it again.
+AUTO_ATTACK_DELAY = 8
 
 # Percentage of max MP/SP restored at the start of a character's own
 # turn. MP/SP previously never recovered mid-fight at all (only
@@ -1515,6 +1521,18 @@ class CombatRules:
             weapon_category = attacker.db.wielded_weapon.db.weapon_category
         messages = get_weapon_attack_messages(attackers_weapon, weapon_category)
 
+        # A direct complaint from live playtesting: combat text reads
+        # as flat and colorless, since every WEAPON_CATEGORY_MESSAGES/
+        # WEAPON_TYPE_MESSAGE_OVERRIDES template (~15+ of them) only
+        # ever colored the damage number, leaving both names in every
+        # single hit/miss/bounce message plain. Coloring attacker and
+        # defender here, once, and substituting these in place of the
+        # raw names below reaches every one of those templates for
+        # free - real color on the two most common combat messages in
+        # the game, without hand-editing each template dict.
+        attacker_display = "|c%s|n" % attacker
+        defender_display = "|m%s|n" % defender
+
         # is None (not a plain falsy check) - attack_value/defense_value
         # can legitimately be 0 or negative with enough penalties, and
         # a falsy check would silently recalculate a real 0 as if it
@@ -1535,7 +1553,7 @@ class CombatRules:
             )
         elif attack_value < defense_value:
             attacker.location.msg_contents(
-                messages["miss"] % (attacker, attackers_weapon, defender)
+                messages["miss"] % (attacker_display, attackers_weapon, defender_display)
             )
             return
 
@@ -1546,13 +1564,13 @@ class CombatRules:
             attacker.location.msg_contents(
                 messages["hit"]
                 % (
-                    attacker, attackers_weapon, defender, damage_value,
-                    defender, self.hp_status_phrase(defender),
+                    attacker_display, attackers_weapon, defender_display, damage_value,
+                    defender_display, self.hp_status_phrase(defender),
                 )
             )
         else:
             attacker.location.msg_contents(
-                messages["bounce"] % (attacker, attackers_weapon, defender)
+                messages["bounce"] % (attacker_display, attackers_weapon, defender_display)
             )
 
         self.apply_damage(defender, damage_value, attacker=attacker)
@@ -5204,7 +5222,17 @@ class CombatCharacter(ContribRPCharacter):
         if move_type == "move" and self.has_account:
             exit_obj = kwargs.get("exit_obj")
             if exit_obj is not None:
-                self.msg("You walk %s." % exit_obj.key)
+                # Trailing blank line - a direct follow-up complaint:
+                # this message and the arriving room's own description
+                # (sent moments later, from inside this same move_to()
+                # call, by DefaultCharacter.at_post_move) landed with
+                # no visual separation, reading as one run-on wall of
+                # text. Evennia doesn't insert a gap between separate
+                # msg() calls on its own - every other deliberate gap
+                # in this game (ambient echoes, NPC chatter) already
+                # adds its own blank line explicitly for the same
+                # reason.
+                self.msg("You walk %s.\n" % exit_obj.key)
 
         return True
 
@@ -5599,6 +5627,20 @@ class CombatTurnHandler(DefaultScript):
 
     def start_turn(self, character):
         """Readies a character for their turn and sends the prompt."""
+        # A direct complaint from live playtesting: a long fight reads
+        # as one unbroken wall of text, since none of the ~60+ combat
+        # message call sites across this file (attack/spell/skill
+        # results, condition ticks, etc.) insert any visual separation
+        # of their own. Rather than touching every one of those
+        # individually (a large, error-prone edit for a cosmetic fix),
+        # this single choke point - guaranteed to run exactly once at
+        # the start of every character's turn, for every fighter in
+        # every fight - gives the whole room one clean blank-line break
+        # between "everything that happened on the last turn" and
+        # "everything about to happen on this one", the same low-risk
+        # approach already used for ambient echoes and NPC chatter.
+        if character.location:
+            character.location.msg_contents("\n")
         character.db.combat_actionsleft = ACTIONS_PER_TURN
         if hasattr(character, "at_turn_start"):
             character.at_turn_start()
@@ -6438,6 +6480,9 @@ class CmdChallenge(Command):
         )
 
 
+STATS_WIDTH = 70
+
+
 class CmdCoreStats(Command):
     """
     Shows your full character sheet - identity, progression, current
@@ -6465,58 +6510,87 @@ class CmdCoreStats(Command):
         xp = char.db.xp or 0
         xp_needed = COMBAT_RULES.xp_for_level(level) if level < MAX_LEVEL else None
 
-        lines = [
-            "|w%s|n" % char.key,
-        ]
-        if active_title:
-            lines.append("  |Y%s|n" % active_title)
-        if custom_title:
-            lines.append('  "%s"' % custom_title)
-        lines += [
-            "  %s, %s" % (race_display, class_display),
-            "  Level %d (%s)" % (level, title),
-        ]
+        # Faction/Religion always show a real line - "None" rather
+        # than omitted entirely - a direct request: a player shouldn't
+        # have to infer "not in one" from an absent line.
         if char.db.faction:
             from world.factions import FACTIONS
             faction_name = FACTIONS.get(char.db.faction, {}).get("name", char.db.faction)
             rank = (char.db.faction_rank or "member").title()
-            lines.append("  Faction: %s (%s)" % (faction_name, rank))
+            faction_line = "%s (%s)" % (faction_name, rank)
+        else:
+            faction_line = "None"
+
         if char.db.religion:
             from world.religion import god_display_name, piety_tier
             piety_value = (char.db.piety or {}).get(char.db.religion, 0)
             tier = piety_tier(piety_value) or "Unknown"
             rank = (char.db.religion_rank or "member").title()
-            lines.append(
-                "  Religion: %s (%s, %s)" % (god_display_name(char.db.religion), tier, rank)
-            )
-        if xp_needed is not None:
-            lines.append("  XP: %d / %d to next level" % (xp, xp_needed))
+            religion_line = "%s (%s, %s)" % (god_display_name(char.db.religion), tier, rank)
         else:
-            lines.append("  XP: max level reached")
+            religion_line = "None"
 
-        lines.append("")
-        lines.append(display_meter(char.db.hp, char.db.max_hp, length=30, fill_color=["r", "y", "g"], pre_text="HP "))
-        lines.append(display_meter(char.db.mp, char.db.max_mp, length=30, fill_color=["c"], pre_text="MP "))
+        xp_line = (
+            "%d / %d to next level" % (xp, xp_needed)
+            if xp_needed is not None
+            else "max level reached"
+        )
+
+        w = STATS_WIDTH
+        lines = [box_border(w, "=")]
+        lines.append(box_line("|w%s|n" % char.key, w, align="c"))
+        if active_title:
+            lines.append(box_line("|Y%s|n" % active_title, w, align="c"))
+        if custom_title:
+            lines.append(box_line('"%s"' % custom_title, w, align="c"))
+        lines.append(box_border(w, "-"))
+        lines.append(box_line("  %s, %s" % (race_display, class_display), w))
+        lines.append(box_line("  Level %d (%s)" % (level, title), w))
+        lines.append(box_line("  Faction: %s" % faction_line, w))
+        lines.append(box_line("  Religion: %s" % religion_line, w))
+        lines.append(box_line("  XP: %s" % xp_line, w))
+        lines.append(box_line("  |YGold:|n %d" % (char.db.gold or 0), w))
+        lines.append(box_border(w, "-"))
         lines.append(
-            display_meter(
-                char.db.sp, char.db.max_sp, length=30, fill_color=["y"], text_color="x", pre_text="SP "
+            box_line(
+                display_meter(
+                    char.db.hp, char.db.max_hp, length=30, fill_color=["r", "y", "g"], pre_text="HP "
+                ),
+                w,
             )
         )
-        lines.append("|YGold:|n %d" % (char.db.gold or 0))
-
-        lines.append("")
-        lines.append("|wCore Stats|n")
-        lines.append("  Virtus (Strength):       %d  - melee/heavy weapon damage" % char.db.virtus)
-        lines.append("  Agilitas (Agility):      %d  - accuracy, dodge, initiative, ranged/light weapon damage" % char.db.agilitas)
-        lines.append("  Ingenium (Intelligence): %d  - spell damage and healing" % char.db.ingenium)
-        lines.append("  Vigor (Constitution):    %d  - extra Max HP/MP, flat damage reduction" % char.db.vigor)
+        lines.append(
+            box_line(
+                display_meter(char.db.mp, char.db.max_mp, length=30, fill_color=["c"], pre_text="MP "),
+                w,
+            )
+        )
+        lines.append(
+            box_line(
+                display_meter(
+                    char.db.sp, char.db.max_sp, length=30, fill_color=["y"], text_color="x", pre_text="SP "
+                ),
+                w,
+            )
+        )
+        lines.append(box_border(w, "-"))
+        lines.append(box_line("|wCore Stats|n", w))
+        lines.append(box_line("  Virtus:    %2d  |x(melee power)|n" % char.db.virtus, w))
+        lines.append(box_line("  Agilitas:  %2d  |x(accuracy, dodge, ranged power)|n" % char.db.agilitas, w))
+        lines.append(box_line("  Ingenium:  %2d  |x(spell power)|n" % char.db.ingenium, w))
+        lines.append(box_line("  Vigor:     %2d  |x(HP/MP, damage reduction)|n" % char.db.vigor, w))
 
         if char.db.unspent_stat_points:
-            lines.append("")
+            lines.append(box_border(w, "-"))
             lines.append(
-                "|yYou have %d unspent stat point(s) - use 'statup' to spend "
-                "them.|n" % char.db.unspent_stat_points
+                box_line(
+                    "|yYou have %d unspent stat point(s) - use 'statup'.|n"
+                    % char.db.unspent_stat_points,
+                    w,
+                )
             )
+
+        lines.append(box_border(w, "="))
 
         char.msg("\n".join(lines))
 

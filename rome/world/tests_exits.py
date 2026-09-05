@@ -121,7 +121,13 @@ class TestRealExitTraversalChargesMovementSP(EvenniaTest):
         captured = []
         self.char1.msg = lambda text="", **kwargs: captured.append(text)
         self.exit_obj.at_traverse(self.char1, self.room2)
-        self.assertIn("You walk south.", captured)
+        # Trailing newline is deliberate - a blank-line separator from
+        # the room description that follows (see the walk message's
+        # own comment in world/combat.py) - checked with a substring
+        # search rather than exact list membership so this test
+        # doesn't re-break the next time that trailing whitespace is
+        # tuned.
+        self.assertTrue(any("You walk south." in str(m) for m in captured))
 
     def test_no_walk_message_when_traversal_is_blocked(self):
         self.char1.db.sp = 0

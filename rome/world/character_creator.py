@@ -56,6 +56,27 @@ except AttributeError:
     _CHARGEN_MENU = "evennia.contrib.rpg.character_creator.example_menu"
 
 
+class RomeChargenMenu(EvMenu):
+    """
+    Identical to Evennia's own EvMenu, except for the horizontal rule
+    drawn between a node's text and its options - a real complaint
+    from live playtesting ("the dash horizontal lines... look like
+    stock design"). EvMenu's own default (node_border_char = "_", a
+    bare repeated underscore) is genuinely just that: the contrib's
+    unstyled default, never customized anywhere in this project.
+    Overriding the single character it repeats is enough - no need to
+    reimplement node_formatter itself. node_formatter builds the rule
+    as `sep * total_width`, where total_width is the node's own
+    visible content width (already measured separately via m_len, not
+    from sep) - so even though sep here is a 5-character raw string
+    ("|Y=|n"), each full repetition of it still renders as exactly one
+    visible "=" once Evennia's ANSI parser strips the color codes back
+    out, keeping the rule's visible width exactly right.
+    """
+
+    node_border_char = "|Y=|n"
+
+
 class ContribCmdIC(CmdIC):
     def func(self):
         if self.args:
@@ -155,7 +176,7 @@ class ContribCmdCharCreate(MuxAccountCommand):
                 # execute the ic command to start puppeting the character
                 account.execute_cmd("ic {}".format(char.key), session=session)
 
-        EvMenu(session, _CHARGEN_MENU, startnode=startnode, cmd_on_exit=finish_char_callback)
+        RomeChargenMenu(session, _CHARGEN_MENU, startnode=startnode, cmd_on_exit=finish_char_callback)
 
 
 class ContribChargenCmdSet(CmdSet):

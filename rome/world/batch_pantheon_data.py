@@ -73,6 +73,10 @@ ROOM_COUNT_EXPECTED = 6
 
 LINKS = [
     ("existing_via_triumphalis", "north", "pantheon_approach", "south"),
+    # Retrofitted live to a real world.doors.DescriptiveDoor pair - the
+    # real Pantheon is famous for its surviving bronze doors, and now
+    # this one has a mechanical one too. Historical LINKS data (the
+    # live setup script already ran and isn't meant to be re-run).
     ("pantheon_approach", "north", "pantheon_rotunda", "south"),
     ("pantheon_rotunda", "east", "pantheon_niche_east", "west"),
     ("pantheon_rotunda", "west", "pantheon_niche_west", "east"),

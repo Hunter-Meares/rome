@@ -28,10 +28,9 @@ developers.
 """
 
 from evennia import CmdSet
-from evennia.utils.ansi import ANSIString
-from evennia.utils.utils import wrap as evennia_wrap
 
 from commands.command import Command
+from world.box_display import box_border, box_line, box_paragraph, box_blank
 
 RECENT_UPDATES_DATE = "2026-09-05"
 
@@ -52,37 +51,19 @@ MOTD_WIDTH = 70
 
 
 def _box_border(char="="):
-    return "|Y+%s+|n" % (char * (MOTD_WIDTH + 2))
+    return box_border(MOTD_WIDTH, char)
 
 
 def _box_line(text="", align="l"):
-    """
-    One bordered, padded line. Uses ANSIString for both wrapping-
-    safety and padding, since a line can freely contain color codes
-    (|w, |Y, etc.) - a plain str.ljust() or textwrap call would count
-    those as real characters and under-pad the line, letting the
-    right-hand border drift instead of lining up.
-    """
-    ansi_text = ANSIString(text)
-    if len(ansi_text) > MOTD_WIDTH:
-        # Safety net, not the normal path - _box_paragraph already
-        # wraps real paragraphs before this is called. A single fixed
-        # line (e.g. a command list entry) that's simply too long to
-        # fit is cropped rather than allowed to overflow the border.
-        ansi_text = ansi_text[:MOTD_WIDTH]
-    padded = ansi_text.center(MOTD_WIDTH) if align == "c" else ansi_text.ljust(MOTD_WIDTH)
-    return "|Y|||n %s |Y|||n" % padded
+    return box_line(text, MOTD_WIDTH, align=align)
 
 
 def _box_paragraph(text, align="l"):
-    """Wraps a plain-text paragraph to the box's own width and
-    returns one bordered, padded line per wrapped line."""
-    wrapped = evennia_wrap(text, width=MOTD_WIDTH)
-    return [_box_line(line, align=align) for line in wrapped.split("\n")]
+    return box_paragraph(text, MOTD_WIDTH, align=align)
 
 
 def _box_blank():
-    return _box_line("")
+    return box_blank(MOTD_WIDTH)
 
 
 def get_motd():

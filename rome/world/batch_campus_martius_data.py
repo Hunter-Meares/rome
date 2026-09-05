@@ -570,6 +570,18 @@ OBJECTS = [
         "record, in his own words, of exactly how he wants his life to "
         "be remembered."
     ),
+    # Real bug found live: the sanctuary's own desc already described
+    # "the goddess's statue" in prose but nothing player-examinable
+    # actually existed - same gap already fixed for the Capitoline
+    # Triad, Caesar's temple, and the Aventine temples.
+    (
+        "isis_main_sanctuary", "the statue of Isis",
+        "She holds a small sistrum rattle, its metal loops inlaid "
+        "separately in dull bronze so they catch light differently "
+        "from the surrounding stone - said by the temple's own priests "
+        "to chime faintly on certain nights, though no visitor has ever "
+        "actually heard it happen."
+    ),
 ]
 
 

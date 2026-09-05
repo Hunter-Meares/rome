@@ -806,6 +806,7 @@ LINKS = [
     ("forum_square_east", "south", "basilica_aemilia_rear_exit", "north"),
 
     # --- Zone 3: Curia Julia ---
+    # Retrofitted live to a real door - see the Saturn Vault comment above.
     ("curia_portico", "north", "curia_antechamber", "south"),
     ("curia_antechamber", "north", "curia_chamber", "south"),
     ("curia_chamber", "east", "curia_side_chamber", "west"),
@@ -838,6 +839,12 @@ LINKS = [
     ("temple_saturn_steps", "up", "temple_saturn_cella", "down"),
     ("temple_saturn_cella", "east", "temple_saturn_side", "west"),
     ("temple_saturn_cella", "south", "temple_saturn_aerarium_ante", "north"),
+    # Retrofitted live to a real world.doors.DescriptiveDoor pair - the
+    # room's own desc already promised "a heavy, iron-bound door" here
+    # that didn't mechanically exist. This LINKS entry is historical
+    # (setup_forum_live.py already ran and isn't meant to be re-run
+    # against a populated DB) - kept as plain-exit data for the record,
+    # not because re-applying it would recreate the door correctly.
     ("temple_saturn_aerarium_ante", "down", "temple_saturn_vault", "up"),
     ("temple_saturn_aerarium_ante", "west", "temple_saturn_records", "east"),
     ("temple_saturn_side", "east", "temple_concord_steps", "west"),
@@ -865,6 +872,7 @@ LINKS = [
     ("temple_caesar_cella", "east", "temple_caesar_offerings", "west"),
     # Temple of Vesta + House of the Vestals
     ("temple_vesta_approach", "south", "temple_vesta_exterior", "north"),
+    # Retrofitted live to a real door - see the Saturn Vault comment above.
     ("temple_vesta_exterior", "south", "temple_vesta_sacred_fire", "north"),
     ("temple_vesta_exterior", "east", "vestal_house_courtyard", "west"),
     ("vestal_house_courtyard", "east", "vestal_house_statue_garden", "west"),
@@ -1140,6 +1148,18 @@ OBJECTS = [
         "Statues of the deified emperor and empress stand together, "
         "rendered with the same divine dignity given to any god of the "
         "old pantheon - the imperial cult made plain in marble and gilt."
+    ),
+    # A real bug found live: the room's own desc already described this
+    # statue in prose (the star, the comet) but nothing player-
+    # examinable actually existed here - same gap as the Capitoline
+    # Triad, fixed the same way. New detail below, not a restatement.
+    (
+        "temple_caesar_cella", "the statue of the deified Caesar",
+        "A sliver of real polished silver is set into the carved star "
+        "above his head, catching lamplight independently of the "
+        "surrounding marble - a small, deliberate extravagance in an "
+        "otherwise modest cella. The toga is carved mid-motion, as if "
+        "caught walking rather than posing."
     ),
 ]
 

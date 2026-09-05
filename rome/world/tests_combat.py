@@ -416,6 +416,38 @@ class TestResolveAttackDamageValue(CombatTestBase):
         return weapon
 
 
+class TestResolveAttackMessageColor(CombatTestBase):
+    """
+    A direct complaint from live playtesting: combat text reads as
+    flat and colorless - every weapon message template only ever
+    colored the damage number, leaving attacker/defender names plain
+    in every single hit/miss/bounce message (~15+ templates). Fixed by
+    coloring both names once in resolve_attack itself and substituting
+    those colored strings in place of the raw characters, reaching
+    every template for free rather than hand-editing each one.
+    """
+
+    def test_hit_message_colors_both_names(self):
+        captured = []
+        self.room1.msg_contents = lambda text="", **kwargs: captured.append(text)
+        COMBAT_RULES.resolve_attack(
+            self.char1, self.char2, attack_value=999, defense_value=1, damage_value=10
+        )
+        full_text = "".join(str(m) for m in captured)
+        self.assertIn("|c%s|n" % self.char1.key, full_text)
+        self.assertIn("|m%s|n" % self.char2.key, full_text)
+
+    def test_miss_message_colors_both_names(self):
+        captured = []
+        self.room1.msg_contents = lambda text="", **kwargs: captured.append(text)
+        COMBAT_RULES.resolve_attack(
+            self.char1, self.char2, attack_value=1, defense_value=999
+        )
+        full_text = "".join(str(m) for m in captured)
+        self.assertIn("|c%s|n" % self.char1.key, full_text)
+        self.assertIn("|m%s|n" % self.char2.key, full_text)
+
+
 class TestHitChanceCalibration(CombatTestBase):
     """
     The one deliberately un-mocked, statistical test - covers priority
@@ -996,6 +1028,38 @@ class TestNextTurnSkipsDefeatedFighters(CombatTestBase):
         handler.next_turn()
 
         self.assertEqual(handler.db.fighters[handler.db.turn], self.char2)
+
+
+class TestStartTurnRoomSpacing(CombatTestBase):
+    """
+    A direct complaint from live playtesting: a long fight reads as an
+    unbroken wall of text, since none of the many separate combat
+    message call sites across this file insert any visual separation.
+    Rather than touching every one of those individually,
+    CombatTurnHandler.start_turn() now sends one blank line to the
+    whole room at the start of every character's turn - guaranteed to
+    run exactly once per turn, for every fighter, in every fight.
+    """
+
+    def _make_handler(self):
+        from evennia.utils import create
+
+        return create.create_script(CombatTurnHandler, obj=self.room1, autostart=False)
+
+    def test_start_turn_sends_a_blank_line_to_the_room(self):
+        handler = self._make_handler()
+        captured = []
+        self.room1.msg_contents = lambda text="", **kwargs: captured.append(text)
+
+        handler.start_turn(self.char1)
+
+        self.assertIn("\n", captured)
+
+    def test_start_turn_does_not_crash_with_no_location(self):
+        handler = self._make_handler()
+        self.char1.location = None
+
+        handler.start_turn(self.char1)  # should not raise
 
 
 class TestSideBasedVictory(CombatTestBase):

@@ -490,6 +490,60 @@ class TestStatsHealthBar(CombatCommandTestBase):
         self.assertIn("0 / 0", result)
 
 
+class TestStatsBoxDisplay(CombatCommandTestBase):
+    """
+    'stats' rewritten into a bordered box (world.box_display, shared
+    with the MOTD's own box) - a direct request to make the output
+    "neat and organized... in a box with vivid colors" instead of
+    plain indented text. Also covers the other half of that same
+    request: Faction and Religion now always show a real line ("None")
+    instead of being omitted whenever unset, so a player never has to
+    infer "not in one" from an absent line.
+    """
+
+    def test_output_is_bordered_top_and_bottom(self):
+        # self.call()'s returned text includes RomePromptMixin's own
+        # trailing HP/MP/SP prompt line, sent by at_post_cmd() after
+        # this command's own output - so the box's closing border
+        # isn't necessarily the literal last line of the full result.
+        # Checked by counting border lines instead of indexing by
+        # position.
+        result = self.call(CmdCoreStats(), "", caller=self.char1)
+        border_lines = [line for line in result.split("\n") if "+" in line and "=" in line]
+        self.assertGreaterEqual(len(border_lines), 2)
+
+    def test_faction_shows_none_when_not_in_one(self):
+        self.char1.db.faction = None
+        result = self.call(CmdCoreStats(), "", caller=self.char1)
+        self.assertIn("Faction: None", result)
+
+    def test_religion_shows_none_when_not_in_one(self):
+        self.char1.db.religion = None
+        result = self.call(CmdCoreStats(), "", caller=self.char1)
+        self.assertIn("Religion: None", result)
+
+    def test_faction_shows_real_name_when_set(self):
+        from world.factions import FACTIONS
+
+        real_faction_key = next(iter(FACTIONS))
+        self.char1.db.faction = real_faction_key
+        self.char1.db.faction_rank = "member"
+        result = self.call(CmdCoreStats(), "", caller=self.char1)
+        self.assertIn("Faction: %s" % FACTIONS[real_faction_key]["name"], result)
+        self.assertNotIn("Faction: None", result)
+
+    def test_core_stats_all_present(self):
+        self.char1.db.virtus = 12
+        self.char1.db.agilitas = 13
+        self.char1.db.ingenium = 14
+        self.char1.db.vigor = 15
+        result = self.call(CmdCoreStats(), "", caller=self.char1)
+        self.assertIn("Virtus:    12", result)
+        self.assertIn("Agilitas:  13", result)
+        self.assertIn("Ingenium:  14", result)
+        self.assertIn("Vigor:     15", result)
+
+
 class TestSpellSkillTrainers(CombatCommandTestBase):
     """
     'learn' (formerly separate learnspell/learnskill commands, now

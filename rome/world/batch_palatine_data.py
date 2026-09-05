@@ -133,6 +133,10 @@ ROOM_COUNT_EXPECTED = 13
 LINKS = [
     ("existing_regia_courtyard", "east", "palatine_gate", "west"),
     ("palatine_gate", "north", "palatine_outer_courtyard", "south"),
+    # Retrofitted live to a real world.doors.DescriptiveDoor pair - the
+    # Emperor's own palace building deserved a real door, not a plain
+    # exit. Historical LINKS data (the live setup script already ran
+    # and isn't meant to be re-run against a populated DB).
     ("palatine_outer_courtyard", "north", "palatine_reception_hall", "south"),
     ("palatine_reception_hall", "east", "palatine_quarters_antechamber", "west"),
     ("palatine_quarters_antechamber", "east", "palatine_quarters_inner", "west"),

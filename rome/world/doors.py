@@ -26,6 +26,8 @@ open/close link between the two sides. Always create fresh with:
 from evennia.contrib.grid.simpledoor.simpledoor import SimpleDoor, CmdOpenCloseDoor
 from evennia.utils.utils import inherits_from
 
+from typeclasses.exits import STANDARD_DIRECTION_ALIASES
+
 
 _DIRECTIONS = {
     "north", "south", "east", "west",
@@ -54,6 +56,20 @@ class DescriptiveDoor(SimpleDoor):
     override, "look <door>" would fall back to the generic "This is
     an exit." placeholder that motivated that fix in the first place.
     """
+
+    def at_object_creation(self):
+        """
+        Same reasoning as typeclasses/exits.py's Exit.at_object_creation
+        - SimpleDoor extends DefaultExit directly, completely bypassing
+        that fix (and its own docstring's "623 of 1265 exits missing
+        their short alias" bug) the same way it bypasses
+        get_display_desc below. A door named "south" needs 's' to
+        work exactly as much as a plain exit does.
+        """
+        super().at_object_creation()
+        short = STANDARD_DIRECTION_ALIASES.get((self.key or "").strip().lower())
+        if short:
+            self.aliases.add(short)
 
     def get_display_desc(self, looker, **kwargs):
         if self.db.desc:

@@ -110,6 +110,10 @@ ROOM_COUNT_EXPECTED = 11
 
 
 LINKS = [
+    # Retrofitted live to a real world.doors.DescriptiveDoor pair -
+    # entering a real bathhouse building deserved a real door.
+    # Historical LINKS data (the live setup script already ran and
+    # isn't meant to be re-run against a populated DB).
     ("existing_insula_courtyard", "north", "baths_entrance", "south"),
     ("baths_entrance", "north", "baths_palaestra", "south"),
     ("baths_entrance", "east", "baths_lounge_a", "west"),

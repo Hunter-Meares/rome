@@ -310,6 +310,10 @@ LINKS = [
     ("summit_stairway_top", "north", "temple_portico", "south"),
 
     # --- Zone 4: Temple of Jupiter Optimus Maximus ---
+    # Retrofitted live to a real world.doors.DescriptiveDoor pair -
+    # Rome's most important temple deserved a real working door, not
+    # just a plain exit. Historical LINKS data (the live setup script
+    # already ran and isn't meant to be re-run against a populated DB).
     ("temple_portico", "north", "temple_cella_jupiter", "south"),
     ("temple_portico", "west", "temple_oath_antechamber", "east"),
     ("temple_portico", "east", "temple_offerings_hall", "west"),
@@ -463,6 +467,62 @@ OBJECTS = [
         "A short inscription cut into the stone near the cliff's edge, "
         "old enough that its exact wording has softened with weather - "
         "but its point, standing here, needs no translation."
+    ),
+    # Real, examinable cult-statue Objects for the Capitoline Triad and
+    # the summit's two minor temples - a real bug found live: the
+    # rooms' own prose already described a statue standing in each
+    # cella (Jupiter's, Juno's, Minerva's) but nothing player-
+    # examinable actually existed there, and Moneta/Veiovis/Fides
+    # didn't even get the prose. Matches the existing statue-object
+    # convention already used for Saturn/Victory/Concord/Castor-Pollux
+    # in batch_forum_data.py. Each detail below is deliberately new,
+    # not a restatement of the room's own desc text.
+    (
+        "temple_cella_jupiter", "the cult statue of Jupiter",
+        "An eagle is carved perched at the god's feet, wings half-"
+        "spread as though it might launch at any moment. The statue's "
+        "eyes are inlaid with polished stone rather than simply carved, "
+        "catching torchlight in a way that unsettles more than one "
+        "visitor into looking away first."
+    ),
+    (
+        "temple_cella_juno", "the cult statue of Juno",
+        "A peacock is carved coiled at her feet, one tail feather worn "
+        "glassy-smooth where generations of hands have touched it for "
+        "luck on the way out the door. Her raised hand is open rather "
+        "than closed - not a gesture of command, worshippers say, but "
+        "of a queen granting audience."
+    ),
+    (
+        "temple_cella_minerva", "the cult statue of Minerva",
+        "The aegis draped over one shoulder is carved with a gorgon's "
+        "face in startling, almost uncomfortable detail - individual "
+        "strands of snake-hair still distinct after centuries, unlike "
+        "the smoothed, weather-softened folds of the rest of the "
+        "statue."
+    ),
+    (
+        "arx_temple_moneta", "the cult statue of Juno Moneta",
+        "A comparatively plain terracotta image, modest next to the "
+        "gilded grandeur down the hill - fitting for a goddess honored "
+        "here for a warning, not a war won. The stone shelf beneath it "
+        "has worn into a shallow, coin-shaped groove from generations "
+        "of moneyers pressing fresh strikes there before carrying them "
+        "off to circulate."
+    ),
+    (
+        "temple_veiovis", "the cult statue of Veiovis",
+        "A youthful, oddly unfinished-looking figure, a bundle of "
+        "arrows in one hand and a goat carved crouched at his side - "
+        "older and rougher in style than anything else on the summit, "
+        "as if it predates the temple built around it."
+    ),
+    (
+        "temple_fides", "the cult statue of Fides",
+        "Her right hand is wrapped in a carved strip of cloth, the old "
+        "symbol of a sworn pledge, worn to a soft shine where oath-"
+        "takers grip it while swearing. She carries no other attribute "
+        "at all - Good Faith, apparently, needs no further ornament."
     ),
 ]
 

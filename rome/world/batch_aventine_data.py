@@ -497,6 +497,34 @@ OBJECTS = [
         "the ground underfoot by the sheer weight of everything piled "
         "above it."
     ),
+    # Real bug found live: Diana's and Juno Regina's cellas already
+    # described their own statue in prose (bow in hand; foreign
+    # formality), and Liber/Libera's cella described two, but none of
+    # the three had an actual examinable Object - same gap already
+    # fixed for the Capitoline Triad and Caesar's temple. New detail
+    # below in each case, not a restatement of the room's own desc.
+    (
+        "aventine_diana_cella", "the cult statue of Diana",
+        "A hunting hound is carved crouched at her heel, ears back and "
+        "body angled toward the door rather than up at her - alert to "
+        "something beyond the room, the way a real hound would be, "
+        "rather than posed for the goddess's own benefit."
+    ),
+    (
+        "aventine_triad_liber_cella", "the statues of Liber and Libera",
+        "A carved vine, heavy with grape clusters, winds from Liber's "
+        "wrist across the space between the two figures to twine "
+        "around Libera's - the one point the sculptor let the pair "
+        "actually touch, linking them at the base rather than leaving "
+        "them merely side by side."
+    ),
+    (
+        "aventine_juno_cella", "the cult statue of Juno Regina",
+        "Her diadem is cut in a sharp, geometric pattern unlike any "
+        "other stonework on the hill - no local mason's other work in "
+        "the city quite matches it, whatever workshop first carved her "
+        "clearly learned its trade somewhere else entirely."
+    ),
 ]
 
 

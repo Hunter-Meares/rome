@@ -945,6 +945,11 @@ LINKS = [
     ("greathall_outer_yard", "south", "greathall_entrance", "north"),
     ("greathall_outer_yard", "west", "farmstead_rear_exit", "east"),
     ("greathall_outer_yard", "east", "smithy_approach", "west"),
+    # Retrofitted live to a real world.doors.DescriptiveDoor pair - the
+    # room's own desc already promised "massive timber doors" here
+    # that didn't mechanically exist. This LINKS entry is historical
+    # (setup_germania_live.py already ran and isn't meant to be re-run
+    # against a populated DB) - kept as plain-exit data for the record.
     ("greathall_entrance", "south", "greathall_feasting_hall", "north"),
     ("greathall_feasting_hall", "east", "greathall_war_council", "west"),
     ("greathall_feasting_hall", "west", "greathall_weapons_hall", "east"),

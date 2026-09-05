@@ -46,9 +46,9 @@ class RomePromptMixin:
         # object that hasn't run CombatCharacter.at_object_creation().
         if caller and hasattr(caller, "attributes") and caller.attributes.has("max_hp"):
             prompt = (
-                f"|c<|n|gHP|n |w{caller.db.hp}|n/|w{caller.db.max_hp}|c>|n "
-                f"|c<|n|CMP|n |w{caller.db.mp}|n/|w{caller.db.max_mp}|c>|n "
-                f"|c<|n|YSP|n |w{caller.db.sp}|n/|w{caller.db.max_sp}|c>|n "
+                f"|c[|n|gHP|n |w{caller.db.hp}|n/|w{caller.db.max_hp}|c]|n "
+                f"|c[|n|CMP|n |w{caller.db.mp}|n/|w{caller.db.max_mp}|c]|n "
+                f"|c[|n|YSP|n |w{caller.db.sp}|n/|w{caller.db.max_sp}|c]|n "
                 f"|c:|n "
             )
             caller.msg(prompt=prompt)

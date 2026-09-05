@@ -45,7 +45,10 @@ class TestDescriptiveDoorChargesMovementSP(EvenniaTest):
         captured = []
         self.char1.msg = lambda text="", **kwargs: captured.append(text)
         self.door.at_traverse(self.char1, self.room2)
-        self.assertIn("You walk west.", captured)
+        # Substring search, not exact list membership - the real
+        # message has a deliberate trailing blank-line separator (see
+        # world/combat.py).
+        self.assertTrue(any("You walk west." in str(m) for m in captured))
 
     def test_traversal_blocked_when_out_of_sp_gives_no_walk_message(self):
         # Note: the door's OWN lock (open/closed) is checked earlier,
@@ -60,3 +63,30 @@ class TestDescriptiveDoorChargesMovementSP(EvenniaTest):
         self.door.at_traverse(self.char1, self.room2)
         self.assertEqual(self.char1.location, self.room1)
         self.assertNotIn("You walk west.", captured)
+
+
+class TestDescriptiveDoorStandardDirectionAliases(EvenniaTest):
+    """
+    Same real bug and same fix as typeclasses/exits.py's Exit - a door
+    named after a standard direction needs its short alias too, and
+    SimpleDoor (DescriptiveDoor's real parent) bypasses that class
+    entirely, extending DefaultExit directly instead.
+    """
+
+    def test_south_door_gets_s_alias_automatically(self):
+        door = create.create_object(
+            "world.doors.DescriptiveDoor",
+            key="south",
+            location=self.room1,
+            destination=self.room2,
+        )
+        self.assertIn("s", [a.lower() for a in door.aliases.all()])
+
+    def test_non_direction_door_key_is_unaffected(self):
+        door = create.create_object(
+            "world.doors.DescriptiveDoor",
+            key="the cellar door",
+            location=self.room1,
+            destination=self.room2,
+        )
+        self.assertEqual(list(door.aliases.all()), [])

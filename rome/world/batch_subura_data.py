@@ -191,6 +191,10 @@ LINKS = [
     ("subura_market_stalls", "south", "subura_market_alley", "north"),
 
     ("subura_fountain_plaza", "west", "insula_courtyard", "east"),
+    # Retrofitted live to a real world.doors.DescriptiveDoor pair -
+    # a real tenement building deserves a real door. Historical LINKS
+    # data (the live setup script already ran and isn't meant to be
+    # re-run against a populated DB).
     ("insula_courtyard", "west", "insula_lower_hall", "east"),
     ("insula_courtyard", "south", "household_shrine", "north"),
     ("insula_lower_hall", "up", "insula_stairwell", "down"),
@@ -202,6 +206,7 @@ LINKS = [
     ("alley_junction", "west", "alley_west_loop", "east"),
     ("alley_west_loop", "south", "tavern_back_room", "north"),
     ("tavern_back_room", "west", "tavern_common_room", "east"),
+    # Retrofitted live to a real door - see the insula comment above.
     ("tavern_common_room", "north", "subura_market_alley", "south"),
 ]
 
