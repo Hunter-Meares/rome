@@ -34,6 +34,7 @@ from world.religion import (
     credit_pluto_resurrection,
     ensure_religion_channels_exist,
     get_religion_channel,
+    JupiterSanctumGateExit,
 )
 
 
@@ -383,3 +384,66 @@ class TestReligionChannels(EvenniaTest):
         mercury_channel = get_religion_channel("mercury")
         self.assertFalse(mars_channel.has_connection(self.char1))
         self.assertTrue(mercury_channel.has_connection(self.char1))
+
+
+class TestJupiterSanctumGateExit(EvenniaTest):
+    """
+    Two real bugs found live, fixed together: this exit used to be
+    locked to traverse:perm(Builder) - an engine permission utterly
+    disconnected from religion, meaning no real player could ever pass
+    it regardless of devotion, despite the room's own desc implying
+    real standing could earn entry - and a blocked attempt gave no
+    message at all (Evennia's own silent default when a lock rejects
+    you with no db.err_traverse set).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.gate = create.create_object(
+            JupiterSanctumGateExit, key="north", location=self.room1, destination=self.room2
+        )
+        self.char1.db.level = 1
+        self.char1.db.religion = None
+        self.char1.db.piety = {}
+
+    def test_blocked_and_explained_with_no_religion(self):
+        captured = []
+        self.char1.msg = lambda text="", **kwargs: captured.append(text)
+
+        self.gate.at_traverse(self.char1, self.room2)
+
+        self.assertEqual(self.char1.location, self.room1)
+        full_text = "".join(str(m) for m in captured)
+        self.assertIn("mystic force", full_text)
+
+    def test_blocked_when_devoted_but_not_yet_beloved(self):
+        self.char1.db.religion = "jupiter"
+        self.char1.db.piety = {"jupiter": 100}  # Devoted, not Beloved
+
+        self.gate.at_traverse(self.char1, self.room2)
+
+        self.assertEqual(self.char1.location, self.room1)
+
+    def test_blocked_when_beloved_of_a_different_god(self):
+        self.char1.db.religion = "mars"
+        self.char1.db.piety = {"mars": 200}
+
+        self.gate.at_traverse(self.char1, self.room2)
+
+        self.assertEqual(self.char1.location, self.room1)
+
+    def test_allowed_when_beloved_of_jupiter(self):
+        self.char1.db.religion = "jupiter"
+        self.char1.db.piety = {"jupiter": 150}
+
+        self.gate.at_traverse(self.char1, self.room2)
+
+        self.assertEqual(self.char1.location, self.room2)
+
+    def test_gods_always_pass_regardless_of_religion(self):
+        self.char1.db.level = 101
+        self.char1.db.religion = None
+
+        self.gate.at_traverse(self.char1, self.room2)
+
+        self.assertEqual(self.char1.location, self.room2)

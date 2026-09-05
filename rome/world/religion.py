@@ -64,6 +64,7 @@ Design, per direct discussion before any of this was built:
 """
 
 from evennia import Command
+from evennia.objects.objects import DefaultExit
 from evennia.utils import search
 from evennia.utils.create import create_channel
 
@@ -692,3 +693,49 @@ class CmdReligion(Command):
                 % (character_name, entry["action"], entry["by"], entry["reason"])
             )
         caller.msg("\n".join(lines))
+
+
+class JupiterSanctumGateExit(DefaultExit):
+    """
+    Blocks the Capitoline's Inner Sanctum behind real devotion to
+    Jupiter - Beloved tier piety (150+), the same top tier that
+    already grants a real passive bonus everywhere else in this
+    system. Two real, separate bugs found live and fixed together
+    here:
+
+    1. This exit was locked to traverse:perm(Builder) - a raw Evennia
+       engine permission with zero connection to religion. No real
+       player could ever pass it, regardless of devotion, directly
+       contradicting the room's own description ("you're only
+       standing here because someone with real standing let you") -
+       there was no actual way to earn that standing. Fixed by
+       replacing the lock with this real, achievable check instead,
+       and giving "real standing" (Beloved-tier piety in Jupiter)
+       actual mechanical meaning.
+    2. A blocked attempt gave no message at all - Evennia's own
+       default failed-traverse behavior when a lock rejects you and
+       no db.err_traverse is set. A real player hit this directly and
+       had no idea why "north" simply did nothing.
+
+    Gods (level > GOD_LEVEL_THRESHOLD) always pass regardless of their
+    own religion/piety - a deity doesn't need to prove devotion to
+    enter a mortal shrine to another god, matching the existing "gods
+    see/do everything" convention used elsewhere (CombatCharacter.
+    get_display_name, wizinvis exemptions, etc.).
+    """
+
+    def at_traverse(self, traversing_object, target_location, **kwargs):
+        level = traversing_object.db.level or 1
+        if level > GOD_LEVEL_THRESHOLD:
+            super().at_traverse(traversing_object, target_location, **kwargs)
+            return
+
+        piety_value = (traversing_object.db.piety or {}).get("jupiter", 0)
+        if traversing_object.db.religion != "jupiter" or piety_tier(piety_value) != "Beloved":
+            traversing_object.msg(
+                "|mYou reach toward the passage north, but a mystic force "
+                "holds you back. Only those truly devoted to Jupiter - "
+                "beloved of the god himself - may pass here.|n"
+            )
+            return
+        super().at_traverse(traversing_object, target_location, **kwargs)
