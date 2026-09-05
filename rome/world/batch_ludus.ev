@@ -14,6 +14,20 @@
 # This file teleports to the Atrium first, so it works correctly no
 # matter where you're standing when you run it.
 #
+# The three same-tier copies in each room deliberately no longer get
+# renamed with a trailing "(1)"/"(2)"/"(3)" - a real complaint from
+# live playtesting ("how can a single NPC be... it needs a number"
+# style unease at seeing that baked into every room listing, combat
+# message, and defeat announcement for the entire fight, not just at
+# the moment of picking one). All three are mechanically and
+# narratively interchangeable, so "fight weapons master" resolving to
+# whichever one Evennia's own search happens to land on first is
+# correct, not ambiguous - and if a player ever needs to pick a
+# specific one on purpose, the disambiguation prompt built earlier
+# this project (server/conf/at_search.py) already shows the real
+# working "1-name" syntax for that. Once resolved, every message for
+# that fight just shows the plain name, same as any other NPC.
+#
 
 #
 @tel Atrium of the Games
@@ -40,8 +54,6 @@ A wide, sandy yard given over to the basics - footwork, blocking, the first hund
 #
 @spawn LUDUS_TRAINER_TIER1
 #
-py trainers = [o for o in here.contents if o.key == "a Ludus recruit-trainer"]; [setattr(t, "key", "%s (%d)" % (t.key, i + 1)) for i, t in enumerate(trainers)]
-#
 south
 #
 @dig Wrestling Pit = east;e,west;w
@@ -57,8 +69,6 @@ A sunken ring of packed earth, worn smooth by countless bouts. This is where rec
 @spawn LUDUS_TRAINER_TIER2
 #
 @spawn LUDUS_TRAINER_TIER2
-#
-py trainers = [o for o in here.contents if o.key == "a Ludus weapons-master"]; [setattr(t, "key", "%s (%d)" % (t.key, i + 1)) for i, t in enumerate(trainers)]
 #
 west
 #
@@ -76,8 +86,6 @@ Heavy iron cages line the walls, mostly empty, though the ones that aren't make 
 #
 @spawn LUDUS_TRAINER_TIER3
 #
-py trainers = [o for o in here.contents if o.key == "a Ludus beast-handler"]; [setattr(t, "key", "%s (%d)" % (t.key, i + 1)) for i, t in enumerate(trainers)]
-#
 north
 #
 @dig Champions' Court = up;u,down;d
@@ -93,8 +101,6 @@ The finest training ground in the Ludus, reserved for those who've earned the ri
 @spawn LUDUS_TRAINER_TIER4
 #
 @spawn LUDUS_TRAINER_TIER4
-#
-py trainers = [o for o in here.contents if o.key == "a Ludus champion"]; [setattr(t, "key", "%s (%d)" % (t.key, i + 1)) for i, t in enumerate(trainers)]
 #
 down
 #

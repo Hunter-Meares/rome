@@ -5379,22 +5379,21 @@ class CombatCharacter(ContribRPCharacter):
         """
         Called at the start of this character's turn in combat (by the
         turn handler). Regenerates a small amount of MP/SP, sends the
-        HP/MP/SP prompt, applies any conditions that trigger at turn
+        turn announcement, applies any conditions that trigger at turn
         start, and - if auto_attack is on - schedules an automatic
         attack a few seconds later (see try_auto_attack), giving a
         real player time to act manually first if they want to.
+
+        No longer shows its own HP/MP/SP meter block here - a direct
+        complaint from live playtesting that it made combat feel
+        cluttered, restating the same numbers the ordinary trailing
+        prompt (RomePromptMixin, commands/command.py) already shows
+        after every single command anyway. That plain prompt is the
+        one and only place HP/MP/SP gets displayed now, matching how
+        it works outside combat too.
         """
         self.rules.regen_combat_resources(self)
-        self.msg(
-            "|wIt's your turn!|n\n%s\n%s\n%s"
-            % (
-                display_meter(self.db.hp, self.db.max_hp, length=20, fill_color=["r", "y", "g"], pre_text="HP "),
-                display_meter(self.db.mp, self.db.max_mp, length=20, fill_color=["c"], pre_text="MP "),
-                display_meter(
-                    self.db.sp, self.db.max_sp, length=20, fill_color=["y"], text_color="x", pre_text="SP "
-                ),
-            )
-        )
+        self.msg("|wIt's your turn!|n")
         self.rules.apply_turn_conditions(self)
         self.rules.tick_cooldowns(self)
 
@@ -6578,7 +6577,7 @@ class CmdCoreStats(Command):
         lines.append(box_line("  Virtus:    %2d  |x(melee power)|n" % char.db.virtus, w))
         lines.append(box_line("  Agilitas:  %2d  |x(accuracy, dodge, ranged power)|n" % char.db.agilitas, w))
         lines.append(box_line("  Ingenium:  %2d  |x(spell power)|n" % char.db.ingenium, w))
-        lines.append(box_line("  Vigor:     %2d  |x(HP/MP, damage reduction)|n" % char.db.vigor, w))
+        lines.append(box_line("  Vigor:     %2d  |x(Max HP, damage reduction)|n" % char.db.vigor, w))
 
         if char.db.unspent_stat_points:
             lines.append(box_border(w, "-"))

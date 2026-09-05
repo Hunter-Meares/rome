@@ -1060,7 +1060,7 @@ NPCS = [
         "A bookseller surrounded by tightly-rolled scrolls, cheerfully "
         "opinionated about which copyist's hand is actually worth the "
         "price being asked.",
-        ["SCROLL_OF_POETRY", "SCROLL_OF_HISTORY"],
+        ["SCROLL_OF_POETRY", "SCROLL_OF_HISTORY", "MAP_OF_ROME"],
     ),
     (
         "commerce_goldsmiths", "a goldsmith", "merchant",

@@ -1062,6 +1062,29 @@ class TestStartTurnRoomSpacing(CombatTestBase):
         handler.start_turn(self.char1)  # should not raise
 
 
+class TestTurnStartMessageIsPlain(CombatTestBase):
+    """
+    A direct complaint from live playtesting: the HP/MP/SP meter block
+    shown at the start of every turn made combat feel cluttered,
+    restating the same numbers the ordinary trailing prompt
+    (RomePromptMixin) already shows after every command. Removed -
+    'It's your turn!' now stands alone.
+    """
+
+    def test_no_meter_bars_in_turn_start_message(self):
+        captured = []
+        self.char1.msg = lambda text="", **kwargs: captured.append(text)
+        self.char1.db.combat_turnhandler = "truthy_stand_in"
+
+        self.char1.at_turn_start()
+
+        full_text = "".join(str(m) for m in captured)
+        self.assertIn("It's your turn!", full_text)
+        self.assertNotIn("HP ", full_text)
+        self.assertNotIn("MP ", full_text)
+        self.assertNotIn("SP ", full_text)
+
+
 class TestSideBasedVictory(CombatTestBase):
     """
     A genuine 2v2 group-fight side check - the "never tested with an

@@ -705,6 +705,49 @@ SCROLL_OF_HISTORY = {
     "price": 20,
 }
 
+# A real request from live playtesting - the city's gotten big enough
+# that a new player has no mental map of how it fits together. Stocked
+# at the bookseller specifically since a bookseller plausibly sells
+# maps, and Booksellers' Corner (off the Forum, the game's actual
+# geographic and narrative hub) is about as central and easy to reach
+# as a shop gets. Deliberately a high-level district overview, not
+# turn-by-turn directions - those would go stale the moment a new
+# zone gets built, the way exact directions never do for a real city
+# map either.
+MAP_OF_ROME = {
+    "key": "a map of Rome",
+    "desc": (
+        "|YA Map of Rome|n\n\n"
+        "Unrolled, it shows the city's major districts in a clean, "
+        "practiced hand - not turn-by-turn directions, just the shape "
+        "of the place.\n\n"
+        "|cThe Colosseum|n - a newcomer's first sight of the city: the "
+        "holding cells, the Atrium of the Games, the Ludus training "
+        "ground, and the deeper Arena Sands. A road east leads out "
+        "through the city walls, toward Germania and the wider world.\n\n"
+        "|cThe Forum Romanum|n - the true center of the city, and where "
+        "most roads eventually lead. The Capitoline Hill rises beside "
+        "it, home to the great state temples. The Argiletum leads north "
+        "into the crowded Subura; the Market Stretch leads to Trajan's "
+        "Market and the Library beyond it.\n\n"
+        "|cThe Aventine and Palatine Hills|n - two of Rome's famous "
+        "seven, both reached from the Forum's own southern approaches. "
+        "The Palatine holds the Emperor's palace; the Aventine holds "
+        "the old plebeian quarter and its own triad of gods.\n\n"
+        "|cCampus Martius|n - the open muster ground north of the city "
+        "proper, past the Mausoleum of Augustus and the walls "
+        "themselves. The Pantheon and the Temple of Isis both stand "
+        "along its roads.\n\n"
+        "|cBeneath the city|n - the Cloaca Maxima, Rome's own sewers, "
+        "run below everything, entered through grates near the Ludus, "
+        "the Subura, and the Forum.\n\n"
+        "A faded note in the margin adds: |xthe city keeps growing "
+        "faster than any map can keep up with. Trust your own feet "
+        "over this scroll if the two ever disagree.|n"
+    ),
+    "price": 25,
+}
+
 GOLD_RING = {
     "key": "a gold ring",
     "desc": "A simple gold band, well-made but not showy - the kind of piece a citizen of modest means might actually afford.",

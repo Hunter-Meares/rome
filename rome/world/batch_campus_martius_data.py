@@ -429,7 +429,14 @@ NPCS = [
         None,
     ),
     (
-        "road_crossroads", "a street crowd", "wander",
+        # Renamed from "a street crowd" - a real complaint from live
+        # playtesting ("how can a single NPC be a crowd?"). The desc
+        # was always about one person at a time (a cart driver, a
+        # pedestrian, someone mid-argument) - only the key claimed to
+        # be plural. A genuine crowd would mean actually spawning
+        # several distinct NPCs, a bigger change than this single
+        # figure's name/desc ever promised.
+        "road_crossroads", "a harried traveler", "wander",
         "Whoever's currently tangled up in the crossroads' usual chaos "
         "- a cart driver, a pedestrian cutting through traffic at real "
         "personal risk, someone loudly certain they had the right of "
