@@ -24,6 +24,33 @@ Run once via `evennia shell < world/setup_campus_martius_live.py`.
 Not idempotent - re-running duplicates everything (and would try to
 re-repoint exits that are already repointed, which is harmless but
 pointless).
+
+REAL BUG FOUND LIVE, FIXED SEPARATELY - not in this file's own logic,
+since it already ran once and isn't meant to be re-run, but worth
+recording here for anyone reading this as a retrofit template later.
+RETROFIT_LINKS below (step 4) skips two LINKS entries on the
+assumption that "repointing the two existing exits already covers
+both directions of the connection" - it doesn't. Repointing
+`vt_north_exit.destination` only makes the FORWARD hop (Via
+Triumphalis -> onto the new road) work; it does nothing for the
+REVERSE hop the skipped LINKS entry
+("existing_via_triumphalis", "north", "road_market_stalls", "south")
+would otherwise have created (a real "south" exit AT
+road_market_stalls, back to Via Triumphalis). Same gap at the far end
+- repointing `pa_south_exit.destination` only makes Pantheon Approach
+-> Campus Hub work forward; the skipped entry
+("campus_hub", "north", "existing_pantheon_approach", "south") never
+created campus_hub's own "north" exit back to the Pantheon. Net
+effect: the entire 7-room road plus the Pantheon's own 6 rooms (13
+rooms in total) were walkable IN, one-way, and had no exit leading
+back out via the same route - confirmed live via
+world/worldcheck.py's check_reachability(), then fixed by manually
+creating the two missing return exits directly (road_market_stalls
+"south" -> Via Triumphalis; campus_hub "north" -> Pantheon Approach).
+If retrofitting another already-built connection this same way in the
+future, repoint-in-place still only ever fixes ONE direction per
+existing exit - the LINKS entries for the OTHER direction at each
+anchor point still need to actually run, not be silently skipped.
 """
 
 from evennia.utils import search, create
