@@ -50,10 +50,10 @@ STAT_HELP = {
     "vigor": (
         "Vigor (Constitution)",
         "Physical toughness and endurance. Vigor grants a small amount of "
-        "bonus Max HP and Max MP on top of your race and class's normal "
-        "totals, and provides a flat reduction to incoming damage, "
-        "independent of and in addition to whatever armor you're "
-        "wearing. High-Vigor characters are simply harder to bring down.",
+        "bonus Max HP on top of your race and class's normal total, and "
+        "provides a flat reduction to incoming damage, independent of "
+        "and in addition to whatever armor you're wearing. High-Vigor "
+        "characters are simply harder to bring down.",
     ),
 }
 

@@ -57,20 +57,27 @@ class GateOfLifeExit(DefaultExit):
 
 class DeeperSandsGateExit(DefaultExit):
     """
-    Blocks characters below level 6 from the deeper Arena Sands - real
-    leveled opponents up to 25, not the newbie-safe escape questline.
-    Forces brand-new players through the Ludus/beginner section first
-    rather than letting a level 1 character wander straight into
-    something that could kill them in two rounds.
+    Blocks characters below level 75 from the deeper Arena Sands - a
+    direct rebalance: this used to gate at level 6 as a newbie-adjacent
+    continuation (opponents up to 25), which put it in direct
+    competition with the Ludus/sewers as "where a fresh escapee goes
+    next." Re-scoped instead into genuine endgame content - a reason
+    for a mid/late-game character to come back to the Colosseum, not
+    a fresh escapee's second stop. Post-Ludus leveling now belongs to
+    the Cloaca Maxima (the sewers, entered via the grates near the
+    Ludus/Subura/Forum) instead. See world/prototypes.py's
+    ARENA_FIGHTER_* entries for the rescaled level 75-100 roster this
+    gate now protects.
     """
 
     def at_traverse(self, traversing_object, target_location, **kwargs):
         level = traversing_object.db.level or 1
-        if level < 6:
+        if level < 75:
             traversing_object.msg(
-                "|rYou aren't experienced enough to enter this part of the "
-                "arena yet. Prove yourself in the Ludus first - come back "
-                "once you've reached level 6.|n"
+                "|rYou aren't nearly experienced enough to enter this part "
+                "of the arena yet. This is a proving ground for the "
+                "strongest fighters in Rome - come back once you've "
+                "reached level 75.|n"
             )
             return
         super().at_traverse(traversing_object, target_location, **kwargs)

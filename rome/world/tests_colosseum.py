@@ -106,23 +106,29 @@ class TestGateOfLifeExit(ColosseumTestBase):
 
 
 class TestDeeperSandsGateExit(ColosseumTestBase):
-    def test_blocked_below_level_6(self):
+    """
+    Rebalanced by direct request from a level 6 newbie-adjacent
+    continuation into genuine level 75+ endgame content, so it stops
+    competing with the sewers as "where a fresh escapee goes next."
+    """
+
+    def test_blocked_below_level_75(self):
         room2 = create.create_object("typeclasses.rooms.Room", key="Deeper Sands")
         gate = create.create_object(
             DeeperSandsGateExit, key="south", location=self.room1, destination=room2
         )
-        self.char1.db.level = 5
+        self.char1.db.level = 74
 
         gate.at_traverse(self.char1, room2)
 
         self.assertEqual(self.char1.location, self.room1)
 
-    def test_allowed_at_level_6(self):
+    def test_allowed_at_level_75(self):
         room2 = create.create_object("typeclasses.rooms.Room", key="Deeper Sands 2")
         gate = create.create_object(
             DeeperSandsGateExit, key="south2", location=self.room1, destination=room2
         )
-        self.char1.db.level = 6
+        self.char1.db.level = 75
 
         gate.at_traverse(self.char1, room2)
 

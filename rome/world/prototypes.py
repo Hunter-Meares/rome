@@ -877,19 +877,44 @@ the ropes, deliberately much longer for the Arena Master, an endgame
 encounter that shouldn't feel readily available.
 """
 
+"""
+Deeper Sands rebalance: originally a levels 3-25 continuation
+(newbie-adjacent, right after the Colosseum escape). Re-scoped by
+direct request into genuine level 75+ endgame content instead - a
+real reason for a mid/late-game character to come back to the
+Colosseum, rather than something a level 6 character stumbles into on
+the way to the Ludus (that's what the sewers are for now - see
+DeeperSandsGateExit in world/colosseum.py). Same six-tier structure
+and racial identities kept (recruit -> hunter -> brute -> duelist ->
+champion -> master), just rescaled and re-armed - levels 75/82/88/93/
+97/100 (the Arena Master capping out at the same level 100 "highest
+rank a mortal can earn" the Legend achievement already uses),
+xp_reward recomputed at the same ~6% of xp_for_level(level) ratio
+every other real NPC in this game already lands on (confirmed against
+the sewers' own deep-tier NPCs, not guessed). No NPC in this game -
+not even the Germanic warband fighters - has an actually-equipped
+wielded_weapon/worn_armor; "armed and armored" is real, vivid
+description here instead, matching that existing game-wide
+convention, while the genuine toughness comes from being correctly
+leveled this high (derive_npc_stats already scales HP/MP/SP and all
+four core stats for real at these levels, not just flavor text).
+"""
+
 ARENA_FIGHTER_RECRUIT = {
-    "key": "a green arena recruit",
+    "key": "a hardened arena recruit",
     "aliases": ["recruit", "fighter"],
     "typeclass": "world.combat.RespawningNPC",
     "desc": (
-        "Barely past his first real fight, this recruit still fights like "
-        "someone who's watched more bouts than he's actually had. Eager, "
-        "sloppy, and dangerous mainly to himself."
+        "Nothing recruit-like about him anymore despite the title - years "
+        "on this exact sand have worn every wasted motion out of him. "
+        "Scarred lorica segmentata, a gladius kept honed past regulation "
+        "sharpness, and the flat, unhurried stare of someone who stopped "
+        "being nervous a very long time ago."
     ),
     "race": "human",
     "player_class": "gladiator",
-    "level": 3,
-    "xp_reward": 35,
+    "level": 75,
+    "xp_reward": 4383,
     "respawn_delay": 60,
     "tags": [("arena_fighter", "npc_role")],
     "locks": "puppet:false()",
@@ -900,14 +925,15 @@ ARENA_FIGHTER_HUNTER = {
     "aliases": ["hunter", "fighter", "centaur"],
     "typeclass": "world.combat.RespawningNPC",
     "desc": (
-        "A Centaur fighter, javelin in hand, moving with the restless energy "
-        "of something that would rather be running open ground than "
-        "standing on sand. He's adapted. Mostly."
+        "A Centaur fighter in banded barding that covers him from "
+        "shoulder to flank, twin javelins slung across his back and a "
+        "third already balanced in hand. He circles rather than charges - "
+        "he has learned, the hard way, exactly how little he needs to."
     ),
     "race": "centaur",
     "player_class": "venator",
-    "level": 8,
-    "xp_reward": 110,
+    "level": 82,
+    "xp_reward": 5193,
     "respawn_delay": 90,
     "tags": [("arena_fighter", "npc_role")],
     "locks": "puppet:false()",
@@ -918,14 +944,16 @@ ARENA_FIGHTER_BRUTE = {
     "aliases": ["brute", "fighter", "minotaur"],
     "typeclass": "world.combat.RespawningNPC",
     "desc": (
-        "A Minotaur built like a siege engine, breathing slow through "
-        "flared nostrils, patient in the specific way of something that "
-        "has never once needed to rush."
+        "A Minotaur in a mail hauberk stretched to its absolute limit "
+        "across a chest built like a siege engine, a spiked maul resting "
+        "on one shoulder as though it weighed nothing at all. Patient, in "
+        "the specific way of something that has never once needed to "
+        "rush and has the scars on other people to prove it."
     ),
     "race": "minotaur",
     "player_class": "barbarian",
-    "level": 12,
-    "xp_reward": 180,
+    "level": 88,
+    "xp_reward": 5939,
     "respawn_delay": 120,
     "tags": [("arena_fighter", "npc_role")],
     "locks": "puppet:false()",
@@ -936,14 +964,16 @@ ARENA_FIGHTER_DUELIST = {
     "aliases": ["duelist", "fighter", "harpy"],
     "typeclass": "world.combat.RespawningNPC",
     "desc": (
-        "A Harpy duelist, wings half-mantled, watching for any opening "
-        "with the unblinking patience of something that has fought - and "
-        "won - more of these than she'll ever bother mentioning."
+        "A Harpy duelist in a lacquered breastplate cut to leave her "
+        "wings free, twin curved blades sheathed low across her hips. "
+        "She watches for an opening with the unblinking patience of "
+        "something that has fought - and won - more of these than "
+        "she'll ever bother mentioning."
     ),
     "race": "harpy",
     "player_class": "gladiator",
-    "level": 16,
-    "xp_reward": 260,
+    "level": 93,
+    "xp_reward": 6596,
     "respawn_delay": 150,
     "tags": [("arena_fighter", "npc_role")],
     "locks": "puppet:false()",
@@ -954,14 +984,16 @@ ARENA_FIGHTER_CHAMPION = {
     "aliases": ["champion", "fighter", "cyclops"],
     "typeclass": "world.combat.RespawningNPC",
     "desc": (
-        "A Cyclops in full legionary plate, somehow both massive and "
-        "precise, shield locked in close the way only someone who's "
-        "actually survived a hundred bouts holds one."
+        "A Cyclops in full legionary plate polished bright enough to "
+        "throw back the torchlight, a massive scutum locked in close the "
+        "way only someone who's actually survived a hundred real bouts "
+        "holds one, and a spatha long enough that most opponents never "
+        "close the distance it needs."
     ),
     "race": "cyclops",
     "player_class": "legionary",
-    "level": 20,
-    "xp_reward": 380,
+    "level": 97,
+    "xp_reward": 7146,
     "respawn_delay": 180,
     "tags": [("arena_fighter", "npc_role")],
     "locks": "puppet:false()",
@@ -972,13 +1004,17 @@ ARENA_FIGHTER_MASTER = {
     "aliases": ["master", "fighter", "arena master"],
     "typeclass": "world.combat.RespawningNPC",
     "desc": (
-        "Undefeated for longer than anyone keeping count can remember, the "
-        "Arena Master doesn't posture or warm up. He just waits - utterly "
-        "still, utterly certain - for whoever's next foolish enough to try."
+        "Undefeated for longer than anyone keeping count can remember, "
+        "armored in blackened plate that's clearly been fought in rather "
+        "than just worn, a single massive war-hammer resting head-down in "
+        "the sand at his feet. The Arena Master doesn't posture or warm "
+        "up. He just waits - utterly still, utterly certain - for "
+        "whoever's next foolish enough to try, at the very peak of what a "
+        "mortal can become."
     ),
     "player_class": "gladiator",
-    "level": 25,
-    "xp_reward": 550,
+    "level": 100,
+    "xp_reward": 7571,
     "respawn_delay": 300,
     "tags": [("arena_fighter", "npc_role")],
     "locks": "puppet:false()",

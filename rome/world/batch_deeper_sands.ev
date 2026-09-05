@@ -1,9 +1,17 @@
 #
 # The Deeper Sands batch file
-# Expands Arena Sands with a real leveled continuation (up to level
-# 25), gated at the entrance so brand-new characters can't wander in
-# over their heads. Run this FROM Arena Sands, or let the initial
-# @tel handle it.
+# Expands Arena Sands with a real leveled continuation, gated at the
+# entrance so newcomers can't wander in over their heads. Run this
+# FROM Arena Sands, or let the initial @tel handle it.
+#
+# Rebalanced from an original level 6+ newbie-adjacent range (up to
+# 25) into genuine level 75-100 endgame content, by direct request -
+# the sewers (Cloaca Maxima) are the real post-Ludus leveling zone
+# now, so this stopped needing to double as one. The room text below
+# still describes the original tiered progression (Recruit's Circle
+# through the Master's Sands) - only the ARENA_FIGHTER_* prototypes'
+# own level/xp_reward/desc fields (world/prototypes.py) actually
+# changed, not this file or the rooms it builds.
 #
 # Usage: batchcommands world.batch_deeper_sands
 #

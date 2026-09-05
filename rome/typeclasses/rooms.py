@@ -47,44 +47,58 @@ class ZeusThroneRoom(ObjectParent, DefaultRoom):
 # has a chance to read it.
 CELL_INTRO_MESSAGES = [
     "|YWelcome to Rome: The Eternal City.|n",
-    "Type |whelp|n at any time to see the full list of commands available to you.",
-    "Type |wpublic <message>|n to talk to other players online right now, even if you can't see them from here.",
-    "Type |wstats|n to see your character sheet, or |wspellinfo|n / |wskillinfo|n to see what your class can learn as you grow.",
-    "Type |whelp newbie|n for the full walkthrough of what to do first, or |wjourney|n any time for a quick, personal suggestion.",
-    "When you're ready to see what's beyond these cells, look for the way out.",
+    "|c>> Type |Whelp|c at any time to see the full list of commands available to you.|n",
+    "|c>> Type |Wpublic <message>|c to talk to other players online right now, even if you can't see them from here.|n",
+    "|c>> Type |Wstats|c to see your character sheet, or |Wspellinfo|c / |Wskillinfo|c to see what your class can learn as you grow.|n",
+    "|c>> Type |Whelp newbie|c for the full walkthrough of what to do first, or |Wjourney|c any time for a quick, personal suggestion.|n",
+    "|YWhen you're ready to see what's beyond these cells, look for the way out.|n",
 ]
 
 
-def _send_cell_intro(character, index=0):
+def _send_message_sequence(character, messages, index=0):
     """
-    Sends CELL_INTRO_MESSAGES one line at a time, with a pause between
-    each. Uses a plain delay() rather than a persistent Script -
-    unlike something like the Underworld's Charon timer, nothing gets
-    permanently stuck if a reload interrupts this mid-sequence, worst
-    case is just a player missing a line or two of tutorial text.
+    Shared engine behind _send_cell_intro/_send_milo_greeting/
+    _send_atrium_intro below (previously three near-identical copies
+    of this same logic - unified here after a real live bug and a
+    real live complaint both turned out to need the identical fix
+    applied to all three). Sends a list of plain messages one at a
+    time, with a pause between each. Uses a plain delay() rather than
+    a persistent Script - unlike something like the Underworld's
+    Charon timer, nothing gets permanently stuck if a reload
+    interrupts this mid-sequence, worst case is just a player missing
+    a line or two of tutorial text.
 
-    Always delays even the very first line (a real bug found live,
-    same one Milo's greeting had - see _send_milo_greeting): Evennia's
-    own move_to() calls the destination room's at_object_receive
-    (what triggers this) BEFORE it calls the mover's own at_post_move
-    (what actually sends the room's description) - so a same-tick
-    character.msg() here would always print above the room description
-    the player hasn't even seen yet. Any delay, even a short one,
-    defers to the next reactor tick, landing after that synchronous
-    look instead.
+    Always delays even the very first line (a real bug found live):
+    Evennia's own move_to() calls the destination room's
+    at_object_receive (what triggers this) BEFORE it calls the
+    mover's own at_post_move (what actually sends the room's
+    description) - so a same-tick character.msg() here would always
+    print above the room description the player hasn't even seen yet.
+    Any delay, even a short one, defers to the next reactor tick,
+    landing after that synchronous look instead.
+
+    Every line - including the first - gets a leading blank line too
+    (a separate, real complaint: several lines sent back to back with
+    no visual gap read as one unbroken wall of text, no different from
+    the room description itself, or from the tail end of whatever
+    happened just before this sequence started).
     """
-    if index >= len(CELL_INTRO_MESSAGES):
+    if index >= len(messages):
         return
 
     def _send_this_line():
         if character.pk and character.location:
-            character.msg(CELL_INTRO_MESSAGES[index])
-        delay(2, callback=lambda: _send_cell_intro(character, index + 1))
+            character.msg("\n" + messages[index])
+        delay(2, callback=lambda: _send_message_sequence(character, messages, index + 1))
 
     # Only the very first line needs the extra beat - every later line
     # already runs from inside a delay() callback (the one right
     # above), so it's already on a fresh reactor tick.
     delay(1 if index == 0 else 0, callback=_send_this_line)
+
+
+def _send_cell_intro(character, index=0):
+    _send_message_sequence(character, CELL_INTRO_MESSAGES, index)
 
 
 class WelcomeCellRoom(ObjectParent, DefaultRoom):
@@ -120,24 +134,7 @@ MILO_GREETING_MESSAGES = [
 
 
 def _send_milo_greeting(character, index=0):
-    """
-    Sends MILO_GREETING_MESSAGES one line at a time, same low-stakes
-    plain delay() pattern as _send_cell_intro - a reload interrupting
-    this just means a missed line or two, nothing gets stuck. Same
-    first-line deferral too, and for the same reason: at_object_receive
-    (what triggers this) fires before at_post_move (what sends the
-    room's own description), so an undelayed first line always beat
-    the room description a player hadn't even seen yet onto the screen.
-    """
-    if index >= len(MILO_GREETING_MESSAGES):
-        return
-
-    def _send_this_line():
-        if character.pk and character.location:
-            character.msg(MILO_GREETING_MESSAGES[index])
-        delay(2, callback=lambda: _send_milo_greeting(character, index + 1))
-
-    delay(1 if index == 0 else 0, callback=_send_this_line)
+    _send_message_sequence(character, MILO_GREETING_MESSAGES, index)
 
 
 class MiloGreetingRoom(ObjectParent, DefaultRoom):
@@ -170,22 +167,7 @@ ATRIUM_INTRO_MESSAGES = [
 
 
 def _send_atrium_intro(character, index=0):
-    """
-    Sends ATRIUM_INTRO_MESSAGES one line at a time, same low-stakes
-    plain delay() pattern as the cell intro and Milo's greeting -
-    including the same first-line deferral, for the same reason
-    (at_object_receive fires before at_post_move, so an undelayed
-    first line always beat the room's own description onto the screen).
-    """
-    if index >= len(ATRIUM_INTRO_MESSAGES):
-        return
-
-    def _send_this_line():
-        if character.pk and character.location:
-            character.msg(ATRIUM_INTRO_MESSAGES[index])
-        delay(2, callback=lambda: _send_atrium_intro(character, index + 1))
-
-    delay(1 if index == 0 else 0, callback=_send_this_line)
+    _send_message_sequence(character, ATRIUM_INTRO_MESSAGES, index)
 
 
 class AtriumGreetingRoom(ObjectParent, DefaultRoom):
