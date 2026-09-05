@@ -523,6 +523,25 @@ class TestApplyDamage(CombatTestBase):
         COMBAT_RULES.apply_damage(self.char2, 0, attacker=self.char1)
         self.assertEqual(self.char2.db.damage_log, {})
 
+    def test_initialize_for_combat_resets_stale_damage_log(self):
+        """
+        Real bug found live: a persistent NPC (e.g. a Ludus trainer)
+        fought and killed more than once kept accumulating damage_log
+        entries from every past fight forever - nothing ever cleared
+        it, not respawn, not a fresh fight starting. That silently
+        diluted a genuinely solo kill's own share of xp_reward below
+        100%, explaining reported XP varying kill to kill against the
+        identical NPC. initialize_for_combat runs for every fighter at
+        the start of every single fight regardless of how the last one
+        ended, making it the one safe place to reset this.
+        """
+        from evennia.utils import create
+
+        self.char2.db.damage_log = {self.char1: 9999, "stale": 1}
+        handler = create.create_script(CombatTurnHandler, obj=self.room1, autostart=False)
+        handler.initialize_for_combat(self.char2)
+        self.assertEqual(self.char2.db.damage_log, {})
+
     def test_riposte_counters_the_attacker_immediately(self):
         self.char1.db.hp = 100
         self.char2.db.hp = 100

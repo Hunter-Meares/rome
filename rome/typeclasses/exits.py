@@ -17,6 +17,16 @@ from evennia.objects.objects import DefaultExit
 from .objects import ObjectParent
 
 
+# The standard compass/vertical short-form aliases, matching Evennia's
+# own CmdTunnel convention exactly (evennia/commands/default/building.py) -
+# not invented here, just made automatic instead of opt-in.
+STANDARD_DIRECTION_ALIASES = {
+    "north": "n", "south": "s", "east": "e", "west": "w",
+    "northeast": "ne", "northwest": "nw", "southeast": "se", "southwest": "sw",
+    "up": "u", "down": "d", "in": "i", "out": "o",
+}
+
+
 class Exit(ObjectParent, DefaultExit):
     """
     Exits are connectors between rooms. Exits are normal Objects
@@ -27,6 +37,33 @@ class Exit(ObjectParent, DefaultExit):
     properties and methods available on all Object child classes like
     this.
     """
+
+    def at_object_creation(self):
+        """
+        A real bug found live: a player typed 's' to go south and got
+        "Command 's' is not available" - full "south" worked fine.
+        Evennia's own @tunnel/@open builder commands auto-add the
+        standard short alias (n/s/e/w/etc, see
+        STANDARD_DIRECTION_ALIASES above) when you name an exit one of
+        the 12 recognized direction words, but that's a courtesy those
+        two commands add themselves - it's not something
+        DefaultExit.at_object_creation() does on its own. Almost every
+        exit in this game was created directly in batch-build scripts
+        (create.create_object(..., key="south", ...)), bypassing that
+        courtesy entirely. A live database sweep after this was found
+        turned up 623 of the game's 1265 exits missing their short
+        alias - repaired once directly, but any future exit created
+        the same way would have the identical problem, so it's fixed
+        here at the root instead: any exit whose key is exactly one of
+        the 12 standard words gets its short alias for free, from
+        every creation path, without needing to remember to pass it.
+        An exit with a real custom key (not a bare direction word)
+        is completely unaffected.
+        """
+        super().at_object_creation()
+        short = STANDARD_DIRECTION_ALIASES.get((self.key or "").strip().lower())
+        if short:
+            self.aliases.add(short)
 
     def get_display_desc(self, looker, **kwargs):
         """

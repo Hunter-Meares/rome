@@ -143,6 +143,14 @@ FILE_HELP_ENTRY_MODULES = []
 # after every command, not just combat ones.
 COMMAND_DEFAULT_CLASS = "commands.command.MuxCommand"
 
+# Custom multimatch disambiguation display - see server/conf/at_search.py
+# for the real bug this fixes: every player search here actually routes
+# through rpsystem's sdesc-aware override, which only recognizes a
+# LEADING number ("1-name") to pick between matches, not Evennia's own
+# default trailing-number display ("name-1") - a real, silent mismatch
+# a live player hit directly.
+SEARCH_AT_RESULT = "server.conf.at_search.at_search_result"
+
 # Auditing (evennia.contrib.utils.auditing) - logs every command a
 # player sends to server/logs/audit_YYYY-MM-DD.log (JSON, one file
 # per day), for QA and post-incident investigation (e.g. "what did

@@ -36,11 +36,12 @@ from world import tutorial
 from evennia.contrib.utils.debugpy import CmdDebugPy
 from evennia.contrib.grid.ingame_map_display import MapDisplayCmdSet
 from evennia.contrib.grid.ingame_map_display.ingame_map_display import CmdMap
-from evennia.contrib.game_systems import barter
+from evennia.contrib.game_systems.barter.barter import CmdTrade as BarterCmdTrade
 from evennia.contrib.game_systems.achievements.achievements import CmdAchieve
 from evennia.contrib.game_systems.mail import CmdMailCharacter
 from evennia.contrib.base_systems.ingame_reports import ReportsCmdSet
 from commands import social
+from commands.command import CmdNoInput
 
 
 class LockedCmdDebugPy(CmdDebugPy):
@@ -126,7 +127,21 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(LockedCmdDebugPy())
         self.add(MapDisplayCmdSet)
         self.add(FriendlyCmdMap())
-        self.add(barter.CmdsetTrade)
+        # A real bug found live: 'status' crashed for every character.
+        # This used to statically add barter.CmdsetTrade - the bundle of
+        # in-trade-only subcommands (offer/accept/decline/evaluate/status/
+        # end trade), which TradeHandler already adds dynamically to both
+        # parties the moment a real trade actually starts (barter.py's
+        # own TradeHandler.__init__/join). Adding it here too meant every
+        # character carried the barter contrib's own 'status' command
+        # (which assumes an active trade and crashes without one) at all
+        # times, permanently shadowing this game's real CmdStatus by key.
+        # Worse, the command that's actually supposed to live here -
+        # barter.CmdTrade, key "trade", the one players type to ask
+        # someone to trade in the first place - was never registered at
+        # all, so 'trade <name>' (documented in the 'trade' help topic)
+        # could never have worked either. Swapped to the correct command.
+        self.add(BarterCmdTrade())
         self.add(CmdAchieve)
         self.add(RPSystemCmdSet())
         self.add(combat.CmdGreet())
@@ -168,6 +183,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(religion.CmdReligion())
         self.add(titles.CmdTitles())
         self.add(tutorial.CmdJourney())
+        self.add(CmdNoInput())
 
 
 from world.character_creator import ContribChargenCmdSet
@@ -191,10 +207,11 @@ class AccountCmdSet(default_cmds.AccountCmdSet):
         #
         # any commands you add below will overload the default ones.
         #
-        # Combat-aware quit override - refuses to work while the
+        # Combat-aware quit/ooc overrides - refuse to work while the
         # character this session is puppeting is mid-combat. See
-        # world/combat.py's CmdQuit for the full reasoning.
+        # world/combat.py's CmdQuit/CmdOOC for the full reasoning.
         self.add(combat.CmdQuit())
+        self.add(combat.CmdOOC())
         self.add(ContribChargenCmdSet)
         self.add(social.CmdWho())
         self.add(social.FriendlyCmdPage())

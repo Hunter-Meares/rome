@@ -74,13 +74,7 @@ def room(key, name, desc, zone):
 room(
     "library_approach",
     "Colonnaded Walk to the Libraries",
-    """|wA short covered colonnade|n curls down and around from the market's
-    rooftop terrace, the noise of commerce fading fast behind you. Ahead,
-    past the last column, a different kind of building entirely comes
-    into view - lower, quieter, no shopfronts anywhere in sight. |YA
-    carved marker names the buildings ahead as the twin libraries of the
-    Forum of Trajan|n, built alongside the market in the same breath, by
-    the same emperor's hand.""",
+    """|wA short covered colonnade|n curls down and around from the market's rooftop terrace, the noise of commerce fading fast behind you. Ahead, past the last column, a different kind of building entirely comes into view - lower, quieter, no shopfronts anywhere in sight. |YA carved marker names the buildings ahead as the twin libraries of the Forum of Trajan|n, built alongside the market in the same breath, by the same emperor's hand.""",
     "library",
 )
 
@@ -91,48 +85,28 @@ room(
 room(
     "library_entrance_plaza",
     "Plaza of the Twin Libraries",
-    """|YTwo matching buildings face each other|n across an open plaza,
-    identical in scale and ambition, distinguished only by the language
-    carved above each entrance. |wOne reads in Latin; the other in
-    Greek|n - Rome's official position, built in stone, that a proper
-    library needs both. Between them, visible past the plaza's far edge,
-    a column rises far higher than either roofline.""",
+    """|YTwo matching buildings face each other|n across an open plaza, identical in scale and ambition, distinguished only by the language carved above each entrance. |wOne reads in Latin; the other in Greek|n - Rome's official position, built in stone, that a proper library needs both. Between them, visible past the plaza's far edge, a column rises far higher than either roofline.""",
     "library",
 )
 
 room(
     "library_column_courtyard",
     "Trajan's Column Courtyard",
-    """|YThe column dominates everything here|n - a single unbroken shaft
-    of marble, carved in a continuous spiraling frieze from base to
-    capital, climbing higher than either library flanking it. |wSmall
-    figures in relief|n - legionaries, engineers, a river god, an
-    emperor addressing his troops - march upward around the column in
-    an unbroken procession that no one standing at ground level can
-    follow past the first few turns.""",
+    """|YThe column dominates everything here|n - a single unbroken shaft of marble, carved in a continuous spiraling frieze from base to capital, climbing higher than either library flanking it. |wSmall figures in relief|n - legionaries, engineers, a river god, an emperor addressing his troops - march upward around the column in an unbroken procession that no one standing at ground level can follow past the first few turns.""",
     "library",
 )
 
 room(
     "library_column_balcony",
     "Column Viewing Balcony",
-    """|wA narrow balcony|n projects from the library's upper floor,
-    built for exactly one purpose: bringing a viewer close enough to
-    actually see the column's higher carvings, which vanish into
-    illegible detail from the courtyard below. |YFrom here|n, a
-    particular scene comes into focus - a bridge under construction, a
-    detail no one at street level has ever properly appreciated.""",
+    """|wA narrow balcony|n projects from the library's upper floor, built for exactly one purpose: bringing a viewer close enough to actually see the column's higher carvings, which vanish into illegible detail from the courtyard below. |YFrom here|n, a particular scene comes into focus - a bridge under construction, a detail no one at street level has ever properly appreciated.""",
     "library",
 )
 
 room(
     "library_philosophers_court",
     "The Philosophers' Court",
-    """|wA small open courtyard|n behind the column, benches arranged in
-    loose facing rows beneath a scattering of plane trees. |YRaised
-    voices carry from here at most hours|n - a debate over a text no
-    one in the courtyard actually agrees on, conducted with more heat
-    than the subject probably warrants.""",
+    """|wA small open courtyard|n behind the column, benches arranged in loose facing rows beneath a scattering of plane trees. |YRaised voices carry from here at most hours|n - a debate over a text no one in the courtyard actually agrees on, conducted with more heat than the subject probably warrants.""",
     "library",
 )
 
@@ -143,35 +117,21 @@ room(
 room(
     "library_latin_hall",
     "The Latin Library - Main Hall",
-    """|YRow after row of cylindrical cubicula|n line the walls, each
-    slot holding a tightly rolled scroll with its title tag hanging
-    free for easy reading. |wThe hall is built entirely of stone and
-    faced marble|n, a deliberate precaution - papyrus and fire have
-    never been friends, and this collection is not meant to be
-    replaceable.""",
+    """|YRow after row of cylindrical cubicula|n line the walls, each slot holding a tightly rolled scroll with its title tag hanging free for easy reading. |wThe hall is built entirely of stone and faced marble|n, a deliberate precaution - papyrus and fire have never been friends, and this collection is not meant to be replaceable.""",
     "library",
 )
 
 room(
     "library_latin_reading_room",
     "Latin Reading Room",
-    """|wLong tables|n run the length of this quieter side-room, each
-    lit by a high clerestory window rather than an open flame - the
-    same fire precaution as the main hall, extended to wherever anyone
-    actually sits and reads. |YA few readers|n work through unrolled
-    scrolls in near-total silence, weights on each end holding the
-    papyrus flat.""",
+    """|wLong tables|n run the length of this quieter side-room, each lit by a high clerestory window rather than an open flame - the same fire precaution as the main hall, extended to wherever anyone actually sits and reads. |YA few readers|n work through unrolled scrolls in near-total silence, weights on each end holding the papyrus flat.""",
     "library",
 )
 
 room(
     "library_latin_archive",
     "Latin Scroll Archive",
-    """|wDeeper shelving|n than the main hall's public collection, older
-    scrolls and duplicate copies packed in tighter rows. |YA numbered
-    system|n on each shelf face lets the staff find a specific work
-    quickly - a small miracle of organization for a room holding this
-    much material.""",
+    """|wDeeper shelving|n than the main hall's public collection, older scrolls and duplicate copies packed in tighter rows. |YA numbered system|n on each shelf face lets the staff find a specific work quickly - a small miracle of organization for a room holding this much material.""",
     "library",
 )
 
@@ -182,45 +142,28 @@ room(
 room(
     "library_greek_hall",
     "The Greek Library - Main Hall",
-    """|YA mirror of the Latin hall across the plaza|n, down to the same
-    stone construction and the same cylindrical cubicula - only the
-    script on every scroll tag differs. |wRome's own literature is
-    younger than Greece's by centuries|n, and this hall's far larger
-    collection is a quiet acknowledgment of exactly that.""",
+    """|YA mirror of the Latin hall across the plaza|n, down to the same stone construction and the same cylindrical cubicula - only the script on every scroll tag differs. |wRome's own literature is younger than Greece's by centuries|n, and this hall's far larger collection is a quiet acknowledgment of exactly that.""",
     "library",
 )
 
 room(
     "library_greek_reading_room",
     "Greek Reading Room",
-    """|wA reading room built to the Latin wing's exact specifications|n,
-    long tables and clerestory light included, though the readers here
-    skew toward a different crowd - tutors, visiting scholars, and more
-    than one senator's son working through a text his father can no
-    longer help him with.""",
+    """|wA reading room built to the Latin wing's exact specifications|n, long tables and clerestory light included, though the readers here skew toward a different crowd - tutors, visiting scholars, and more than one senator's son working through a text his father can no longer help him with.""",
     "library",
 )
 
 room(
     "library_greek_archive",
     "Greek Scroll Archive",
-    """|wThe Greek wing's deeper stock|n, philosophy and history packed
-    shelf to shelf with medical and mathematical treatises few outside
-    this room ever ask to see. |YA faint must hangs in the air|n -
-    even careful stone construction can't fully stop centuries of
-    papyrus from slowly aging.""",
+    """|wThe Greek wing's deeper stock|n, philosophy and history packed shelf to shelf with medical and mathematical treatises few outside this room ever ask to see. |YA faint must hangs in the air|n - even careful stone construction can't fully stop centuries of papyrus from slowly aging.""",
     "library",
 )
 
 room(
     "library_restricted_archive",
     "The Restricted Archive",
-    """|YA locked vault|n behind the Latin archive's deepest shelving,
-    holding material the library doesn't display to casual readers -
-    imperial correspondence, sensitive census records, and at least one
-    shelf nobody without real authority is permitted to even name.
-    |wA single lamp burns here|n, carefully, and only when someone with
-    a reason to be here actually is.""",
+    """|YA locked vault|n behind the Latin archive's deepest shelving, holding material the library doesn't display to casual readers - imperial correspondence, sensitive census records, and at least one shelf nobody without real authority is permitted to even name. |wA single lamp burns here|n, carefully, and only when someone with a reason to be here actually is.""",
     "library",
 )
 
@@ -231,47 +174,28 @@ room(
 room(
     "library_scriptorium",
     "The Scriptorium",
-    """|wA working room|n, nothing like the hushed reading rooms above -
-    a dozen copyists bent over slanted desks, each producing a fresh
-    duplicate of some aging original one careful character at a time.
-    |YThe library's whole collection exists because of exactly this
-    unglamorous, repetitive labor|n, performed daily by people whose
-    names will never appear on any scroll they copy.""",
+    """|wA working room|n, nothing like the hushed reading rooms above - a dozen copyists bent over slanted desks, each producing a fresh duplicate of some aging original one careful character at a time. |YThe library's whole collection exists because of exactly this unglamorous, repetitive labor|n, performed daily by people whose names will never appear on any scroll they copy.""",
     "library",
 )
 
 room(
     "library_head_librarian_office",
     "Office of the Chief Librarian",
-    """|wA well-appointed office|n, considerably grander than the
-    scriptorium next door - befitting the *procurator bibliothecarum*,
-    the imperial post responsible for both libraries at once. |YShelves
-    here hold not scrolls but records|n: acquisition lists, copyist
-    assignments, and a running account of exactly what the collection
-    is still missing.""",
+    """|wA well-appointed office|n, considerably grander than the scriptorium next door - befitting the *procurator bibliothecarum*, the imperial post responsible for both libraries at once. |YShelves here hold not scrolls but records|n: acquisition lists, copyist assignments, and a running account of exactly what the collection is still missing.""",
     "library",
 )
 
 room(
     "library_map_room",
     "The Map Room",
-    """|YA single enormous map covers the far wall|n, rendered in inlaid
-    stone and pigment rather than ink - the known world as Rome
-    currently understands it, provinces and roads picked out in
-    careful detail. |wVisitors linger here longer than anywhere else
-    in the building|n, tracing routes with a finger toward places
-    they'll likely never actually see.""",
+    """|YA single enormous map covers the far wall|n, rendered in inlaid stone and pigment rather than ink - the known world as Rome currently understands it, provinces and roads picked out in careful detail. |wVisitors linger here longer than anywhere else in the building|n, tracing routes with a finger toward places they'll likely never actually see.""",
     "library",
 )
 
 room(
     "library_delivery_room",
     "Scroll Receiving Room",
-    """|wA plain back room|n, crates and satchels of newly arrived
-    scrolls stacked awaiting inspection before they're either shelved
-    or handed to the scriptorium for copying. |YThe least dignified
-    room in either library|n, and arguably the one that keeps both of
-    them actually growing.""",
+    """|wA plain back room|n, crates and satchels of newly arrived scrolls stacked awaiting inspection before they're either shelved or handed to the scriptorium for copying. |YThe least dignified room in either library|n, and arguably the one that keeps both of them actually growing.""",
     "library",
 )
 

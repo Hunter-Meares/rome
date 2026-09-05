@@ -198,8 +198,25 @@ class Character(ObjectParent, CombatCharacter):
     def at_object_creation(self):
         """
         Called once, when this character is first created.
+
+        rpsystem's own ContribRPCharacter.at_object_creation() (called
+        via super() above) hardcodes db._sdesc to the literal string
+        "A normal person" - its built-in placeholder default, not a
+        "no sdesc set yet" sentinel. Left alone, every flavor NPC in
+        the game that uses this typeclass (see CLAUDE.md gotcha #11 -
+        74 of them, game-wide) shows that exact generic text to every
+        player, since nothing else in this project ever calls sdesc.add
+        for an NPC. Overwritten here with the object's own real key
+        instead (e.g. "Old Milo" rather than "A normal person") - a
+        far better default with zero authoring cost, and correct for
+        every NPC that doesn't want a more elaborate hand-written sdesc
+        later. A real player character immediately gets a proper
+        default overwritten on top of this anyway, moments later, by
+        chargen's own explicit sdesc call - this only matters for
+        anything that never goes through chargen.
         """
         super().at_object_creation()
+        self.sdesc.add(self.key)
 
     def announce_move_from(self, destination, msg=None, mapping=None, move_type="move", **kwargs):
         """

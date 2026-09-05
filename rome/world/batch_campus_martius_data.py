@@ -75,74 +75,49 @@ def room(key, name, desc, zone):
 room(
     "road_market_stalls",
     "Via Triumphalis - Past the Market Stalls",
-    """|YThe road continues past a scattering of small stalls|n, none
-    of them permanent enough to rate a real market's name - a fruit
-    seller, a cobbler, someone reselling secondhand tools. |wOrdinary
-    city business|n, entirely unconcerned with the grander architecture
-    behind you.""",
+    """|YThe road continues past a scattering of small stalls|n, none of them permanent enough to rate a real market's name - a fruit seller, a cobbler, someone reselling secondhand tools. |wOrdinary city business|n, entirely unconcerned with the grander architecture behind you.""",
     "via_triumphalis_road",
 )
 
 room(
     "road_crossroads",
     "A Busy Crossroads",
-    """|wSeveral streets meet here|n in the kind of tangle that has
-    nothing to do with any planned design - carts, pedestrians, and at
-    least one argument over right-of-way all competing for the same
-    small patch of paving.""",
+    """|wSeveral streets meet here|n in the kind of tangle that has nothing to do with any planned design - carts, pedestrians, and at least one argument over right-of-way all competing for the same small patch of paving.""",
     "via_triumphalis_road",
 )
 
 room(
     "road_insula_row",
     "Via Triumphalis - Insula Row",
-    """|wA stretch of ordinary apartment blocks|n lines the road here,
-    laundry strung between upper windows, nothing about the
-    architecture suggesting anyone important lives behind any of these
-    doors. |YMost of Rome actually looks like this|n, monumental
-    architecture being very much the exception rather than the rule.""",
+    """|wA stretch of ordinary apartment blocks|n lines the road here, laundry strung between upper windows, nothing about the architecture suggesting anyone important lives behind any of these doors. |YMost of Rome actually looks like this|n, monumental architecture being very much the exception rather than the rule.""",
     "via_triumphalis_road",
 )
 
 room(
     "road_shrine",
     "A Roadside Shrine",
-    """|YA small shrine|n set into a wall niche, a minor household or
-    crossroads god tended by whoever happens to be passing rather than
-    any formal priesthood. |wA few wilted flowers and a coin or two|n
-    mark it as recently visited, if not exactly lavishly.""",
+    """|YA small shrine|n set into a wall niche, a minor household or crossroads god tended by whoever happens to be passing rather than any formal priesthood. |wA few wilted flowers and a coin or two|n mark it as recently visited, if not exactly lavishly.""",
     "via_triumphalis_road",
 )
 
 room(
     "road_pomerium_stone",
     "The Pomerium Boundary Stone",
-    """|YA weathered stone marker|n, inscribed with formal lettering
-    naming this exact spot as the edge of the Pomerium - the sacred
-    boundary of the city itself, not just its walls. |wArmed soldiers
-    and sitting magistrates both lose certain powers the instant they
-    cross this line|n, in either direction; the ground ahead answers to
-    genuinely different rules than the ground behind.""",
+    """|YA weathered stone marker|n, inscribed with formal lettering naming this exact spot as the edge of the Pomerium - the sacred boundary of the city itself, not just its walls. |wArmed soldiers and sitting magistrates both lose certain powers the instant they cross this line|n, in either direction; the ground ahead answers to genuinely different rules than the ground behind.""",
     "via_triumphalis_road",
 )
 
 room(
     "road_open_stretch",
     "The Open Road Beyond the Pomerium",
-    """|gThe dense city finally falls away|n, buildings thinning out
-    into open, undeveloped ground. |wThe change is immediate and
-    obvious|n - less noise, more sky, a very different Rome than the
-    one just crossed through to get here.""",
+    """|gThe dense city finally falls away|n, buildings thinning out into open, undeveloped ground. |wThe change is immediate and obvious|n - less noise, more sky, a very different Rome than the one just crossed through to get here.""",
     "via_triumphalis_road",
 )
 
 room(
     "road_campus_threshold",
     "Threshold of the Campus Martius",
-    """|YThe road crests a last low rise|n, and the Campus Martius
-    opens up ahead in full - a genuinely vast flat expanse, far larger
-    than any single space built anywhere else in the city so far,
-    dotted with temples, colonnades, and open muster ground.""",
+    """|YThe road crests a last low rise|n, and the Campus Martius opens up ahead in full - a genuinely vast flat expanse, far larger than any single space built anywhere else in the city so far, dotted with temples, colonnades, and open muster ground.""",
     "via_triumphalis_road",
 )
 
@@ -155,33 +130,21 @@ ROAD_ROOM_COUNT_EXPECTED = 7
 room(
     "campus_hub",
     "The Campus Martius",
-    """|YAn open crossing point|n at the heart of the district, roads
-    and colonnades branching off in every direction. |wNo single
-    building dominates here|n the way the Capitoline's temples dominate
-    their own hill - this is a district defined by open space first,
-    architecture second.""",
+    """|YAn open crossing point|n at the heart of the district, roads and colonnades branching off in every direction. |wNo single building dominates here|n the way the Capitoline's temples dominate their own hill - this is a district defined by open space first, architecture second.""",
     "campus_martius",
 )
 
 room(
     "campus_open_field",
     "The Open Field",
-    """|gA genuinely enormous open field|n, kept deliberately clear of
-    permanent construction - this ground has real, specific civic uses
-    that need exactly this much empty space. |wSoldiers drill here|n
-    on some days; on others, the field fills with citizens for
-    business that could never legally happen inside the city proper.""",
+    """|gA genuinely enormous open field|n, kept deliberately clear of permanent construction - this ground has real, specific civic uses that need exactly this much empty space. |wSoldiers drill here|n on some days; on others, the field fills with citizens for business that could never legally happen inside the city proper.""",
     "campus_martius",
 )
 
 room(
     "campus_assembly_ground",
     "The Centuriate Assembly Ground",
-    """|YA section of the field marked out|n for the Centuriate
-    Assembly - the specific body of armed, property-owning citizens
-    that elects Rome's highest magistrates. |wThe Pomerium legally
-    keeps armed men out of the city itself|n, which is the entire
-    reason this assembly has always had to meet all the way out here.""",
+    """|YA section of the field marked out|n for the Centuriate Assembly - the specific body of armed, property-owning citizens that elects Rome's highest magistrates. |wThe Pomerium legally keeps armed men out of the city itself|n, which is the entire reason this assembly has always had to meet all the way out here.""",
     "campus_martius",
 )
 
@@ -192,43 +155,28 @@ room(
 room(
     "ara_pacis_precinct_wall",
     "The Ara Pacis - Precinct Wall",
-    """|YAn elaborately carved marble wall|n encloses the altar
-    entirely, every surface given over to relief carving - garlands,
-    ritual instruments, and processions that turn a simple altar
-    enclosure into one of the most genuinely accomplished sculptural
-    achievements in the entire city.""",
+    """|YAn elaborately carved marble wall|n encloses the altar entirely, every surface given over to relief carving - garlands, ritual instruments, and processions that turn a simple altar enclosure into one of the most genuinely accomplished sculptural achievements in the entire city.""",
     "ara_pacis",
 )
 
 room(
     "ara_pacis_reliefs",
     "The Processional Reliefs",
-    """|wA long carved procession|n wraps the enclosure's outer face -
-    the Emperor's own family, priests, and attendants, walking in
-    formal ritual order toward the altar itself. |YEvery figure here
-    was clearly a real, specific person once|n, though most visitors
-    can no longer say for certain which is which.""",
+    """|wA long carved procession|n wraps the enclosure's outer face - the Emperor's own family, priests, and attendants, walking in formal ritual order toward the altar itself. |YEvery figure here was clearly a real, specific person once|n, though most visitors can no longer say for certain which is which.""",
     "ara_pacis",
 )
 
 room(
     "ara_pacis_altar",
     "The Altar of Augustan Peace",
-    """|YThe altar itself|n stands at the enclosure's center, raised on
-    a low platform reached by a short flight of steps. |wDedicated to
-    a peace that was, by the time this was built, still a genuinely
-    novel thing|n for the city to be openly celebrating rather than
-    simply assuming.""",
+    """|YThe altar itself|n stands at the enclosure's center, raised on a low platform reached by a short flight of steps. |wDedicated to a peace that was, by the time this was built, still a genuinely novel thing|n for the city to be openly celebrating rather than simply assuming.""",
     "ara_pacis",
 )
 
 room(
     "ara_pacis_priests_chamber",
     "Ara Pacis - Priest's Chamber",
-    """|wA small chamber|n behind the altar, holding the ritual
-    implements needed for the altar's regular sacrifices - considerably
-    less grand than the carved enclosure outside it, but no less
-    necessary to the whole thing actually functioning.""",
+    """|wA small chamber|n behind the altar, holding the ritual implements needed for the altar's regular sacrifices - considerably less grand than the carved enclosure outside it, but no less necessary to the whole thing actually functioning.""",
     "ara_pacis",
 )
 
@@ -239,51 +187,35 @@ room(
 room(
     "saepta_entrance",
     "The Saepta Julia - Entrance Colonnade",
-    """|YA long colonnaded entrance|n leads into the voting complex -
-    a building whose entire purpose is mechanical rather than
-    devotional, closer in spirit to the Forum's civic architecture
-    than to anything built for a god.""",
+    """|YA long colonnaded entrance|n leads into the voting complex - a building whose entire purpose is mechanical rather than devotional, closer in spirit to the Forum's civic architecture than to anything built for a god.""",
     "saepta_julia",
 )
 
 room(
     "saepta_courtyard",
     "Saepta Julia - Central Courtyard",
-    """|wAn open courtyard|n at the complex's heart, roads branching
-    off toward the voting enclosures on one side and a row of shops on
-    the other - on non-election days, this building earns its keep as
-    ordinary commercial space instead.""",
+    """|wAn open courtyard|n at the complex's heart, roads branching off toward the voting enclosures on one side and a row of shops on the other - on non-election days, this building earns its keep as ordinary commercial space instead.""",
     "saepta_julia",
 )
 
 room(
     "saepta_voting_hall",
     "The Voting Enclosures",
-    """|YRows of narrow wooden enclosures|n, each one built to let a
-    single citizen cast a ballot with a real, if imperfect, measure of
-    privacy. |wThis is the actual physical mechanism of a Roman
-    election|n, considerably less glamorous than either the candidates
-    or the outcome usually manage to be.""",
+    """|YRows of narrow wooden enclosures|n, each one built to let a single citizen cast a ballot with a real, if imperfect, measure of privacy. |wThis is the actual physical mechanism of a Roman election|n, considerably less glamorous than either the candidates or the outcome usually manage to be.""",
     "saepta_julia",
 )
 
 room(
     "saepta_election_officials",
     "Office of the Election Officials",
-    """|wA cramped office|n given over to the officials who actually
-    run an election - tallying ballots, checking citizen rolls,
-    settling disputes that inevitably arise over both. |YThe real work
-    of Roman democracy|n happens in rooms exactly this unglamorous.""",
+    """|wA cramped office|n given over to the officials who actually run an election - tallying ballots, checking citizen rolls, settling disputes that inevitably arise over both. |YThe real work of Roman democracy|n happens in rooms exactly this unglamorous.""",
     "saepta_julia",
 )
 
 room(
     "saepta_gallery",
     "Saepta Julia - Shopping Gallery",
-    """|wA row of shops|n lines this gallery, doing brisk business on
-    every day the voting enclosures next door sit empty. |YA building
-    built for democracy|n, apparently, still has bills to pay between
-    elections.""",
+    """|wA row of shops|n lines this gallery, doing brisk business on every day the voting enclosures next door sit empty. |YA building built for democracy|n, apparently, still has bills to pay between elections.""",
     "saepta_julia",
 )
 
@@ -294,52 +226,35 @@ room(
 room(
     "isis_approach",
     "Approach to the Temple of Isis",
-    """|YThe architecture shifts entirely|n here - no Roman column
-    order looks quite like this. Carved motifs unfamiliar to every
-    other temple in the city mark this ground as belonging to a
-    genuinely foreign cult, tolerated and even fashionable, but never
-    folded into Rome's own official religion.""",
+    """|YThe architecture shifts entirely|n here - no Roman column order looks quite like this. Carved motifs unfamiliar to every other temple in the city mark this ground as belonging to a genuinely foreign cult, tolerated and even fashionable, but never folded into Rome's own official religion.""",
     "temple_isis",
 )
 
 room(
     "isis_courtyard",
     "The Egyptian Courtyard",
-    """|wA courtyard flanked by imported statuary|n - a real obelisk,
-    carved sphinxes, forms that look nothing like anything on the
-    Capitoline or in the Forum. |YEverything here was either shipped
-    from Egypt directly|n or carved locally in careful, deliberate
-    imitation of exactly that style.""",
+    """|wA courtyard flanked by imported statuary|n - a real obelisk, carved sphinxes, forms that look nothing like anything on the Capitoline or in the Forum. |YEverything here was either shipped from Egypt directly|n or carved locally in careful, deliberate imitation of exactly that style.""",
     "temple_isis",
 )
 
 room(
     "isis_main_sanctuary",
     "The Sanctuary of Isis",
-    """|YThe goddess's statue|n stands in a sanctuary that feels
-    deliberately unlike every other cella in the city - dimmer,
-    stranger, built around mysteries this temple's own priesthood
-    doesn't share with casual visitors.""",
+    """|YThe goddess's statue|n stands in a sanctuary that feels deliberately unlike every other cella in the city - dimmer, stranger, built around mysteries this temple's own priesthood doesn't share with casual visitors.""",
     "temple_isis",
 )
 
 room(
     "isis_priest_chamber",
     "The Priest's Chamber",
-    """|wA priest's private chamber|n, its occupant recognizable on
-    sight by a shaved head and plain white linen robes - conventions
-    that mark this priesthood as visibly, deliberately distinct from
-    every other temple's clergy in the city.""",
+    """|wA priest's private chamber|n, its occupant recognizable on sight by a shaved head and plain white linen robes - conventions that mark this priesthood as visibly, deliberately distinct from every other temple's clergy in the city.""",
     "temple_isis",
 )
 
 room(
     "isis_sacred_pool",
     "The Sacred Pool",
-    """|cA still, shallow pool|n, central to rites that draw explicitly
-    on the goddess's real association with the Nile's own life-giving
-    floods - a genuinely different relationship with water than
-    anything the Baths' purely practical bathing sequence represents.""",
+    """|cA still, shallow pool|n, central to rites that draw explicitly on the goddess's real association with the Nile's own life-giving floods - a genuinely different relationship with water than anything the Baths' purely practical bathing sequence represents.""",
     "temple_isis",
 )
 
@@ -350,43 +265,28 @@ room(
 room(
     "portico_of_pompey",
     "The Portico of Pompey",
-    """|YA vast colonnaded portico|n, part of a theater complex built
-    by one of the Republic's own great generals - a building genuinely
-    old enough, and significant enough, to have outlived the political
-    order it was built to celebrate.""",
+    """|YA vast colonnaded portico|n, part of a theater complex built by one of the Republic's own great generals - a building genuinely old enough, and significant enough, to have outlived the political order it was built to celebrate.""",
     "porticoes",
 )
 
 room(
     "portico_colonnade_walk",
     "A Long Colonnade Walk",
-    """|wRow after row of columns|n stretch off in careful, repeating
-    perspective, shade and open air alternating with every few steps -
-    exactly the kind of unhurried walking space the Campus Martius has
-    room to spare for.""",
+    """|wRow after row of columns|n stretch off in careful, repeating perspective, shade and open air alternating with every few steps - exactly the kind of unhurried walking space the Campus Martius has room to spare for.""",
     "porticoes",
 )
 
 room(
     "portico_assassination_site",
     "The Curia of Pompey",
-    """|YA meeting hall attached to the portico|n, used on occasion for
-    real Senate business when the Curia Julia itself isn't available.
-    |wA particular date is still spoken of here in careful, lowered
-    voices|n - this is the exact room where Julius Caesar was killed by
-    his own Senate colleagues, a fact the building's current, ordinary
-    use does very little to soften.""",
+    """|YA meeting hall attached to the portico|n, used on occasion for real Senate business when the Curia Julia itself isn't available. |wA particular date is still spoken of here in careful, lowered voices|n - this is the exact room where Julius Caesar was killed by his own Senate colleagues, a fact the building's current, ordinary use does very little to soften.""",
     "porticoes",
 )
 
 room(
     "portico_gardens",
     "The Portico Gardens",
-    """|gA planted garden walk|n runs along the portico's outer edge,
-    considerably more relaxed in mood than the somber hall just around
-    the corner - proof that even a building with real, heavy history
-    attached to it still has to function as ordinary public space most
-    days.""",
+    """|gA planted garden walk|n runs along the portico's outer edge, considerably more relaxed in mood than the somber hall just around the corner - proof that even a building with real, heavy history attached to it still has to function as ordinary public space most days.""",
     "porticoes",
 )
 
@@ -397,82 +297,56 @@ room(
 room(
     "mausoleum_approach",
     "Approach to the Mausoleum of Augustus",
-    """|YA wide processional approach|n leads toward an enormous
-    circular structure ahead - a scale of tomb no private citizen, and
-    very few emperors since, has ever attempted to match.""",
+    """|YA wide processional approach|n leads toward an enormous circular structure ahead - a scale of tomb no private citizen, and very few emperors since, has ever attempted to match.""",
     "mausoleum",
 )
 
 room(
     "mausoleum_obelisk_court",
     "The Obelisk Court",
-    """|wTwin obelisks|n flank the entrance, imported at real expense
-    specifically to mark this exact building as something beyond an
-    ordinary tomb. |YEven in death|n, apparently, the founder of the
-    Empire wasn't interested in being understated.""",
+    """|wTwin obelisks|n flank the entrance, imported at real expense specifically to mark this exact building as something beyond an ordinary tomb. |YEven in death|n, apparently, the founder of the Empire wasn't interested in being understated.""",
     "mausoleum",
 )
 
 room(
     "mausoleum_res_gestae",
     "The Res Gestae Pillars",
-    """|YTwo great bronze pillars|n stand here, inscribed edge to edge
-    with Augustus's own account of his life's achievements, written in
-    his own words and posted for any literate visitor to read in full.
-    |wA man who ruled an empire|n still apparently felt the need to
-    make sure his own version of events got the last word.""",
+    """|YTwo great bronze pillars|n stand here, inscribed edge to edge with Augustus's own account of his life's achievements, written in his own words and posted for any literate visitor to read in full. |wA man who ruled an empire|n still apparently felt the need to make sure his own version of events got the last word.""",
     "mausoleum",
 )
 
 room(
     "mausoleum_outer_ring",
     "The Outer Ring",
-    """|wA circular passage|n running the full width of the structure,
-    concentric with several more rings still further in - the actual
-    architecture of the tomb is built in genuinely massive, repeating
-    circles, each one nested inside the last.""",
+    """|wA circular passage|n running the full width of the structure, concentric with several more rings still further in - the actual architecture of the tomb is built in genuinely massive, repeating circles, each one nested inside the last.""",
     "mausoleum",
 )
 
 room(
     "mausoleum_caretaker_room",
     "The Caretaker's Chamber",
-    """|wA small, plain room|n set aside for whoever tends this
-    structure day to day - lamps, cleaning tools, and a single stool,
-    entirely unremarkable except for the scale of the building
-    surrounding it.""",
+    """|wA small, plain room|n set aside for whoever tends this structure day to day - lamps, cleaning tools, and a single stool, entirely unremarkable except for the scale of the building surrounding it.""",
     "mausoleum",
 )
 
 room(
     "mausoleum_inner_passage",
     "The Inner Passage",
-    """|YA narrower, darker corridor|n leads deeper into the structure,
-    the outer ring's daylight fading fast behind you. |wFew visitors
-    ever actually make it this far in|n; most turn back at the outer
-    ring, satisfied with having seen the building's exterior scale.""",
+    """|YA narrower, darker corridor|n leads deeper into the structure, the outer ring's daylight fading fast behind you. |wFew visitors ever actually make it this far in|n; most turn back at the outer ring, satisfied with having seen the building's exterior scale.""",
     "mausoleum",
 )
 
 room(
     "mausoleum_urn_chamber",
     "The Chamber of Urns",
-    """|wNiche after niche|n line this chamber's walls, each one
-    holding a funerary urn belonging to a member of the ruling family -
-    generations of a single household, gathered here in careful,
-    permanent order.""",
+    """|wNiche after niche|n line this chamber's walls, each one holding a funerary urn belonging to a member of the ruling family - generations of a single household, gathered here in careful, permanent order.""",
     "mausoleum",
 )
 
 room(
     "mausoleum_augustus_chamber",
     "The Central Chamber",
-    """|YAt the very heart of the structure|n, a single chamber holds
-    the founder of the Empire's own urn - considerably plainer than
-    the scale of the building around it might suggest, and quieter
-    than anywhere else in the entire complex. |wEven here|n, the man
-    apparently didn't need the final room to shout as loud as everything
-    leading up to it.""",
+    """|YAt the very heart of the structure|n, a single chamber holds the founder of the Empire's own urn - considerably plainer than the scale of the building around it might suggest, and quieter than anywhere else in the entire complex. |wEven here|n, the man apparently didn't need the final room to shout as loud as everything leading up to it.""",
     "mausoleum",
 )
 

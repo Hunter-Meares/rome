@@ -78,3 +78,30 @@ class TestCmdRecall(EvenniaCommandTest):
         result = self.call(CmdRecall(), "", caller=self.char1)
         self.assertIn("nowhere to recall", result)
         self.assertEqual(self.char1.location, self.room1)
+
+
+class TestRecallIsNotShadowedInTheRealMergedCmdset(EvenniaCommandTest):
+    """
+    A real bug found live: world/colosseum.py used to define its own,
+    older CmdRecall (same-city, no cooldown, wrong destination) and
+    register it into ColosseumCmdSet, which CharacterCmdSet adds AFTER
+    BattleCmdSet (the real CmdRecall's home) in
+    commands/default_cmdsets.py's at_cmdset_creation(). Per Evennia's
+    own CmdSet.add() docs, a later .add() call for the same command
+    key replaces the earlier one outright within one
+    at_cmdset_creation() - so the old, wrong recall silently won every
+    time, and both classes' own isolated unit tests kept passing
+    throughout, since neither test file ever exercised the real merged
+    cmdset. This test does exactly that, so a future accidental
+    reintroduction of a second "recall" key would be caught here
+    instead of only by a live player.
+    """
+
+    def test_the_real_combat_cmdrecall_wins_in_the_actual_merged_cmdset(self):
+        from commands.default_cmdsets import CharacterCmdSet
+
+        cmdset = CharacterCmdSet()
+        cmdset.at_cmdset_creation()
+        matches = [cmd for cmd in cmdset.commands if cmd.key == "recall"]
+        self.assertEqual(len(matches), 1)
+        self.assertIs(type(matches[0]), CmdRecall)

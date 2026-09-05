@@ -233,7 +233,19 @@ def create_all_help_entries():
     # --- Group combat / sides overview ---
     HelpEntry.objects.create(
         db_key="groupcombat",
-        db_help_category="Combat",
+        # Deliberately "General", not "Combat" - a real bug found live:
+        # Evennia's help index shows real commands (help_category from
+        # each Command class) and topics like this one (db_help_category
+        # here) as two entirely separate top-level sections ("Commands"
+        # and "Game & World"), each independently bucketed by category
+        # name with no cross-section dedup. Giving a topic the same
+        # category name as a real command group (28 commands already
+        # use help_category="combat") doesn't merge them - it just
+        # prints "-- Combat --" twice, once per section, which reads as
+        # a broken/duplicated menu to a player even though nothing was
+        # actually duplicated. Matches every other standalone mechanics
+        # topic (gold, trade, achievements) already filed under General.
+        db_help_category="General",
         db_entrytext=(
             "|wGroup Combat & Sides|n\n\n"
             "Every fighter in a battle is on a side - who's fighting with "
@@ -358,11 +370,22 @@ def create_all_help_entries():
     # (godlevel, wizinvis, etc. have no help lock either; the real
     # gate is the level check inside each command's own func()) - just
     # kept in its own topic instead of the player-facing "bounty"/
-    # "quest" entries above, the same separation those other god
-    # commands already get via help_category "admin".
+    # "quest" entries above.
+    #
+    # "God Commands", not "Admin": a real bug found live - these are
+    # help TOPICS (db_help_category), shown by Evennia's help index in
+    # a completely separate section from real commands (help_category
+    # on a Command class), with no dedup between the two. 11 real
+    # commands already use help_category="admin" (ban, wall, godlevel,
+    # etc.) - reusing that exact name here didn't group these topics
+    # alongside them, it just printed "-- Admin --" a second time in
+    # the other section, reading as a broken/duplicated menu. These
+    # three are also conceptually distinct from server-admin tooling
+    # anyway (ban/wall/shutdown) - a dedicated category is the more
+    # honest label, not just the tidier one.
     HelpEntry.objects.create(
         db_key="godbounty",
-        db_help_category="Admin",
+        db_help_category="God Commands",
         db_entrytext=(
             "|wBounty Oversight (god-only)|n\n\n"
             "  bounty list      - every player currently holding an active "
@@ -376,7 +399,7 @@ def create_all_help_entries():
 
     HelpEntry.objects.create(
         db_key="godquest",
-        db_help_category="Admin",
+        db_help_category="God Commands",
         db_entrytext=(
             "|wQuest Oversight (god-only)|n\n\n"
             "  quest list       - every player with any quest activity at "
@@ -426,7 +449,7 @@ def create_all_help_entries():
 
     HelpEntry.objects.create(
         db_key="godreligion",
-        db_help_category="Admin",
+        db_help_category="God Commands",
         db_entrytext=(
             "|wReligion Oversight (god-only)|n\n\n"
             "  pontifex <god> = <player>   - appoint a religion's Pontifex, "

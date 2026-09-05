@@ -40,6 +40,7 @@ from commands.command import MuxCommand
 from evennia.commands.default.help import CmdHelp
 from evennia.commands.default.cmdset_character import CharacterCmdSet
 from evennia.commands.default.account import CmdQuit as DefaultCmdQuit
+from evennia.commands.default.account import CmdOOC as DefaultCmdOOC
 from evennia.prototypes.spawner import spawn
 from evennia.utils.logger import log_trace
 from evennia.utils import utils as evennia_utils
@@ -5282,7 +5283,9 @@ class CombatCharacter(ContribRPCharacter):
             % (
                 display_meter(self.db.hp, self.db.max_hp, length=20, fill_color=["r", "y", "g"], pre_text="HP "),
                 display_meter(self.db.mp, self.db.max_mp, length=20, fill_color=["c"], pre_text="MP "),
-                display_meter(self.db.sp, self.db.max_sp, length=20, fill_color=["y"], pre_text="SP "),
+                display_meter(
+                    self.db.sp, self.db.max_sp, length=20, fill_color=["y"], text_color="x", pre_text="SP "
+                ),
             )
         )
         self.rules.apply_turn_conditions(self)
@@ -5477,6 +5480,25 @@ class CombatTurnHandler(DefaultScript):
         character.db.combat_turnhandler = self
         character.db.combat_lastaction = "null"
         character.db.combat_side = side
+        # A real bug found live: db.damage_log (apply_damage's per-
+        # defender contribution tracker, read at_defeat for the XP/
+        # gold split, bounty credit, Mars piety, and party-kill
+        # detection) was never cleared anywhere - not on respawn
+        # (RespawnTimer.at_repeat only resets hp and moves the NPC
+        # home), not between separate fights against the same still-
+        # alive target either. A RespawningNPC fought and killed more
+        # than once quietly accumulates stale contribution entries
+        # from every past life, diluting a genuinely solo kill's own
+        # share below 100% (explaining reported XP varying kill to
+        # kill against the identical NPC) and risking a stale past
+        # killer's leftover entry tripping the 2-distinct-contributors
+        # party-kill bonus on a fight that was never actually a party
+        # kill. Reset here instead, for every fighter, at the start of
+        # every fight - this is the one place already guaranteed to
+        # run before any fresh damage gets logged, regardless of
+        # whether the previous encounter ended in defeat+respawn,
+        # disengage, or a timeout.
+        character.db.damage_log = {}
         # Being pulled into a fight always ends resting - NPCs don't
         # have this method at all (plain DefaultCharacter, not
         # CombatCharacter), hence the defensive check.
@@ -6064,6 +6086,39 @@ class CmdQuit(DefaultCmdQuit):
         super().func()
 
 
+class CmdOOC(DefaultCmdOOC):
+    """
+    Same as Evennia's own ooc command in every way, except it refuses
+    to work while the character actually playing this session is
+    mid-combat - the same hard block CmdQuit already has, and for the
+    same reason, extended here after a real question raised it:
+    going ooc doesn't let you escape a fight for free (Evennia's own
+    default at_post_unpuppet removes the character from its room
+    once no session controls it, but the fight itself keeps running
+    exactly as before - the "gone" character stays in the fighter
+    list, stays fully damageable, and simply can't act or disengage
+    on its own turns anymore). That's arguably worse than staying,
+    not a safe exit, but it's still a confusing, easy-to-regret way
+    to end up defenseless - blocked outright instead, matching quit.
+
+    Note: like CmdQuit, ooc's real func() runs with
+    account_caller=True, meaning self.caller here is the ACCOUNT, not
+    a Character - checks the character actually puppeted by THIS
+    specific session (self.session.puppet).
+    """
+
+    def func(self):
+        session = self.session
+        character = session.puppet if session else None
+        if character and COMBAT_RULES.is_in_combat(character):
+            self.caller.msg(
+                "|rYou cannot go OOC now! You are still fighting!|n\n"
+                "|rTry to |wdisengage|r first, or finish the fight.|n"
+            )
+            return
+        super().func()
+
+
 class CmdDisengage(Command):
     """
     Attempt to disengage from combat and flee.
@@ -6363,7 +6418,11 @@ class CmdCoreStats(Command):
         lines.append("")
         lines.append(display_meter(char.db.hp, char.db.max_hp, length=30, fill_color=["r", "y", "g"], pre_text="HP "))
         lines.append(display_meter(char.db.mp, char.db.max_mp, length=30, fill_color=["c"], pre_text="MP "))
-        lines.append(display_meter(char.db.sp, char.db.max_sp, length=30, fill_color=["y"], pre_text="SP "))
+        lines.append(
+            display_meter(
+                char.db.sp, char.db.max_sp, length=30, fill_color=["y"], text_color="x", pre_text="SP "
+            )
+        )
         lines.append("|YGold:|n %d" % (char.db.gold or 0))
 
         lines.append("")

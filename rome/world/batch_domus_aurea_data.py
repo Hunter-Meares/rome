@@ -43,12 +43,7 @@ def room(key, name, desc, zone):
 room(
     "domus_aurea_approach",
     "The Buried Slope",
-    """|wA short rise|n climbs away from the plaza, the ground underfoot
-    oddly uneven - packed earth and rubble rather than honest paving,
-    as though something else were filled in beneath it. |YAn old,
-    weathered marker|n still names what stood here before the fill: the
-    Golden House, Nero's own palace, most of it deliberately buried
-    within a few years of his death and never fully reclaimed since.""",
+    """|wA short rise|n climbs away from the plaza, the ground underfoot oddly uneven - packed earth and rubble rather than honest paving, as though something else were filled in beneath it. |YAn old, weathered marker|n still names what stood here before the fill: the Golden House, Nero's own palace, most of it deliberately buried within a few years of his death and never fully reclaimed since.""",
     "domus_aurea",
 )
 
@@ -59,49 +54,28 @@ room(
 room(
     "domus_aurea_vestibule",
     "The Grand Vestibule",
-    """|YA vast entrance hall|n, half its original height lost to the
-    fill packed in around it, forcing anyone inside to stoop where a
-    Roman of Nero's own court would have walked upright. |wA colossal
-    bronze statue once stood in the courtyard just outside these
-    walls|n - moved away and repurposed generations ago, though the
-    building whose name it eventually gave still stands close enough
-    to hear from here.""",
+    """|YA vast entrance hall|n, half its original height lost to the fill packed in around it, forcing anyone inside to stoop where a Roman of Nero's own court would have walked upright. |wA colossal bronze statue once stood in the courtyard just outside these walls|n - moved away and repurposed generations ago, though the building whose name it eventually gave still stands close enough to hear from here.""",
     "domus_aurea",
 )
 
 room(
     "domus_aurea_colossus_court",
     "Court of the Colossus",
-    """|wAn open court|n, empty now where a genuinely enormous bronze
-    figure once stood - Nero, cast in the guise of the sun god, tall
-    enough to be visible from well outside the palace grounds. |YThe
-    statue is long gone|n, relocated and eventually reworked into
-    something else entirely, but the plinth marks where thirty meters
-    of solid bronze once dominated this exact spot.""",
+    """|wAn open court|n, empty now where a genuinely enormous bronze figure once stood - Nero, cast in the guise of the sun god, tall enough to be visible from well outside the palace grounds. |YThe statue is long gone|n, relocated and eventually reworked into something else entirely, but the plinth marks where thirty meters of solid bronze once dominated this exact spot.""",
     "domus_aurea",
 )
 
 room(
     "domus_aurea_octagonal_room",
     "The Octagonal Hall",
-    """|YAn eight-sided chamber|n unlike anything else in the palace,
-    ringed with smaller rooms opening off each face - engineering this
-    ambitious hasn't been attempted again since. |wCourt rumor always
-    insisted the dome overhead once turned slowly, like the sky
-    itself|n; nothing here confirms or denies it, and no one alive
-    actually saw it happen.""",
+    """|YAn eight-sided chamber|n unlike anything else in the palace, ringed with smaller rooms opening off each face - engineering this ambitious hasn't been attempted again since. |wCourt rumor always insisted the dome overhead once turned slowly, like the sky itself|n; nothing here confirms or denies it, and no one alive actually saw it happen.""",
     "domus_aurea",
 )
 
 room(
     "domus_aurea_dome_chamber",
     "Beneath the Dome",
-    """|wA narrow service space|n tucked directly under the octagonal
-    hall's famous dome, thick with the smell of old rope and worked
-    timber. |YWhatever mechanism the rotation rumor depends on|n, if it
-    ever existed at all, would have to have lived in a room exactly
-    like this one - though nothing resembling working machinery
-    remains to settle the question either way.""",
+    """|wA narrow service space|n tucked directly under the octagonal hall's famous dome, thick with the smell of old rope and worked timber. |YWhatever mechanism the rotation rumor depends on|n, if it ever existed at all, would have to have lived in a room exactly like this one - though nothing resembling working machinery remains to settle the question either way.""",
     "domus_aurea",
 )
 
@@ -112,45 +86,28 @@ room(
 room(
     "domus_aurea_grotto_corridor",
     "The Painted Corridor",
-    """|YWalls covered edge to edge in painted fantasy|n - garlands,
-    imaginary creatures, architecture that couldn't actually stand,
-    all rendered in colors still startling despite everything the
-    burial did to this place. |wFuture generations who eventually dig
-    their way back in here|n will apparently find this exact style
-    strange enough to invent a whole new word for it.""",
+    """|YWalls covered edge to edge in painted fantasy|n - garlands, imaginary creatures, architecture that couldn't actually stand, all rendered in colors still startling despite everything the burial did to this place. |wFuture generations who eventually dig their way back in here|n will apparently find this exact style strange enough to invent a whole new word for it.""",
     "domus_aurea",
 )
 
 room(
     "domus_aurea_nymphaeum",
     "The Nymphaeum",
-    """|cA fountain grotto|n, shell-encrusted niches lining a room built
-    entirely around the sound and sight of moving water. |wThe fountain
-    itself has long since gone dry|n, but the shells and colored glass
-    set into the walls still catch what little light reaches this deep
-    into the buried complex.""",
+    """|cA fountain grotto|n, shell-encrusted niches lining a room built entirely around the sound and sight of moving water. |wThe fountain itself has long since gone dry|n, but the shells and colored glass set into the walls still catch what little light reaches this deep into the buried complex.""",
     "domus_aurea",
 )
 
 room(
     "domus_aurea_hidden_fresco_room",
     "A Half-Buried Chamber",
-    """|wA smaller room|n, partially collapsed, one whole wall still
-    bearing a fresco in near-perfect condition under a protective layer
-    of packed earth. |YSomeone with steadier nerves than sense|n has
-    scratched their own name into the plaster near the doorway, small
-    and almost apologetic, next to artwork centuries older than they
-    are.""",
+    """|wA smaller room|n, partially collapsed, one whole wall still bearing a fresco in near-perfect condition under a protective layer of packed earth. |YSomeone with steadier nerves than sense|n has scratched their own name into the plaster near the doorway, small and almost apologetic, next to artwork centuries older than they are.""",
     "domus_aurea",
 )
 
 room(
     "domus_aurea_collapsed_wing",
     "The Collapsed Wing",
-    """|rPart of the ceiling has come down entirely here|n, rubble and
-    fallen plaster blocking what was clearly once a much larger room.
-    |wDaylight leaks through a crack far overhead|n, the only light in
-    this whole stretch of corridor that isn't carried in by hand.""",
+    """|rPart of the ceiling has come down entirely here|n, rubble and fallen plaster blocking what was clearly once a much larger room. |wDaylight leaks through a crack far overhead|n, the only light in this whole stretch of corridor that isn't carried in by hand.""",
     "domus_aurea",
 )
 
@@ -161,52 +118,35 @@ room(
 room(
     "domus_aurea_banquet_hall",
     "The Great Banquet Hall",
-    """|YA hall built for feasts that were also, unmistakably, political
-    theater|n - Nero's guests dined here under the same painted fantasy
-    covering every other room in the complex, reclining on couches
-    arranged for maximum visibility of exactly who sat closest to the
-    host.""",
+    """|YA hall built for feasts that were also, unmistakably, political theater|n - Nero's guests dined here under the same painted fantasy covering every other room in the complex, reclining on couches arranged for maximum visibility of exactly who sat closest to the host.""",
     "domus_aurea",
 )
 
 room(
     "domus_aurea_private_baths",
     "Nero's Private Baths",
-    """|wA small private bathing suite|n, modest by comparison to the
-    grand public baths built elsewhere in the city, but entirely
-    Nero's own - no crowds, no strangers, water piped in specifically
-    for a single household's use.""",
+    """|wA small private bathing suite|n, modest by comparison to the grand public baths built elsewhere in the city, but entirely Nero's own - no crowds, no strangers, water piped in specifically for a single household's use.""",
     "domus_aurea",
 )
 
 room(
     "domus_aurea_pleasure_garden",
     "The Pleasure Gardens",
-    """|gWhat was once a genuinely enormous landscaped garden|n,
-    reduced now to a single buried courtyard - trees, fountains, and
-    grazing animals reportedly filled these grounds in Nero's day,
-    an artificial countryside built inside the city itself.""",
+    """|gWhat was once a genuinely enormous landscaped garden|n, reduced now to a single buried courtyard - trees, fountains, and grazing animals reportedly filled these grounds in Nero's day, an artificial countryside built inside the city itself.""",
     "domus_aurea",
 )
 
 room(
     "domus_aurea_lake_shore",
     "Shore of the Drained Lake",
-    """|cA long, low room|n that once opened directly onto an artificial
-    lake at the heart of the palace grounds - drained and filled not
-    long after Nero's death, the ground leveled over for an amphitheater
-    the whole city would eventually come to know by an entirely
-    different name.""",
+    """|cA long, low room|n that once opened directly onto an artificial lake at the heart of the palace grounds - drained and filled not long after Nero's death, the ground leveled over for an amphitheater the whole city would eventually come to know by an entirely different name.""",
     "domus_aurea",
 )
 
 room(
     "domus_aurea_private_chambers",
     "Nero's Private Chambers",
-    """|YA personal chamber|n, smaller and less performative than the
-    reception spaces elsewhere in the complex - the actual private life
-    of a man whose public one was built, quite literally, on an
-    unprecedented scale.""",
+    """|YA personal chamber|n, smaller and less performative than the reception spaces elsewhere in the complex - the actual private life of a man whose public one was built, quite literally, on an unprecedented scale.""",
     "domus_aurea",
 )
 
@@ -217,40 +157,28 @@ room(
 room(
     "domus_aurea_treasury",
     "The Looted Treasury",
-    """|wA long storage room|n, empty shelving and wall niches the only
-    evidence of what it once held - Greek statuary and artwork gathered
-    from across the provinces, most of it stripped out and redistributed
-    generations ago.""",
+    """|wA long storage room|n, empty shelving and wall niches the only evidence of what it once held - Greek statuary and artwork gathered from across the provinces, most of it stripped out and redistributed generations ago.""",
     "domus_aurea",
 )
 
 room(
     "domus_aurea_servant_wing",
     "Servants' Wing",
-    """|wA plain, cramped wing|n, utterly unlike the grandeur everywhere
-    else in the palace - the household staff who actually kept this
-    entire complex running lived in rooms barely large enough to lie
-    down in.""",
+    """|wA plain, cramped wing|n, utterly unlike the grandeur everywhere else in the palace - the household staff who actually kept this entire complex running lived in rooms barely large enough to lie down in.""",
     "domus_aurea",
 )
 
 room(
     "domus_aurea_buried_passage",
     "A Buried Passage",
-    """|rA half-collapsed corridor|n, packed rubble narrowing the
-    passage to barely shoulder-width in places - foundation fill from
-    whatever was eventually built over this section of the palace,
-    pressing down from directly above.""",
+    """|rA half-collapsed corridor|n, packed rubble narrowing the passage to barely shoulder-width in places - foundation fill from whatever was eventually built over this section of the palace, pressing down from directly above.""",
     "domus_aurea",
 )
 
 room(
     "domus_aurea_caretaker_room",
     "The Caretaker's Room",
-    """|wA small, lived-in room|n, entirely out of place among the ruins
-    around it - a cot, a lamp, a table with a half-eaten meal. Someone
-    is clearly down here often enough to have made themselves
-    genuinely comfortable.""",
+    """|wA small, lived-in room|n, entirely out of place among the ruins around it - a cot, a lamp, a table with a half-eaten meal. Someone is clearly down here often enough to have made themselves genuinely comfortable.""",
     "domus_aurea",
 )
 

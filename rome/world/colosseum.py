@@ -7,8 +7,21 @@ free (defeating the Arena Trainer in Arena Sands - see world/combat.py's
 at_defeat for the escape-on-victory logic) or sneak out through the
 cisterns and tunnels (this module's CmdSneak and CmdSolve).
 
-Also includes CmdRecall, a general-purpose "return to the city hub"
-command usable from anywhere once a player is free.
+This module used to also define its own CmdRecall (a same-city,
+no-cooldown "return to the Atrium" shortcut) - a real bug found live:
+world/combat.py grew a second, more complete CmdRecall later (Temple
+of Jupiter Optimus Maximus, a real 10-minute cooldown, blocked in
+combat/death/the Underworld) as the game's actual single "home base"
+concept, explicitly "rather than inventing a second home base
+concept" per its own docstring - but this module's older version was
+never removed, and both got registered into the same merged cmdset
+(ColosseumCmdSet added after BattleCmdSet in
+commands/default_cmdsets.py), so this one silently won by key and
+shadowed the real one completely: wrong destination, wrong flavor
+text, wrong help text, and no cooldown at all. Removed here now that
+combat.py's version is confirmed the sole intended one (see e.g.
+world/wilderness_rome.py's own references to "the exact same path
+CmdRecall already proved works").
 """
 
 from random import randint
@@ -209,6 +222,22 @@ class ColosseumEcho(SelfHealingRepeatScript):
         self.obj.msg_contents("\n" + messages[randint(0, len(messages) - 1)])
 
 
+def _sentence_initial(name):
+    """
+    Capitalizes just the first letter of a name for use as the
+    opening word of a full sentence. A real bug found live: many NPCs
+    in this game are deliberately keyed with a lowercase leading
+    article ("a Ludus recruit trainer", "the Flamen Dialis") so they
+    read naturally mid-sentence ("You see: a great marble fountain") -
+    correct there, but wrong the moment that same name opens a whole
+    sentence on its own ("the Flamen Dialis says, ..." reads like a
+    typo where "The Flamen Dialis says, ..." doesn't). Only touches
+    the first character, so a name with no leading article (a real
+    player's name, "Argus") is completely unaffected either way.
+    """
+    return name[0].upper() + name[1:] if name else name
+
+
 class NPCChatter(SelfHealingRepeatScript):
     """
     Attach directly to an NPC (not a room) to have it periodically say
@@ -280,7 +309,7 @@ class NPCChatter(SelfHealingRepeatScript):
             # this fires independently of everything else in the room,
             # and several NPCs/echoes landing close together read as
             # an unbroken wall of text without it.
-            receiver.msg("\n%s says, %s" % (npc, heard))
+            receiver.msg("\n%s says, %s" % (_sentence_initial(str(npc)), heard))
 
 
 class WanderingNPC(SelfHealingRepeatScript):
@@ -410,45 +439,6 @@ class CmdSolve(Command):
 
 
 #########################################################
-#                       Recall
-#########################################################
-
-
-class CmdRecall(Command):
-    """
-    Return to the Colosseum Atrium - the heart of the city.
-
-    Usage:
-      recall
-
-    Can't be used while in combat.
-    """
-
-    key = "recall"
-    help_category = "general"
-
-    def func(self):
-        caller = self.caller
-
-        from world.combat import COMBAT_RULES
-
-        if COMBAT_RULES.is_in_combat(caller):
-            caller.msg("You can't recall while in combat!")
-            return
-
-        dest = search_tag("colosseum_recall_point", category="colosseum")
-        if not dest:
-            caller.msg("Recall isn't available right now.")
-            return
-
-        caller.msg(
-            "|cYou close your eyes. The roar of a distant crowd rises around you, "
-            "and the world shifts.|n"
-        )
-        caller.move_to(dest[0], quiet=True, move_type="teleport")
-
-
-#########################################################
 #                       Cmdset
 #########################################################
 
@@ -463,4 +453,3 @@ class ColosseumCmdSet(CmdSet):
     def at_cmdset_creation(self):
         self.add(CmdSneak())
         self.add(CmdSolve())
-        self.add(CmdRecall())

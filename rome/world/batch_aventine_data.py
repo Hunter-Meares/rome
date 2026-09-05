@@ -57,43 +57,28 @@ def room(key, name, desc, zone):
 room(
     "aventine_road_descent",
     "The Descent from the Palatine",
-    """|wA narrow path|n drops away from the palace grounds' quieter
-    edge, switching back twice before the noise of the Palatine fades
-    behind you entirely. |YRome's grandest hill|n gives way, step by
-    step, to open ground that answers to no single household at all.""",
+    """|wA narrow path|n drops away from the palace grounds' quieter edge, switching back twice before the noise of the Palatine fades behind you entirely. |YRome's grandest hill|n gives way, step by step, to open ground that answers to no single household at all.""",
     "aventine_road",
 )
 
 room(
     "aventine_road_valley",
     "Along the Circus Maximus Valley",
-    """|YA long, open valley|n runs between the two hills, flat enough
-    that a crowd could gather here in real numbers if it ever needed
-    to. |wSome say a proper racing track will eventually fill this
-    exact stretch of ground|n - for now, it's just a wide, unclaimed
-    lowland, grass worn thin by whoever's already taken to cutting
-    through it.""",
+    """|YA long, open valley|n runs between the two hills, flat enough that a crowd could gather here in real numbers if it ever needed to. |wSome say a proper racing track will eventually fill this exact stretch of ground|n - for now, it's just a wide, unclaimed lowland, grass worn thin by whoever's already taken to cutting through it.""",
     "aventine_road",
 )
 
 room(
     "aventine_road_ford",
     "Fording the Valley Stream",
-    """|cA shallow stream|n crosses the valley floor here, easy enough
-    to wade in dry weather, considerably less so after real rain.
-    |wA few flat stones|n, clearly placed on purpose, offer an
-    imperfect but appreciated alternative to simply getting wet.""",
+    """|cA shallow stream|n crosses the valley floor here, easy enough to wade in dry weather, considerably less so after real rain. |wA few flat stones|n, clearly placed on purpose, offer an imperfect but appreciated alternative to simply getting wet.""",
     "aventine_road",
 )
 
 room(
     "aventine_road_climb",
     "The Climb to the Aventine",
-    """|wThe ground rises again|n on the valley's far side, the path
-    narrowing as it switches back up the Aventine's own slope. |YThe
-    city changes character with every step upward|n - whatever waits
-    at the top has never quite belonged to the same Rome as the hill
-    just crossed behind you.""",
+    """|wThe ground rises again|n on the valley's far side, the path narrowing as it switches back up the Aventine's own slope. |YThe city changes character with every step upward|n - whatever waits at the top has never quite belonged to the same Rome as the hill just crossed behind you.""",
     "aventine_road",
 )
 
@@ -104,23 +89,14 @@ room(
 room(
     "aventine_plaza",
     "The Aventine Plaza",
-    """|YAn open plaza|n marking the true summit of the climb, roads
-    branching off toward every corner of the district beyond it.
-    |wUnlike the Forum's studied grandeur|n, this plaza feels lived-in
-    rather than performed for - real foot traffic, real errands, none
-    of it staged for anyone watching.""",
+    """|YAn open plaza|n marking the true summit of the climb, roads branching off toward every corner of the district beyond it. |wUnlike the Forum's studied grandeur|n, this plaza feels lived-in rather than performed for - real foot traffic, real errands, none of it staged for anyone watching.""",
     "aventine",
 )
 
 room(
     "aventine_fountain_plaza",
     "The Aventine Fountain Plaza",
-    """|cA smaller plaza|n built around a plain, working fountain -
-    no grand statuary, just clean water and a wide stone basin worn
-    smooth by generations of hands and jars. |wThis is where the
-    district's actual daily business gets discussed|n, plaza gossip
-    doing the same job here that the Forum's Rostra does uphill and
-    across the valley.""",
+    """|cA smaller plaza|n built around a plain, working fountain - no grand statuary, just clean water and a wide stone basin worn smooth by generations of hands and jars. |wThis is where the district's actual daily business gets discussed|n, plaza gossip doing the same job here that the Forum's Rostra does uphill and across the valley.""",
     "aventine",
 )
 
@@ -131,42 +107,28 @@ room(
 room(
     "aventine_diana_portico",
     "Portico of the Temple of Diana",
-    """|YA columned portico|n fronts the temple, more restrained in
-    scale than the Capitoline's great state temples - fitting, for a
-    goddess whose real domain has always been the wild edge of things
-    rather than the city's own center.""",
+    """|YA columned portico|n fronts the temple, more restrained in scale than the Capitoline's great state temples - fitting, for a goddess whose real domain has always been the wild edge of things rather than the city's own center.""",
     "aventine",
 )
 
 room(
     "aventine_diana_cella",
     "Temple of Diana Aventina - Main Cella",
-    """|wThe goddess's cult statue|n stands at the far end of the
-    cella, bow in hand, gaze fixed somewhere past the worshippers in
-    front of her rather than on them directly. |YThis temple predates
-    much of the city's grander architecture|n - one of Rome's oldest
-    federal shrines, older than most of what stands on the Capitoline.""",
+    """|wThe goddess's cult statue|n stands at the far end of the cella, bow in hand, gaze fixed somewhere past the worshippers in front of her rather than on them directly. |YThis temple predates much of the city's grander architecture|n - one of Rome's oldest federal shrines, older than most of what stands on the Capitoline.""",
     "aventine",
 )
 
 room(
     "aventine_diana_grove",
     "The Sacred Grove",
-    """|gA small planted grove|n behind the temple, deliberately left
-    less manicured than a formal garden - Diana's own domain has
-    never been the tended and the ordered. |wA hush settles here|n
-    that the plaza just downhill never quite manages.""",
+    """|gA small planted grove|n behind the temple, deliberately left less manicured than a formal garden - Diana's own domain has never been the tended and the ordered. |wA hush settles here|n that the plaza just downhill never quite manages.""",
     "aventine",
 )
 
 room(
     "aventine_diana_priestess",
     "The Priestess's Chamber",
-    """|wA modest private chamber|n behind the cella, records of
-    offerings and festival dates kept in careful order on a single
-    shelf. |YFar less ceremony surrounds this priesthood|n than the
-    Vestals' famous discipline across the valley - Diana's service
-    asks for devotion, not spectacle.""",
+    """|wA modest private chamber|n behind the cella, records of offerings and festival dates kept in careful order on a single shelf. |YFar less ceremony surrounds this priesthood|n than the Vestals' famous discipline across the valley - Diana's service asks for devotion, not spectacle.""",
     "aventine",
 )
 
@@ -177,44 +139,28 @@ room(
 room(
     "aventine_triad_courtyard",
     "Courtyard of the Aventine Triad",
-    """|YA shared courtyard|n serving both cellae beyond it - Ceres on
-    one side, Liber and Libera on the other. |wThis is the plebeians'
-    own answer to the Capitoline Triad uphill and across the valley|n:
-    where Jupiter, Juno, and Minerva watch over the patrician state,
-    these three have always belonged to everyone else.""",
+    """|YA shared courtyard|n serving both cellae beyond it - Ceres on one side, Liber and Libera on the other. |wThis is the plebeians' own answer to the Capitoline Triad uphill and across the valley|n: where Jupiter, Juno, and Minerva watch over the patrician state, these three have always belonged to everyone else.""",
     "aventine",
 )
 
 room(
     "aventine_triad_ceres_cella",
     "Cella of Ceres",
-    """|wA statue of Ceres|n stands crowned with wheat, offerings of
-    grain and bread left at her feet by visitors who understand her
-    domain in the most literal, immediate way possible. |YRome's grain
-    supply is treated as a matter of state|n; this temple has always
-    treated it as a matter of survival instead.""",
+    """|wA statue of Ceres|n stands crowned with wheat, offerings of grain and bread left at her feet by visitors who understand her domain in the most literal, immediate way possible. |YRome's grain supply is treated as a matter of state|n; this temple has always treated it as a matter of survival instead.""",
     "aventine",
 )
 
 room(
     "aventine_triad_liber_cella",
     "Cella of Liber and Libera",
-    """|YTwo statues share this cella|n, Liber and Libera together -
-    wine, fertility, and a real, specific association with plebeian
-    freedom that the patrician state has never fully been comfortable
-    with. |wFresh offerings here skew heavily toward wine|n, unsurprisingly.""",
+    """|YTwo statues share this cella|n, Liber and Libera together - wine, fertility, and a real, specific association with plebeian freedom that the patrician state has never fully been comfortable with. |wFresh offerings here skew heavily toward wine|n, unsurprisingly.""",
     "aventine",
 )
 
 room(
     "aventine_aediles_office",
     "Office of the Plebeian Aediles",
-    """|wA working office|n attached directly to the temple - the
-    plebeian aediles' own base, historically tied to this exact shrine
-    rather than any grander state building. |YGrain distribution
-    records, market regulations, and festival funding all get decided
-    from a room considerably less impressive than the decisions
-    themselves.""",
+    """|wA working office|n attached directly to the temple - the plebeian aediles' own base, historically tied to this exact shrine rather than any grander state building. |YGrain distribution records, market regulations, and festival funding all get decided from a room considerably less impressive than the decisions themselves.""",
     "aventine",
 )
 
@@ -225,34 +171,21 @@ room(
 room(
     "aventine_secession_plaza",
     "Plaza of the First Secession",
-    """|YA modest plaza|n, nowhere near as grand as anything in the
-    Forum, but genuinely significant - this is where Rome's plebeians
-    are said to have withdrawn entirely from the city, more than once,
-    until the patrician Senate finally agreed to real concessions.
-    |wThe patricians never much liked commemorating that|n; the
-    plebeians made sure it got commemorated anyway.""",
+    """|YA modest plaza|n, nowhere near as grand as anything in the Forum, but genuinely significant - this is where Rome's plebeians are said to have withdrawn entirely from the city, more than once, until the patrician Senate finally agreed to real concessions. |wThe patricians never much liked commemorating that|n; the plebeians made sure it got commemorated anyway.""",
     "aventine",
 )
 
 room(
     "aventine_secession_stone",
     "The Secession Stone",
-    """|wA plain stone marker|n, worn smooth by weather and by hands
-    that have touched it for reasons ranging from reverence to simple
-    habit. |YAn inscription names the year of the first withdrawal|n,
-    plain lettering with none of the Forum's carved grandiosity -
-    a commoners' monument, built by and for commoners.""",
+    """|wA plain stone marker|n, worn smooth by weather and by hands that have touched it for reasons ranging from reverence to simple habit. |YAn inscription names the year of the first withdrawal|n, plain lettering with none of the Forum's carved grandiosity - a commoners' monument, built by and for commoners.""",
     "aventine",
 )
 
 room(
     "aventine_elder_home",
     "The Elder's House",
-    """|wA small, plain house|n just off the memorial plaza, its owner
-    apparently content to live in the shadow of the very history he
-    likes to talk about. |YAn old man's voice carries faintly from
-    inside|n, recounting some version of the secession to whoever's
-    willing to listen this time.""",
+    """|wA small, plain house|n just off the memorial plaza, its owner apparently content to live in the shadow of the very history he likes to talk about. |YAn old man's voice carries faintly from inside|n, recounting some version of the secession to whoever's willing to listen this time.""",
     "aventine",
 )
 
@@ -263,41 +196,28 @@ room(
 room(
     "aventine_wealthy_street",
     "Street of the New Aristocracy",
-    """|YA street lined with genuinely fine houses|n, newer money than
-    the Palatine's old imperial pedigree but no less determined to show
-    it. |wThe Aventine's reputation has shifted hard|n in recent
-    generations - from plebeian stronghold to fashionable address,
-    without ever quite losing the memory of what it used to be.""",
+    """|YA street lined with genuinely fine houses|n, newer money than the Palatine's old imperial pedigree but no less determined to show it. |wThe Aventine's reputation has shifted hard|n in recent generations - from plebeian stronghold to fashionable address, without ever quite losing the memory of what it used to be.""",
     "aventine",
 )
 
 room(
     "aventine_domus_a_atrium",
     "Domus Fortunata - Atrium",
-    """|wA well-appointed atrium|n, the household's wealth on
-    comfortable, unhurried display - fine mosaic underfoot, a modest
-    but genuine impluvium catching rainwater at the center of the
-    room.""",
+    """|wA well-appointed atrium|n, the household's wealth on comfortable, unhurried display - fine mosaic underfoot, a modest but genuine impluvium catching rainwater at the center of the room.""",
     "aventine",
 )
 
 room(
     "aventine_domus_a_garden",
     "Domus Fortunata - Garden",
-    """|gA private garden|n behind the atrium, small but carefully
-    tended - considerably more modest than the Palatine's grounds, but
-    built on the exact same principle: a house that can afford
-    unproductive, purely decorative space has clearly arrived.""",
+    """|gA private garden|n behind the atrium, small but carefully tended - considerably more modest than the Palatine's grounds, but built on the exact same principle: a house that can afford unproductive, purely decorative space has clearly arrived.""",
     "aventine",
 )
 
 room(
     "aventine_domus_b_atrium",
     "Domus Marcella - Atrium",
-    """|wA second grand atrium|n, this household's taste running
-    toward bold color rather than restraint - painted walls in deep
-    reds and golds, a clear statement from a family with something
-    to prove and the means to prove it loudly.""",
+    """|wA second grand atrium|n, this household's taste running toward bold color rather than restraint - painted walls in deep reds and golds, a clear statement from a family with something to prove and the means to prove it loudly.""",
     "aventine",
 )
 
@@ -308,30 +228,21 @@ room(
 room(
     "aventine_juno_portico",
     "Portico of the Temple of Juno Regina",
-    """|YA columned portico|n, distinct from the Capitoline's Temple of
-    Juno Moneta - this is Juno in a different aspect entirely, brought
-    to Rome from a conquered rival city and given a home of her own
-    rather than folded into an existing shrine.""",
+    """|YA columned portico|n, distinct from the Capitoline's Temple of Juno Moneta - this is Juno in a different aspect entirely, brought to Rome from a conquered rival city and given a home of her own rather than folded into an existing shrine.""",
     "aventine",
 )
 
 room(
     "aventine_juno_cella",
     "Temple of Juno Regina - Main Cella",
-    """|wThe cult statue here|n carries itself with a foreign
-    formality, subtly different in style from anything Roman-made -
-    a reminder that this goddess arrived from elsewhere, brought home
-    deliberately rather than always having belonged here.""",
+    """|wThe cult statue here|n carries itself with a foreign formality, subtly different in style from anything Roman-made - a reminder that this goddess arrived from elsewhere, brought home deliberately rather than always having belonged here.""",
     "aventine",
 )
 
 room(
     "aventine_juno_side_shrine",
     "Side Shrine of Juno Regina",
-    """|wA smaller shrine|n off the main cella, older and plainer
-    offerings collecting undisturbed in a corner few visitors bother
-    to check. |YWhoever tends this temple|n clearly has more urgent
-    priorities most days than dusting its quieter corners.""",
+    """|wA smaller shrine|n off the main cella, older and plainer offerings collecting undisturbed in a corner few visitors bother to check. |YWhoever tends this temple|n clearly has more urgent priorities most days than dusting its quieter corners.""",
     "aventine",
 )
 
@@ -342,81 +253,56 @@ room(
 room(
     "aventine_market_street",
     "Aventine Market Street",
-    """|YA busy street|n of small shops and stalls, considerably less
-    polished than the wealthy quarter just uphill - this is where the
-    Aventine's older, working character still shows through clearest.""",
+    """|YA busy street|n of small shops and stalls, considerably less polished than the wealthy quarter just uphill - this is where the Aventine's older, working character still shows through clearest.""",
     "aventine",
 )
 
 room(
     "aventine_river_descent",
     "Descent Toward the River",
-    """|wThe street slopes down|n toward the Tiber, the smell of the
-    river and the noise of real commerce both growing stronger with
-    every step - Rome's grandest architecture has never been down
-    this way, but its actual trade has always depended on it.""",
+    """|wThe street slopes down|n toward the Tiber, the smell of the river and the noise of real commerce both growing stronger with every step - Rome's grandest architecture has never been down this way, but its actual trade has always depended on it.""",
     "aventine",
 )
 
 room(
     "aventine_porta_trigemina",
     "The Porta Trigemina",
-    """|YAn old gate|n in the city's boundary wall, worn smooth by
-    centuries of cart traffic passing through toward the river port
-    beyond it. |wEverything Rome imports by water|n eventually passes
-    through a gate exactly like this one.""",
+    """|YAn old gate|n in the city's boundary wall, worn smooth by centuries of cart traffic passing through toward the river port beyond it. |wEverything Rome imports by water|n eventually passes through a gate exactly like this one.""",
     "aventine",
 )
 
 room(
     "aventine_emporium_yard",
     "The Emporium Yard",
-    """|YA vast open yard|n, Rome's real commercial river port -
-    goods from across the empire arrive here first, long before any
-    of it reaches a Forum shop or a noble household's table. |wThe
-    noise and motion here rival the Forum's own|n, with none of the
-    Forum's civic self-importance attached to it.""",
+    """|YA vast open yard|n, Rome's real commercial river port - goods from across the empire arrive here first, long before any of it reaches a Forum shop or a noble household's table. |wThe noise and motion here rival the Forum's own|n, with none of the Forum's civic self-importance attached to it.""",
     "aventine",
 )
 
 room(
     "aventine_emporium_warehouse",
     "An Emporium Warehouse",
-    """|wRow after row of storage|n, amphorae and crates stacked to
-    the rafters - oil, wine, grain, and goods from provinces most of
-    the dockworkers handling them will never actually see.""",
+    """|wRow after row of storage|n, amphorae and crates stacked to the rafters - oil, wine, grain, and goods from provinces most of the dockworkers handling them will never actually see.""",
     "aventine",
 )
 
 room(
     "aventine_testaccio_slope",
     "The Slope of Monte Testaccio",
-    """|rBroken pottery crunches underfoot|n with every step - this
-    entire rise is built from centuries of discarded amphorae, each
-    one used once to carry oil upriver and then deliberately smashed
-    and stacked rather than reused. |wAn entire hill|n, made
-    exclusively out of what the port didn't need anymore.""",
+    """|rBroken pottery crunches underfoot|n with every step - this entire rise is built from centuries of discarded amphorae, each one used once to carry oil upriver and then deliberately smashed and stacked rather than reused. |wAn entire hill|n, made exclusively out of what the port didn't need anymore.""",
     "aventine",
 )
 
 room(
     "aventine_testaccio_summit",
     "Summit of Monte Testaccio",
-    """|YFrom up here|n, the scale of the thing finally makes sense -
-    an artificial hill of broken pottery, tall enough to look out over
-    the Emporium's yards and warehouses and a real stretch of the
-    river beyond them. |wA strange monument|n, built entirely by
-    accident, one smashed jar at a time.""",
+    """|YFrom up here|n, the scale of the thing finally makes sense - an artificial hill of broken pottery, tall enough to look out over the Emporium's yards and warehouses and a real stretch of the river beyond them. |wA strange monument|n, built entirely by accident, one smashed jar at a time.""",
     "aventine",
 )
 
 room(
     "aventine_river_docks",
     "The River Docks",
-    """|cThe Tiber itself runs past here|n, barges and smaller craft
-    tied up along a real working dock. |wDockworkers move with the
-    same practiced urgency|n as Trajan's Market's own crowd, cargo
-    changing hands in a rhythm that never seems to fully stop.""",
+    """|cThe Tiber itself runs past here|n, barges and smaller craft tied up along a real working dock. |wDockworkers move with the same practiced urgency|n as Trajan's Market's own crowd, cargo changing hands in a rhythm that never seems to fully stop.""",
     "aventine",
 )
 

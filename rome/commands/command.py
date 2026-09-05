@@ -7,6 +7,7 @@ Commands describe the input the account can do to the game.
 
 from evennia.commands.command import Command as BaseCommand
 from evennia.commands.default.muxcommand import MuxCommand as BaseMuxCommand
+from evennia.commands.cmdhandler import CMD_NOINPUT
 
 
 class RomePromptMixin:
@@ -45,9 +46,10 @@ class RomePromptMixin:
         # object that hasn't run CombatCharacter.at_object_creation().
         if caller and hasattr(caller, "attributes") and caller.attributes.has("max_hp"):
             prompt = (
-                f"|g{caller.db.hp}/{caller.db.max_hp} HP|n "
-                f"|c{caller.db.mp}/{caller.db.max_mp} MP|n "
-                f"|y{caller.db.sp}/{caller.db.max_sp} SP|n >"
+                f"|c<|n|gHP|n |w{caller.db.hp}|n/|w{caller.db.max_hp}|c>|n "
+                f"|c<|n|CMP|n |w{caller.db.mp}|n/|w{caller.db.max_mp}|c>|n "
+                f"|c<|n|YSP|n |w{caller.db.sp}|n/|w{caller.db.max_sp}|c>|n "
+                f"|c:|n "
             )
             caller.msg(prompt=prompt)
 
@@ -106,3 +108,25 @@ class MuxCommand(RomePromptMixin, BaseMuxCommand):
     # MuxCommand.parse() (inherited from default_cmds.MuxCommand) is
     # used as-is. Only at_post_cmd (via RomePromptMixin) is customized.
     pass
+
+
+class CmdNoInput(MuxCommand):
+    """
+    Called by Evennia's own engine whenever a player hits return with
+    no other input at all (CMD_NOINPUT) - normally a true no-op ("Do
+    nothing", per evennia.commands.default.syscommands.SystemNoInput,
+    the reference implementation this project was silently falling
+    back to). A real question raised live: shouldn't a bare return at
+    least refresh the HP/MP/SP prompt? It should - most players reach
+    for an empty return exactly when they want a status refresh
+    without spamming a real command into the room, and since this
+    subclasses MuxCommand, RomePromptMixin's at_post_cmd fires here
+    too and sends a fresh prompt for free. func() itself still does
+    nothing - the refresh is the whole point.
+    """
+
+    key = CMD_NOINPUT
+    locks = "cmd:all()"
+
+    def func(self):
+        pass

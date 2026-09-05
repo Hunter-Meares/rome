@@ -1,8 +1,13 @@
 """
 Tests for the Colosseum questline mechanics (world/colosseum.py) -
 previously entirely untested: the sneak/solve stealth escape path,
-the combat escape gate, the level-gated Deeper Sands entrance, and
-CmdRecall.
+the combat escape gate, and the level-gated Deeper Sands entrance.
+
+This module used to also test its own CmdRecall here - removed along
+with the class itself (a real bug: it silently shadowed the real,
+more complete CmdRecall in world/combat.py by cmdset key-collision;
+see world/colosseum.py's module docstring for the full story). See
+world/tests_recall.py for coverage of the real CmdRecall that remains.
 """
 
 from unittest.mock import patch
@@ -15,7 +20,6 @@ from world.colosseum import (
     DeeperSandsGateExit,
     CmdSneak,
     CmdSolve,
-    CmdRecall,
 )
 
 
@@ -208,24 +212,3 @@ class TestCmdSolve(ColosseumTestBase):
         self.room1.key = "Riddle Door Chamber"
         result = self.call(CmdSolve(), "", caller=self.char1)
         self.assertIn("Usage", result)
-
-
-class TestCmdRecall(ColosseumTestBase):
-    def test_cannot_recall_in_combat(self):
-        self.char1.db.combat_turnhandler = "truthy_stand_in"
-        result = self.call(CmdRecall(), "", caller=self.char1)
-        self.assertIn("can't recall while in combat", result)
-
-    def test_recall_moves_to_recall_point(self):
-        recall_point = create.create_object(
-            "typeclasses.rooms.Room", key="Atrium Recall Point"
-        )
-        recall_point.tags.add("colosseum_recall_point", category="colosseum")
-
-        self.call(CmdRecall(), "", caller=self.char1)
-
-        self.assertEqual(self.char1.location, recall_point)
-
-    def test_no_recall_point_configured_reports_unavailable(self):
-        result = self.call(CmdRecall(), "", caller=self.char1)
-        self.assertIn("isn't available right now", result)

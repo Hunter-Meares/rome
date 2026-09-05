@@ -43,98 +43,56 @@ def room(key, name, desc, zone):
 room(
     "wall_city_side",
     "Inside the Gate - City Side",
-    """|wOrdinary Roman streets give way here|n to something more
-    deliberate - paving stones give up their usual chaos of shopfronts
-    and insulae for a wide, cleared approach, the great grey mass of
-    the Porta Flaminia rising ahead. |YGuards stand posted at proper
-    intervals|n rather than the loose watchfulness of the streets
-    behind you; this close to the wall, Rome starts taking its own
-    boundary seriously.""",
+    """|wOrdinary Roman streets give way here|n to something more deliberate - paving stones give up their usual chaos of shopfronts and insulae for a wide, cleared approach, the great grey mass of the Porta Flaminia rising ahead. |YGuards stand posted at proper intervals|n rather than the loose watchfulness of the streets behind you; this close to the wall, Rome starts taking its own boundary seriously.""",
     "wall_gate",
 )
 
 room(
     "wall_gatehouse",
     "The Gatehouse Interior",
-    """|wA cramped guardroom|n built into the wall's own thickness -
-    a watch log chained to a writing table, a few narrow cots, a
-    brazier that never quite goes cold. |YEvery traveler through the
-    Porta Flaminia gets logged here|n, in principle if not always in
-    diligent practice; the log itself is thick with entries in a dozen
-    different hands.""",
+    """|wA cramped guardroom|n built into the wall's own thickness - a watch log chained to a writing table, a few narrow cots, a brazier that never quite goes cold. |YEvery traveler through the Porta Flaminia gets logged here|n, in principle if not always in diligent practice; the log itself is thick with entries in a dozen different hands.""",
     "wall_gate",
 )
 
 room(
     "wall_gate_passage",
     "The Porta Flaminia",
-    """|wA genuine gate|n, iron-bound oak thick enough to stop a
-    battering ram for at least a little while, set into a wall broad
-    enough to walk through rather than merely past. |YCarved above the
-    archway|n, weathered but still legible, a dedication names this
-    the northern gate of Rome - the one every road to Cisalpine Gaul,
-    and everything beyond it, actually starts from.""",
+    """|wA genuine gate|n, iron-bound oak thick enough to stop a battering ram for at least a little while, set into a wall broad enough to walk through rather than merely past. |YCarved above the archway|n, weathered but still legible, a dedication names this the northern gate of Rome - the one every road to Cisalpine Gaul, and everything beyond it, actually starts from.""",
     "wall_gate",
 )
 
 room(
     "wall_walkway_east",
     "Atop the Wall - Facing the City",
-    """|YA stone walkway|n runs along the wall's own crest, wide
-    enough for two guards to pass each other without breaking stride.
-    Looking back over the parapet, |wall of Rome spreads out below|n -
-    rooftops, smoke, the distant gilded roofline of the Capitoline
-    catching whatever light the day has to offer. From up here the
-    city reads as one single, continuous thing, in a way it never
-    quite does from inside it.""",
+    """|YA stone walkway|n runs along the wall's own crest, wide enough for two guards to pass each other without breaking stride. Looking back over the parapet, |wall of Rome spreads out below|n - rooftops, smoke, the distant gilded roofline of the Capitoline catching whatever light the day has to offer. From up here the city reads as one single, continuous thing, in a way it never quite does from inside it.""",
     "wall_gate",
 )
 
 room(
     "wall_walkway_west",
     "Atop the Wall - Facing Outward",
-    """|YThe same walkway|n, a stretch further along, and the view
-    has already changed completely. |wRome falls away behind|n and
-    ahead there's only open country - fields, then scrub, then the
-    dark suggestion of forest at the very edge of sight. The
-    difference between the two views, from the same stretch of wall,
-    says more about the empire's edge than either view could say
-    alone.""",
+    """|YThe same walkway|n, a stretch further along, and the view has already changed completely. |wRome falls away behind|n and ahead there's only open country - fields, then scrub, then the dark suggestion of forest at the very edge of sight. The difference between the two views, from the same stretch of wall, says more about the empire's edge than either view could say alone.""",
     "wall_gate",
 )
 
 room(
     "wall_watchtower",
     "The Watchtower",
-    """|wA squat stone tower|n rising a full story above the wall
-    itself, built for exactly one purpose - seeing trouble before it
-    arrives. |YA lookout keeps a genuinely careful watch|n over the
-    northern approach; nothing about their posture here is the
-    relaxed, routine boredom of the gatehouse below.""",
+    """|wA squat stone tower|n rising a full story above the wall itself, built for exactly one purpose - seeing trouble before it arrives. |YA lookout keeps a genuinely careful watch|n over the northern approach; nothing about their posture here is the relaxed, routine boredom of the gatehouse below.""",
     "wall_gate",
 )
 
 room(
     "wall_outside_shadow",
     "Outside the Gate - the Wall's Shadow",
-    """|wThe gate falls behind you|n, and Rome's noise thins out
-    almost immediately - the shouting of the markets, the constant
-    background hum of a few hundred thousand people, all of it
-    dropping to something closer to quiet. |YThe wall's own long
-    shadow still falls across this stretch of ground|n most of the
-    day; whatever's ahead, it hasn't started yet, not quite.""",
+    """|wThe gate falls behind you|n, and Rome's noise thins out almost immediately - the shouting of the markets, the constant background hum of a few hundred thousand people, all of it dropping to something closer to quiet. |YThe wall's own long shadow still falls across this stretch of ground|n most of the day; whatever's ahead, it hasn't started yet, not quite.""",
     "wall_gate",
 )
 
 room(
     "wall_road_start",
     "The Road's True Start",
-    """|wHere, finally, Rome is genuinely behind you.|n The wall's
-    shadow doesn't reach this far; the road ahead runs north in a
-    long, straight, deliberate Roman line, engineered the way every
-    real Roman road is engineered - built to last, built to be
-    marched on. |YA single worn milestone|n stands at the road's edge,
-    the first of what will be many.""",
+    """|wHere, finally, Rome is genuinely behind you.|n The wall's shadow doesn't reach this far; the road ahead runs north in a long, straight, deliberate Roman line, engineered the way every real Roman road is engineered - built to last, built to be marched on. |YA single worn milestone|n stands at the road's edge, the first of what will be many.""",
     "wall_gate",
 )
 
