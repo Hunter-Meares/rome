@@ -33,15 +33,15 @@ from evennia.utils.utils import wrap as evennia_wrap
 
 from commands.command import Command
 
-RECENT_UPDATES_DATE = "2026-09-04"
+RECENT_UPDATES_DATE = "2026-09-05"
 
 RECENT_UPDATES_TEXT = (
-    "Beyond the Walls: Rome has a real northern gate now, the Porta Flaminia, "
-    "opening onto real wilderness and a long road all the way to a Germanic "
-    "stronghold - a full new leveling zone for levels 25-45. Also new: "
-    "'recall' teleports you home from anywhere, and 'titles' shows off what "
-    "you've earned. See 'help beyond the walls', 'help recall', and "
-    "'help titles'."
+    "A big bugfix pass from live playtesting: killing the same enemy "
+    "twice now gives consistent XP, single-letter direction shortcuts "
+    "(n/s/e/w and friends) work everywhere, and moving now tells you "
+    "where you went. 'status' no longer crashes, NPCs show their real "
+    "names, and 'recall' actually goes to the Temple of Jupiter with "
+    "its real cooldown again."
 )
 
 # The box's own interior width, between its left/right borders and
