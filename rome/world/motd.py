@@ -35,12 +35,11 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-05"
 
 RECENT_UPDATES_TEXT = (
-    "A big bugfix pass from live playtesting: killing the same enemy "
-    "twice now gives consistent XP, single-letter direction shortcuts "
-    "(n/s/e/w and friends) work everywhere, and moving now tells you "
-    "where you went. 'status' no longer crashes, NPCs show their real "
-    "names, and 'recall' actually goes to the Temple of Jupiter with "
-    "its real cooldown again."
+    "Several buildings across the city now have real doors to open and "
+    "close, and every temple dedicated to a specific god has an actual "
+    "statue you can examine. 'stats' is now a proper bordered sheet, "
+    "combat text has real color and breathing room between turns, and "
+    "auto-attack waits a bit longer before taking over your turn."
 )
 
 # The box's own interior width, between its left/right borders and
