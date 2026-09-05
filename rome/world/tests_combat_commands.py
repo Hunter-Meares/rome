@@ -37,6 +37,10 @@ from world.combat import (
     CmdLearn,
     CmdTrainer,
     CmdRest,
+    CmdSkillInfo,
+    CmdSpellInfo,
+    SKILLS,
+    SPELLS,
     POWERATTACK_SP_COST,
     DISENGAGE_SUCCESS_CHANCE,
     AUTO_ATTACK_DELAY,
@@ -406,6 +410,58 @@ class TestCmdUseSkillNamedTargeting(CombatCommandTestBase):
         self.assertIn("don't know a skill", result)
 
 
+class TestSkillInfoAndSpellInfoListing(CombatCommandTestBase):
+    """
+    A real complaint from live playtesting: the old no-argument
+    'skillinfo'/'spellinfo' listing repeated "you are Lv Y" on every
+    single locked entry - wordy, and the same fact restated over and
+    over. Now built through the shared _format_ability_list helper
+    (world/combat.py), which shows the caller's level once in the
+    header instead. Also covers the new aliases ('skills' for
+    skillinfo; 'spell'/'spells' for spellinfo - not 'skill', since
+    that key is already CmdUseSkill, a genuinely different command).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.player_class = "legionary"
+        self.char1.db.level = 1
+        self.char1.db.skills_known = ["hold the line"]
+        self.char1.db.spells_known = []
+
+    def test_level_shown_once_in_header_not_per_locked_line(self):
+        result = self.call(CmdSkillInfo(), "", caller=self.char1)
+        self.assertIn("you are level 1", result)
+        # Only the header should mention the caller's own level - not
+        # repeated again for every locked entry below it.
+        self.assertEqual(result.count("you are level"), 1)
+
+    def test_known_skill_listed_under_known(self):
+        result = self.call(CmdSkillInfo(), "", caller=self.char1)
+        self.assertIn("Known", result)
+        self.assertIn("Hold The Line", result)
+
+    def test_skillinfo_has_skills_alias(self):
+        self.assertIn("skills", CmdSkillInfo.aliases)
+
+    def test_spellinfo_has_spell_and_spells_aliases(self):
+        self.assertIn("spell", CmdSpellInfo.aliases)
+        self.assertIn("spells", CmdSpellInfo.aliases)
+
+    def test_skillinfo_alias_does_not_collide_with_the_real_skill_command(self):
+        # 'skill' (singular) must stay CmdUseSkill's own key - skillinfo
+        # only ever gets 'skills' (plural) as an alias, never 'skill'.
+        self.assertNotIn("skill", CmdSkillInfo.aliases)
+        self.assertEqual(CmdUseSkill.key, "skill")
+
+    def test_class_universal_spell_shows_for_a_non_caster_class(self):
+        # Conjure Torch deliberately has no "classes" key - available
+        # to any class, including a physical class like Legionary.
+        # Not a bug: a small non-combat utility spell, by design.
+        result = self.call(CmdSpellInfo(), "", caller=self.char1)
+        self.assertIn("Conjure Torch", result)
+
+
 class TestStatsHealthBar(CombatCommandTestBase):
     """
     'stats' now shows HP/MP/SP as visual meters (health_bar contrib)
@@ -734,6 +790,18 @@ class TestMovementSPCost(CombatCommandTestBase):
     rather than through a real Exit object - the hook only needs a
     destination and a move_type, so no exit wiring is needed to
     exercise it.
+
+    IMPORTANT caveat this file's own isolated approach missed for a
+    long time: passing move_type="move" by hand here does NOT prove a
+    real Exit traversal ever actually reaches this gate with that same
+    value. It didn't - Evennia's own DefaultExit.at_traverse calls
+    move_to(..., move_type="traverse"), so this whole gate was
+    silently exempting every real player move in the live game the
+    entire time, undetected by every test below. Fixed in
+    typeclasses/exits.py's Exit.at_traverse (now passes the correct
+    move_type="move"); see world/tests_exits.py's
+    TestRealExitTraversalChargesMovementSP for the real, end-to-end
+    regression coverage this file's own isolated tests can't provide.
     """
 
     def test_ordinary_move_deducts_the_cost(self):

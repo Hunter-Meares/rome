@@ -65,6 +65,50 @@ class Exit(ObjectParent, DefaultExit):
         if short:
             self.aliases.add(short)
 
+    def at_traverse(self, traversing_object, target_location, **kwargs):
+        """
+        A real, previously-undiscovered bug found while investigating
+        a live "movement gives no feedback" complaint: Evennia's own
+        DefaultExit.at_traverse (which this would otherwise inherit
+        unchanged) calls move_to(..., move_type="traverse") - not
+        "move". CombatCharacter.at_pre_move's whole movement-SP-cost
+        gate (world/combat.py's _check_and_pay_movement_sp) only
+        charges anything when move_type == "move" *exactly* - so every
+        ordinary exit traversal in the entire game has been silently
+        exempt from the SP cost the whole time, despite that system
+        being fully built, documented, and tested (against a hand-
+        supplied move_type="move" in isolation - see
+        tests_combat_commands.py's TestMovementSPCost docstring, which
+        explicitly never exercised a real Exit). Confirmed live: an
+        actual traversal through a real Exit left SP completely
+        unchanged. Fixed here by reimplementing at_traverse with the
+        corrected move_type instead of calling super() - everything
+        else (at_post_traverse/at_failed_traverse/err_traverse) is
+        preserved exactly as DefaultExit.at_traverse already does it.
+
+        Also where "You walk <exit>." (a separate, real player
+        complaint - movement gave literally no feedback before the
+        new room's description just appeared) actually needs to live:
+        NOT here, before calling move_to() - that would risk printing
+        a false "You walk south." immediately followed by "You're too
+        exhausted to go on" if at_pre_move's own SP check then blocks
+        the move a moment later. It's sent instead from inside
+        CombatCharacter.at_pre_move itself (world/combat.py), the
+        exact moment a move is confirmed to actually proceed, via the
+        exit_obj kwarg move_to() already threads through to
+        at_pre_move for free.
+        """
+        source_location = traversing_object.location
+        if traversing_object.move_to(
+            target_location, move_type="move", exit_obj=self, **kwargs
+        ):
+            self.at_post_traverse(traversing_object, source_location)
+        else:
+            if self.db.err_traverse:
+                traversing_object.msg(self.db.err_traverse)
+            else:
+                self.at_failed_traverse(traversing_object)
+
     def get_display_desc(self, looker, **kwargs):
         """
         By default, looking directly at an exit ('look north', 'look

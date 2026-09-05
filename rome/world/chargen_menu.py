@@ -33,8 +33,7 @@ RACES = {
         "display": "Human (Roman Citizen)",
         "desc": dedent(
             """\
-            Versatile and adaptable, excelling in civic life, trade, and
-            warfare. Roman citizens navigate politics and command with ease.
+            Versatile and adaptable, excelling in civic life, trade, and warfare. Roman citizens navigate politics and command with ease.
             """
         ),
         "traits": ["Social Savvy", "Adaptable"],
@@ -49,9 +48,7 @@ RACES = {
         "display": "Minotaur (Labyrinth Born)",
         "desc": dedent(
             """\
-            Powerful warriors, descendants of bulls and humans. Fearsome in
-            combat and adept at navigating complex terrain like mazes or
-            fortresses.
+            Powerful warriors, descendants of bulls and humans. Fearsome in combat and adept at navigating complex terrain like mazes or fortresses.
             """
         ),
         "traits": ["Strength", "Resilience"],
@@ -65,9 +62,7 @@ RACES = {
         "display": "Centaur (Forest Guardian)",
         "desc": dedent(
             """\
-            Half-human, half-horse, roaming the wilds as protectors of
-            forests. Skilled archers and scouts, combining intelligence with
-            equine speed and strength.
+            Half-human, half-horse, roaming the wilds as protectors of forests. Skilled archers and scouts, combining intelligence with equine speed and strength.
             """
         ),
         "traits": ["Strength", "Agility"],
@@ -81,9 +76,7 @@ RACES = {
         "display": "Harpy (Windborne Seeker)",
         "desc": dedent(
             """\
-            Winged humanoids tied to storms and mountains. Skilled scouts and
-            aerial warriors, perfect for reconnaissance and hit-and-run
-            tactics.
+            Winged humanoids tied to storms and mountains. Skilled scouts and aerial warriors, perfect for reconnaissance and hit-and-run tactics.
             """
         ),
         "traits": ["Flight", "Keen Senses"],
@@ -97,11 +90,7 @@ RACES = {
         "display": "Nymph (Descendants of the Wild)",
         "desc": dedent(
             """\
-            Though their name is drawn from the immortal nature-spirits of
-            old, playable Nymphs are mortal - descendants of a union
-            between nymph and mortal, carrying a fading echo of that
-            divine parent's power. Not goddesses themselves, but never
-            quite ordinary either.
+            Though their name is drawn from the immortal nature-spirits of old, playable Nymphs are mortal - descendants of a union between nymph and mortal, carrying a fading echo of that divine parent's power. Not goddesses themselves, but never quite ordinary either.
             """
         ),
         "traits": ["Nature Affinity", "Healing"],
@@ -115,9 +104,7 @@ RACES = {
         "display": "Cyclops (Titanic Brute)",
         "desc": dedent(
             """\
-            Enormous one-eyed giants famed for strength and craftsmanship.
-            Formidable in battle and expert siege engineers shaping the
-            outcome of conflicts.
+            Enormous one-eyed giants famed for strength and craftsmanship. Formidable in battle and expert siege engineers shaping the outcome of conflicts.
             """
         ),
         "traits": ["Strength", "Endurance"],

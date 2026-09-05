@@ -3052,6 +3052,67 @@ def _usage_line(verb, name, target_type):
     return "%s %s = <target>" % (verb, name)
 
 
+def _format_ability_list(caller, data_dict, known_names, header_label, learn_verb):
+    """
+    Shared listing used by both CmdSkillInfo and CmdSpellInfo when
+    called with no argument - real duplicate logic between the two
+    before this, now one source of formatting for both.
+
+    A real complaint from live playtesting: the old version repeated
+    "(Lv X - you are Lv Y)" on every single locked line - wordy, and
+    the same "you are Lv Y" fact restated as many times as there are
+    locked entries. Shown once in the header instead. Also switched to
+    a dotted-leader column layout with actual color instead of a flat
+    indented list, matching the direct request for something less
+    wordy and more visually organized.
+    """
+    player_class = caller.db.player_class
+    known = set(known_names or [])
+
+    available_by_class = {
+        name
+        for name, data in data_dict.items()
+        if not data.get("classes") or player_class in data.get("classes", [])
+    }
+    available = sorted(
+        known | available_by_class, key=lambda n: data_dict[n].get("level_required", 1)
+    )
+
+    if not available:
+        return "Your class has no %s associated with it." % header_label.lower()
+
+    caller_level = caller.db.level or 1
+
+    def _line(name, level_req):
+        label = name.title()
+        dots = "." * max(2, 28 - len(label))
+        return "  |w%s|n |x%s|n Lv %d" % (label, dots, level_req)
+
+    known_lines, ready_lines, locked_lines = [], [], []
+    for name in available:
+        level_req = data_dict[name].get("level_required", 1)
+        line = _line(name, level_req)
+        if name in known:
+            known_lines.append(line)
+        elif caller_level >= level_req:
+            ready_lines.append(line)
+        else:
+            locked_lines.append(line)
+
+    out = ["|Y%s|n |x(you are level %d)|n" % (header_label, caller_level), ""]
+    out.append("|gKnown|n")
+    out.extend(known_lines if known_lines else ["  |x(none yet)|n"])
+    if ready_lines:
+        out.append("")
+        out.append("|yReady to learn|n |x(use '%s')|n" % learn_verb)
+        out.extend(ready_lines)
+    if locked_lines:
+        out.append("")
+        out.append("|xNot yet available|n")
+        out.extend(locked_lines)
+    return "\n".join(out)
+
+
 SPELLS = {
     "mark of decay": {
         "spellfunc": COMBAT_RULES.spell_add_condition,
@@ -5127,6 +5188,24 @@ class CombatCharacter(ContribRPCharacter):
             return False
         if not self._check_and_pay_movement_sp(move_type):
             return False
+
+        # A real player complaint from live playtesting: moving
+        # through an exit gave no feedback at all beyond the new
+        # room's own description just appearing - nothing confirmed
+        # the direction command had even registered. Sent from here,
+        # not from the Exit itself, specifically because this is the
+        # one place that already knows for certain the move is about
+        # to actually succeed - every block above this point has
+        # already had its chance to refuse and return early instead.
+        # exit_obj is threaded through from typeclasses/exits.py's
+        # Exit.at_traverse via move_to()'s own kwargs forwarding.
+        # move_type == "move" (not "wander"/"teleport") keeps this to
+        # genuine player-walked exits only.
+        if move_type == "move" and self.has_account:
+            exit_obj = kwargs.get("exit_obj")
+            if exit_obj is not None:
+                self.msg("You walk %s." % exit_obj.key)
+
         return True
 
     def _check_and_pay_movement_sp(self, move_type):
@@ -8099,55 +8178,18 @@ class CmdSkillInfo(Command):
     """
 
     key = "skillinfo"
-    aliases = ["skilldesc", "skillbook"]
+    aliases = ["skilldesc", "skillbook", "skills"]
     help_category = "combat"
 
     def func(self):
         caller = self.caller
 
         if not self.args:
-            player_class = caller.db.player_class
-            known = set(caller.db.skills_known or [])
-
-            available_by_class = {
-                name
-                for name, data in SKILLS.items()
-                if not data.get("classes") or player_class in data.get("classes", [])
-            }
-            available = sorted(
-                known | available_by_class, key=lambda n: SKILLS[n].get("level_required", 1)
+            caller.msg(
+                _format_ability_list(
+                    caller, SKILLS, caller.db.skills_known, "Your Skill List", "learnskill"
+                )
             )
-
-            if not available:
-                caller.msg("Your class has no skills associated with it.")
-                return
-
-            caller_level = caller.db.level or 1
-            known_lines = []
-            locked_lines = []
-            unlearned_lines = []
-
-            for name in available:
-                level_req = SKILLS[name].get("level_required", 1)
-                if name in known:
-                    known_lines.append("  %s (Lv %d)" % (name.title(), level_req))
-                elif caller_level < level_req:
-                    locked_lines.append(
-                        "  %s (Lv %d - you are Lv %d)" % (name.title(), level_req, caller_level)
-                    )
-                else:
-                    unlearned_lines.append(
-                        "  %s (Lv %d - ready to learn now!)" % (name.title(), level_req)
-                    )
-
-            msg = "|wYour skill list:|n\n"
-            msg += "\n|gKnown:|n\n" + ("\n".join(known_lines) if known_lines else "  (none yet)")
-            if unlearned_lines:
-                msg += "\n\n|yReady to learn (use 'learnskill'):|n\n" + "\n".join(unlearned_lines)
-            if locked_lines:
-                msg += "\n\n|xNot yet available:|n\n" + "\n".join(locked_lines)
-
-            caller.msg(msg)
             return
 
         skillname = self.args.strip().lower()
@@ -8199,63 +8241,25 @@ class CmdSpellInfo(Command):
     """
 
     key = "spellinfo"
-    aliases = ["spelldesc", "spellbook"]
+    aliases = ["spelldesc", "spellbook", "spell", "spells"]
     help_category = "magic"
 
     def func(self):
         caller = self.caller
 
         if not self.args:
-            player_class = caller.db.player_class
-            known = set(caller.db.spells_known or [])
-
-            # Every spell open to this character's class, or universal
-            # (no "classes" key at all, like Conjure Torch) - PLUS
-            # anything already known, regardless of class match. That
-            # last part matters for edge cases like classless
-            # characters (gods, admin test characters) who learned a
-            # spell before class-gating existed, or outside the normal
-            # rules entirely - a known spell should never just vanish
-            # from view because it no longer matches their class.
-            available_by_class = {
-                name
-                for name, data in SPELLS.items()
-                if not data.get("classes") or player_class in data.get("classes", [])
-            }
-            available = sorted(
-                known | available_by_class, key=lambda n: SPELLS[n].get("level_required", 1)
+            # _format_ability_list includes every spell open to this
+            # character's class, OR universal (no "classes" key at
+            # all, like Conjure Torch - a small non-combat utility
+            # spell any class can learn on purpose, not a bug), PLUS
+            # anything already known regardless of class match (so a
+            # classless character - a god, an admin test character -
+            # never loses sight of something they already learned).
+            caller.msg(
+                _format_ability_list(
+                    caller, SPELLS, caller.db.spells_known, "Your Spellbook", "learnspell"
+                )
             )
-
-            if not available:
-                caller.msg("Your class has no spells associated with it.")
-                return
-
-            caller_level = caller.db.level or 1
-            known_lines = []
-            locked_lines = []
-            unlearned_lines = []
-
-            for name in available:
-                level_req = SPELLS[name].get("level_required", 1)
-                if name in known:
-                    known_lines.append("  %s (Lv %d)" % (name.title(), level_req))
-                elif caller_level < level_req:
-                    locked_lines.append(
-                        "  %s (Lv %d - you are Lv %d)" % (name.title(), level_req, caller_level)
-                    )
-                else:
-                    unlearned_lines.append(
-                        "  %s (Lv %d - ready to learn now!)" % (name.title(), level_req)
-                    )
-
-            msg = "|wYour spellbook:|n\n"
-            msg += "\n|gKnown:|n\n" + ("\n".join(known_lines) if known_lines else "  (none yet)")
-            if unlearned_lines:
-                msg += "\n\n|yReady to learn (use 'learnspell'):|n\n" + "\n".join(unlearned_lines)
-            if locked_lines:
-                msg += "\n\n|xNot yet available:|n\n" + "\n".join(locked_lines)
-
-            caller.msg(msg)
             return
 
         spellname = self.args.strip().lower()

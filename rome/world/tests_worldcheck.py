@@ -160,9 +160,23 @@ class TestOneWayExits(EvenniaTest):
 
 class TestMissingDirectionAliases(EvenniaTest):
     def test_catches_a_direction_exit_with_no_alias(self):
+        """
+        typeclasses/exits.py's Exit.at_object_creation() now adds the
+        standard short alias automatically for any of the 12 direction
+        words (the actual root fix for the bug this checker exists to
+        catch) - so _exit("west", a, b) alone no longer reproduces a
+        genuinely alias-less exit the way it used to. This checker
+        stays valuable as a safety net regardless (an exit renamed to
+        a direction word after creation, or created some other way
+        that skips at_object_creation, would still slip through
+        un-fixed) - the alias is stripped back off by hand here so the
+        test still exercises that safety net specifically, rather than
+        the now-automatic creation-time fix.
+        """
         a = _room("Alias Test A")
         b = _room("Alias Test B")
-        ex = _exit("west", a, b)  # no aliases given
+        ex = _exit("west", a, b)
+        ex.aliases.clear()
         findings = check_missing_direction_aliases()
         flagged = [e for e, expected in findings]
         self.assertIn(ex, flagged)

@@ -14,6 +14,8 @@ typeclasses/exits.py so every future exit gets it automatically.
 from evennia.utils.test_resources import EvenniaTest
 from evennia.utils import create
 
+from world.combat import MOVEMENT_SP_COST
+
 
 class TestExitStandardDirectionAliases(EvenniaTest):
     def test_south_exit_gets_s_alias_automatically(self):
@@ -64,3 +66,67 @@ class TestExitStandardDirectionAliases(EvenniaTest):
         lowered = [a.lower() for a in exit_obj.aliases.all()]
         self.assertIn("s", lowered)
         self.assertIn("back", lowered)
+
+
+class TestRealExitTraversalChargesMovementSP(EvenniaTest):
+    """
+    A real, previously-undiscovered bug found while adding movement
+    feedback: Evennia's own DefaultExit.at_traverse calls
+    move_to(..., move_type="traverse") - not "move" - so
+    CombatCharacter.at_pre_move's movement-SP-cost gate (gated on
+    move_type == "move" exactly) was silently exempting every single
+    ordinary exit traversal in the game, despite
+    tests_combat_commands.py's TestMovementSPCost passing the whole
+    time (it calls at_pre_move directly with a hand-supplied
+    move_type="move", never exercising a real Exit). Confirmed live
+    before this fix: walking through a real Exit left SP completely
+    unchanged. Fixed by reimplementing Exit.at_traverse
+    (typeclasses/exits.py) with the corrected move_type. These tests
+    go through the real Exit object specifically, not at_pre_move
+    directly, so a regression here can't hide behind an isolated unit
+    test again.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.combat_turnhandler = None
+        self.char1.db.resting = False
+        self.char1.db.is_dead = False
+        self.char1.db.hp = 100
+        self.char1.db.level = 1
+        self.exit_obj = create.create_object(
+            "typeclasses.exits.Exit",
+            key="south",
+            aliases=["s"],
+            location=self.room1,
+            destination=self.room2,
+        )
+
+    def test_real_traversal_deducts_movement_sp(self):
+        self.char1.db.sp = 10
+        self.char1.location = self.room1
+        self.exit_obj.at_traverse(self.char1, self.room2)
+        self.assertEqual(self.char1.db.sp, 10 - MOVEMENT_SP_COST)
+        self.assertEqual(self.char1.location, self.room2)
+
+    def test_real_traversal_blocked_when_out_of_sp(self):
+        self.char1.db.sp = 0
+        self.char1.location = self.room1
+        self.exit_obj.at_traverse(self.char1, self.room2)
+        self.assertEqual(self.char1.location, self.room1)
+
+    def test_walk_message_sent_on_successful_traversal(self):
+        self.char1.db.sp = 10
+        self.char1.location = self.room1
+        captured = []
+        self.char1.msg = lambda text="", **kwargs: captured.append(text)
+        self.exit_obj.at_traverse(self.char1, self.room2)
+        self.assertIn("You walk south.", captured)
+
+    def test_no_walk_message_when_traversal_is_blocked(self):
+        self.char1.db.sp = 0
+        self.char1.location = self.room1
+        captured = []
+        self.char1.msg = lambda text="", **kwargs: captured.append(text)
+        self.exit_obj.at_traverse(self.char1, self.room2)
+        self.assertNotIn("You walk south.", captured)

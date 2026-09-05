@@ -68,6 +68,29 @@ class DescriptiveDoor(SimpleDoor):
             return "%s |r(closed)|n" % name
         return name
 
+    def at_traverse(self, traversing_object, target_location, **kwargs):
+        """
+        Same reasoning and same duplication-over-multi-inheritance
+        precedent as get_display_desc above - SimpleDoor extends
+        DefaultExit directly, bypassing typeclasses/exits.py's Exit
+        (and the real move_type="traverse"-vs-"move" fix that lives
+        there; see that class's own at_traverse docstring for the full
+        story) entirely. Without this, walking through any door in the
+        game would stay silently exempt from the movement-SP cost and
+        would never get the "You walk <door>." feedback message every
+        other exit now has.
+        """
+        source_location = traversing_object.location
+        if traversing_object.move_to(
+            target_location, move_type="move", exit_obj=self, **kwargs
+        ):
+            self.at_post_traverse(traversing_object, source_location)
+        else:
+            if self.db.err_traverse:
+                traversing_object.msg(self.db.err_traverse)
+            else:
+                self.at_failed_traverse(traversing_object)
+
     def at_failed_traverse(self, traversing_object):
         traversing_object.msg("The %s is closed." % _door_phrase(self))
 
