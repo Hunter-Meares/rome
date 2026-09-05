@@ -35,12 +35,10 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-05"
 
 RECENT_UPDATES_TEXT = (
-    "The Deeper Sands (past the Gate of Death in the Colosseum) is now "
-    "real endgame content - level 75+, armed and armored fighters, a "
-    "reason to come back once you've made something of yourself. NPC "
-    "dialogue and the starting cell's own hints no longer run together "
-    "in one wall of text, and 'help vigor' now actually matches what "
-    "the stat does."
+    "The Ludus trainers no longer show a distracting '(1)/(2)/(3)' "
+    "next to their name, and combat's turn-start display is simpler. "
+    "Lost in the city? The bookseller at the Forum's Booksellers' "
+    "Corner now sells a map of Rome for a few gold."
 )
 
 # The box's own interior width, between its left/right borders and
