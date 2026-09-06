@@ -35,12 +35,12 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-06"
 
 RECENT_UPDATES_TEXT = (
-    "Combat got a real bugfix pass - the HP/MP/SP prompt no longer "
-    "vanishes during an auto-attacked fight, the timeout warning stays "
-    "quiet while auto-attack has you covered, and skill/condition "
-    "messages now print in the right order. Character creation's last "
-    "couple of stray '1's are now proper Roman numerals, and the "
-    "who list gives more room to titles."
+    "The Deeper Sands' Arena Fighters now carry real weapons and "
+    "armor, not just descriptions of them - and defeating one has a "
+    "real chance to drop a piece of it for you to keep. Combat also "
+    "got a bugfix pass: the HP/MP/SP prompt no longer vanishes during "
+    "an auto-attacked fight, and skill/condition messages print in "
+    "the right order."
 )
 
 # The box's own interior width, between its left/right borders and
