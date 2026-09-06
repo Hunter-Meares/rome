@@ -24,6 +24,7 @@ from world.chargen_menu import (
     _numbered_option,
     _step_header,
     _TOTAL_STEPS,
+    menunode_welcome,
     menunode_choose_race,
     menunode_choose_class,
     menunode_race_info,
@@ -441,6 +442,39 @@ class TestChooseRaceAndClassOptionLists(EvenniaTest):
             self.assertEqual(option["key"], (_to_roman(i), str(i)))
             self.assertIn(CLASSES[class_key]["display"], option["desc"])
         self.assertEqual(options[-1]["desc"], "Go back and change your race")
+
+
+class TestSingleOptionPagesUseRomanNumerals(EvenniaTest):
+    """
+    Regression coverage for a real bug found live: menunode_welcome's
+    lone "continue" option and each race/class detail page's "Become
+    a X" option were never wrapped in _numbered_option(), so EvMenu
+    fell back to its own plain-digit auto-numbering ("1:") instead of
+    the Roman numeral used everywhere else in this menu ("I:") -
+    visibly inconsistent with the rest of the chargen aesthetic pass.
+    """
+
+    class _FakeCaller:
+        def __init__(self, new_char):
+            self.new_char = new_char
+
+    def setUp(self):
+        super().setUp()
+        self.caller = self._FakeCaller(self.char1)
+
+    def test_welcome_option_uses_a_roman_numeral_key(self):
+        (text, help_text), options = menunode_welcome(self.caller)
+        self.assertEqual(options["key"], ("I", "1"))
+
+    def test_race_info_become_option_uses_a_roman_numeral_key(self):
+        (text, help_text), options = menunode_race_info(self.caller, race_key="human")
+        self.assertEqual(options[0]["key"], ("I", "1"))
+        self.assertIn("Become a", options[0]["desc"])
+
+    def test_class_info_become_option_uses_a_roman_numeral_key(self):
+        (text, help_text), options = menunode_class_info(self.caller, class_key="legionary")
+        self.assertEqual(options[0]["key"], ("I", "1"))
+        self.assertIn("Become a", options[0]["desc"])
 
 
 class TestRaceAndClassInfoFormatting(EvenniaTest):

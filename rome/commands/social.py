@@ -29,11 +29,23 @@ from commands.command import Command
 # too-wide EvTable produces on a normal client width. Named constants
 # so the /full and lean tables (and the plain player table) all stay
 # in sync rather than drifting to different, inconsistent widths.
-_WHO_TITLE_WIDTH = 16
+#
+# Race/Class were originally capped at 14 each - real overkill once
+# checked against actual content: every race/class's _short_flavor_name()
+# result tops out at 8 ("Minotaur"/"Cyclops"/"Olympian") and 10
+# ("Speculator") respectively, so 14 was pure wasted padding on both,
+# never once actually cropping anything. Right-sized to their real
+# maximums (with zero truncation risk) instead of trimmed via
+# abbreviation - "Minotaur"/"Speculator" spelled out is worth more at a
+# glance than a cryptic "min"/"spe" code, and a player's title is the
+# one place here that's genuinely their own words. The 10 characters
+# this recovers (6 from Race, 4 from Class) go to Title instead, which
+# is the column actually worth the room.
+_WHO_TITLE_WIDTH = 26
 _WHO_ROOM_WIDTH = 18
-_WHO_TITLE_WIDTH_WIDE = 42  # plain player table has no idle column, more room for titles
-_WHO_RACE_WIDTH = 14
-_WHO_CLASS_WIDTH = 14
+_WHO_TITLE_WIDTH_WIDE = 52  # plain player table has no idle column, more room for titles
+_WHO_RACE_WIDTH = 8
+_WHO_CLASS_WIDTH = 10
 
 # Rank-tier color, applied to rank_title()'s output on the who tables -
 # a plain white "GOD" sitting next to a plain white "Novice" gave no

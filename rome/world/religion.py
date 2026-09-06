@@ -465,6 +465,7 @@ class CmdPontifex(Command):
     """
 
     key = "pontifex"
+    locks = "cmd:attr_gt(level, 100)"
     help_category = "admin"
 
     def func(self):

@@ -394,7 +394,7 @@ def create_all_help_entries():
             "actually offer, plus the board's own current location\n\n"
             "Both work from anywhere, not just standing at the board."
         ),
-        db_lock_storage="view:all()",
+        db_lock_storage="view:attr_gt(level, 100)",
     )
 
     HelpEntry.objects.create(
@@ -408,7 +408,7 @@ def create_all_help_entries():
             "giver's current real location, and its reward\n\n"
             "Both work from anywhere, not just standing near a giver."
         ),
-        db_lock_storage="view:all()",
+        db_lock_storage="view:attr_gt(level, 100)",
     )
 
     # --- Religion & piety ---
@@ -466,7 +466,7 @@ def create_all_help_entries():
             "No religion is blocked from functioning just because it has "
             "no Pontifex yet - a god can always act in their place."
         ),
-        db_lock_storage="view:all()",
+        db_lock_storage="view:attr_gt(level, 100)",
     )
 
     # --- New player orientation ---

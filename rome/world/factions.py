@@ -638,6 +638,7 @@ class CmdFactionLeader(Command):
     """
 
     key = "factionleader"
+    locks = "cmd:attr_gt(level, 100)"
     help_category = "admin"
 
     def func(self):
@@ -681,6 +682,7 @@ class CmdChannelKick(Command):
     """
 
     key = "channelkick"
+    locks = "cmd:attr_gt(level, 100)"
     help_category = "admin"
 
     def func(self):

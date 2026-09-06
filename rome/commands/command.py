@@ -10,6 +10,26 @@ from evennia.commands.default.muxcommand import MuxCommand as BaseMuxCommand
 from evennia.commands.cmdhandler import CMD_NOINPUT
 
 
+def build_hpmp_prompt(character):
+    """
+    The shared HP/MP/SP prompt string, built the same way for anyone
+    who needs to refresh a character's prompt outside of RomePromptMixin's
+    own at_post_cmd() - namely combat's turn handler, for a character
+    whose turn is resolved entirely by auto-attack. auto-attack never
+    runs a real Command (it's a delayed callback, not player input), so
+    at_post_cmd() never fires for that character's turn at all - a real
+    bug found live: a whole fight resolved by auto-attack showed the
+    HP/MP/SP prompt exactly once (on 'challenge'/'fight') and never
+    again until combat ended, since nothing else was sending it.
+    """
+    return (
+        f"|c[|n|gHP|n |w{character.db.hp}|n/|w{character.db.max_hp}|c]|n "
+        f"|c[|n|CMP|n |w{character.db.mp}|n/|w{character.db.max_mp}|c]|n "
+        f"|c[|n|YSP|n |w{character.db.sp}|n/|w{character.db.max_sp}|c]|n "
+        f"|c:|n "
+    )
+
+
 class RomePromptMixin:
     """
     Mixin that sends an updated HP/MP/SP prompt after every command.
@@ -45,13 +65,7 @@ class RomePromptMixin:
         # stats set up - this skips Accounts in OOC mode, and any
         # object that hasn't run CombatCharacter.at_object_creation().
         if caller and hasattr(caller, "attributes") and caller.attributes.has("max_hp"):
-            prompt = (
-                f"|c[|n|gHP|n |w{caller.db.hp}|n/|w{caller.db.max_hp}|c]|n "
-                f"|c[|n|CMP|n |w{caller.db.mp}|n/|w{caller.db.max_mp}|c]|n "
-                f"|c[|n|YSP|n |w{caller.db.sp}|n/|w{caller.db.max_sp}|c]|n "
-                f"|c:|n "
-            )
-            caller.msg(prompt=prompt)
+            caller.msg(prompt=build_hpmp_prompt(caller))
 
 
 class Command(RomePromptMixin, BaseCommand):

@@ -418,34 +418,48 @@ class TestResolveAttackDamageValue(CombatTestBase):
 
 class TestResolveAttackMessageColor(CombatTestBase):
     """
-    A direct complaint from live playtesting: combat text reads as
-    flat and colorless - every weapon message template only ever
-    colored the damage number, leaving attacker/defender names plain
-    in every single hit/miss/bounce message (~15+ templates). Fixed by
-    coloring both names once in resolve_attack itself and substituting
-    those colored strings in place of the raw characters, reaching
-    every template for free rather than hand-editing each one.
+    Names are deliberately plain in combat messages - a direct
+    follow-up request reversing an earlier pass that colored attacker/
+    defender names in every hit/miss/bounce message. The action verb
+    and the damage number are the things worth highlighting instead
+    (see WEAPON_CATEGORY_MESSAGES/DEFAULT_WEAPON_MESSAGES, each "hit"
+    template's verb phrase wrapped in |y).
     """
 
-    def test_hit_message_colors_both_names(self):
+    def test_hit_message_does_not_color_either_name(self):
         captured = []
         self.room1.msg_contents = lambda text="", **kwargs: captured.append(text)
         COMBAT_RULES.resolve_attack(
             self.char1, self.char2, attack_value=999, defense_value=1, damage_value=10
         )
         full_text = "".join(str(m) for m in captured)
-        self.assertIn("|c%s|n" % self.char1.key, full_text)
-        self.assertIn("|m%s|n" % self.char2.key, full_text)
+        self.assertNotIn("|c%s|n" % self.char1.key, full_text)
+        self.assertNotIn("|m%s|n" % self.char2.key, full_text)
+        self.assertIn(self.char1.key, full_text)
+        self.assertIn(self.char2.key, full_text)
 
-    def test_miss_message_colors_both_names(self):
+    def test_hit_message_colors_the_action_verb_and_damage(self):
+        captured = []
+        self.room1.msg_contents = lambda text="", **kwargs: captured.append(text)
+        COMBAT_RULES.resolve_attack(
+            self.char1, self.char2, attack_value=999, defense_value=1, damage_value=10
+        )
+        full_text = "".join(str(m) for m in captured)
+        # Unarmed default template - see DEFAULT_WEAPON_MESSAGES.
+        self.assertIn("|ystrikes|n", full_text)
+        self.assertIn("|r10|n", full_text)
+
+    def test_miss_message_does_not_color_either_name(self):
         captured = []
         self.room1.msg_contents = lambda text="", **kwargs: captured.append(text)
         COMBAT_RULES.resolve_attack(
             self.char1, self.char2, attack_value=1, defense_value=999
         )
         full_text = "".join(str(m) for m in captured)
-        self.assertIn("|c%s|n" % self.char1.key, full_text)
-        self.assertIn("|m%s|n" % self.char2.key, full_text)
+        self.assertNotIn("|c%s|n" % self.char1.key, full_text)
+        self.assertNotIn("|m%s|n" % self.char2.key, full_text)
+        self.assertIn(self.char1.key, full_text)
+        self.assertIn(self.char2.key, full_text)
 
 
 class TestHitChanceCalibration(CombatTestBase):
@@ -1531,3 +1545,189 @@ class TestWizinvis(CombatTestBase):
     def test_get_display_name_returns_real_name_to_an_equal_level_looker(self):
         self.char2.db.level = 105
         self.assertEqual(self.char1.get_display_name(self.char2), self.char1.key)
+
+
+class TestConditionMessagesColorTheConditionName(CombatTestBase):
+    """
+    A direct follow-up request: condition names (Accuracy Down,
+    Defense Up, etc.) are one of the "key things a player needs to
+    see" in combat, alongside the action verb and damage number -
+    colored consistently everywhere a condition is gained, expires, or
+    is cured (add_condition, tick_conditions, itemfunc_cure_condition,
+    spell_cure_condition).
+    """
+
+    def test_add_condition_colors_the_condition_name(self):
+        captured = []
+        self.char1.location.msg_contents = lambda text="", **kwargs: captured.append(text)
+        COMBAT_RULES.add_condition(self.char1, self.char1, "Accuracy Down", 3)
+        full_text = "".join(str(m) for m in captured)
+        self.assertIn("|MAccuracy Down|n", full_text)
+
+    def test_condition_expiry_colors_the_condition_name(self):
+        COMBAT_RULES.get_conditions(self.char1)["Accuracy Down"] = [1, self.char2]
+        captured = []
+        self.char1.location.msg_contents = lambda text="", **kwargs: captured.append(text)
+
+        COMBAT_RULES.condition_tickdown(self.char1, self.char2)
+
+        full_text = "".join(str(m) for m in captured)
+        self.assertIn("|MAccuracy Down|n", full_text)
+
+
+class TestSkillAndSpellAnnouncementOrdering(CombatTestBase):
+    """
+    Regression coverage for a real bug found live: 'Gaveth gains the
+    Accuracy Down condition' printed BEFORE 'Rutilus uses feint!' -
+    add_condition() sends its own message immediately, so any
+    skillfunc/spellfunc that applied conditions before sending its own
+    'uses/casts X!' announcement had the two messages backwards. Fixed
+    in every skillfunc/spellfunc that calls add_condition. These tests
+    capture messages in send order and assert the skill/spell's own
+    announcement comes first.
+    """
+
+    def _capture(self):
+        captured = []
+        self.char1.location.msg_contents = lambda text="", **kwargs: captured.append(str(text))
+        return captured
+
+    def _assert_announcement_before_condition(self, captured, announcement_substr):
+        ann_index = next(i for i, m in enumerate(captured) if announcement_substr in m)
+        cond_index = next(i for i, m in enumerate(captured) if "gains the" in m)
+        self.assertLess(ann_index, cond_index)
+
+    def test_skill_add_condition_announces_before_condition(self):
+        captured = self._capture()
+        self.char1.db.sp = 10
+        COMBAT_RULES.skill_add_condition(
+            self.char1, "feint", [self.char2], 4, conditions=[("Accuracy Down", 3)]
+        )
+        self._assert_announcement_before_condition(captured, "uses feint!")
+
+    def test_spell_add_condition_announces_before_condition(self):
+        captured = self._capture()
+        self.char1.db.mp = 10
+        COMBAT_RULES.spell_add_condition(
+            self.char1, "auspice", [self.char2], 4, conditions=[("Defense Up", 3)]
+        )
+        self._assert_announcement_before_condition(captured, "casts auspice!")
+
+    def test_skill_deathmark_announces_before_condition(self):
+        captured = self._capture()
+        self.char1.db.sp = 10
+        COMBAT_RULES.skill_deathmark(self.char1, "deathmark", [self.char2], 6)
+        self._assert_announcement_before_condition(captured, "marks")
+
+    def test_skill_riposte_announces_before_condition(self):
+        captured = self._capture()
+        self.char1.db.sp = 10
+        COMBAT_RULES.skill_riposte(self.char1, "riposte", [self.char1], 3)
+        self._assert_announcement_before_condition(captured, "ready stance")
+
+    def test_skill_reckless_abandon_announces_before_condition(self):
+        captured = self._capture()
+        self.char1.db.sp = 10
+        COMBAT_RULES.skill_reckless_abandon(self.char1, "reckless abandon", [self.char2], 6)
+        self._assert_announcement_before_condition(captured, "devastating strike")
+
+    def test_skill_pack_tactics_announces_before_condition(self):
+        from evennia.utils import create
+        from typeclasses.characters import Character
+
+        companion = create.create_object(Character, key="a wolf", location=self.room1)
+        self.char1.db.active_companion = companion
+        captured = self._capture()
+        self.char1.db.sp = 10
+        COMBAT_RULES.skill_pack_tactics(self.char1, "pack tactics", [], 3)
+        self._assert_announcement_before_condition(captured, "practiced coordination")
+
+    def test_skill_ambush_announces_before_condition(self):
+        self.char1.db.hp = self.char1.db.max_hp
+        self.char2.db.hp = self.char2.db.max_hp
+        captured = self._capture()
+        self.char1.db.sp = 10
+        COMBAT_RULES.skill_ambush(self.char1, "ambush", [self.char2], 5)
+        self._assert_announcement_before_condition(captured, "ambushing")
+
+
+class TestPromptRefreshDuringAutoAttack(CombatTestBase):
+    """
+    Regression coverage for a real bug found live: an entire fight
+    resolved almost entirely via auto-attack showed the HP/MP/SP
+    prompt exactly once (on the manually-typed 'challenge'/'fight')
+    and never again for the rest of the fight - auto-attack runs as a
+    delayed callback, not a real Command, so RomePromptMixin's
+    at_post_cmd() (the only other place the prompt was ever sent)
+    never fired for that character's turn. Fixed by explicitly
+    refreshing the prompt in both start_turn() (every turn) and
+    try_auto_attack() (right after it resolves).
+    """
+
+    def _make_handler(self):
+        from evennia.utils import create
+
+        return create.create_script(CombatTurnHandler, obj=self.room1, autostart=False)
+
+    def test_start_turn_sends_the_hpmp_prompt(self):
+        handler = self._make_handler()
+        prompts = []
+        self.char1.msg = lambda text="", **kwargs: prompts.append(kwargs.get("prompt"))
+
+        handler.start_turn(self.char1)
+
+        self.assertTrue(any(p for p in prompts if p))
+
+    def test_try_auto_attack_sends_the_hpmp_prompt(self):
+        self.char1.db.combat_turnhandler = self._make_handler()
+        self.char1.db.combat_turnhandler.db.fighters = [self.char1, self.char2]
+        self.char1.db.combat_turnhandler.db.turn = 0
+        self.char1.db.auto_attack = True
+        self.char1.db.combat_actionsleft = 1
+        self.char1.db.combat_last_target = self.char2
+
+        prompts = []
+        self.char1.msg = lambda text="", **kwargs: prompts.append(kwargs.get("prompt"))
+
+        COMBAT_RULES.try_auto_attack(self.char1)
+
+        self.assertTrue(any(p for p in prompts if p))
+
+
+class TestTimeoutWarningSkipsAutoAttack(CombatTestBase):
+    """
+    Direct request: a player with auto-attack on can never actually
+    time out (AUTO_ATTACK_DELAY fires well before TURN_TIMEOUT), so
+    the 'WARNING: About to time out!' message is pure noise for them -
+    skipped entirely when db.auto_attack is True.
+    """
+
+    def _make_handler_at_timer(self, timer_value, auto_attack):
+        from evennia.utils import create
+
+        handler = create.create_script(CombatTurnHandler, obj=self.room1, autostart=False)
+        handler.db.fighters = [self.char1, self.char2]
+        handler.db.turn = 0
+        handler.db.timer = timer_value
+        handler.db.timeout_warning_given = False
+        handler.interval = 5
+        self.char1.db.auto_attack = auto_attack
+        return handler
+
+    def test_warning_shown_without_auto_attack(self):
+        handler = self._make_handler_at_timer(15, auto_attack=False)
+        messages = []
+        self.char1.msg = lambda text="", **kwargs: messages.append(text)
+
+        handler.at_repeat()
+
+        self.assertTrue(any("About to time out" in str(m) for m in messages))
+
+    def test_warning_skipped_with_auto_attack(self):
+        handler = self._make_handler_at_timer(15, auto_attack=True)
+        messages = []
+        self.char1.msg = lambda text="", **kwargs: messages.append(text)
+
+        handler.at_repeat()
+
+        self.assertFalse(any("About to time out" in str(m) for m in messages))

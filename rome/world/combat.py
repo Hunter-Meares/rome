@@ -37,6 +37,7 @@ from evennia.objects.objects import DefaultCharacter, DefaultObject
 from evennia.contrib.rpg.rpsystem import ContribRPCharacter, CmdMask
 from commands.command import Command
 from commands.command import MuxCommand
+from commands.command import build_hpmp_prompt
 from evennia.commands.default.help import CmdHelp
 from evennia.commands.default.cmdset_character import CharacterCmdSet
 from evennia.commands.default.account import CmdQuit as DefaultCmdQuit
@@ -610,40 +611,46 @@ DISENGAGE_SUCCESS_CHANCE = 55
 # DEFAULT_WEAPON_MESSAGES is the original generic set - used for unarmed
 # ("attack" placeholder) and as a safety net for any category not listed.
 # ----------------------------------------------------------------------------
+# "hit" templates color just the verb phrase (|y...|n) plus the damage
+# number (|r...|n, unchanged) - a direct follow-up request: names
+# shouldn't be highlighted, but the action itself and the damage
+# number are exactly the "key things a player needs to see" in a
+# fast-scrolling fight. miss/bounce keep their existing whole-line |w
+# wrap (a separate, pre-existing convention, not part of this request).
 DEFAULT_WEAPON_MESSAGES = {
-    "hit": "%s's %s strikes %s for |r%i|n damage - %s %s!",
+    "hit": "%s's %s |ystrikes|n %s for |r%i|n damage - %s %s!",
     "miss": "|w%s's %s misses %s!|n",
     "bounce": "|w%s's %s bounces harmlessly off %s!|n",
 }
 
 WEAPON_CATEGORY_MESSAGES = {
     "light_blade": {
-        "hit": "%s's %s slashes across %s for |r%i|n damage - %s %s!",
+        "hit": "%s's %s |yslashes across|n %s for |r%i|n damage - %s %s!",
         "miss": "|w%s's %s slashes at %s, but finds only air!|n",
         "bounce": "|w%s's %s nicks %s without ever breaking through!|n",
     },
     "heavy_blade": {
-        "hit": "%s's %s cleaves into %s for |r%i|n damage - %s %s!",
+        "hit": "%s's %s |ycleaves into|n %s for |r%i|n damage - %s %s!",
         "miss": "|w%s's %s cleaves through empty air as %s steps clear!|n",
         "bounce": "|w%s's %s crashes into %s's guard and is turned aside!|n",
     },
     "polearm": {
-        "hit": "%s's %s skewers %s for |r%i|n damage - %s %s!",
+        "hit": "%s's %s |yskewers|n %s for |r%i|n damage - %s %s!",
         "miss": "|w%s's %s thrusts at %s, but the point falls short!|n",
         "bounce": "|w%s's %s glances off %s without finding purchase!|n",
     },
     "ranged": {
-        "hit": "%s's %s finds its mark, striking %s for |r%i|n damage - %s %s!",
+        "hit": "%s's %s |yfinds its mark, striking|n %s for |r%i|n damage - %s %s!",
         "miss": "|w%s's %s whistles past %s, missing entirely!|n",
         "bounce": "|w%s's %s thuds into %s's armor without penetrating!|n",
     },
     "staff": {
-        "hit": "%s's %s cracks against %s for |r%i|n damage - %s %s!",
+        "hit": "%s's %s |ycracks against|n %s for |r%i|n damage - %s %s!",
         "miss": "|w%s's %s sweeps wide of %s!|n",
         "bounce": "|w%s's %s connects but fails to hurt %s!|n",
     },
     "heavy_weapon": {
-        "hit": "%s's %s crushes down on %s for |r%i|n damage - %s %s!",
+        "hit": "%s's %s |ycrushes down on|n %s for |r%i|n damage - %s %s!",
         "miss": "|w%s's %s crashes into the ground as %s dodges clear!|n",
         "bounce": "|w%s's %s slams into %s but fails to break through!|n",
     },
@@ -652,7 +659,7 @@ WEAPON_CATEGORY_MESSAGES = {
 # weapon_type_name overrides - checked before the category table above.
 WEAPON_TYPE_MESSAGE_OVERRIDES = {
     "thunderbolt": {
-        "hit": "%s's %s arrives upon %s in a crack of divine lightning for |r%i|n damage - %s %s!",
+        "hit": "%s's %s |yarrives upon|n %s in a crack of divine lightning for |r%i|n damage - %s %s!",
         "miss": "|w%s's %s splits the air beside %s, thunder rolling as it passes!|n",
         "bounce": "|w%s's %s scorches %s, but the lightning finds no purchase!|n",
     },
@@ -1521,17 +1528,16 @@ class CombatRules:
             weapon_category = attacker.db.wielded_weapon.db.weapon_category
         messages = get_weapon_attack_messages(attackers_weapon, weapon_category)
 
-        # A direct complaint from live playtesting: combat text reads
-        # as flat and colorless, since every WEAPON_CATEGORY_MESSAGES/
-        # WEAPON_TYPE_MESSAGE_OVERRIDES template (~15+ of them) only
-        # ever colored the damage number, leaving both names in every
-        # single hit/miss/bounce message plain. Coloring attacker and
-        # defender here, once, and substituting these in place of the
-        # raw names below reaches every one of those templates for
-        # free - real color on the two most common combat messages in
-        # the game, without hand-editing each template dict.
-        attacker_display = "|c%s|n" % attacker
-        defender_display = "|m%s|n" % defender
+        # Character names are deliberately left plain here - a direct
+        # follow-up request after an earlier pass colored attacker/
+        # defender names in every hit/miss/bounce message: names
+        # don't need to stand out, the things a player actually needs
+        # to track at a glance do (the action itself, the damage
+        # number, conditions). See WEAPON_CATEGORY_MESSAGES/
+        # WEAPON_TYPE_MESSAGE_OVERRIDES above, where the verb phrase
+        # in each "hit" template carries its own color instead.
+        attacker_display = attacker
+        defender_display = defender
 
         # is None (not a plain falsy check) - attack_value/defense_value
         # can legitimately be 0 or negative with enough penalties, and
@@ -1720,6 +1726,13 @@ class CombatRules:
         character.msg("|w(Auto-attacking %s.)|n" % target)
         self.resolve_attack(character, target)
         self.spend_action(character, 1, action_name="attack")
+        # See start_turn()'s own prompt refresh - auto-attack runs with
+        # no real Command behind it, so RomePromptMixin's at_post_cmd()
+        # never fires here either. Refreshed again after the attack
+        # resolves so the player's own MP/SP spend shows immediately,
+        # not just their HP from the start of the turn.
+        if character.attributes.has("max_hp"):
+            character.msg(prompt=build_hpmp_prompt(character))
 
     # ------------------------------------------------------------------
     # COOLDOWNS
@@ -1759,7 +1772,7 @@ class CombatRules:
                 if self.get_conditions(character)[key][0] <= 0:
                     if character.location:
                         character.location.msg_contents(
-                            "%s no longer has the '%s' condition." % (str(character), str(key))
+                            "%s no longer has the '|M%s|n' condition." % (str(character), str(key))
                         )
                     del self.get_conditions(character)[key]
 
@@ -1768,7 +1781,7 @@ class CombatRules:
         self.get_conditions(character).update({condition: [duration, turnchar]})
         if character.location:
             character.location.msg_contents(
-                "%s gains the '%s' condition." % (character, condition)
+                "%s gains the '|M%s|n' condition." % (character, condition)
             )
 
     def apply_turn_conditions(self, character):
@@ -1936,7 +1949,7 @@ class CombatRules:
 
         for key in list(self.get_conditions(target)):
             if key in to_cure:
-                item_msg += "%s no longer has the '%s' condition. " % (str(target), str(key))
+                item_msg += "%s no longer has the '|M%s|n' condition. " % (str(target), str(key))
                 del self.get_conditions(target)[key]
 
         user.location.msg_contents(item_msg)
@@ -2035,7 +2048,7 @@ class CombatRules:
             conditions = self.get_conditions(target)
             for key in list(conditions):
                 if key in to_cure:
-                    spell_msg += " %s no longer has the '%s' condition." % (target, key)
+                    spell_msg += " %s no longer has the '|M%s|n' condition." % (target, key)
                     del conditions[key]
 
         caster.db.mp -= cost
@@ -2195,12 +2208,17 @@ class CombatRules:
         conditions = kwargs.get("conditions", [("Defense Up", 3)])
         spell_msg = "%s casts %s!" % (caster, spell_name)
 
+        # Announce the cast BEFORE applying conditions - add_condition()
+        # sends its own "gains the condition" message immediately, so
+        # applying conditions first (as this used to) made the effect
+        # print before the cast that caused it. Same fix applied to
+        # every other skillfunc/spellfunc that calls add_condition().
+        caster.db.mp -= cost
+        caster.location.msg_contents(spell_msg)
+
         for target in targets:
             for condition in conditions:
                 self.add_condition(target, caster, condition[0], condition[1])
-
-        caster.db.mp -= cost
-        caster.location.msg_contents(spell_msg)
 
         if self.is_in_combat(caster):
             self.spend_action(caster, 1, action_name="cast")
@@ -2492,12 +2510,18 @@ class CombatRules:
         conditions = kwargs.get("conditions", [("Defense Up", 3)])
         skill_msg = "%s uses %s!" % (user, skill_name)
 
+        # Announce the skill BEFORE applying its condition(s) - a real
+        # bug found live: feint's "Rutilus uses feint!" printed AFTER
+        # "Gaveth gains the 'Accuracy Down' condition." because
+        # add_condition() sends its own message immediately, while
+        # this function's own announcement was only ever sent after
+        # the whole loop finished.
+        user.db.sp -= cost
+        user.location.msg_contents(skill_msg)
+
         for target in targets:
             for condition in conditions:
                 self.add_condition(target, user, condition[0], condition[1])
-
-        user.db.sp -= cost
-        user.location.msg_contents(skill_msg)
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -2550,9 +2574,9 @@ class CombatRules:
         if not self.try_break_sanctuary(user, target):
             return
 
-        self.add_condition(user, user, "Ambush", 5)
         user.db.sp -= cost
         here.msg_contents("%s bursts from hiding, ambushing %s!" % (user, target))
+        self.add_condition(user, user, "Ambush", 5)
 
         if here.db.combat_turnhandler:
             here.db.combat_turnhandler.join_fight(user)
@@ -2631,11 +2655,11 @@ class CombatRules:
         for that one hit, then is consumed.
         """
         target = targets[0]
-        self.add_condition(target, user, "Marked for Death", 5)
         user.db.sp -= cost
         user.location.msg_contents(
             "%s marks %s - a blade meant for one throat alone." % (user, target)
         )
+        self.add_condition(target, user, "Marked for Death", 5)
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -2718,12 +2742,12 @@ class CombatRules:
             user.msg("You need an active beast companion out to use Pack Tactics.")
             return
 
-        self.add_condition(user, user, "Damage Up", 4)
         user.db.sp -= cost
         user.location.msg_contents(
             "%s and %s move as one, striking with practiced coordination!"
             % (user, user.db.active_companion.key)
         )
+        self.add_condition(user, user, "Damage Up", 4)
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -2796,11 +2820,11 @@ class CombatRules:
         unlike everything else in the game so far, which only ever
         does something on the user's own turn.
         """
-        self.add_condition(user, user, "Riposte Ready", 3)
         user.db.sp -= cost
         user.location.msg_contents(
             "%s settles into a ready stance, watching for an opening." % user
         )
+        self.add_condition(user, user, "Riposte Ready", 3)
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -2878,13 +2902,13 @@ class CombatRules:
         virtus_bonus = ((user.db.virtus or 10) - 10) // 2
         damage = randint(min_damage, max_damage) + virtus_bonus
         self.apply_damage(target, damage, attacker=user)
-        self.add_condition(user, user, "Defense Down", 3)
 
         user.db.sp -= cost
         user.location.msg_contents(
             "%s abandons all defense for a devastating strike against %s, "
             "dealing %i damage!" % (user, target, damage)
         )
+        self.add_condition(user, user, "Defense Down", 3)
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -5576,7 +5600,24 @@ class CombatTurnHandler(DefaultScript):
             self.obj.msg_contents("%s's turn timed out!" % currentchar)
             self.rules.spend_action(currentchar, "all", action_name="disengage")
             return
-        elif self.db.timer <= 10 and not self.db.timeout_warning_given:
+        elif (
+            self.db.timer <= 10
+            and not self.db.timeout_warning_given
+            and not currentchar.db.auto_attack
+        ):
+            # Auto-attack (AUTO_ATTACK_DELAY=8s) always fires well
+            # before this 10-second warning point, let alone the real
+            # 20-second timeout (TURN_TIMEOUT) - a direct complaint
+            # from live playtesting: the warning printed every single
+            # turn for an auto-attacking player who could never
+            # actually time out, adding pure noise. Skipped for them
+            # entirely rather than just delayed. (The one remaining
+            # edge case - a group fight with more than one living
+            # opponent and no prior target, where try_auto_attack
+            # deliberately declines to guess who to hit - can still
+            # time out silently with no warning; accepted as a rare
+            # tradeoff rather than reintroducing the noise for the
+            # overwhelmingly common 1-on-1 case.)
             currentchar.msg("WARNING: About to time out!")
             self.db.timeout_warning_given = True
 
@@ -5647,6 +5688,18 @@ class CombatTurnHandler(DefaultScript):
             # Simple objects (like a training dummy) without the full
             # CombatCharacter hooks just get a generic turn announcement.
             character.location.msg_contents("It's %s's turn!" % character)
+
+        # Refresh the HP/MP/SP prompt here too, not just via
+        # RomePromptMixin's at_post_cmd() - a character whose whole
+        # turn is handled by auto-attack (see try_auto_attack below)
+        # never runs a real Command during combat, so at_post_cmd()
+        # never fires and the prompt would otherwise never update for
+        # the entire fight. Every real fighter (player or account-
+        # backed) gets this; NPCs and training dummies don't have
+        # max_hp on db in a way that matters here, but the attribute
+        # check keeps this a no-op for anything that lacks it anyway.
+        if character.attributes.has("max_hp"):
+            character.msg(prompt=build_hpmp_prompt(character))
 
     def next_turn(self):
         """Advances to the next character in the turn order."""
@@ -6723,6 +6776,7 @@ class CmdSlay(Command):
     """
 
     key = "slay"
+    locks = "cmd:attr_gt(level, 100)"
     help_category = "combat"
     rules = COMBAT_RULES
 
@@ -6813,6 +6867,7 @@ class CmdGodLevel(Command):
 
     key = "godlevel"
     aliases = ["advance"]
+    locks = "cmd:attr_ge(level, 104)"
     help_category = "admin"
 
     def func(self):
@@ -6921,6 +6976,7 @@ class CmdWizInvis(Command):
     """
 
     key = "wizinvis"
+    locks = "cmd:attr_ge(level, 102)"
     help_category = "admin"
 
     def func(self):
@@ -6958,6 +7014,7 @@ class CmdRestore(Command):
     """
 
     key = "restore"
+    locks = "cmd:attr_ge(level, 102)"
     help_category = "admin"
 
     def func(self):
@@ -7002,6 +7059,7 @@ class CmdSnoop(Command):
     """
 
     key = "snoop"
+    locks = "cmd:attr_ge(level, 102)"
     help_category = "admin"
 
     def func(self):

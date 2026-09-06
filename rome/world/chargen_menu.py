@@ -498,7 +498,7 @@ def menunode_welcome(caller):
         """
     )
     help = "You can explain the commands for exiting and resuming more specifically here."
-    options = {"desc": "Let the Fates begin their work", "goto": "menunode_choose_race"}
+    options = _numbered_option(1, "Let the Fates begin their work", "menunode_choose_race")
     return (text, help), options
 
 
@@ -583,10 +583,9 @@ def menunode_race_info(caller, raw_string="", race_key=None, **kwargs):
     help = "Choose this race to move on, or go back to browse the others."
 
     options = [
-        {
-            "desc": f"Become a {race['display']}",
-            "goto": (_set_race, {"race_key": race_key}),
-        },
+        _numbered_option(
+            1, f"Become a {race['display']}", (_set_race, {"race_key": race_key})
+        ),
         {
             "key": ("(Back)", "back", "b"),
             "desc": "See other races",
@@ -691,10 +690,11 @@ def menunode_class_info(caller, raw_string="", class_key=None, **kwargs):
     help = "Choose this class to move on, or go back to browse the others."
 
     options = [
-        {
-            "desc": f"Become {'an' if pclass['display'][0] in 'AEIOU' else 'a'} {pclass['display']}",
-            "goto": (_set_class, {"class_key": class_key}),
-        },
+        _numbered_option(
+            1,
+            f"Become {'an' if pclass['display'][0] in 'AEIOU' else 'a'} {pclass['display']}",
+            (_set_class, {"class_key": class_key}),
+        ),
         {
             "key": ("(Back)", "back", "b"),
             "desc": "See other classes",
