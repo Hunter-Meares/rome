@@ -1110,13 +1110,16 @@ class CombatRules:
             elif attacker:
                 self.award_xp(attacker, defeated.db.xp_reward)
 
-        # --- Loot drop (currently sewer_npc-tagged NPCs only - see
+        # --- Loot drop (sewer_npc and arena_fighter-tagged NPCs - see
         # world/loot.py) - same "any NPC with xp_reward" gate as the
         # XP award just above, since a lootable defeat is always also
-        # an XP-earning one.
+        # an XP-earning one. Each roll self-gates on its own tag and
+        # is a no-op for anything not carrying it, so both can safely
+        # run unconditionally here.
         if defeated.db.xp_reward:
-            from world.loot import roll_loot_drop
+            from world.loot import roll_loot_drop, roll_arena_loot_drop
             roll_loot_drop(defeated, attacker=attacker)
+            roll_arena_loot_drop(defeated, attacker=attacker)
 
         # --- Bounty progress (world/bounties.py) - checks the same
         # damage_log population as the XP/gold split above against
@@ -4896,6 +4899,73 @@ class RespawnTimer(SelfHealingRepeatScript):
         self.delete()
 
 
+# Real gear for the Deeper Sands' six Arena Fighters - a direct
+# request that these NPCs have actual mechanical weapons/armor rather
+# than the "armed and armored" flavor-only description every other
+# NPC in the game uses (see world/prototypes.py's ARENA_FIGHTER_*
+# docstring, and CLAUDE.md's Q1 note that this was previously
+# universal). Keyed by each fighter's own prototype "key" - checked
+# in equip_arena_fighter() below at at_object_post_creation() time,
+# which runs BEFORE spawn_personal_npc() renames the object to
+# "<key> (<challenger>'s opponent)", so self.key is still the clean
+# original name here.
+#
+# Each entry is (weapon_prototype, armor_prototype, shield_prototype
+# or None) - reuses the existing plain shop/chargen base prototypes
+# (GLADIUS, WARAXE, etc.), matched to each fighter's own established
+# flavor text, rather than inventing new ones just for equipping (loot
+# below is a separate matter - see ARENA_LOOT_* in world/prototypes.py
+# and world/loot.py's roll_arena_loot_drop, which deliberately DOES
+# use its own named prototypes so a drop feels like a real find).
+ARENA_FIGHTER_GEAR = {
+    "a hardened arena recruit": ("GLADIUS", "SCALEMAIL", None),
+    "a Centaur arena hunter": ("JAVELIN", "SCALEMAIL", None),
+    "a Minotaur arena brute": ("WARAXE", "PLATEMAIL", None),
+    "a Harpy arena duelist": ("DAGGER", "LEATHERARMOR", None),
+    "a Cyclops arena champion": ("BROADSWORD", "PLATEMAIL", "SCUTUM"),
+    "the Arena Master": ("WARAXE", "PLATEMAIL", None),
+}
+
+
+def equip_arena_fighter(npc):
+    """
+    Gives an Arena Fighter real, mechanically-active gear matching its
+    own flavor text - called once, at creation (RespawningNPC.
+    at_object_post_creation), not on every respawn, since a
+    RespawningNPC is never deleted (see schedule_respawn) - the same
+    weapon/armor objects it was given at creation simply persist in
+    its inventory across every respawn cycle, exactly like a player's
+    own equipment does.
+
+    Weapon and body armor are leveled via spawn_leveled_weapon/
+    spawn_leveled_armor (the same formulas real player gear uses, so a
+    level 100 Arena Master wields exactly what a level 100 PLAYER
+    could also wield - not a separate, hand-tuned power budget). The
+    Champion's scutum is spawned plain, NOT leveled - shields use a
+    small fixed defense_modifier (see PARMA/CLIPEUS/SCUTUM in world/
+    prototypes.py) that's POSITIVE (harder to hit), the opposite sign
+    convention from compute_armor_stats' body-armor formula (which
+    returns a NEGATIVE defense_modifier, since heavier armor trades
+    evasion for damage reduction) - running a shield through
+    spawn_leveled_armor would silently invert it into a massive
+    accuracy PENALTY at these levels instead of the small bonus it's
+    meant to be.
+    """
+    gear = ARENA_FIGHTER_GEAR.get(npc.key)
+    if not gear:
+        return
+
+    weapon_proto, armor_proto, shield_proto = gear
+    level = npc.db.level or 1
+
+    npc.db.wielded_weapon = spawn_leveled_weapon(weapon_proto, level, location=npc)
+    npc.db.worn_armor = spawn_leveled_armor(armor_proto, level, location=npc)
+    if shield_proto:
+        shield = spawn(shield_proto)[0]
+        shield.move_to(npc, quiet=True)
+        npc.db.worn_shield = shield
+
+
 class RespawningNPC(HostileNPC):
     """
     A persistent NPC that respawns after being defeated, instead of
@@ -4915,6 +4985,7 @@ class RespawningNPC(HostileNPC):
         super().at_object_post_creation()
         self.db.respawns = True
         self.db.respawn_home = self.location
+        equip_arena_fighter(self)
 
 
 class SummonedAlly(DefaultCharacter):

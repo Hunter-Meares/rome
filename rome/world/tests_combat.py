@@ -35,6 +35,8 @@ from world.combat import (
     WEAPON_TYPE_MESSAGE_OVERRIDES,
     DEFAULT_WEAPON_MESSAGES,
     wizinvis_hides_from,
+    ARENA_FIGHTER_GEAR,
+    equip_arena_fighter,
 )
 
 
@@ -1731,3 +1733,77 @@ class TestTimeoutWarningSkipsAutoAttack(CombatTestBase):
         handler.at_repeat()
 
         self.assertFalse(any("About to time out" in str(m) for m in messages))
+
+
+class TestArenaFighterEquipment(EvenniaTest):
+    """
+    A direct request: the Deeper Sands' Arena Fighters should have
+    real, mechanically-active weapons/armor, not just flavor text like
+    every other NPC in the game. equip_arena_fighter() is called from
+    RespawningNPC.at_object_post_creation() - these tests spawn the
+    real prototypes (via Evennia's actual spawner, not a stand-in) to
+    confirm the whole path really wires up, matching this project's
+    own "verify against real spawn behavior" testing convention (see
+    world/tests_bounties.py's TestRealSpawnKeyMatching).
+    """
+
+    def test_every_gear_table_entry_matches_a_real_prototype_key(self):
+        from world.prototypes import (
+            ARENA_FIGHTER_RECRUIT, ARENA_FIGHTER_HUNTER, ARENA_FIGHTER_BRUTE,
+            ARENA_FIGHTER_DUELIST, ARENA_FIGHTER_CHAMPION, ARENA_FIGHTER_MASTER,
+        )
+
+        real_keys = {
+            p["key"] for p in (
+                ARENA_FIGHTER_RECRUIT, ARENA_FIGHTER_HUNTER, ARENA_FIGHTER_BRUTE,
+                ARENA_FIGHTER_DUELIST, ARENA_FIGHTER_CHAMPION, ARENA_FIGHTER_MASTER,
+            )
+        }
+        self.assertEqual(set(ARENA_FIGHTER_GEAR.keys()), real_keys)
+
+    def test_recruit_spawns_with_a_real_weapon_and_armor(self):
+        from evennia.prototypes.spawner import spawn
+
+        npc = spawn("ARENA_FIGHTER_RECRUIT")[0]
+        self.assertIsNotNone(npc.db.wielded_weapon)
+        self.assertEqual(npc.db.wielded_weapon.db.weapon_type_name, "gladius")
+        self.assertIsNotNone(npc.db.worn_armor)
+        self.assertEqual(npc.db.worn_armor.db.armor_category, "medium")
+        self.assertIsNone(npc.db.worn_shield)
+
+    def test_gear_is_leveled_to_the_fighter_own_level(self):
+        from evennia.prototypes.spawner import spawn
+        from world.combat import compute_weapon_stats
+
+        npc = spawn("ARENA_FIGHTER_RECRUIT")[0]
+        expected_range, expected_accuracy, _ = compute_weapon_stats("gladius", 75)
+        self.assertEqual(npc.db.wielded_weapon.db.damage_range, expected_range)
+        self.assertEqual(npc.db.wielded_weapon.db.accuracy_bonus, expected_accuracy)
+
+    def test_champion_gets_a_shield_with_its_fixed_unleveled_bonus(self):
+        from evennia.prototypes.spawner import spawn
+
+        npc = spawn("ARENA_FIGHTER_CHAMPION")[0]
+        self.assertIsNotNone(npc.db.worn_shield)
+        # SCUTUM's own fixed +12 - NOT run through compute_armor_stats,
+        # which would invert its sign at this level (see
+        # equip_arena_fighter's own docstring for why).
+        self.assertEqual(npc.db.worn_shield.db.defense_modifier, 12)
+
+    def test_master_has_no_race_key_and_still_gets_equipped(self):
+        from evennia.prototypes.spawner import spawn
+
+        # ARENA_FIGHTER_MASTER has no "race" field at all - confirms
+        # equip_arena_fighter doesn't depend on it.
+        npc = spawn("ARENA_FIGHTER_MASTER")[0]
+        self.assertIsNotNone(npc.db.wielded_weapon)
+        self.assertEqual(npc.db.wielded_weapon.db.weapon_type_name, "waraxe")
+
+    def test_unrelated_npc_is_left_alone(self):
+        from evennia.utils import create
+
+        npc = create.create_object(
+            "typeclasses.characters.Character", key="a passerby", location=self.room1
+        )
+        equip_arena_fighter(npc)  # should be a silent no-op
+        self.assertIsNone(npc.db.wielded_weapon)

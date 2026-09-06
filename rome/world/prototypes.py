@@ -934,13 +934,20 @@ champion -> master), just rescaled and re-armed - levels 75/82/88/93/
 rank a mortal can earn" the Legend achievement already uses),
 xp_reward recomputed at the same ~6% of xp_for_level(level) ratio
 every other real NPC in this game already lands on (confirmed against
-the sewers' own deep-tier NPCs, not guessed). No NPC in this game -
-not even the Germanic warband fighters - has an actually-equipped
-wielded_weapon/worn_armor; "armed and armored" is real, vivid
-description here instead, matching that existing game-wide
-convention, while the genuine toughness comes from being correctly
-leveled this high (derive_npc_stats already scales HP/MP/SP and all
-four core stats for real at these levels, not just flavor text).
+the sewers' own deep-tier NPCs, not guessed).
+
+These six are the one exception to "no NPC has an actually-equipped
+wielded_weapon/worn_armor" (still true everywhere else, including the
+Germanic warband fighters) - a direct follow-up request that their
+gear be real, not just flavor text. See ARENA_FIGHTER_GEAR and
+equip_arena_fighter() in world/combat.py (called once per fighter, at
+creation) for the actual weapon/armor assignment matching each
+fighter's own desc below, and ARENA_LOOT_* further down in this file
+plus world/loot.py's roll_arena_loot_drop for what they drop on
+defeat. The underlying toughness was always primarily from level
+scaling (derive_npc_stats already scales HP/MP/SP and all four core
+stats for real at these levels) - real gear stacks on top of that,
+not instead of it.
 """
 
 ARENA_FIGHTER_RECRUIT = {
@@ -1061,6 +1068,203 @@ ARENA_FIGHTER_MASTER = {
     "respawn_delay": 300,
     "tags": [("arena_fighter", "npc_role")],
     "locks": "puppet:false()",
+}
+
+"""
+----------------------------------------------------------------------------
+ARENA FIGHTER LOOT - real drops on defeat (world/loot.py's
+roll_arena_loot_drop), one weapon and one armor prototype per fighter,
+matching that fighter's own equipped gear (see ARENA_FIGHTER_GEAR,
+world/combat.py) rather than a shared random pool - each of the six
+Arena Fighters is a distinct, named identity, not interchangeable
+trash-mob population like the sewers, so a drop reads as "you took
+this off the Brute specifically" rather than a generic arena reskin.
+Deliberately their own named prototypes rather than the plain
+GLADIUS/WARAXE/etc. base items (same reasoning as SEWER_LOOT_* -
+see world/loot.py's own docstring) - price/damage_range/
+damage_reduction/defense_modifier below are placeholders, overwritten
+at spawn time by spawn_leveled_weapon/spawn_leveled_armor using the
+defeated fighter's own level.
+----------------------------------------------------------------------------
+"""
+
+ARENA_LOOT_RECRUIT_GLADIUS = {
+    "prototype_parent": "BASEWEAPON",
+    "price": 25,
+    "damage_range": (10, 20),
+    "accuracy_bonus": -5,
+    "key": "the recruit's honed gladius",
+    "desc": (
+        "Kept past regulation sharpness for years on this exact sand - "
+        "whoever carried this clearly never let its edge dull, no "
+        "matter how the rest of him wore down."
+    ),
+    "weapon_type_name": "gladius",
+    "weapon_category": "light_blade",
+    "two_handed": False,
+}
+
+ARENA_LOOT_RECRUIT_ARMOR = {
+    "prototype_parent": "BASEARMOR",
+    "price": 30,
+    "damage_reduction": 2,
+    "defense_modifier": -2,
+    "armor_category": "medium",
+    "key": "scarred lorica segmentata",
+    "desc": (
+        "Banded plate scored with old strike-marks, every one of them "
+        "a blow that didn't get through - proof this recruit earned "
+        "his standing the hard way."
+    ),
+}
+
+ARENA_LOOT_HUNTER_JAVELIN = {
+    "prototype_parent": "BASEWEAPON",
+    "price": 25,
+    "damage_range": (12, 22),
+    "accuracy_bonus": -3,
+    "key": "the Centaur hunter's javelin",
+    "desc": (
+        "Balanced for a throw that never misses its window - the third "
+        "of three the hunter always kept ready, and the only one that "
+        "never actually left his hand."
+    ),
+    "weapon_type_name": "javelin",
+    "weapon_category": "ranged",
+    "two_handed": False,
+}
+
+ARENA_LOOT_HUNTER_ARMOR = {
+    "prototype_parent": "BASEARMOR",
+    "price": 30,
+    "damage_reduction": 2,
+    "defense_modifier": -2,
+    "armor_category": "medium",
+    "key": "Centaur banded barding",
+    "desc": (
+        "Fitted to cover shoulder to flank without ever slowing a "
+        "circling stride - built for a fighter who wins by patience, "
+        "not by standing still and trading blows."
+    ),
+}
+
+ARENA_LOOT_BRUTE_WARAXE = {
+    "prototype_parent": "BASEWEAPON",
+    "price": 90,
+    "damage_range": (25, 45),
+    "accuracy_bonus": -10,
+    "key": "the Minotaur brute's spiked maul",
+    "desc": (
+        "Heavy enough that most fighters need both hands just to "
+        "raise it, let alone swing it the way the brute did - one-"
+        "handed, like it weighed nothing at all."
+    ),
+    "weapon_type_name": "waraxe",
+    "weapon_category": "heavy_weapon",
+    "two_handed": True,
+}
+
+ARENA_LOOT_BRUTE_ARMOR = {
+    "prototype_parent": "BASEARMOR",
+    "price": 60,
+    "damage_reduction": 4,
+    "defense_modifier": -4,
+    "armor_category": "heavy",
+    "key": "a stretched mail hauberk",
+    "desc": (
+        "Stretched to its absolute limit across a chest built like a "
+        "siege engine - taking it off him felt less like looting a "
+        "corpse and more like disarming a catapult."
+    ),
+}
+
+ARENA_LOOT_DUELIST_DAGGER = {
+    "prototype_parent": "BASEWEAPON",
+    "price": 25,
+    "damage_range": (10, 20),
+    "accuracy_bonus": 30,
+    "key": "the Harpy duelist's curved blade",
+    "desc": (
+        "One of a matched pair, sheathed low and drawn fast - light "
+        "enough to never once slow her down, sharp enough that it "
+        "rarely needed a second cut."
+    ),
+    "weapon_type_name": "dagger",
+    "weapon_category": "light_blade",
+    "two_handed": False,
+}
+
+ARENA_LOOT_DUELIST_ARMOR = {
+    "prototype_parent": "BASEARMOR",
+    "price": 20,
+    "damage_reduction": 1,
+    "defense_modifier": -1,
+    "armor_category": "light",
+    "key": "a lacquered breastplate",
+    "desc": (
+        "Cut deliberately narrow across the shoulders to leave a "
+        "Harpy's wings free - the kind of sacrifice only a fighter "
+        "who's never once needed to block makes on purpose."
+    ),
+}
+
+ARENA_LOOT_CHAMPION_BROADSWORD = {
+    "prototype_parent": "BASEWEAPON",
+    "price": 90,
+    "damage_range": (18, 32),
+    "accuracy_bonus": 7,
+    "key": "the Cyclops champion's spatha",
+    "desc": (
+        "Long enough that most opponents never actually closed the "
+        "distance it needs - a hundred real bouts of proof that reach "
+        "wins more fights than desperation does."
+    ),
+    "weapon_type_name": "broadsword",
+    "weapon_category": "heavy_blade",
+    "two_handed": False,
+}
+
+ARENA_LOOT_CHAMPION_ARMOR = {
+    "prototype_parent": "BASEARMOR",
+    "price": 60,
+    "damage_reduction": 4,
+    "defense_modifier": -4,
+    "armor_category": "heavy",
+    "key": "polished legionary plate",
+    "desc": (
+        "Bright enough to throw back torchlight even now - the mark "
+        "of a fighter who could afford to have his armor looking this "
+        "good and still never needed to hide behind it."
+    ),
+}
+
+ARENA_LOOT_MASTER_WARAXE = {
+    "prototype_parent": "BASEWEAPON",
+    "price": 90,
+    "damage_range": (25, 45),
+    "accuracy_bonus": -10,
+    "key": "the Arena Master's war-hammer",
+    "desc": (
+        "Undefeated for longer than anyone keeping count can remember - "
+        "this is the single most feared object that has ever rested "
+        "head-down in this sand, and now it's yours."
+    ),
+    "weapon_type_name": "waraxe",
+    "weapon_category": "heavy_weapon",
+    "two_handed": True,
+}
+
+ARENA_LOOT_MASTER_ARMOR = {
+    "prototype_parent": "BASEARMOR",
+    "price": 60,
+    "damage_reduction": 4,
+    "defense_modifier": -4,
+    "armor_category": "heavy",
+    "key": "the Arena Master's blackened plate",
+    "desc": (
+        "Fought in, not just worn - every dent and scorch mark in this "
+        "plate is a story about the one time someone almost won."
+    ),
 }
 
 """
