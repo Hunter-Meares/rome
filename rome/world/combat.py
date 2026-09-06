@@ -604,12 +604,22 @@ DISENGAGE_SUCCESS_CHANCE = 55
 # except for the noun. Keyed by weapon_category (WEAPON_CATEGORIES below),
 # with a couple of specific weapon_type_name overrides for one-of-a-kind
 # narrative weapons (Jupiter's thunderbolt) where the category alone
-# undersells what the weapon actually is. Each entry needs "hit" (6 args:
-# attacker, weapon, defender, damage, defender, hp_status_phrase - matching
-# resolve_attack's own call), "miss" (3 args: attacker, weapon, defender),
-# and "bounce" (3 args, used for the rare zero-damage-but-still-a-hit case).
-# DEFAULT_WEAPON_MESSAGES is the original generic set - used for unarmed
-# ("attack" placeholder) and as a safety net for any category not listed.
+# undersells what the weapon actually is. Each entry needs "hit" (4 args:
+# attacker, weapon, defender, damage - matching resolve_attack's own call),
+# "miss" (3 args: attacker, weapon, defender), and "bounce" (3 args, used
+# for the rare zero-damage-but-still-a-hit case). DEFAULT_WEAPON_MESSAGES
+# is the original generic set - used for unarmed ("attack" placeholder)
+# and as a safety net for any category not listed.
+#
+# "hit" no longer ends with a trailing hp_status_phrase() clause - a real
+# bug found live: that phrase was built and sent BEFORE apply_damage()
+# actually reduced the defender's HP, so it always described their
+# PRE-hit wound state, not their post-hit one (spell_attack avoids this
+# with its own hp_override=projected_hp; this path never did). Rather
+# than plumbing a similar projection through here, the wound status is
+# now announce_hp_threshold_change()'s job instead - fired from inside
+# apply_damage() itself (genuinely post-damage, always correct), once
+# per real HP-band crossing rather than restating it on every single hit.
 # ----------------------------------------------------------------------------
 # "hit" templates color just the verb phrase (|y...|n) plus the damage
 # number (|r...|n, unchanged) - a direct follow-up request: names
@@ -618,39 +628,39 @@ DISENGAGE_SUCCESS_CHANCE = 55
 # fast-scrolling fight. miss/bounce keep their existing whole-line |w
 # wrap (a separate, pre-existing convention, not part of this request).
 DEFAULT_WEAPON_MESSAGES = {
-    "hit": "%s's %s |ystrikes|n %s for |r%i|n damage - %s %s!",
+    "hit": "%s's %s |ystrikes|n %s for |r%i|n damage!",
     "miss": "|w%s's %s misses %s!|n",
     "bounce": "|w%s's %s bounces harmlessly off %s!|n",
 }
 
 WEAPON_CATEGORY_MESSAGES = {
     "light_blade": {
-        "hit": "%s's %s |yslashes across|n %s for |r%i|n damage - %s %s!",
+        "hit": "%s's %s |yslashes across|n %s for |r%i|n damage!",
         "miss": "|w%s's %s slashes at %s, but finds only air!|n",
         "bounce": "|w%s's %s nicks %s without ever breaking through!|n",
     },
     "heavy_blade": {
-        "hit": "%s's %s |ycleaves into|n %s for |r%i|n damage - %s %s!",
+        "hit": "%s's %s |ycleaves into|n %s for |r%i|n damage!",
         "miss": "|w%s's %s cleaves through empty air as %s steps clear!|n",
         "bounce": "|w%s's %s crashes into %s's guard and is turned aside!|n",
     },
     "polearm": {
-        "hit": "%s's %s |yskewers|n %s for |r%i|n damage - %s %s!",
+        "hit": "%s's %s |yskewers|n %s for |r%i|n damage!",
         "miss": "|w%s's %s thrusts at %s, but the point falls short!|n",
         "bounce": "|w%s's %s glances off %s without finding purchase!|n",
     },
     "ranged": {
-        "hit": "%s's %s |yfinds its mark, striking|n %s for |r%i|n damage - %s %s!",
+        "hit": "%s's %s |yfinds its mark, striking|n %s for |r%i|n damage!",
         "miss": "|w%s's %s whistles past %s, missing entirely!|n",
         "bounce": "|w%s's %s thuds into %s's armor without penetrating!|n",
     },
     "staff": {
-        "hit": "%s's %s |ycracks against|n %s for |r%i|n damage - %s %s!",
+        "hit": "%s's %s |ycracks against|n %s for |r%i|n damage!",
         "miss": "|w%s's %s sweeps wide of %s!|n",
         "bounce": "|w%s's %s connects but fails to hurt %s!|n",
     },
     "heavy_weapon": {
-        "hit": "%s's %s |ycrushes down on|n %s for |r%i|n damage - %s %s!",
+        "hit": "%s's %s |ycrushes down on|n %s for |r%i|n damage!",
         "miss": "|w%s's %s crashes into the ground as %s dodges clear!|n",
         "bounce": "|w%s's %s slams into %s but fails to break through!|n",
     },
@@ -659,7 +669,7 @@ WEAPON_CATEGORY_MESSAGES = {
 # weapon_type_name overrides - checked before the category table above.
 WEAPON_TYPE_MESSAGE_OVERRIDES = {
     "thunderbolt": {
-        "hit": "%s's %s |yarrives upon|n %s in a crack of divine lightning for |r%i|n damage - %s %s!",
+        "hit": "%s's %s |yarrives upon|n %s in a crack of divine lightning for |r%i|n damage!",
         "miss": "|w%s's %s splits the air beside %s, thunder rolling as it passes!|n",
         "bounce": "|w%s's %s scorches %s, but the lightning finds no purchase!|n",
     },
@@ -954,7 +964,7 @@ class CombatRules:
 
         return damage_value
 
-    def apply_damage(self, defender, damage, attacker=None):
+    def apply_damage(self, defender, damage, attacker=None, announce_threshold=True):
         """
         Applies damage to a target, reducing their HP by the damage
         amount to a minimum of 0. Characters with db.invincible = True
@@ -971,9 +981,22 @@ class CombatRules:
         splitting XP fairly when the defender is eventually defeated -
         every real damage source now passes this, not just direct
         physical attacks.
+
+        announce_threshold controls whether a standalone wound-status
+        line (see announce_hp_threshold_change) fires when this damage
+        pushes the defender across one of the 100/75/50/25% bands -
+        True by default, since most damage sources (poison ticks,
+        Riposte's counter-damage, Vampiric Touch, reckless abandon)
+        have no wound feedback of their own at all. resolve_attack/
+        spell_attack/skill_attack all pass False here specifically
+        because their own hit message already shows the defender's
+        post-hit wound phrase inline - a second standalone line right
+        after would just repeat the same information.
         """
         if defender.db.invincible:
             return
+
+        old_hp = defender.db.hp or 0
 
         would_be_lethal = (defender.db.hp - damage) <= 0
         if would_be_lethal and "Death Ward" in self.get_conditions(defender):
@@ -983,6 +1006,8 @@ class CombatRules:
                 "|Y%s should have fallen, but a lingering ward holds them back "
                 "from death's door!|n" % defender
             )
+            if announce_threshold:
+                self.announce_hp_threshold_change(defender, old_hp)
             return
 
         if "Shielded" in self.get_conditions(defender):
@@ -1001,6 +1026,9 @@ class CombatRules:
             damage_log[attacker] = damage_log.get(attacker, 0) + damage
             defender.db.damage_log = damage_log
             self.spectator_react(defender.location, SPECTATOR_HIT_LINES, SPECTATOR_HIT_CHANCE)
+
+        if announce_threshold:
+            self.announce_hp_threshold_change(defender, old_hp)
 
         # Riposte (Gladiator) - a genuine reactive trigger, unlike
         # every other condition check in this method: it doesn't
@@ -1572,16 +1600,19 @@ class CombatRules:
         if damage_value > 0:
             attacker.location.msg_contents(
                 messages["hit"]
-                % (
-                    attacker_display, attackers_weapon, defender_display, damage_value,
-                    defender_display, self.hp_status_phrase(defender),
-                )
+                % (attacker_display, attackers_weapon, defender_display, damage_value)
             )
         else:
             attacker.location.msg_contents(
                 messages["bounce"] % (attacker_display, attackers_weapon, defender_display)
             )
 
+        # announce_threshold defaults to True here - the hit message
+        # above no longer carries its own wound phrase (see this
+        # section's own module-level comment for why), so this is now
+        # the one place a basic attack's wound-band crossing gets
+        # announced, and it's correctly post-damage since it fires
+        # from inside apply_damage() itself.
         self.apply_damage(defender, damage_value, attacker=attacker)
 
         for condition in inflict_condition:
@@ -1624,6 +1655,36 @@ class CombatRules:
             return "looks badly wounded"
         else:
             return "looks like they're barely standing"
+
+    def announce_hp_threshold_change(self, character, old_hp):
+        """
+        A direct request: a player needs some standing way to gauge
+        how wounded an NPC (or another PLAYER - a healer currently has
+        no way at all to tell whether an ally they just healed is back
+        to full) actually is, not just whatever happened to be baked
+        into the one attacker's own last hit message. Compares
+        hp_status_phrase() before and after a change and, if it
+        crossed one of the same 100/75/50/25% bands that phrase
+        already uses, announces the new one to the whole room - a
+        healer, a bystander, or anyone else present sees it too, not
+        just whoever landed the hit.
+
+        Deliberately keyed off hp_status_phrase's own wording rather
+        than a second, separate set of thresholds - one place defines
+        what "badly wounded" means, used both here and inline in the
+        attack messages that still show it (see apply_damage's
+        announce_threshold param for why those don't ALSO get this
+        standalone line - it would just repeat what they already say).
+        """
+        if not character.location:
+            return
+
+        old_phrase = self.hp_status_phrase(character, hp_override=old_hp)
+        new_phrase = self.hp_status_phrase(character)
+        if old_phrase == new_phrase:
+            return
+
+        character.location.msg_contents("|Y%s %s.|n" % (character, new_phrase))
 
     def combat_cleanup(self, character):
         """Removes all temporary combat_* attributes from a character."""
@@ -1793,6 +1854,7 @@ class CombatRules:
         (Regeneration, Poisoned, Haste, Paralyzed).
         """
         if "Regeneration" in self.get_conditions(character):
+            old_hp = character.db.hp or 0
             to_heal = randint(REGEN_RATE[0], REGEN_RATE[1])
             if character.db.hp + to_heal > character.db.max_hp:
                 to_heal = character.db.max_hp - character.db.hp
@@ -1801,6 +1863,7 @@ class CombatRules:
                 character.location.msg_contents(
                     "%s regains %i HP from Regeneration." % (character, to_heal)
                 )
+            self.announce_hp_threshold_change(character, old_hp)
 
         if "Poisoned" in self.get_conditions(character):
             # The condition's own stored turnchar (see add_condition) is
@@ -1914,12 +1977,14 @@ class CombatRules:
         if "healing_range" in kwargs:
             min_healing, max_healing = kwargs["healing_range"]
 
+        old_hp = target.db.hp or 0
         to_heal = randint(min_healing, max_healing)
         if target.db.hp + to_heal > target.db.max_hp:
             to_heal = target.db.max_hp - target.db.hp
         target.db.hp += to_heal
 
         user.location.msg_contents("%s uses %s! %s regains %i HP!" % (user, item, target, to_heal))
+        self.announce_hp_threshold_change(target, old_hp)
 
     def itemfunc_add_condition(self, item, user, target, **kwargs):
         """Item function that gives the target one or more conditions."""
@@ -2018,7 +2083,9 @@ class CombatRules:
         from world.religion import religion_bonus
         heal_multiplier = 1 + religion_bonus(caster, "apollo", "heal_bonus")
 
+        old_hp_by_target = {}
         for character in targets:
+            old_hp_by_target[character] = character.db.hp or 0
             if heal_percent:
                 to_heal = int(character.db.max_hp * heal_percent)
             else:
@@ -2031,6 +2098,15 @@ class CombatRules:
 
         caster.db.mp -= cost
         caster.location.msg_contents(spell_msg)
+
+        # A direct request: a healer (or anyone else present) currently
+        # has no way to tell whether this actually brought a target
+        # back to full, or just eased them up a band - "regains N HP"
+        # alone doesn't say. Fired after the cast message above, once
+        # per target, so it reads as a follow-up observation rather
+        # than interrupting the cast's own line.
+        for character in targets:
+            self.announce_hp_threshold_change(character, old_hp_by_target[character])
 
         from world.religion import credit_apollo_heal
         credit_apollo_heal(caster)
@@ -2160,6 +2236,7 @@ class CombatRules:
             spell_msg += " %s takes %i damage!" % (target, damage)
             total_drained += damage
 
+        caster_old_hp = caster.db.hp or 0
         heal_amount = int(total_drained * drain_percent)
         if heal_amount > 0:
             caster.db.hp = min(caster.db.hp + heal_amount, caster.db.max_hp)
@@ -2167,6 +2244,9 @@ class CombatRules:
 
         caster.db.mp -= cost
         caster.location.msg_contents(spell_msg)
+
+        if heal_amount > 0:
+            self.announce_hp_threshold_change(caster, caster_old_hp)
 
         if self.is_in_combat(caster):
             self.spend_action(caster, 1, action_name="cast")
@@ -2284,7 +2364,11 @@ class CombatRules:
         caster.location.msg_contents(spell_msg)
 
         for fighter in targets:
-            self.apply_damage(fighter, total_damage[fighter], attacker=caster)
+            # announce_threshold=False - spell_msg above already shows
+            # each target's post-hit wound phrase inline.
+            self.apply_damage(
+                fighter, total_damage[fighter], attacker=caster, announce_threshold=False
+            )
             if fighter.db.hp <= 0:
                 self.at_defeat(fighter, attacker=caster)
 
@@ -2697,7 +2781,9 @@ class CombatRules:
                 skill_msg += " %s misses %s!" % (skill_name, target)
                 continue
             damage = randint(min_damage, max_damage) + agilitas_bonus
-            self.apply_damage(target, damage, attacker=user)
+            # announce_threshold=False - skill_msg below already shows
+            # this target's post-hit wound phrase inline.
+            self.apply_damage(target, damage, attacker=user, announce_threshold=False)
             total_damage += damage
             skill_msg += " %s takes |r%i|n damage - %s %s!" % (
                 target, damage, target, self.hp_status_phrase(target)
@@ -5760,17 +5846,18 @@ class CombatTurnHandler(DefaultScript):
             # CombatCharacter hooks just get a generic turn announcement.
             character.location.msg_contents("It's %s's turn!" % character)
 
-        # Refresh the HP/MP/SP prompt here too, not just via
-        # RomePromptMixin's at_post_cmd() - a character whose whole
-        # turn is handled by auto-attack (see try_auto_attack below)
-        # never runs a real Command during combat, so at_post_cmd()
-        # never fires and the prompt would otherwise never update for
-        # the entire fight. Every real fighter (player or account-
-        # backed) gets this; NPCs and training dummies don't have
-        # max_hp on db in a way that matters here, but the attribute
-        # check keeps this a no-op for anything that lacks it anyway.
-        if character.attributes.has("max_hp"):
-            character.msg(prompt=build_hpmp_prompt(character))
+        # No explicit prompt refresh here - a real, previously-live
+        # regression: this used to also send one directly, but that
+        # landed immediately next to the prompt a player already gets
+        # for free the instant they hit an idle return while waiting
+        # (CmdNoInput -> RomePromptMixin.at_post_cmd, see
+        # commands/command.py) - showing as an exact duplicate every
+        # single turn for anyone in the habit of tapping return while
+        # auto-attack counts down, which is most players. The one gap
+        # that actually needs covering - a player who never types
+        # anything at all during an auto-attacked turn - is handled by
+        # try_auto_attack() below instead, right when their action
+        # actually resolves, which doesn't collide with this.
 
     def next_turn(self):
         """Advances to the next character in the turn order."""

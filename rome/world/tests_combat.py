@@ -75,10 +75,10 @@ class TestGetWeaponAttackMessages(unittest.TestCase):
         ) + [DEFAULT_WEAPON_MESSAGES]
         for messages in all_sets:
             self.assertEqual(set(messages), {"hit", "miss", "bounce"})
-            # hit takes 6 args (attacker, weapon, defender, damage, defender, hp phrase);
-            # miss/bounce take 3 (attacker, weapon, defender). Would raise on a typo'd
+            # hit takes 4 args (attacker, weapon, defender, damage); miss/bounce
+            # take 3 (attacker, weapon, defender). Would raise on a typo'd
             # placeholder count/type - real regression risk with this many hand-written strings.
-            messages["hit"] % ("A", "sword", "B", 5, "B", "looks wounded")
+            messages["hit"] % ("A", "sword", "B", 5)
             messages["miss"] % ("A", "sword", "B")
             messages["bounce"] % ("A", "sword", "B")
 
@@ -1655,15 +1655,28 @@ class TestSkillAndSpellAnnouncementOrdering(CombatTestBase):
 
 class TestPromptRefreshDuringAutoAttack(CombatTestBase):
     """
-    Regression coverage for a real bug found live: an entire fight
-    resolved almost entirely via auto-attack showed the HP/MP/SP
-    prompt exactly once (on the manually-typed 'challenge'/'fight')
-    and never again for the rest of the fight - auto-attack runs as a
-    delayed callback, not a real Command, so RomePromptMixin's
-    at_post_cmd() (the only other place the prompt was ever sent)
-    never fired for that character's turn. Fixed by explicitly
-    refreshing the prompt in both start_turn() (every turn) and
-    try_auto_attack() (right after it resolves).
+    Regression coverage for two real bugs found live, in sequence:
+
+    1. An entire fight resolved almost entirely via auto-attack showed
+       the HP/MP/SP prompt exactly once (on the manually-typed
+       'challenge'/'fight') and never again for the rest of the fight -
+       auto-attack runs as a delayed callback, not a real Command, so
+       RomePromptMixin's at_post_cmd() (the only other place the
+       prompt was ever sent) never fired for that character's turn.
+       Fixed by explicitly refreshing the prompt in try_auto_attack()
+       right after it resolves.
+
+    2. That fix was first placed in BOTH start_turn() (every turn) and
+       try_auto_attack() - which then showed the prompt TWICE, back to
+       back, every single round: start_turn()'s own explicit send
+       landed immediately next to the prompt a player already gets for
+       free from an idle return while waiting (CmdNoInput ->
+       RomePromptMixin.at_post_cmd, commands/command.py) - something
+       most players do while auto-attack counts down. start_turn()'s
+       explicit send was removed, keeping only try_auto_attack()'s -
+       still covers the one real gap (a player who never types
+       anything at all during an auto-attacked turn) without colliding
+       with the idle-return refresh that already covers everyone else.
     """
 
     def _make_handler(self):
@@ -1671,14 +1684,14 @@ class TestPromptRefreshDuringAutoAttack(CombatTestBase):
 
         return create.create_script(CombatTurnHandler, obj=self.room1, autostart=False)
 
-    def test_start_turn_sends_the_hpmp_prompt(self):
+    def test_start_turn_does_not_send_its_own_hpmp_prompt(self):
         handler = self._make_handler()
         prompts = []
         self.char1.msg = lambda text="", **kwargs: prompts.append(kwargs.get("prompt"))
 
         handler.start_turn(self.char1)
 
-        self.assertTrue(any(p for p in prompts if p))
+        self.assertFalse(any(p for p in prompts if p))
 
     def test_try_auto_attack_sends_the_hpmp_prompt(self):
         self.char1.db.combat_turnhandler = self._make_handler()
@@ -1807,3 +1820,131 @@ class TestArenaFighterEquipment(EvenniaTest):
         )
         equip_arena_fighter(npc)  # should be a silent no-op
         self.assertIsNone(npc.db.wielded_weapon)
+
+
+class TestAnnounceHpThresholdChange(CombatTestBase):
+    """
+    A direct request: a player needs some standing way to gauge how
+    wounded an NPC - or another PLAYER, for a healer specifically -
+    actually is, not just whatever happened to be baked into the one
+    attacker's own last hit message (which also only ever showed on a
+    successful hit, not a miss, and only to whoever landed it). This
+    reuses hp_status_phrase's own existing 100/75/50/25% bands rather
+    than inventing a second set of thresholds.
+    """
+
+    def _capture(self):
+        captured = []
+        self.char1.location.msg_contents = lambda text="", **kwargs: captured.append(str(text))
+        return captured
+
+    def test_no_announcement_when_still_in_the_same_band(self):
+        self.char1.db.max_hp = 100
+        self.char1.db.hp = 90
+        captured = self._capture()
+
+        COMBAT_RULES.announce_hp_threshold_change(self.char1, old_hp=95)
+
+        self.assertEqual(captured, [])
+
+    def test_announces_when_crossing_downward(self):
+        self.char1.db.max_hp = 100
+        self.char1.db.hp = 40  # "looks badly wounded" band
+        captured = self._capture()
+
+        COMBAT_RULES.announce_hp_threshold_change(self.char1, old_hp=60)  # "looks wounded"
+
+        full_text = "".join(captured)
+        self.assertIn(self.char1.key, full_text)
+        self.assertIn("badly wounded", full_text)
+
+    def test_announces_when_crossing_upward_after_healing(self):
+        self.char1.db.max_hp = 100
+        self.char1.db.hp = 100
+        captured = self._capture()
+
+        COMBAT_RULES.announce_hp_threshold_change(self.char1, old_hp=60)  # "looks wounded"
+
+        full_text = "".join(captured)
+        self.assertIn("completely unscathed", full_text)
+
+    def test_no_location_does_not_crash(self):
+        self.char1.location = None
+        COMBAT_RULES.announce_hp_threshold_change(self.char1, old_hp=100)  # should not raise
+
+
+class TestHpThresholdAnnouncementIntegration(CombatTestBase):
+    """
+    Confirms the actual call sites: attack paths (resolve_attack,
+    spell_attack, skill_attack) suppress the standalone announcement
+    since their own hit message already shows the same information
+    inline, while everything else that changes HP with no wound
+    feedback of its own (poison, Riposte counter-damage, Vampiric
+    Touch's damage side, and every healing path) gets it.
+    """
+
+    def _capture(self):
+        captured = []
+        self.char1.location.msg_contents = lambda text="", **kwargs: captured.append(str(text))
+        return captured
+
+    def test_resolve_attack_does_not_double_announce(self):
+        self.char2.db.max_hp = 100
+        self.char2.db.hp = 100
+        captured = self._capture()
+
+        # 100 - 60 = 40% remaining -> the "badly wounded" band.
+        COMBAT_RULES.resolve_attack(
+            self.char1, self.char2, attack_value=999, defense_value=1, damage_value=60
+        )
+
+        # The hit message itself mentions the wound phrase once - a
+        # separate standalone "|Y...|n" announcement line would be a
+        # second, different message string in the captured list.
+        wound_mentions = sum(1 for m in captured if "badly wounded" in m)
+        self.assertEqual(wound_mentions, 1)
+
+    def test_poison_tick_gets_the_standalone_announcement(self):
+        self.char1.db.max_hp = 100
+        self.char1.db.hp = 60
+        COMBAT_RULES.get_conditions(self.char1)["Poisoned"] = [3, self.char2]
+        captured = self._capture()
+
+        # 60 - 15 = 45% remaining -> the "badly wounded" band.
+        with patch("world.combat.randint", return_value=15):
+            COMBAT_RULES.apply_turn_conditions(self.char1)
+
+        full_text = "".join(captured)
+        self.assertIn("badly wounded", full_text)
+
+    def test_itemfunc_heal_announces_a_full_recovery(self):
+        from evennia.utils import create
+
+        self.char1.db.max_hp = 100
+        self.char1.db.hp = 20
+        item = create.create_object(
+            "evennia.objects.objects.DefaultObject", key="a healing potion",
+        )
+        captured = self._capture()
+
+        with patch("world.combat.randint", return_value=999):
+            COMBAT_RULES.itemfunc_heal(item, self.char1, self.char1)
+
+        full_text = "".join(captured)
+        self.assertIn("completely unscathed", full_text)
+
+    def test_spell_healing_announces_per_target(self):
+        self.char1.db.max_hp = 100
+        self.char1.db.hp = 100
+        self.char2.db.max_hp = 100
+        self.char2.db.hp = 20
+        self.char1.db.mp = 50
+        captured = self._capture()
+
+        with patch("world.combat.randint", return_value=999):
+            COMBAT_RULES.spell_healing(
+                self.char1, "greater restoration", [self.char2], 10
+            )
+
+        full_text = "".join(captured)
+        self.assertIn("%s looks completely unscathed" % self.char2.key, full_text)
