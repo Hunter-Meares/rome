@@ -35,12 +35,12 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-06"
 
 RECENT_UPDATES_TEXT = (
-    "The Deeper Sands' Arena Fighters now carry real weapons and "
-    "armor, not just descriptions of them - and defeating one has a "
-    "real chance to drop a piece of it for you to keep. Combat also "
-    "got a bugfix pass: the HP/MP/SP prompt no longer vanishes during "
-    "an auto-attacked fight, and skill/condition messages print in "
-    "the right order."
+    "Combat now tells you how wounded someone actually is - watch for "
+    "a status line whenever an NPC, an ally, or you yourself crosses a "
+    "real health milestone, healing included. The doubled HP/MP/SP "
+    "prompt during a fight is also fixed. The Deeper Sands' Arena "
+    "Fighters carry real weapons and armor now too, with a real chance "
+    "to drop a piece of it when defeated."
 )
 
 # The box's own interior width, between its left/right borders and
