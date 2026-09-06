@@ -35,11 +35,12 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-06"
 
 RECENT_UPDATES_TEXT = (
-    "Character creation got a real pass - Roman numerals, distinct "
-    "colors and quotes for every race and class, a visible 'Step II "
-    "of V' tracker, and a proper finale. The Capitoline's Inner "
-    "Sanctum now has a real in-character reason it's barred, and a "
-    "real way in for the truly devoted."
+    "Combat got a real bugfix pass - the HP/MP/SP prompt no longer "
+    "vanishes during an auto-attacked fight, the timeout warning stays "
+    "quiet while auto-attack has you covered, and skill/condition "
+    "messages now print in the right order. Character creation's last "
+    "couple of stray '1's are now proper Roman numerals, and the "
+    "who list gives more room to titles."
 )
 
 # The box's own interior width, between its left/right borders and
