@@ -1018,6 +1018,36 @@ def _apply_race_and_class(character):
     # command, same as sdesc above.
     character.db.custom_title = "the Untested"
 
+def _format_starting_gear(char):
+    """
+    Names everything _apply_race_and_class just equipped, for the
+    finale screen - a real, confirmed gap found live: nothing in
+    chargen ever told a player what they'd actually been equipped
+    with. The class-browsing page does name gear, but it's correctly
+    scoped to "what THIS class gets" - easy to misremember once
+    several different classes have been browsed. One real player
+    spent 13+ minutes across two sessions hunting for a weapon
+    belonging to a class they'd looked at but didn't choose, before
+    giving up and deleting their character. A plain, unambiguous
+    "here's what you're actually carrying" line at the one moment
+    that's guaranteed to run exactly once, right after gear is
+    applied, closes that gap directly.
+    """
+    from world.combat import ARMOR_SLOT_ATTRS
+
+    items = []
+    if char.db.wielded_weapon:
+        items.append(char.db.wielded_weapon.key)
+    for attr_name in ARMOR_SLOT_ATTRS.values():
+        item = getattr(char.db, attr_name, None)
+        if item:
+            items.append(item.key)
+
+    if not items:
+        return ""
+    return "|wYou are equipped with:|n %s\n\n" % ", ".join(items)
+
+
 def menunode_end(caller, raw_string=""):
     """End-of-chargen cleanup."""
     char = caller.new_char
@@ -1032,6 +1062,7 @@ def menunode_end(caller, raw_string=""):
     class_data = CLASSES.get(char.db.player_class, {})
     race_color = race_data.get("color", "|c")
     class_color = class_data.get("color", "|c")
+    gear_line = _format_starting_gear(char)
 
     # A direct request for the single moment in chargen that most
     # deserves real weight - this used to be the flattest page of all
@@ -1051,6 +1082,9 @@ def menunode_end(caller, raw_string=""):
 
         |gHP:|n {char.db.hp}/{char.db.max_hp}  |cMP:|n {char.db.mp}/{char.db.max_mp}  |ySP:|n {char.db.sp}/{char.db.max_sp}
 
+        """
+    ) + gear_line + dedent(
+        f"""\
         |YA tip before you go:|n other players may be online right now, even
         if you can't see them from here. Type |wpublic <message>|n at any
         time to talk to everyone connected - a simple "hello!" is a great

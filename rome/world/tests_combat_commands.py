@@ -39,6 +39,10 @@ from world.combat import (
     CmdRest,
     CmdSkillInfo,
     CmdSpellInfo,
+    CmdWield,
+    CmdUnwield,
+    CmdDon,
+    CmdDoff,
     SKILLS,
     SPELLS,
     POWERATTACK_SP_COST,
@@ -916,3 +920,142 @@ class TestMovementSPCost(CombatCommandTestBase):
         self.char1.db.sp = 10
         self.char1.at_pre_move(self.room2, move_type="move")
         self.assertFalse(self.char1.db.sp_low_warned)
+
+
+class TestCmdWieldFailureMessage(CombatCommandTestBase):
+    """
+    Regression coverage for a real, confirmed player-confusion bug:
+    a real player spent 13+ minutes across two sessions trying to
+    'wield greatsword' (a weapon belonging to a DIFFERENT class than
+    the one they'd picked - Barbarian's starting gear, not their own
+    Gladiator's) before giving up and deleting their character. The
+    search itself was never broken - Evennia's default partial
+    matching already resolves 'greatsword' against a real object
+    named 'a rune-etched greatsword' correctly (confirmed directly
+    against a live object) - the actual problem was the failure
+    message: a bare "Could not find 'X'." gives no way to tell "you
+    misspelled it" apart from "you never had this at all," leaving a
+    confused player to guess blindly. wield now reports what the
+    caller is actually carrying instead.
+    """
+
+    def test_failed_search_lists_carried_weapons(self):
+        create.create_object(
+            "world.combat.CombatWeapon", key="an iron broadsword", location=self.char1
+        )
+        result = self.call(CmdWield(), "greatsword", caller=self.char1)
+        self.assertIn("You aren't carrying anything called 'greatsword'", result)
+        self.assertIn("an iron broadsword", result)
+
+    def test_failed_search_with_nothing_carried_says_so(self):
+        result = self.call(CmdWield(), "greatsword", caller=self.char1)
+        self.assertIn("You aren't carrying anything you could wield or wear", result)
+
+    def test_failed_search_lists_multiple_carried_weapons(self):
+        create.create_object(
+            "world.combat.CombatWeapon", key="an iron broadsword", location=self.char1
+        )
+        create.create_object(
+            "world.combat.CombatWeapon", key="a bronze dagger", location=self.char1
+        )
+        result = self.call(CmdWield(), "greatsword", caller=self.char1)
+        self.assertIn("an iron broadsword", result)
+        self.assertIn("a bronze dagger", result)
+
+    def test_successful_partial_match_still_wields(self):
+        # The search itself was never the problem - confirm a real
+        # partial match (a substring of a multi-word key) still works
+        # exactly as before this change.
+        create.create_object(
+            "world.combat.CombatWeapon", key="a rune-etched greatsword", location=self.char1
+        )
+        self.call(CmdWield(), "greatsword", caller=self.char1)
+        self.assertIsNotNone(self.char1.db.wielded_weapon)
+        self.assertEqual(self.char1.db.wielded_weapon.key, "a rune-etched greatsword")
+
+    def test_truly_non_equippable_match_reports_correctly(self):
+        create.create_object(
+            "evennia.objects.objects.DefaultObject", key="a rock", location=self.char1
+        )
+        result = self.call(CmdWield(), "rock", caller=self.char1)
+        self.assertIn("That's not something you can wield or wear!", result)
+
+
+class TestWieldAndDonAreCrossCompatible(CombatCommandTestBase):
+    """
+    Direct follow-up request: since wield/don/unwield/doff were kept
+    as four separate commands (for genre-appropriate flavor and to
+    avoid two commands claiming the same alias), rather than merged
+    into one, the underlying mechanics needed to actually be unified
+    instead - otherwise 'wield <armor>' and 'don <weapon>' would still
+    hit the exact "wrong verb for what you're holding" trap a real
+    player already fell into once.
+    """
+
+    def _add_weapon(self, key="an iron broadsword"):
+        return create.create_object("world.combat.CombatWeapon", key=key, location=self.char1)
+
+    def _add_armor(self, key="a bronze-faced clipeus", slot="shield"):
+        armor = create.create_object(
+            "world.combat.CombatArmor", key=key, location=self.char1
+        )
+        armor.db.armor_slot = slot
+        return armor
+
+    def test_wield_can_don_armor(self):
+        armor = self._add_armor(slot="head")
+        self.call(CmdWield(), armor.key, caller=self.char1)
+        self.assertEqual(self.char1.db.worn_head, armor)
+
+    def test_don_can_wield_a_weapon(self):
+        weapon = self._add_weapon()
+        self.call(CmdDon(), weapon.key, caller=self.char1)
+        self.assertEqual(self.char1.db.wielded_weapon, weapon)
+
+    def test_unwield_can_remove_armor(self):
+        armor = self._add_armor(slot="head")
+        self.char1.db.worn_head = armor
+        self.call(CmdUnwield(), armor.key, caller=self.char1)
+        self.assertIsNone(self.char1.db.worn_head)
+
+    def test_doff_can_remove_a_weapon(self):
+        weapon = self._add_weapon()
+        self.char1.db.wielded_weapon = weapon
+        self.call(CmdDoff(), weapon.key, caller=self.char1)
+        self.assertIsNone(self.char1.db.wielded_weapon)
+
+    def test_bare_unwield_still_drops_the_weapon_specifically(self):
+        # No argument still defaults to the one well-known convention
+        # (drop the weapon), unchanged from before this fix.
+        weapon = self._add_weapon()
+        self.char1.db.wielded_weapon = weapon
+        self.call(CmdUnwield(), "", caller=self.char1)
+        self.assertIsNone(self.char1.db.wielded_weapon)
+
+    def test_bare_doff_with_no_weapon_lists_what_is_worn(self):
+        armor = self._add_armor(slot="head")
+        self.char1.db.worn_head = armor
+        result = self.call(CmdDoff(), "", caller=self.char1)
+        self.assertIn(armor.key, result)
+        self.assertIsNotNone(self.char1.db.worn_head)  # nothing removed, just listed
+
+    def test_registered_aliases(self):
+        # self.call() invokes a command instance directly, bypassing
+        # Evennia's real cmdset/alias lookup entirely - so the
+        # meaningful check for "does this alias actually work" is
+        # simply that it's declared, not a call() round-trip through
+        # a command object that would respond identically regardless
+        # of what string was used to reach it.
+        self.assertIn("equip", CmdWield.aliases)
+        self.assertIn("wear", CmdDon.aliases)
+        self.assertIn("remove", CmdDoff.aliases)
+        self.assertIn("unequip", CmdDoff.aliases)
+        # wield/don and unwield/doff must not share an alias/key with
+        # each other, or Evennia's cmdset would have two commands
+        # claiming the same input string.
+        wield_names = {CmdWield.key, *CmdWield.aliases}
+        don_names = {CmdDon.key, *CmdDon.aliases}
+        self.assertEqual(wield_names & don_names, set())
+        unwield_names = {CmdUnwield.key, *CmdUnwield.aliases}
+        doff_names = {CmdDoff.key, *CmdDoff.aliases}
+        self.assertEqual(unwield_names & doff_names, set())

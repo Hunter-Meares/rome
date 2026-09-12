@@ -7424,66 +7424,253 @@ class CmdStatus(Command):
         )
 
 
+def _carried_equippables(caller):
+    """
+    Every weapon or armor piece caller is carrying - used to build the
+    "here's what you actually have" fallback message shared by wield
+    and don below.
+    """
+    return [
+        obj for obj in caller.contents
+        if obj.is_typeclass("world.combat.CombatWeapon", exact=True)
+        or obj.is_typeclass("world.combat.CombatArmor", exact=True)
+    ]
+
+
+def _try_wield_weapon(caller, weapon, rules):
+    """
+    The actual mechanical effect of wielding a weapon - split out so
+    both 'wield' and 'don' reach it, since either verb should work
+    regardless of which category the named item turns out to be (see
+    the module-level note above CmdWield for why these were unified).
+    """
+    if rules.is_in_combat(caller) and not rules.is_turn(caller):
+        caller.msg("You can only do that on your turn.")
+        return
+
+    if weapon.db.two_handed and caller.db.worn_shield:
+        caller.msg(
+            "You can't wield a two-handed weapon while carrying a shield - "
+            "doff it first."
+        )
+        return
+
+    if not caller.db.wielded_weapon:
+        caller.db.wielded_weapon = weapon
+        caller.location.msg_contents("%s wields %s." % (caller, weapon))
+    else:
+        old_weapon = caller.db.wielded_weapon
+        caller.db.wielded_weapon = weapon
+        caller.location.msg_contents(
+            "%s lowers %s and wields %s." % (caller, old_weapon, weapon)
+        )
+
+    if not rules.is_proficient(caller, weapon):
+        caller.msg(
+            "|y(You aren't trained in this kind of weapon - you'll fight "
+            "noticeably worse with it than with something you know.)|n"
+        )
+
+    if rules.is_in_combat(caller):
+        rules.spend_action(caller, 1, action_name="wield")
+
+
+def _try_don_armor(caller, armor):
+    """The actual mechanical effect of donning armor - see
+    _try_wield_weapon's own docstring for why this is split out."""
+    if COMBAT_RULES.is_in_combat(caller):
+        caller.msg("You can't don armor in a fight!")
+        return
+
+    slot = armor.db.armor_slot or "body"
+    attr_name = ARMOR_SLOT_ATTRS[slot]
+
+    if slot == "shield":
+        weapon = caller.db.wielded_weapon
+        if weapon and weapon.db.two_handed:
+            caller.msg(
+                "You can't carry a shield while wielding a two-handed "
+                "weapon - unwield it first."
+            )
+            return
+
+    old_item = getattr(caller.db, attr_name, None)
+    if old_item:
+        remove_equipment_bonuses(caller, old_item)
+    setattr(caller.db, attr_name, armor)
+    apply_equipment_bonuses(caller, armor)
+
+    if old_item:
+        caller.location.msg_contents(
+            "%s removes %s and dons %s." % (caller, old_item, armor)
+        )
+    else:
+        caller.location.msg_contents("%s dons %s." % (caller, armor))
+
+
+def _do_equip(caller, args, rules):
+    """
+    Shared implementation for wield and don - direct follow-up
+    request after fixing wield's failure message: rather than keeping
+    two commands that each reject the OTHER's category ("wield helm"
+    used to fail with "That's not a weapon!", "don sword" with "That's
+    not something you can wear!"), both now detect what was actually
+    found and route to the right mechanical effect. wield/don stay
+    separate commands (with their own aliases: 'equip'/'wear') for
+    genre-appropriate flavor and to avoid two commands claiming the
+    same alias, but neither one cares anymore which category you
+    meant - whichever verb you reach for works.
+    """
+    if not args:
+        caller.msg("Usage: wield/don <obj>")
+        return
+
+    nofound_string = "You aren't carrying anything called '%s'." % args
+    carried = _carried_equippables(caller)
+    if carried:
+        nofound_string += " You're carrying: %s." % ", ".join(o.key for o in carried)
+    else:
+        nofound_string += " You aren't carrying anything you could wield or wear."
+
+    item = caller.search(args, candidates=caller.contents, nofound_string=nofound_string)
+    if not item:
+        return
+
+    if item.is_typeclass("world.combat.CombatWeapon", exact=True):
+        _try_wield_weapon(caller, item, rules)
+    elif item.is_typeclass("world.combat.CombatArmor", exact=True):
+        _try_don_armor(caller, item)
+    else:
+        caller.msg("That's not something you can wield or wear!")
+
+
 class CmdWield(Command):
     """
-    Wield a weapon you are carrying.
+    Wield a weapon or don armor you are carrying.
 
     Usage:
-      wield <weapon>
+      wield <obj>
+
+    Works the same as 'don' - whichever verb you reach for, a weapon
+    gets wielded and armor gets worn correctly either way.
     """
 
     key = "wield"
+    aliases = ["equip"]
     help_category = "combat"
     rules = COMBAT_RULES
 
     def func(self):
-        if self.rules.is_in_combat(self.caller):
-            if not self.rules.is_turn(self.caller):
-                self.caller.msg("You can only do that on your turn.")
-                return
-        if not self.args:
-            self.caller.msg("Usage: wield <obj>")
-            return
-        weapon = self.caller.search(self.args, candidates=self.caller.contents)
-        if not weapon:
-            return
-        if not weapon.is_typeclass("world.combat.CombatWeapon", exact=True):
-            self.caller.msg("That's not a weapon!")
-            return
+        _do_equip(self.caller, self.args, self.rules)
 
-        if weapon.db.two_handed and self.caller.db.worn_shield:
-            self.caller.msg(
-                "You can't wield a two-handed weapon while carrying a shield - "
-                "doff it first."
+
+class CmdDon(Command):
+    """
+    Don armor or wield a weapon you are carrying.
+
+    Usage:
+      don <obj>
+
+    Works the same as 'wield' - whichever verb you reach for, armor
+    gets worn and a weapon gets wielded correctly either way. Which
+    slot armor goes in (body, shield, head, arms, hands, legs, feet)
+    is determined automatically by the item itself.
+    """
+
+    key = "don"
+    aliases = ["wear"]
+    help_category = "combat"
+    rules = COMBAT_RULES
+
+    def func(self):
+        _do_equip(self.caller, self.args, self.rules)
+
+
+def _equipped_items(caller):
+    """Everything currently equipped - the wielded weapon plus every
+    filled armor slot - as {item: attr_name}. Shared by unwield and
+    doff so either verb can find and remove ANYTHING equipped, not
+    just its own traditional category (see _do_equip's own note on
+    why wield/don were unified the same way)."""
+    equipped = {}
+    if caller.db.wielded_weapon:
+        equipped[caller.db.wielded_weapon] = "wielded_weapon"
+    for attr_name in ARMOR_SLOT_ATTRS.values():
+        item = getattr(caller.db, attr_name, None)
+        if item:
+            equipped[item] = attr_name
+    return equipped
+
+
+def _unequip_item(caller, item, attr_name, rules):
+    """The actual mechanical effect of removing one already-identified
+    equipped item, whether it's the wielded weapon or a piece of
+    armor."""
+    if attr_name == "wielded_weapon":
+        if rules.is_in_combat(caller) and not rules.is_turn(caller):
+            caller.msg("You can only do that on your turn.")
+            return
+        caller.db.wielded_weapon = None
+        caller.location.msg_contents("%s lowers %s." % (caller, item))
+    else:
+        if rules.is_in_combat(caller):
+            caller.msg("You can't doff armor in a fight!")
+            return
+        setattr(caller.db, attr_name, None)
+        remove_equipment_bonuses(caller, item)
+        caller.location.msg_contents("%s removes %s." % (caller, item))
+
+
+def _do_unequip(caller, args, rules):
+    """Shared implementation for unwield and doff - see _do_equip's
+    own note above for why these pairs were unified."""
+    equipped = _equipped_items(caller)
+
+    if not args:
+        # Bare command: the one well-known convention - drop the
+        # wielded weapon, exactly as 'unwield' always has. Armor has
+        # no single obvious default (a player can have up to 7 pieces
+        # on at once), so this only applies when a weapon is actually
+        # wielded; otherwise, list what IS equipped instead of
+        # guessing.
+        weapon = caller.db.wielded_weapon
+        if weapon:
+            _unequip_item(caller, weapon, "wielded_weapon", rules)
+            return
+        if equipped:
+            caller.msg(
+                "Remove what? You're wearing: %s."
+                % ", ".join(i.key for i in equipped)
             )
-            return
-
-        if not self.caller.db.wielded_weapon:
-            self.caller.db.wielded_weapon = weapon
-            self.caller.location.msg_contents("%s wields %s." % (self.caller, weapon))
         else:
-            old_weapon = self.caller.db.wielded_weapon
-            self.caller.db.wielded_weapon = weapon
-            self.caller.location.msg_contents(
-                "%s lowers %s and wields %s." % (self.caller, old_weapon, weapon)
-            )
+            caller.msg("You aren't wielding or wearing anything!")
+        return
 
-        if not self.rules.is_proficient(self.caller, weapon):
-            self.caller.msg(
-                "|y(You aren't trained in this kind of weapon - you'll fight "
-                "noticeably worse with it than with something you know.)|n"
-            )
+    if not equipped:
+        caller.msg("You aren't wielding or wearing anything!")
+        return
 
-        if self.rules.is_in_combat(self.caller):
-            self.rules.spend_action(self.caller, 1, action_name="wield")
+    nofound_string = (
+        "You aren't wielding or wearing anything called '%s'. You have: %s."
+        % (args, ", ".join(i.key for i in equipped))
+    )
+    item = caller.search(args, candidates=list(equipped.keys()), nofound_string=nofound_string)
+    if not item:
+        return
+    _unequip_item(caller, item, equipped[item], rules)
 
 
 class CmdUnwield(Command):
     """
-    Stop wielding a weapon.
+    Stop wielding a weapon or wearing a piece of armor.
 
     Usage:
       unwield
+      unwield <obj>
+
+    With no argument, lowers your wielded weapon. With one, works the
+    same as 'doff' - removes whichever equipped item (weapon or
+    armor) matches, whichever verb you reach for.
     """
 
     key = "unwield"
@@ -7491,112 +7678,27 @@ class CmdUnwield(Command):
     rules = COMBAT_RULES
 
     def func(self):
-        if self.rules.is_in_combat(self.caller):
-            if not self.rules.is_turn(self.caller):
-                self.caller.msg("You can only do that on your turn.")
-                return
-        if not self.caller.db.wielded_weapon:
-            self.caller.msg("You aren't wielding a weapon!")
-        else:
-            old_weapon = self.caller.db.wielded_weapon
-            self.caller.db.wielded_weapon = None
-            self.caller.location.msg_contents("%s lowers %s." % (self.caller, old_weapon))
-
-
-class CmdDon(Command):
-    """
-    Don a piece of armor or a shield that you are carrying.
-
-    Usage:
-      don <armor>
-
-    Which slot it goes in (body, shield, head, arms, hands, legs, feet)
-    is determined automatically by the item itself.
-    """
-
-    key = "don"
-    help_category = "combat"
-    rules = COMBAT_RULES
-
-    def func(self):
-        if self.rules.is_in_combat(self.caller):
-            self.caller.msg("You can't don armor in a fight!")
-            return
-        if not self.args:
-            self.caller.msg("Usage: don <obj>")
-            return
-        armor = self.caller.search(self.args, candidates=self.caller.contents)
-        if not armor:
-            return
-        if not armor.is_typeclass("world.combat.CombatArmor", exact=True):
-            self.caller.msg("That's not something you can wear!")
-            return
-
-        slot = armor.db.armor_slot or "body"
-        attr_name = ARMOR_SLOT_ATTRS[slot]
-
-        if slot == "shield":
-            weapon = self.caller.db.wielded_weapon
-            if weapon and weapon.db.two_handed:
-                self.caller.msg(
-                    "You can't carry a shield while wielding a two-handed "
-                    "weapon - unwield it first."
-                )
-                return
-
-        old_item = getattr(self.caller.db, attr_name, None)
-        if old_item:
-            remove_equipment_bonuses(self.caller, old_item)
-        setattr(self.caller.db, attr_name, armor)
-        apply_equipment_bonuses(self.caller, armor)
-
-        if old_item:
-            self.caller.location.msg_contents(
-                "%s removes %s and dons %s." % (self.caller, old_item, armor)
-            )
-        else:
-            self.caller.location.msg_contents("%s dons %s." % (self.caller, armor))
+        _do_unequip(self.caller, self.args, self.rules)
 
 
 class CmdDoff(Command):
     """
-    Stop wearing a piece of armor or a shield.
+    Stop wearing a piece of armor or wielding a weapon.
 
     Usage:
-      doff <armor>
+      doff <obj>
+
+    Works the same as 'unwield' - either verb removes whichever
+    equipped item (weapon or armor) matches.
     """
 
     key = "doff"
+    aliases = ["remove", "unequip"]
     help_category = "combat"
     rules = COMBAT_RULES
 
     def func(self):
-        if self.rules.is_in_combat(self.caller):
-            self.caller.msg("You can't doff armor in a fight!")
-            return
-
-        worn_items = {}
-        for slot, attr in ARMOR_SLOT_ATTRS.items():
-            item = getattr(self.caller.db, attr, None)
-            if item:
-                worn_items[item] = slot
-
-        if not worn_items:
-            self.caller.msg("You aren't wearing anything!")
-            return
-
-        if not self.args:
-            self.caller.msg("Usage: doff <obj>")
-            return
-
-        armor = self.caller.search(self.args, candidates=list(worn_items.keys()))
-        if not armor:
-            return
-
-        slot = worn_items[armor]
-        setattr(self.caller.db, ARMOR_SLOT_ATTRS[slot], None)
-        remove_equipment_bonuses(self.caller, armor)
-        self.caller.location.msg_contents("%s removes %s." % (self.caller, armor))
+        _do_unequip(self.caller, self.args, self.rules)
 
 
 class CmdInventory(Command):

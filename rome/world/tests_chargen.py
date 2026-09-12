@@ -29,6 +29,8 @@ from world.chargen_menu import (
     menunode_choose_class,
     menunode_race_info,
     menunode_class_info,
+    menunode_end,
+    _format_starting_gear,
 )
 from world.combat import SPELLS, SKILLS
 
@@ -320,6 +322,98 @@ class TestApplyRaceAndClass(EvenniaTest):
         _apply_race_and_class(char)
         _apply_race_and_class(char)
         self.assertEqual(char.db.spells_known.count("cure wounds"), 1)
+
+
+class TestFormatStartingGear(EvenniaTest):
+    """
+    Regression coverage for a real, confirmed gap found live: chargen's
+    finale screen never named what the character actually started with
+    - the only place gear was ever mentioned was the class-browsing
+    page, correctly scoped to "what THIS class gets," easy to
+    misremember once several classes have been browsed. A real player
+    spent 13+ minutes across two sessions hunting for a weapon
+    belonging to a class they'd looked at but didn't choose, before
+    giving up and deleting their character. _format_starting_gear adds
+    an unambiguous "here's what you're actually carrying" line right
+    after gear is applied.
+    """
+
+    def test_lists_wielded_weapon_and_worn_armor(self):
+        char = self.char1
+        char.db.race = "human"
+        char.db.player_class = "gladiator"
+        _apply_race_and_class(char)
+
+        result = _format_starting_gear(char)
+
+        self.assertIn("You are equipped with:", result)
+        self.assertIn(char.db.wielded_weapon.key, result)
+        self.assertIn(char.db.worn_armor.key, result)
+
+    def test_matches_the_class_own_real_gear_not_a_different_class(self):
+        # The exact confusion this fix targets: Gladiator's real
+        # weapon (broadsword) must be named, never Barbarian's
+        # (greatsword) or any other class's.
+        char = self.char1
+        char.db.race = "human"
+        char.db.player_class = "gladiator"
+        _apply_race_and_class(char)
+
+        result = _format_starting_gear(char)
+
+        self.assertIn("broadsword", result)
+        self.assertNotIn("greatsword", result)
+
+    def test_empty_when_nothing_equipped(self):
+        char = self.char1
+        char.db.wielded_weapon = None
+        for attr in ("worn_armor", "worn_shield", "worn_head", "worn_arms",
+                     "worn_hands", "worn_legs", "worn_feet"):
+            setattr(char.db, attr, None)
+
+        self.assertEqual(_format_starting_gear(char), "")
+
+
+class TestMenunodeEndShowsStartingGear(EvenniaTest):
+    """End-to-end: the actual finale text menunode_end returns includes
+    the gear line, correctly placed (no stray whitespace from the
+    dedent()-interpolation trap - see _format_race_and_class_info's own
+    fix for the same bug earlier in this file)."""
+
+    class _FakeCaller:
+        def __init__(self, new_char):
+            self.new_char = new_char
+
+    def test_finale_text_names_the_real_starting_weapon(self):
+        char = self.char1
+        char.db.race = "human"
+        char.db.player_class = "gladiator"
+        caller = self._FakeCaller(char)
+
+        text, options = menunode_end(caller)
+
+        self.assertIn("You are equipped with:", text)
+        self.assertIn("broadsword", text)
+
+    def test_no_line_has_more_than_expected_leading_whitespace(self):
+        # Regression guard for the exact dedent()-interpolation bug
+        # fixed earlier this session on the race/class info pages -
+        # gear_line has zero leading whitespace by design, which would
+        # drag dedent()'s common-prefix calculation down to zero and
+        # leave every other template line under-stripped if it were
+        # ever moved back inside the same dedent() call.
+        char = self.char1
+        char.db.race = "human"
+        char.db.player_class = "gladiator"
+        caller = self._FakeCaller(char)
+
+        text, options = menunode_end(caller)
+
+        for line in text.split("\n"):
+            if not line.strip():
+                continue
+            leading = len(line) - len(line.lstrip(" "))
+            self.assertEqual(leading, 0, "unexpected indentation: %r" % line)
 
 
 class TestRaceAndClassPresentationData(EvenniaTest):
