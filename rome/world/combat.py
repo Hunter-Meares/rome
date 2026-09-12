@@ -5234,6 +5234,24 @@ class CombatCharacter(ContribRPCharacter):
                     if snooper and snooper.pk and snooper != self:
                         snooper.msg(prefix + display_text)
 
+    def format_appearance(self, appearance, looker, **kwargs):
+        """
+        A direct complaint from live playtesting: a character's own
+        description ran straight into their Wielded/Worn equipment
+        listing with no visual separation at all - "it all just
+        clutters together." The base implementation
+        (DefaultObject.format_appearance) always calls
+        compress_whitespace(appearance) with its default
+        max_linebreaks=1, which unconditionally collapses ANY run of
+        blank lines back down to a single line break - so simply
+        adding a blank line in get_display_things() below would have
+        been silently erased right back out by this exact step. Raised
+        to 2 here, scoped to Characters only (rooms/objects keep the
+        default), since get_display_things() below now emits a
+        leading blank line specifically for this seam.
+        """
+        return evennia_utils.compress_whitespace(appearance, max_linebreaks=2).strip()
+
     def return_appearance(self, looker, **kwargs):
         """
         Adds a title line ahead of the normal appearance text - an
@@ -5288,7 +5306,14 @@ class CombatCharacter(ContribRPCharacter):
         carrying_line = "|wYou see:|n %s" % thing_names if thing_names else ""
 
         parts = [line for line in (("\n".join(equipped_lines) if equipped_lines else ""), carrying_line) if line]
-        return "\n".join(parts)
+        if not parts:
+            return ""
+        # Leading blank line - separates this section from the
+        # description above it (see format_appearance's own override,
+        # which raises the normally-1 max_linebreaks specifically so
+        # this survives the final compress_whitespace pass instead of
+        # being silently collapsed back out).
+        return "\n" + "\n".join(parts)
 
     def at_object_creation(self):
         """Called once, when this object is first created."""

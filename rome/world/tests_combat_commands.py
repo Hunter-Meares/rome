@@ -758,6 +758,53 @@ class TestEquippedItemsShowSlotLabelsOnLook(CombatCommandTestBase):
         self.assertIn("a plain trinket", appearance)
 
 
+class TestEquippedItemsHaveABlankLineFromDescription(CombatCommandTestBase):
+    """
+    Regression coverage for a direct complaint from live playtesting:
+    a character's own description ran straight into their Wielded/Worn
+    listing with no visual separation - "it all just clutters
+    together." The fix needed a real, non-obvious workaround: the base
+    DefaultObject.format_appearance() always calls
+    compress_whitespace(appearance) with its default max_linebreaks=1,
+    which unconditionally collapses ANY run of blank lines back down
+    to a single line break - so a bare blank line inserted in
+    get_display_things() would have been silently erased right back
+    out. CombatCharacter.format_appearance() now raises that to 2,
+    scoped to Characters only (rooms/objects keep the default), and
+    get_display_things() emits a leading blank line to actually use
+    the extra room this allows.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.desc = "A tall, scarred fighter stands here."
+        self.weapon = create.create_object(
+            "typeclasses.objects.Object", key="a test sword", location=self.char1
+        )
+        self.char1.db.wielded_weapon = self.weapon
+
+    def test_real_blank_line_separates_desc_from_equipment(self):
+        appearance = self.char1.return_appearance(self.char1)
+        self.assertIn(
+            "A tall, scarred fighter stands here.\n\n|wWielded (in hand):|n",
+            appearance,
+        )
+
+    def test_no_equipment_or_carried_items_has_no_trailing_blank_line(self):
+        self.char1.db.wielded_weapon = None
+        self.weapon.delete()  # nothing left to show at all, equipped or loose
+        appearance = self.char1.return_appearance(self.char1)
+        self.assertFalse(appearance.endswith("\n"))
+        self.assertNotIn("\n\n", appearance)
+
+    def test_room_descriptions_are_unaffected(self):
+        # The relaxed max_linebreaks is scoped to CombatCharacter only -
+        # a plain Room must keep the normal single-blank-line collapse.
+        self.room1.db.desc = "A room.\n\n\n\nWith extra blank lines."
+        appearance = self.room1.return_appearance(self.char1)
+        self.assertNotIn("\n\n\n", appearance)
+
+
 class TestCooldowns(CombatCommandTestBase):
     """
     First-pass fix for the long-flagged gap in rome_mud_todo.md: "zero
