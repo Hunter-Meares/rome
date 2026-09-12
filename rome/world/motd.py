@@ -32,15 +32,14 @@ from evennia import CmdSet
 from commands.command import Command
 from world.box_display import box_border, box_line, box_paragraph, box_blank
 
-RECENT_UPDATES_DATE = "2026-09-06"
+RECENT_UPDATES_DATE = "2026-09-12"
 
 RECENT_UPDATES_TEXT = (
-    "Combat now tells you how wounded someone actually is - watch for "
-    "a status line whenever an NPC, an ally, or you yourself crosses a "
-    "real health milestone, healing included. The doubled HP/MP/SP "
-    "prompt during a fight is also fixed. The Deeper Sands' Arena "
-    "Fighters carry real weapons and armor now too, with a real chance "
-    "to drop a piece of it when defeated."
+    "Character creation now tells you exactly what you're equipped "
+    "with right at the finish. And wield/don/unwield/doff no longer "
+    "care which one you reach for - any of them now correctly handles "
+    "either a weapon or a piece of armor, with wear/equip/remove/"
+    "unequip all working as aliases too."
 )
 
 # The box's own interior width, between its left/right borders and
