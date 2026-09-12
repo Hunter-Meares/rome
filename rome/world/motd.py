@@ -32,7 +32,7 @@ from evennia import CmdSet
 from commands.command import Command
 from world.box_display import box_border, box_line, box_paragraph, box_blank
 
-RECENT_UPDATES_DATE = "2026-09-13"
+RECENT_UPDATES_DATE = "2026-09-12"
 
 RECENT_UPDATES_TEXT = (
     "Character creation now tells you exactly what you're equipped "
