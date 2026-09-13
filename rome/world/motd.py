@@ -40,9 +40,11 @@ RECENT_UPDATES_TEXT = (
     "conditions affecting you, color-coded by whether they're helping "
     "or hurting. Summoned pets can now be sent away with 'dismiss' (or "
     "'banish'), and won't be left behind fighting alone if you flee or "
-    "fall in battle. New 'help death' and 'help targeting' topics "
-    "explain what happens when you die and how targeting works when "
-    "there's more than one of something around."
+    "fall in battle. New 'help death', 'help targeting', 'help "
+    "roleplay', and 'help description' topics cover what happens when "
+    "you die, how targeting works when there's more than one of "
+    "something around, this game's roleplay expectations, and the real "
+    "difference between setdesc, sdesc, and mask."
 )
 
 # The box's own interior width, between its left/right borders and
