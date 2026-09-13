@@ -95,6 +95,41 @@ class TestRoleplayHelpTopic(EvenniaTest):
         self.assertIn("help description", entry.db_entrytext.lower())
 
 
+class TestRulesHelpTopic(EvenniaTest):
+    """
+    A direct request to mirror the website's rules.html page in-game:
+    roleplay required, no multiplaying, no cheating, gods (and staff)
+    enforce it. Kept as its own topic rather than folded into
+    'roleplay', since it also covers ground roleplay quality never
+    did - multiplaying, self-dealing, code of conduct, cheating.
+    """
+
+    def test_rules_topic_exists(self):
+        create_all_help_entries()
+        self.assertIsNotNone(HelpEntry.objects.filter(db_key="rules").first())
+
+    def test_rules_topic_covers_multiplaying_and_cheating(self):
+        create_all_help_entries()
+        text = HelpEntry.objects.get(db_key="rules").db_entrytext.lower()
+        self.assertIn("no multiplaying", text)
+        self.assertIn("no cheating", text)
+        self.assertIn("no self-dealing", text)
+        self.assertIn("no metagaming", text)
+        self.assertIn("no powergaming", text)
+
+    def test_rules_topic_mentions_divine_and_staff_enforcement(self):
+        create_all_help_entries()
+        text = HelpEntry.objects.get(db_key="rules").db_entrytext.lower()
+        self.assertIn("gods", text)
+        self.assertIn("staff", text)
+
+    def test_rules_topic_points_to_roleplay_and_description_topics(self):
+        create_all_help_entries()
+        text = HelpEntry.objects.get(db_key="rules").db_entrytext.lower()
+        self.assertIn("help roleplay", text)
+        self.assertIn("help description", text)
+
+
 class TestDescriptionHelpTopic(EvenniaTest):
     """
     A dedicated help topic (separate from 'roleplay') explaining the

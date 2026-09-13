@@ -78,7 +78,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
     )
 
@@ -370,6 +370,67 @@ def create_all_help_entries():
         db_lock_storage="view:all()",
     )
     roleplay_entry.aliases.add("rp")
+
+    # --- Rules ---
+    HelpEntry.objects.create(
+        db_key="rules",
+        db_help_category="General",
+        db_entrytext=(
+            "|wRules & Expectations|n\n\n"
+            "Rome: The Eternal City is a roleplay-enforced world, not a "
+            "combat sandbox with a Roman coat of paint. These rules exist "
+            "to keep that story safe, fair, and worth telling - for you, "
+            "and for everyone playing it alongside you. See 'help "
+            "roleplay' for what's expected of your roleplay specifically, "
+            "and 'help description' for the tools (description, sdesc, "
+            "mask) you'll use to actually play it.\n\n"
+            "|wOne Character, One Voice|n\n"
+            "Multiple characters per account are welcome - this is about "
+            "playing them honestly, not about how many you keep.\n"
+            "  - No multiplaying: never run two of your own characters at "
+            "once to be in two places, cover both sides of a scene, or "
+            "back yourself up in a fight.\n"
+            "  - No self-dealing: don't trade gold or gear between your "
+            "own characters, or otherwise use one to prop up another. "
+            "Earn what your character has honestly.\n"
+            "  - Commit to the scene: don't quietly switch characters "
+            "mid-scene to change how it plays out.\n\n"
+            "|wCode of Conduct|n\n"
+            "  - Respect comes first: no hate speech, harassment, or "
+            "discriminatory language, in character or out. Real people "
+            "are on the other side of every character you meet.\n"
+            "  - Honor story boundaries: respect other players' comfort "
+            "levels and the boundaries they set for their characters' "
+            "stories. Consent matters, especially for major or permanent "
+            "plot impact.\n"
+            "  - Follow staff in events: during staff-run events and "
+            "conflict resolution, follow directions promptly.\n\n"
+            "|wGame Mechanics & Fair Play|n\n"
+            "  - No metagaming: using out-of-character knowledge to "
+            "influence in-character decisions isn't fair to players who "
+            "earned their information honestly.\n"
+            "  - No powergaming: don't force outcomes on unwilling "
+            "players. Let actions have real, contestable stakes.\n"
+            "  - No cheating: macros, scripts, bots, or any other "
+            "automation to play the game for you are never allowed. Play "
+            "it yourself, every time.\n"
+            "  - Combat has real weight: death and defeat carry real "
+            "consequences that scale with your character's experience "
+            "(see 'help death'). Don't expect to talk your way out of a "
+            "fight's outcome after the fact.\n"
+            "  - Exploits get reported, not exploited: found a bug that "
+            "breaks the game in your favor? Report it rather than take "
+            "advantage of it.\n\n"
+            "|wEnforcement|n\n"
+            "Infractions may result in warnings, temporary suspensions, "
+            "or bans depending on severity. Staff decisions are made with "
+            "the health of the community in mind. But staff aren't the "
+            "only ones watching - poor conduct can also draw a more "
+            "immediate, in-fiction response from the gods themselves. "
+            "Consider both before you act."
+        ),
+        db_lock_storage="view:all()",
+    )
 
     # --- Description vs. sdesc vs. mask ---
     description_entry = HelpEntry.objects.create(
