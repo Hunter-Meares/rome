@@ -633,6 +633,15 @@ class TestStatsBoxDisplay(CombatCommandTestBase):
         result = self.call(CmdCoreStats(), "", caller=self.char1)
         self.assertIn("spell power, Max MP", result)
 
+    def test_level_line_has_a_colon_like_every_other_label(self):
+        """
+        Race:/Class:/Faction:/Religion:/XP:/Gold: all use "Label: value"
+        - Level was the one holdout written as "Level %d (%s)" with no
+        colon, a real inconsistency flagged directly by the user.
+        """
+        result = self.call(CmdCoreStats(), "", caller=self.char1)
+        self.assertIn("Level: 1", result)
+
     def test_race_and_class_shown_as_labeled_lines(self):
         """
         Race/class were already shown before this, just combined into

@@ -7008,7 +7008,7 @@ class CmdCoreStats(Command):
         lines.append(box_border(w, "-"))
         lines.append(box_line("  Race: %s" % race_display, w))
         lines.append(box_line("  Class: %s" % class_display, w))
-        lines.append(box_line("  Level %d (%s)" % (level, title), w))
+        lines.append(box_line("  Level: %d (%s)" % (level, title), w))
         lines.append(box_line("  Faction: %s" % faction_line, w))
         lines.append(box_line("  Religion: %s" % religion_line, w))
         lines.append(box_line("  XP: %s" % xp_line, w))

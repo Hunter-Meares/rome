@@ -78,7 +78,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
     )
 
@@ -341,6 +341,91 @@ def create_all_help_entries():
         ),
         db_lock_storage="view:all()",
     )
+
+    # --- Roleplay enforcement ---
+    roleplay_entry = HelpEntry.objects.create(
+        db_key="roleplay",
+        db_help_category="General",
+        db_entrytext=(
+            "|wRoleplay|n\n\n"
+            "Rome: The Eternal City is a roleplay-enforced MUD. This isn't "
+            "just a combat sandbox with a Roman coat of paint - you're "
+            "expected to stay in character, speak and act as your "
+            "character would, and put real effort into your poses, "
+            "emotes, and dialogue. Lean on your |wsdesc|n rather than "
+            "your literal character name when describing yourself - see "
+            "'help description' for exactly how your description, "
+            "sdesc, and mask differ, with examples.\n\n"
+            "|wThe gods are watching.|n This is truer here than in most "
+            "settings - the gods of Rome are not an abstraction, and they "
+            "take a real, personal interest in how mortals conduct "
+            "themselves. Poor roleplay, or a refusal to roleplay at all, "
+            "does not go unnoticed and can draw real divine displeasure. "
+            "Vivid, immersive, effortful roleplay, on the other hand, is "
+            "the surest way to catch a god's favor.\n\n"
+            "In short: play your part well, and Olympus may smile on you. "
+            "Play it poorly, or not at all, and you may find the gods far "
+            "less forgiving than the mortals around you."
+        ),
+        db_lock_storage="view:all()",
+    )
+    roleplay_entry.aliases.add("rp")
+
+    # --- Description vs. sdesc vs. mask ---
+    description_entry = HelpEntry.objects.create(
+        db_key="description",
+        db_help_category="General",
+        db_entrytext=(
+            "|wDescription, Sdesc, and Mask|n\n\n"
+            "These three sound similar and all change what people see "
+            "about you, but they're genuinely different tools - here's "
+            "exactly how, with examples.\n\n"
+            "|wYour description (desc)|n\n"
+            "Your physical appearance - what someone sees when they "
+            "'look' directly at you by name. Set an initial one at "
+            "character creation, and change it any time afterward with "
+            "'setdesc'.\n"
+            "  Usage: setdesc <description>\n"
+            "  Example: setdesc A tall, sun-weathered gladiator, a "
+            "jagged scar running the length of his jaw.\n\n"
+            "|wYour sdesc (short description)|n\n"
+            "The short label everyone else sees INSTEAD of your real "
+            "character name - in room listings, combat messages, poses, "
+            "emotes, everywhere. This is your everyday in-character "
+            "identity, and you can change it any time.\n"
+            "  Usage: sdesc <short description>\n"
+            "  Example: sdesc a tall, sun-weathered gladiator\n"
+            "  Result: others see \"A tall, sun-weathered gladiator "
+            "arrives from the north\" instead of your real name.\n"
+            "Other players can give you a personal nickname with 'recog "
+            "<your sdesc> as <alias>' - once they have, they'll keep "
+            "seeing that alias instead of your sdesc, even if you change "
+            "your sdesc later. Recognition tracks who you actually are, "
+            "not your current sdesc text.\n\n"
+            "|wA mask|n\n"
+            "NOT just another sdesc change, even though it looks like "
+            "one - a mask is a flagged, reversible disguise with real "
+            "mechanical teeth. It's the one thing that actually breaks "
+            "an existing 'recog' someone has on you, which a plain sdesc "
+            "change never does.\n"
+            "  Usage: mask <new sdesc>\n"
+            "  Example: mask a hooded merchant\n"
+            "  Result: \"You wear a mask as 'a hooded merchant "
+            "[masked]'.\" - the '[masked]' tag is automatic, so everyone "
+            "can tell you're disguised even if they can't tell who you "
+            "really are. Anyone who had you recog'd stops recognizing "
+            "you while masked.\n"
+            "  To remove it: unmask - restores your real sdesc exactly, "
+            "no need to retype it.\n\n"
+            "Bottom line: description ('setdesc') is your actual "
+            "physical look, sdesc is the everyday identity label others "
+            "see instead of your name, and mask is a temporary, "
+            "detectable disguise you put on and take back off - not a "
+            "casual way to relabel yourself."
+        ),
+        db_lock_storage="view:all()",
+    )
+    description_entry.aliases.add("desc")
 
     # --- Dismissing a summoned pet ---
     HelpEntry.objects.create(
