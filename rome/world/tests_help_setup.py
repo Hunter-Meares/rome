@@ -126,6 +126,19 @@ class TestDescriptionHelpTopic(EvenniaTest):
         self.assertIn("sdesc a tall, sun-weathered gladiator", text)
         self.assertIn("mask a hooded merchant", text)
 
+    def test_description_topic_notes_the_article_is_never_automatic(self):
+        """
+        Direct follow-up question: does the game insert 'a'/'an' for
+        you on sdesc/mask? It doesn't - SdescHandler.add() and
+        CmdMask.func() both store the typed text verbatim, no article
+        handling at all. Worth stating explicitly rather than leaving
+        players to infer it from the examples alone.
+        """
+        create_all_help_entries()
+        entry = HelpEntry.objects.get(db_key="description")
+        text = entry.db_entrytext.lower()
+        self.assertIn("never adds", text)
+
     def test_description_topic_documents_the_real_setdesc_command(self):
         """
         Regression guard for a real inaccuracy caught live: an earlier

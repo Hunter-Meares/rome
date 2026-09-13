@@ -207,7 +207,7 @@ class CmdWho(DefaultCmdWho):
                 "|YTitle",
                 "|YRace",
                 "|YClass",
-                "|YLvl",
+                "|YLevel",
                 "|YRoom",
                 "|YIdle",
             )

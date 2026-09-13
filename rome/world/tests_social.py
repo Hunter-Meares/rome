@@ -120,6 +120,17 @@ class TestCmdWho(EvenniaCommandTest):
         self.assertNotIn("Human ([...]", result)
         self.assertNotIn("Augur ([...]", result)
 
+    def test_admin_lean_who_header_spells_out_level(self):
+        """
+        Every other column header in the lean admin 'who' table is a
+        full word (Account, Char, Title, Race, Class, Room, Idle) -
+        Level was the one abbreviated to "Lvl", a real inconsistency
+        flagged directly by the user.
+        """
+        result = self.call(CmdWho(), "", caller=self.account)
+        self.assertIn("Level", result)
+        self.assertNotIn("Lvl", result)
+
     def test_admin_full_who_crops_title_and_room_but_keeps_raw_level(self):
         result = self.call(CmdWho(), "/full", cmdstring="who", caller=self.account)
         self.assertNotIn(self.char1.db.custom_title, result)
