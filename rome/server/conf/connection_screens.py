@@ -40,13 +40,16 @@ CONNECTION_SCREEN = """
     |R|hRome: The Eternal City|n
  
 |b==============================================================|n
- Welcome to |g{}|n, version {}!
+ Welcome to |g{}|n! |x(built on Evennia {})|n
 
     --------------------------------------------------
-      |wThis world is still in early development.|n
-      |wExpect bugs, resets, and frequent updates.|n
+      |wRome has entered its Player Testing phase!|n
+      |wThe core game is complete and playable - now|n
+      |wwe need real players to help find what still|n
+      |wneeds work. Expect occasional bugs and updates.|n
 
-      |wYour feedback and curiosity are always welcome!|n
+      |wFound a bug or have an idea? Type 'bug' or|n
+      |w'idea' once you're in-game - we read every one.|n
     --------------------------------------------------
 
  If you have an existing account, connect to it by typing:
