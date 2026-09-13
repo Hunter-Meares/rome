@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="92" fill="#141416"/>
+  <circle cx="100" cy="100" r="90" fill="none" stroke="#d4af37" stroke-width="3"/>
+  <circle cx="100" cy="100" r="80" fill="none" stroke="#a98623" stroke-width="1.5"/>
+  <g fill="none" stroke="#d4af37" stroke-width="3" stroke-linecap="round">
+    <!-- staff -->
+    <line x1="100" y1="55" x2="100" y2="150"/>
+    <!-- serpent coiling around the staff -->
+    <path d="M100 65 C 84 70, 84 82, 100 88 C 116 94, 116 106, 100 112 C 84 118, 84 130, 100 136"/>
+  </g>
+  <!-- serpent head -->
+  <path d="M100 65 L94 58 L106 58 Z" fill="#d4af37"/>
+  <!-- cross / wings suggestion at top -->
+  <g stroke="#d4af37" stroke-width="2.5" stroke-linecap="round">
+    <line x1="82" y1="60" x2="70" y2="52"/>
+    <line x1="118" y1="60" x2="130" y2="52"/>
+  </g>
+</svg>

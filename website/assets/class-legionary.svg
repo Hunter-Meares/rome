@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="92" fill="#141416"/>
+  <circle cx="100" cy="100" r="90" fill="none" stroke="#d4af37" stroke-width="3"/>
+  <circle cx="100" cy="100" r="80" fill="none" stroke="#a98623" stroke-width="1.5"/>
+  <!-- scutum shield -->
+  <rect x="72" y="60" width="56" height="80" rx="10" fill="#0d0d0f" stroke="#d4af37" stroke-width="3"/>
+  <line x1="72" y1="100" x2="128" y2="100" stroke="#d4af37" stroke-width="2"/>
+  <ellipse cx="100" cy="100" rx="8" ry="14" fill="none" stroke="#d4af37" stroke-width="2"/>
+  <!-- crossed gladii behind -->
+  <g stroke="#a98623" stroke-width="2.5" stroke-linecap="round">
+    <line x1="55" y1="150" x2="80" y2="120"/>
+    <line x1="145" y1="150" x2="120" y2="120"/>
+  </g>
+</svg>

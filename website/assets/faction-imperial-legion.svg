@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="92" fill="#141416"/>
+  <circle cx="100" cy="100" r="90" fill="none" stroke="#d4af37" stroke-width="3"/>
+  <circle cx="100" cy="100" r="80" fill="none" stroke="#a98623" stroke-width="1.5"/>
+  <g fill="none" stroke="#d4af37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- standard pole -->
+    <line x1="100" y1="60" x2="100" y2="150"/>
+    <!-- crossbar -->
+    <line x1="70" y1="95" x2="130" y2="95"/>
+    <!-- SPQR plaque -->
+    <rect x="82" y="102" width="36" height="20" rx="2" fill="#0d0d0f" stroke="#d4af37" stroke-width="2"/>
+  </g>
+  <text x="100" y="116" text-anchor="middle" font-family="Georgia, serif" font-size="11" fill="#d4af37" letter-spacing="1">SPQR</text>
+  <!-- eagle -->
+  <g fill="#d4af37" stroke="#d4af37" stroke-width="1">
+    <path d="M100 40
+             C 92 42, 84 48, 78 58
+             C 86 55, 92 55, 96 58
+             C 90 62, 84 68, 82 76
+             C 90 70, 96 68, 100 68
+             C 104 68, 110 70, 118 76
+             C 116 68, 110 62, 104 58
+             C 108 55, 114 55, 122 58
+             C 116 48, 108 42, 100 40 Z"/>
+    <path d="M100 58 L96 70 L100 66 L104 70 Z"/>
+  </g>
+</svg>

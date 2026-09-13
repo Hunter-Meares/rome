@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="92" fill="#141416"/>
+  <circle cx="100" cy="100" r="90" fill="none" stroke="#d4af37" stroke-width="3"/>
+  <circle cx="100" cy="100" r="80" fill="none" stroke="#a98623" stroke-width="1.5"/>
+  <g fill="none" stroke="#d4af37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- lyre arms -->
+    <path d="M76 130 C 60 120, 58 84, 74 58"/>
+    <path d="M124 130 C 140 120, 142 84, 126 58"/>
+    <!-- crossbar -->
+    <path d="M74 58 C 90 66, 110 66, 126 58"/>
+    <!-- base -->
+    <path d="M76 130 C 88 138, 112 138, 124 130"/>
+    <!-- strings -->
+    <line x1="84" y1="66" x2="88" y2="128"/>
+    <line x1="93" y1="64" x2="94" y2="130"/>
+    <line x1="102" y1="63" x2="100" y2="131"/>
+    <line x1="111" y1="64" x2="106" y2="130"/>
+    <line x1="120" y1="66" x2="112" y2="128"/>
+  </g>
+  <!-- serpent coiling at base -->
+  <path d="M70 140 C 78 148, 92 148, 96 140 C 100 132, 90 128, 84 134 C 80 138, 84 142, 88 140"
+        fill="none" stroke="#d4af37" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="70" cy="140" r="2" fill="#d4af37"/>
+</svg>

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="92" fill="#141416"/>
+  <circle cx="100" cy="100" r="90" fill="none" stroke="#d4af37" stroke-width="3"/>
+  <circle cx="100" cy="100" r="80" fill="none" stroke="#a98623" stroke-width="1.5"/>
+  <g stroke="#d4af37" stroke-width="3" stroke-linecap="round">
+    <line x1="66" y1="70" x2="134" y2="130"/>
+    <line x1="134" y1="70" x2="66" y2="130"/>
+  </g>
+  <g fill="#d4af37">
+    <path d="M66 70 L58 62 L70 64 Z"/>
+    <path d="M134 70 L142 62 L130 64 Z"/>
+    <path d="M66 130 L58 138 L70 136 Z"/>
+    <path d="M134 130 L142 138 L130 136 Z"/>
+  </g>
+  <!-- watching eye -->
+  <ellipse cx="100" cy="100" rx="16" ry="9" fill="none" stroke="#d4af37" stroke-width="2"/>
+  <circle cx="100" cy="100" r="4" fill="#d4af37"/>
+</svg>

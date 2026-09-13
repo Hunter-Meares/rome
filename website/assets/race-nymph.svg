@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="92" fill="#141416"/>
+  <circle cx="100" cy="100" r="90" fill="none" stroke="#d4af37" stroke-width="3"/>
+  <circle cx="100" cy="100" r="80" fill="none" stroke="#a98623" stroke-width="1.5"/>
+  <!-- water droplet -->
+  <path d="M100 60 C 112 78, 122 92, 122 106 C 122 120, 112 130, 100 130 C 88 130, 78 120, 78 106 C 78 92, 88 78, 100 60 Z"
+        fill="none" stroke="#d4af37" stroke-width="3" stroke-linejoin="round"/>
+  <!-- leaves either side -->
+  <g fill="#d4af37">
+    <path d="M78 120 C 60 118, 48 128, 46 144 C 58 138, 68 132, 78 128 Z"/>
+    <path d="M122 120 C 140 118, 152 128, 154 144 C 142 138, 132 132, 122 128 Z"/>
+  </g>
+</svg>

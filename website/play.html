@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Play — Rome: The Eternal City</title>
+  <meta name="description" content="Play Rome: The Eternal City instantly in your browser, or connect with Mudlet, a MUSH client, or a mobile client. We're currently in our Player Testing phase - jump in and help shape the game.">
+  <meta property="og:title" content="Play Now — Rome: The Eternal City">
+  <meta property="og:description" content="Play instantly in your browser, or connect with Mudlet, a MUSH client, or a mobile client.">
+  <meta property="og:image" content="https://rome.vineyard.haus/assets/hero-bg.jpg">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="assets/favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="assets/favicon-180.png">
+  <style>
+    /* Pure-CSS fade-in - no JS dependency, so a blocked/slow/failed
+       script never leaves the page blank. */
+    @keyframes page-fade-in { from { opacity: 0; } to { opacity: 1; } }
+    main { animation: page-fade-in 0.6s ease both; }
+    @media (prefers-reduced-motion: reduce) {
+      main { animation: none; }
+    }
+
+    .client-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .client-btn {
+      background: var(--card);
+      color: var(--muted);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 6px;
+      padding: 10px 16px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.2s ease-in-out;
+    }
+    .client-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .client-btn.active {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+    }
+    .client-section {
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+  </style>
+</head>
+<body>
+  <!-- header -->
+  <header id="site-header" class="site-header">
+    <div class="nav-inner">
+      <a class="brand" href="index.html"><img src="assets/rome-wordmark.png" alt="Rome logo" id="logo"></a>
+      <nav class="main-nav">
+        <a href="index.html">Home</a>
+        <a href="about.html">About</a>
+        <a href="features.html">Features</a>
+        <a href="gods.html">Gods</a>
+        <a href="mythology.html">Mythology</a>
+        <a href="races.html">Races</a>
+        <a href="classes.html">Classes</a>
+        <a href="abilities.html">Skills & Spells</a>
+        <a href="factions.html">Factions</a>
+        <a href="rules.html">Rules</a>
+        <a href="faq.html">FAQ</a>
+        <a href="community.html">Community</a>
+        <a href="contact.html">Contact</a>
+        <a href="play.html" class="nav-cta">Play Now</a>
+      </nav>
+      <button id="mobile-toggle" class="mobile-toggle" aria-label="Open menu">☰</button>
+    </div>
+  </header>
+
+  <main style="margin-top:64px">
+    <section class="section centered">
+      <div class="container">
+        <h1>Play Now — Rome: The Eternal City</h1>
+        <p style="margin-top:8px; color:var(--accent); font-style:italic;">We're currently in our Player Testing phase - the core game is complete and playable, and real players are exactly what we need. Found something broken or confusing once you're in? Type <strong>bug</strong> or <strong>idea</strong> in-game, or see the <a href="faq.html">FAQ</a> and <a href="rules.html">Rules</a> before you dive in.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <h2>What is a MUD?</h2>
+        <p class="lede">
+          Rome: The Eternal City is a roleplay-intensive MUD set during the peak of the Roman Empire. A <strong>MUD</strong> (Multi-User Dungeon) is a text-based online multiplayer game where players explore a shared world, roleplay characters, complete quests, and interact with other players in real time. Unlike modern graphical MMOs, MUDs rely on imagination, reading, and typing commands, offering a deeply narrative-driven experience.
+        </p>
+      </div>
+    </section>
+
+    <section class="section dark">
+      <div class="container">
+        <h2>Available Clients</h2>
+        <p class="lede">
+          There are several ways to connect to a MUD, each suited to different devices and preferences.
+          Our own webclient runs directly in your browser with no setup - just click and play. Mudlet is a free desktop client with support for triggers, scripts, and mapping. MUSH clients are lightweight desktop clients for classic MUD/MUSH connections. MudRammer is a mobile/tablet app for iOS and Android.
+        </p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <h2>Choose Your Client</h2>
+        <p class="lede">
+          Default: our own webclient - no download required, just click and play. You can also switch to other clients using the tabs.
+        </p>
+
+        <!-- Tabs for options -->
+        <div class="client-options">
+          <button class="client-btn active" onclick="showClient('webclient')">Web Client (Browser)</button>
+          <button class="client-btn" onclick="showClient('mudlet')">Mudlet (Desktop)</button>
+          <button class="client-btn" onclick="showClient('mush')">MUSH Client (Desktop)</button>
+          <button class="client-btn" onclick="showClient('mudrammer')">MudRammer (Mobile/Tablet)</button>
+        </div>
+
+        <!-- Client sections -->
+        <div id="webclient" class="client-section">
+          <h3>Web Client (Browser)</h3>
+          <p>Play instantly in your browser - no download, no setup.</p>
+          <p style="margin: 20px 0;">
+            <a class="btn primary" href="http://rome.vineyard.haus:4011/webclient/" target="_blank" rel="noopener">
+              Open Web Client
+            </a>
+          </p>
+          <p style="font-size:0.9rem; color:var(--muted);">
+            Opens in a new tab. The web client runs entirely in your browser once it loads - nothing to install.
+          </p>
+        </div>
+
+        <div id="mudlet" class="client-section" style="display:none">
+          <h3>Mudlet (Desktop)</h3>
+          <p>Download Mudlet from <a href="https://www.mudlet.org/" target="_blank" rel="noopener">https://www.mudlet.org/</a>.</p>
+          <p>Create a new profile and enter:</p>
+          <p>Host: <strong>rome.vineyard.haus</strong></p>
+          <p>Port: <strong>7530</strong></p>
+          <p>Connect and enjoy the game.</p>
+        </div>
+
+        <div id="mush" class="client-section" style="display:none">
+          <h3>MUSH Client (Desktop)</h3>
+          <p>Download a MUSH client (e.g., <a href="https://www.gammon.com.au/mushclient" target="_blank" rel="noopener">MUSHclient</a>).</p>
+          <p>Create a new connection with:</p>
+          <p>Host: <strong>rome.vineyard.haus</strong></p>
+          <p>Port: <strong>7530</strong></p>
+          <p>Connect and start playing.</p>
+        </div>
+
+        <div id="mudrammer" class="client-section" style="display:none">
+          <h3>MudRammer (Mobile / Tablet)</h3>
+          <p>Download MudRammer from the <a href="https://mudrammer.com/" target="_blank" rel="noopener">App Store or Google Play</a>.</p>
+          <p>Create a new connection:</p>
+          <p>Host: <strong>rome.vineyard.haus</strong></p>
+          <p>Port: <strong>7530</strong></p>
+          <p>Save and connect on your mobile device.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-left">
+        <img src="assets/rome-mark.png" alt="rome mark" class="footer-mark">
+        <small>© 2026 Rome: The Eternal City</small>
+      </div>
+      <div class="footer-right">
+        <nav class="foot-nav">
+          <a href="about.html">About</a>
+          <a href="rules.html">Rules</a>
+          <a href="community.html">Community</a>
+          <a href="contact.html">Contact</a>
+        </nav>
+      </div>
+    </div>
+  </footer>
+
+<script>
+  function showClient(clientId) {
+    const sections = document.querySelectorAll('.client-section');
+    sections.forEach(sec => sec.style.display = 'none');
+    document.getElementById(clientId).style.display = 'block';
+
+    const buttons = document.querySelectorAll('.client-btn');
+    buttons.forEach(btn => btn.classList.remove('active'));
+    document.querySelector(`.client-btn[onclick="showClient('${clientId}')"]`).classList.add('active');
+  }
+</script>
+<script src="script.js"></script>
+</body>
+</html>

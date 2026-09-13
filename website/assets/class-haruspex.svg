@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="92" fill="#141416"/>
+  <circle cx="100" cy="100" r="90" fill="none" stroke="#d4af37" stroke-width="3"/>
+  <circle cx="100" cy="100" r="80" fill="none" stroke="#a98623" stroke-width="1.5"/>
+  <!-- flame -->
+  <path d="M100 130 C 88 122, 84 108, 92 94 C 90 106, 98 108, 98 98 C 98 90, 94 84, 96 76
+           C 106 84, 112 96, 108 108 C 116 102, 116 92, 112 84
+           C 122 96, 122 116, 108 128 C 112 118, 108 112, 100 116
+           C 104 122, 102 128, 100 130 Z"
+        fill="#d4af37"/>
+  <!-- crossed ritual blade -->
+  <g stroke="#d4af37" stroke-width="3" stroke-linecap="round">
+    <line x1="62" y1="150" x2="98" y2="118"/>
+  </g>
+  <path d="M62 150 L58 158 L68 152 Z" fill="#d4af37"/>
+</svg>

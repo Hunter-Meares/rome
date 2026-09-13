@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="92" fill="#141416"/>
+  <circle cx="100" cy="100" r="90" fill="none" stroke="#d4af37" stroke-width="3"/>
+  <circle cx="100" cy="100" r="80" fill="none" stroke="#a98623" stroke-width="1.5"/>
+  <g fill="none" stroke="#d4af37" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <!-- horse body -->
+    <path d="M55 120 C 50 108, 60 96, 78 96 C 88 96, 96 100, 100 108
+             C 106 100, 118 94, 130 98 C 142 102, 148 114, 142 124
+             C 150 122, 156 128, 152 136 L 132 132
+             C 128 140, 118 144, 108 140
+             L 60 140 C 50 140, 46 130, 55 120 Z"/>
+    <!-- legs -->
+    <path d="M70 138 L66 158"/>
+    <path d="M100 138 L100 158"/>
+    <path d="M120 136 L124 158"/>
+    <!-- tail -->
+    <path d="M55 118 C 44 116, 38 122, 40 132"/>
+    <!-- human torso rising -->
+    <path d="M96 100 C 92 84, 96 68, 108 60"/>
+  </g>
+</svg>

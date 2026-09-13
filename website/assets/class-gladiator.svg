@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="92" fill="#141416"/>
+  <circle cx="100" cy="100" r="90" fill="none" stroke="#d4af37" stroke-width="3"/>
+  <circle cx="100" cy="100" r="80" fill="none" stroke="#a98623" stroke-width="1.5"/>
+  <g stroke="#d4af37" stroke-width="3" stroke-linecap="round" fill="none">
+    <!-- gladius -->
+    <line x1="65" y1="145" x2="115" y2="60"/>
+    <line x1="78" y1="82" x2="98" y2="70"/>
+    <!-- trident -->
+    <line x1="135" y1="145" x2="95" y2="65"/>
+    <path d="M85 60 L95 65 L105 60"/>
+    <line x1="95" y1="65" x2="95" y2="50"/>
+    <path d="M78 55 L88 60" />
+    <path d="M112 55 L102 60" />
+  </g>
+</svg>

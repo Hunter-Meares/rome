@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="92" fill="#141416"/>
+  <circle cx="100" cy="100" r="90" fill="none" stroke="#d4af37" stroke-width="3"/>
+  <circle cx="100" cy="100" r="80" fill="none" stroke="#a98623" stroke-width="1.5"/>
+  <!-- sunburst rays -->
+  <g stroke="#d4af37" stroke-width="2" stroke-linecap="round">
+    <line x1="100" y1="100" x2="100" y2="34"/>
+    <line x1="100" y1="100" x2="140" y2="42"/>
+    <line x1="100" y1="100" x2="160" y2="72"/>
+    <line x1="100" y1="100" x2="160" y2="128"/>
+    <line x1="100" y1="100" x2="140" y2="158"/>
+    <line x1="100" y1="100" x2="60" y2="158"/>
+    <line x1="100" y1="100" x2="40" y2="128"/>
+    <line x1="100" y1="100" x2="40" y2="72"/>
+    <line x1="100" y1="100" x2="60" y2="42"/>
+  </g>
+  <!-- bull head -->
+  <g fill="#0d0d0f" stroke="#d4af37" stroke-width="2.5" stroke-linejoin="round">
+    <path d="M100 78
+             C 82 78, 72 92, 74 108
+             C 76 122, 88 130, 100 130
+             C 112 130, 124 122, 126 108
+             C 128 92, 118 78, 100 78 Z"/>
+    <!-- horns -->
+    <path d="M76 84 C 62 78, 52 64, 54 50" fill="none"/>
+    <path d="M124 84 C 138 78, 148 64, 146 50" fill="none"/>
+    <!-- eyes -->
+    <circle cx="90" cy="100" r="2.5" fill="#d4af37" stroke="none"/>
+    <circle cx="110" cy="100" r="2.5" fill="#d4af37" stroke="none"/>
+  </g>
+</svg>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="92" fill="#141416"/>
+  <circle cx="100" cy="100" r="90" fill="none" stroke="#d4af37" stroke-width="3"/>
+  <circle cx="100" cy="100" r="80" fill="none" stroke="#a98623" stroke-width="1.5"/>
+  <g fill="none" stroke="#d4af37" stroke-width="3" stroke-linecap="round">
+    <!-- bow -->
+    <path d="M70 55 C 50 80, 50 120, 70 145"/>
+    <line x1="70" y1="55" x2="132" y2="100"/>
+    <line x1="70" y1="145" x2="132" y2="100"/>
+    <!-- arrow -->
+    <line x1="60" y1="100" x2="140" y2="100"/>
+  </g>
+  <path d="M140 100 L128 94 L132 100 L128 106 Z" fill="#d4af37"/>
+</svg>

@@ -1,0 +1,86 @@
+/* contact.css - neutral polished form styling (no Rome-themed visuals) */
+
+:root{
+  --bg:#111;          /* adjust to match your site's background if different */
+  --muted:#bdbdbd;
+  --accent:#caa86b;   /* gold-ish accent for links/buttons */
+  --input-bg:#0f0f0f;
+  --input-border:#333;
+  --radius:8px;
+  --font-sans: "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: #eee;
+  background: var(--bg);
+}
+
+/* container tweaks (only affects contact container) */
+#contact-container {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.03);
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+  padding: 32px;
+}
+
+/* labels */
+.cf-label {
+  display:block;
+  margin-bottom:8px;
+  font-weight:600;
+  color:#e8e8e8;
+  font-size:0.98rem;
+}
+
+/* inputs */
+.cf-input, .cf-textarea {
+  box-sizing:border-box;
+  width:100%;
+  background:var(--input-bg);
+  border:1px solid var(--input-border);
+  color:#fff;
+  padding:12px 14px;
+  border-radius:6px;
+  font-size:1rem;
+  outline:none;
+  transition:box-shadow .15s, border-color .12s;
+}
+
+.cf-input:focus, .cf-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(202,168,107,0.08);
+}
+
+/* textarea tweaks */
+.cf-textarea {
+  min-height:140px;
+  resize:vertical;
+  line-height:1.5;
+}
+
+/* button */
+.btn {
+  background: linear-gradient(180deg, #d7b66b, #cba153);
+  color: #081010;
+  border: none;
+  padding: 12px 18px;
+  font-weight:700;
+  border-radius:6px;
+  cursor:pointer;
+  transition: transform .08s ease, box-shadow .12s;
+}
+.btn:hover { transform: translateY(-1px); box-shadow:0 6px 18px rgba(0,0,0,0.45); }
+.btn:active { transform: translateY(0); }
+
+/* banner (success/error) styles applied inline by JS by setting bg & color */
+#contact-banner.success { background: rgba(40,100,40,0.14); border:1px solid rgba(40,120,40,0.25); color:#bfe6b4;}
+#contact-banner.error { background: rgba(120,30,30,0.12); border:1px solid rgba(180,50,50,0.22); color:#ffbdbd;}
+
+/* responsive */
+@media (max-width:640px) {
+  #contact-container { padding:18px; }
+  .cf-input, .cf-textarea { font-size:0.98rem; padding:10px; }
+  .btn { width:100%; padding:12px; }
+}
