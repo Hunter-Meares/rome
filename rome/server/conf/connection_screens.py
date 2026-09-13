@@ -42,15 +42,16 @@ CONNECTION_SCREEN = """
 |b==============================================================|n
  Welcome to |g{}|n! |x(built on Evennia {})|n
 
-    --------------------------------------------------
-      |wRome has entered its Player Testing phase!|n
-      |wThe core game is complete and playable - now|n
-      |wwe need real players to help find what still|n
-      |wneeds work. Expect occasional bugs and updates.|n
+|Y  --------------------------------------------------|n
+|Y|h      *** PLAYER TESTING PHASE (BETA) ***|n
 
-      |wFound a bug or have an idea? Type 'bug' or|n
-      |w'idea' once you're in-game - we read every one.|n
-    --------------------------------------------------
+      |YThe core game is complete and playable - now|n
+      |Ywe need real players to help find what still|n
+      |Yneeds work. Expect occasional bugs and updates.|n
+
+      |Y|hFound a bug or have an idea?|n |YType 'bug' or|n
+      |Y'idea' once you're in-game - we read every one.|n
+|Y  --------------------------------------------------|n
 
  If you have an existing account, connect to it by typing:
       |wconnect <username> <password>|n
