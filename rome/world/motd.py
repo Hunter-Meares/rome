@@ -32,16 +32,17 @@ from evennia import CmdSet
 from commands.command import Command
 from world.box_display import box_border, box_line, box_paragraph, box_blank
 
-RECENT_UPDATES_DATE = "2026-09-12"
+RECENT_UPDATES_DATE = "2026-09-13"
 
 RECENT_UPDATES_TEXT = (
-    "Character creation now tells you exactly what you're equipped "
-    "with right at the finish, and wield/don/unwield/doff no longer "
-    "care which one you reach for - any of them now correctly handles "
-    "either a weapon or a piece of armor, with wear/equip/remove/"
-    "unequip all working as aliases too. Looking at a character no "
-    "longer runs their description straight into their equipment "
-    "listing - there's a real blank line between them now."
+    "New characters now start with a free rough map of Rome, and "
+    "'stats' shows your race and class more clearly plus any active "
+    "conditions affecting you, color-coded by whether they're helping "
+    "or hurting. Summoned pets can now be sent away with 'dismiss' (or "
+    "'banish'), and won't be left behind fighting alone if you flee or "
+    "fall in battle. New 'help death' and 'help targeting' topics "
+    "explain what happens when you die and how targeting works when "
+    "there's more than one of something around."
 )
 
 # The box's own interior width, between its left/right borders and
