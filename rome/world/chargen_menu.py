@@ -992,6 +992,19 @@ def _apply_race_and_class(character):
         character.db.mp = character.db.max_mp
         character.db.sp = character.db.max_sp
 
+    # --- Every new character starts with a rough map of Rome,
+    # regardless of class - a direct response to real new players
+    # showing classic "where am I" behavior (repeatedly checking
+    # exits in every direction before committing to one). Its own
+    # cheap, cruder prototype rather than just handing out the nicer
+    # shop-bought MAP_OF_ROME for free - see ROUGH_MAP_OF_ROME's own
+    # comment in world/prototypes.py for why that distinction matters.
+    try:
+        map_obj = spawn("ROUGH_MAP_OF_ROME")[0]
+        map_obj.move_to(character, quiet=True)
+    except Exception:
+        pass
+
     # --- Default sdesc: "a female cyclops" instead of the generic
     # rpsystem fallback ("a normal person"), built from the actual
     # race and gender chosen. Still fully player-changeable later via

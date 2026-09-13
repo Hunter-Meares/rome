@@ -324,6 +324,44 @@ class TestApplyRaceAndClass(EvenniaTest):
         self.assertEqual(char.db.spells_known.count("cure wounds"), 1)
 
 
+class TestNewCharactersGetARoughMap(EvenniaTest):
+    """
+    Regression coverage for a direct request: every new character
+    should start with some orientation to the city, regardless of
+    class - two separate real new players both showed classic
+    "where am I" behavior (checking exits in every direction before
+    committing). Deliberately its own cheap ROUGH_MAP_OF_ROME
+    prototype, not the nicer shop-bought MAP_OF_ROME given away for
+    free (that would undercut the reason to ever buy it).
+    """
+
+    def test_every_class_gets_a_rough_map_regardless_of_class(self):
+        for class_key in ("gladiator", "medicus", "augur", "barbarian"):
+            char = self.char1
+            for item in list(char.contents):
+                item.delete()
+            char.db.race = "human"
+            char.db.player_class = class_key
+            _apply_race_and_class(char)
+            maps = [o for o in char.contents if o.key == "a rough sketch of Rome"]
+            self.assertEqual(len(maps), 1, "no map granted for class %s" % class_key)
+
+    def test_documents_no_dedup_guard_on_repeated_apply(self):
+        # Unlike starting spells (which guard against duplicates since
+        # _apply_race_and_class could plausibly be called more than
+        # once), the map grant has no such guard - it relies entirely
+        # on chargen only ever calling this once per real character.
+        # This documents that behavior rather than asserting it's
+        # correct, so a future reader isn't surprised by it.
+        char = self.char1
+        char.db.race = "human"
+        char.db.player_class = "gladiator"
+        _apply_race_and_class(char)
+        _apply_race_and_class(char)
+        maps = [o for o in char.contents if o.key == "a rough sketch of Rome"]
+        self.assertEqual(len(maps), 2)
+
+
 class TestFormatStartingGear(EvenniaTest):
     """
     Regression coverage for a real, confirmed gap found live: chargen's

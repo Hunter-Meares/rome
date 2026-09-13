@@ -43,6 +43,7 @@ from world.combat import (
     CmdUnwield,
     CmdDon,
     CmdDoff,
+    CmdDismissPet,
     SKILLS,
     SPELLS,
     POWERATTACK_SP_COST,
@@ -309,6 +310,80 @@ class TestCmdDisengage(CombatCommandTestBase):
         """'flee' should resolve to the exact same command as 'disengage'."""
         self.assertIn("flee", CmdDisengage.aliases)
 
+    @patch("world.combat.randint")
+    def test_successful_disengage_releases_the_active_pet(self, mock_randint):
+        """
+        Regression coverage for a real, confirmed gap: fleeing combat
+        used to leave an active summoned pet behind to keep fighting
+        entirely on its own. A successful disengage should now dismiss
+        it via CombatRules.release_pet.
+        """
+        mock_randint.return_value = 1  # <= DISENGAGE_SUCCESS_CHANCE -> success
+        pet = create.create_object(
+            "world.combat.SummonedAlly", key="a familiar", location=self.room1
+        )
+        self.char1.db.active_companion = pet
+        self._start_duel()
+
+        self.call(CmdDisengage(), "", caller=self.char1)
+
+        self.assertIsNone(self.char1.db.active_companion)
+        self.assertFalse(pet.pk)
+
+    @patch("world.combat.randint")
+    def test_failed_disengage_does_not_touch_the_pet(self, mock_randint):
+        mock_randint.return_value = 100  # > DISENGAGE_SUCCESS_CHANCE -> failure
+        pet = create.create_object(
+            "world.combat.SummonedAlly", key="a familiar", location=self.room1
+        )
+        self.char1.db.active_companion = pet
+        self._start_duel()
+
+        self.call(CmdDisengage(), "", caller=self.char1)
+
+        self.assertEqual(self.char1.db.active_companion, pet)
+        self.assertTrue(pet.pk)
+
+
+class TestCmdDismissPet(CombatCommandTestBase):
+    """
+    Regression coverage for the new 'dismiss'/'banish' command - lets
+    a player get rid of their active pet outside of the flee/defeat
+    cleanup paths, e.g. simply not wanting it around anymore.
+    """
+
+    def test_dismiss_releases_an_active_pet(self):
+        pet = create.create_object(
+            "world.combat.SummonedAlly", key="a familiar", location=self.room1
+        )
+        self.char1.db.active_companion = pet
+
+        self.call(CmdDismissPet(), "", caller=self.char1)
+
+        self.assertIsNone(self.char1.db.active_companion)
+        self.assertFalse(pet.pk)
+
+    def test_dismiss_with_no_active_pet_gives_a_clear_message(self):
+        self.char1.db.active_companion = None
+        result = self.call(CmdDismissPet(), "", caller=self.char1)
+        self.assertIn("don't have an active pet", result)
+
+    def test_banish_is_a_real_alias(self):
+        self.assertIn("banish", CmdDismissPet.aliases)
+
+    def test_dismiss_works_even_when_not_in_the_same_room(self):
+        """Pets don't auto-follow their owner, so dismiss must work
+        purely off db.active_companion, not a room search."""
+        other_room = create.create_object("typeclasses.rooms.Room", key="elsewhere")
+        pet = create.create_object(
+            "world.combat.SummonedAlly", key="a familiar", location=other_room
+        )
+        self.char1.db.active_companion = pet
+
+        self.call(CmdDismissPet(), "", caller=self.char1)
+
+        self.assertFalse(pet.pk)
+
 
 class TestCmdChallenge(CombatCommandTestBase):
     def test_no_trainer_here_rejects(self):
@@ -546,6 +621,94 @@ class TestStatsBoxDisplay(CombatCommandTestBase):
         self.assertIn("Agilitas:  13", result)
         self.assertIn("Ingenium:  14", result)
         self.assertIn("Vigor:     15", result)
+
+    def test_ingenium_label_documents_its_max_mp_effect_too(self):
+        """
+        Ingenium's label used to say only "(spell power)", silently
+        omitting that it also raises max MP (max_mp += (ingenium-10)*2
+        in derive_npc_stats/chargen) - an inconsistency against Vigor's
+        own label, which already spells out both of ITS effects
+        ("Max HP, damage reduction"). Fixed to match that convention.
+        """
+        result = self.call(CmdCoreStats(), "", caller=self.char1)
+        self.assertIn("spell power, Max MP", result)
+
+    def test_race_and_class_shown_as_labeled_lines(self):
+        """
+        Race/class were already shown before this, just combined into
+        one unlabeled "Human, Gladiator" line - relabeled into explicit
+        'Race:'/'Class:' lines to match the existing Faction:/Religion:
+        convention, per direct request.
+        """
+        self.char1.db.race_display = "Human"
+        self.char1.db.class_display = "Gladiator"
+        result = self.call(CmdCoreStats(), "", caller=self.char1)
+        self.assertIn("Race: Human", result)
+        self.assertIn("Class: Gladiator", result)
+
+
+class TestStatsConditionsDisplay(CombatCommandTestBase):
+    """
+    Regression coverage for a real, previously-missing feature: there
+    was no command anywhere that let a player check what conditions
+    currently affect them - the only feedback was a one-time room
+    broadcast at the moment a condition was applied or wore off.
+    'stats' now shows a color-coded (green=beneficial, red=harmful)
+    list, with the section itself only appearing when at least one
+    condition is actually active. Deliberately no turn-count shown -
+    see CmdCoreStats' own comment for why a displayed number here
+    could easily read as a frozen/misleading ETA.
+    """
+
+    def test_no_conditions_section_when_nothing_active(self):
+        self.char1.db.conditions = {}
+        result = self.call(CmdCoreStats(), "", caller=self.char1)
+        self.assertNotIn("Conditions", result)
+
+    def test_harmful_condition_is_listed(self):
+        self.char1.db.conditions = {"Poisoned": [4, self.char2]}
+        result = self.call(CmdCoreStats(), "", caller=self.char1)
+        self.assertIn("Conditions", result)
+        self.assertIn("Poisoned", result)
+
+    def test_beneficial_condition_is_listed(self):
+        self.char1.db.conditions = {"Regeneration": [3, self.char1]}
+        result = self.call(CmdCoreStats(), "", caller=self.char1)
+        self.assertIn("Regeneration", result)
+
+    def test_no_turn_count_shown_for_a_condition(self):
+        self.char1.db.conditions = {"Poisoned": [4, self.char2]}
+        result = self.call(CmdCoreStats(), "", caller=self.char1)
+        self.assertNotIn("4", result.split("Conditions")[1].split("\n")[1])
+
+    def test_harmful_condition_is_colored_red(self):
+        from evennia.utils.ansi import parse_ansi
+
+        self.char1.db.conditions = {"Poisoned": [4, self.char2]}
+        result = self.call(CmdCoreStats(), "", caller=self.char1, noansi=False)
+        # noansi=False returns real escape codes, not raw |r markup -
+        # compute the exact same conversion Evennia's own parser would
+        # produce, rather than hardcoding a specific escape sequence
+        # that could drift with an ANSI-parser version change.
+        self.assertIn(parse_ansi("|rPoisoned", strip_ansi=False), result)
+
+    def test_beneficial_condition_is_colored_green(self):
+        from evennia.utils.ansi import parse_ansi
+
+        self.char1.db.conditions = {"Regeneration": [3, self.char1]}
+        result = self.call(CmdCoreStats(), "", caller=self.char1, noansi=False)
+        self.assertIn(parse_ansi("|gRegeneration", strip_ansi=False), result)
+
+    def test_multiple_conditions_all_shown(self):
+        self.char1.db.conditions = {
+            "Poisoned": [4, self.char2],
+            "Regeneration": [3, self.char1],
+            "Frightened": [2, self.char2],
+        }
+        result = self.call(CmdCoreStats(), "", caller=self.char1)
+        self.assertIn("Poisoned", result)
+        self.assertIn("Regeneration", result)
+        self.assertIn("Frightened", result)
 
 
 class TestSpellSkillTrainers(CombatCommandTestBase):
@@ -1106,3 +1269,34 @@ class TestWieldAndDonAreCrossCompatible(CombatCommandTestBase):
         unwield_names = {CmdUnwield.key, *CmdUnwield.aliases}
         doff_names = {CmdDoff.key, *CmdDoff.aliases}
         self.assertEqual(unwield_names & doff_names, set())
+
+
+class TestEvidenceBasedAliases(CombatCommandTestBase):
+    """
+    Regression coverage for aliases added from real player command
+    logs (two separate new-player sessions) rather than guesswork -
+    each one only added after confirming it doesn't collide with an
+    existing, differently-behaving command. 'skill' (bare) was
+    considered and deliberately rejected: it's already the real key
+    for CmdUseSkill (the skill-casting equivalent of 'cast'), so a
+    player typing it got a correct "Usage: skill <skill name>"
+    response, not a bug - adding it as an alias for skillinfo/skills
+    would have silently broken that real command instead of fixing
+    anything.
+    """
+
+    def test_score_is_an_alias_for_stats(self):
+        self.assertIn("score", CmdCoreStats.aliases)
+
+    def test_sheath_is_an_alias_for_unwield(self):
+        self.assertIn("sheath", CmdUnwield.aliases)
+
+    def test_score_alias_does_not_collide_with_a_real_command(self):
+        # CmdUseSkill's real key ('skill') was deliberately NOT
+        # aliased onto CmdSkillInfo for exactly this reason - confirm
+        # 'score' has no such collision before trusting it.
+        from world.combat import CmdUseSkill
+
+        used_names = {CmdUseSkill.key, *CmdUseSkill.aliases}
+        self.assertNotIn("score", used_names)
+        self.assertNotIn("sheath", used_names)

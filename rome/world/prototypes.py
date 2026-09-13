@@ -748,6 +748,46 @@ MAP_OF_ROME = {
     "price": 25,
 }
 
+# Granted free to every new character at the end of chargen (see
+# _apply_race_and_class, world/chargen_menu.py) - a direct response to
+# two separate real new players both showing classic "where am I"
+# behavior (repeatedly checking exits in every direction before
+# committing to one). Deliberately its OWN prototype, not just handing
+# out MAP_OF_ROME for free - the same nice, clean-hand shop map given
+# away undercuts the reason anyone would ever spend the 25 gold on it.
+# Same major-district information, cruder presentation - a fresh
+# escapee from the Colosseum's cells wouldn't own a fine illustrated
+# scroll anyway.
+ROUGH_MAP_OF_ROME = {
+    "key": "a rough sketch of Rome",
+    "desc": (
+        "|YA Rough Sketch of Rome|n\n\n"
+        "Scratched onto a scrap of hide by someone who clearly wasn't a "
+        "cartographer - crooked lines, a few words scrawled in charcoal "
+        "over the shapes they're meant to label. Good enough to get a "
+        "sense of the place, if not to be proud of.\n\n"
+        "|cThe Colosseum|n - where you started: the holding cells, the "
+        "Atrium of the Games, the Ludus, and the Arena Sands further "
+        "in. A road east leads out through the walls entirely.\n\n"
+        "|cThe Forum Romanum|n - the middle of everything, more or less "
+        "where all the other lines on this sketch point back to. The "
+        "Capitoline rises right beside it. A scratched arrow marked "
+        "'Subura' points north; another marked 'market, library' points "
+        "east.\n\n"
+        "|cThe Aventine and Palatine Hills|n - both off the Forum's "
+        "southern side. One word next to each: 'palace' for one hill, "
+        "'temples' for the other, and the ink's too smudged to tell "
+        "which word belongs to which anymore.\n\n"
+        "|cCampus Martius|n - north past the walls, an open muster "
+        "field with a few landmarks sketched along it.\n\n"
+        "|cBelow all of it|n - a single scratched line simply reading "
+        "'sewers - grates near Ludus, Subura, Forum.'\n\n"
+        "Scrawled at the bottom, underlined twice: |xdon't trust this "
+        "over your own two feet.|n"
+    ),
+    "price": 5,
+}
+
 GOLD_RING = {
     "key": "a gold ring",
     "desc": "A simple gold band, well-made but not showy - the kind of piece a citizen of modest means might actually afford.",
@@ -1361,6 +1401,7 @@ AUGUR_FAMILIAR_TIER1 = {
     "key": "a great grey owl",
     "aliases": ["owl", "familiar"],
     "typeclass": "world.combat.SummonedAlly",
+    "pet_line": "augur",
     "desc": (
         "A huge owl with unnervingly intelligent eyes, its feathers pale as "
         "moonlight. It came at its summoner's call, and watches everything "
@@ -1376,6 +1417,7 @@ AUGUR_FAMILIAR_TIER2 = {
     "key": "a golden eagle",
     "aliases": ["eagle", "familiar"],
     "typeclass": "world.combat.SummonedAlly",
+    "pet_line": "augur",
     "desc": (
         "A golden eagle, wings easily spanning the width of a doorway, talons "
         "curved like sickles. Its cry sounds less like a bird and more like a "
@@ -1390,6 +1432,7 @@ AUGUR_FAMILIAR_TIER3 = {
     "key": "a bronze-feathered hawk of Apollo",
     "aliases": ["hawk", "familiar"],
     "typeclass": "world.combat.SummonedAlly",
+    "pet_line": "augur",
     "desc": (
         "A hawk whose feathers catch the light like polished bronze, sacred "
         "to Apollo and lending some faint edge of his sight to whoever it "
@@ -1404,6 +1447,7 @@ AUGUR_FAMILIAR_TIER4 = {
     "key": "a phoenix wreathed in golden fire",
     "aliases": ["phoenix", "familiar"],
     "typeclass": "world.combat.SummonedAlly",
+    "pet_line": "augur",
     "desc": (
         "A bird of living flame, gold and crimson feathers trailing sparks "
         "that never quite burn anything they touch. Only the most favored "
@@ -1429,6 +1473,7 @@ HARUSPEX_LEMURES_TIER1 = {
     "key": "a whimpering lemur-spirit",
     "aliases": ["lemures", "spirit", "familiar"],
     "typeclass": "world.combat.SummonedAlly",
+    "pet_line": "haruspex",
     "desc": (
         "A thin, restless shade, barely held together, drawn from the "
         "unburied dead. It flinches at every sound but obeys its summoner "
@@ -1443,6 +1488,7 @@ HARUSPEX_LEMURES_TIER2 = {
     "key": "a restless lemures",
     "aliases": ["lemures", "spirit", "familiar"],
     "typeclass": "world.combat.SummonedAlly",
+    "pet_line": "haruspex",
     "desc": (
         "A shade with more shape and purpose than the newly-risen, its "
         "grasping hands leaving cold patches in the air wherever it moves."
@@ -1456,6 +1502,7 @@ HARUSPEX_LEMURES_TIER3 = {
     "key": "a vengeful lemures",
     "aliases": ["lemures", "spirit", "familiar"],
     "typeclass": "world.combat.SummonedAlly",
+    "pet_line": "haruspex",
     "desc": (
         "A shade thick with old grievances, its outline sharpening into "
         "something almost human whenever it grows angry - which, bound to "
@@ -1470,6 +1517,7 @@ HARUSPEX_LEMURES_TIER4 = {
     "key": "a lemures-lord, ancient and ravenous",
     "aliases": ["lemures", "spirit", "familiar"],
     "typeclass": "world.combat.SummonedAlly",
+    "pet_line": "haruspex",
     "desc": (
         "Something that stopped being one restless spirit a long time ago "
         "and became a great many of them wearing a single shape. Only the "
@@ -1496,6 +1544,7 @@ VENATOR_BEAST_TIER1 = {
     "key": "a lean gray wolf",
     "aliases": ["wolf", "companion"],
     "typeclass": "world.combat.SummonedAlly",
+    "pet_line": "venator",
     "desc": (
         "A rangy gray wolf, ribs faintly visible beneath a scarred hide, "
         "eyes fixed on its handler and no one else. It came at the call "
@@ -1510,6 +1559,7 @@ VENATOR_BEAST_TIER2 = {
     "key": "a scarred hunting wolf",
     "aliases": ["wolf", "companion"],
     "typeclass": "world.combat.SummonedAlly",
+    "pet_line": "venator",
     "desc": (
         "A heavier wolf than most, its coat crossed with old scars from "
         "hunts that clearly didn't go easily. It moves with the confidence "
@@ -1524,6 +1574,7 @@ VENATOR_BEAST_TIER3 = {
     "key": "a massive dire boar",
     "aliases": ["boar", "companion"],
     "typeclass": "world.combat.SummonedAlly",
+    "pet_line": "venator",
     "desc": (
         "A boar the size of a small cart, tusks yellowed and chipped from "
         "use, hide thick as old leather armor. Nothing about it suggests "
@@ -1538,6 +1589,7 @@ VENATOR_BEAST_TIER4 = {
     "key": "a legendary war-beast, scarred and unstoppable",
     "aliases": ["beast", "companion"],
     "typeclass": "world.combat.SummonedAlly",
+    "pet_line": "venator",
     "desc": (
         "Something that stopped being simply a wolf or a boar a long time "
         "ago, shaped by a lifetime at the side of hunters who never lost. "

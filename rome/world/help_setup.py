@@ -78,7 +78,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
     )
 
@@ -276,6 +276,96 @@ def create_all_help_entries():
             "usual fair split by how much damage each of you actually "
             "dealt - a genuine reason to group up, not just a wash.\n\n"
             "See 'help party' and 'help fight' for the specific commands."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Targeting & disambiguation ---
+    HelpEntry.objects.create(
+        db_key="targeting",
+        db_help_category="General",
+        db_entrytext=(
+            "|wTargeting & Disambiguation|n\n\n"
+            "Whenever you name something - 'look trainer', 'consider "
+            "recruit', 'fight guard', 'cast heal = ally' - the game "
+            "matches it against whatever's actually there. If more than "
+            "one thing matches (three identical trainers standing "
+            "together, say), the game just picks one for you rather than "
+            "stopping to ask - in every case like that, it genuinely "
+            "doesn't matter which one you get.\n\n"
+            "|wIf you ever need a SPECIFIC one|n out of several matches, "
+            "put the number first: |w2-trainer|n targets the second match "
+            "for 'trainer', |w3-guard|n the third, and so on. This works "
+            "anywhere you'd normally type a target's name."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Death, and getting back from it ---
+    HelpEntry.objects.create(
+        db_key="death",
+        db_help_category="General",
+        db_entrytext=(
+            "|wDeath|n\n\n"
+            "Dying works very differently depending on how far you've come.\n\n"
+            "|wLevel 5 and below:|n death is gentle. The gods aren't finished "
+            "with you yet - you're returned immediately to the holding cells "
+            "beneath the Colosseum, fully healed, with no penalty at all. "
+            "This early on, dying is a stumble, not a real setback.\n\n"
+            "|wLevel 6 and above:|n death is real. Your spirit is torn away "
+            "to the Underworld, arriving on the far shore of a dark river "
+            "with your HP, MP, and SP all at zero - you can still walk "
+            "freely, but you can't fight, cast, or use a skill until you're "
+            "alive again. Dying at this stage also costs half your progress "
+            "toward your next level - unless you've devoted yourself to "
+            "Pluto, lord of the dead (see 'help religion'), whose favor "
+            "eases that loss and, at its highest tier, removes it entirely.\n\n"
+            "|wGetting back:|n\n"
+            "  - |wSolve the riddle|n at the Threshold of Return, deep in "
+            "the Underworld. Answer correctly and you're returned to the "
+            "living immediately - no outside help needed, if you can work "
+            "it out.\n"
+            "  - |wA Medicus's Blessing of Asclepius|n can resurrect you "
+            "directly from anywhere in the world of the living - but only "
+            "once Charon has actually ferried you across, roughly 15 "
+            "minutes after you die. The wait is real, not a formality; a "
+            "Medicus can't reach you before Charon arrives.\n\n"
+            "Once you're alive again: level 5-and-under characters wake in "
+            "the holding cells, same as any early death. Level 6+ "
+            "characters instead wake in the Temple of Jupiter Optimus "
+            "Maximus on the Capitoline - by then, being pulled back by the "
+            "king of the gods himself fits better than the cells.\n\n"
+            "|wWorth knowing:|n you can't 'recall' your way out of the "
+            "Underworld once you're there - the riddle and the Blessing of "
+            "Asclepius are the only two ways back."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Dismissing a summoned pet ---
+    HelpEntry.objects.create(
+        db_key="dismiss",
+        db_help_category="General",
+        db_entrytext=(
+            "|wDismiss (or Banish) a Pet|n\n\n"
+            "Usage:\n"
+            "  dismiss\n"
+            "  banish\n\n"
+            "If you've summoned a familiar, spirit, or beast companion "
+            "(via spells or skills like Summon Familiar, Summon Lemures, "
+            "or Call of the Wild), this sends it away for good. You only "
+            "ever have one active pet at a time, so there's nothing to "
+            "target - it just dismisses whichever one you've currently "
+            "got.\n\n"
+            "Works anywhere, whether you're standing next to your pet or "
+            "not, and whether you're in combat or out of it. Pets don't "
+            "follow you between rooms on their own, so this is also the "
+            "only way to get rid of one you've left behind somewhere.\n\n"
+            "|wWhat happens automatically:|n a pet is also released on its "
+            "own if you flee/disengage from a fight or if you're defeated "
+            "- it won't be left behind to keep fighting by itself. "
+            "'dismiss' is for when you simply don't want it around anymore "
+            "outside of either of those situations."
         ),
         db_lock_storage="view:all()",
     )

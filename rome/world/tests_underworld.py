@@ -10,6 +10,8 @@ the "Underworld not built" fail-safe), resurrect()/send_to_underworld,
 CharonTimer, CharonFerryExit's gating, and CmdAnswerRiddle.
 """
 
+from unittest.mock import patch
+
 from evennia.utils.test_resources import EvenniaTest, EvenniaCommandTest
 from evennia.utils import create
 
@@ -195,6 +197,177 @@ class TestHandlePlayerDefeatTurnHandlerCleanup(UnderworldTestBase):
         self.assertFalse(handler.pk)
 
 
+class TestHandlePlayerDefeatReleasesPet(UnderworldTestBase):
+    """
+    Regression coverage for a real, confirmed gap found live: a
+    player's active summoned pet (Augur familiar, Haruspex lemures,
+    Venator beast) was left behind with no cleanup at all when its
+    owner was defeated - it kept fighting entirely on its own.
+    handle_player_defeat now calls CombatRules.release_pet() for both
+    death-severity branches (level<=5 and level 6+), since the pet
+    problem is identical either way.
+    """
+
+    def _make_pet(self):
+        pet = create.create_object(
+            "world.combat.SummonedAlly", key="a familiar", location=self.room1
+        )
+        pet.db.pet_line = "augur"
+        return pet
+
+    def test_low_level_defeat_releases_and_deletes_the_pet(self):
+        pet = self._make_pet()
+        self.char1.db.active_companion = pet
+        self.char1.db.level = 3
+        self.char1.db.hp = 0
+
+        COMBAT_RULES.handle_player_defeat(self.char1, attacker=self.char2)
+
+        self.assertIsNone(self.char1.db.active_companion)
+        self.assertFalse(pet.pk)
+
+    def test_high_level_defeat_releases_and_deletes_the_pet(self):
+        entrance = create.create_object(
+            "typeclasses.rooms.Room", key="Shores of the Styx"
+        )
+        entrance.tags.add("underworld_entrance", category="underworld")
+
+        pet = self._make_pet()
+        self.char1.db.active_companion = pet
+        self.char1.db.level = 10
+        self.char1.db.hp = 0
+
+        COMBAT_RULES.handle_player_defeat(self.char1, attacker=self.char2)
+
+        self.assertIsNone(self.char1.db.active_companion)
+        self.assertFalse(pet.pk)
+
+    def test_no_active_pet_does_not_crash(self):
+        self.char1.db.active_companion = None
+        self.char1.db.level = 3
+        self.char1.db.hp = 0
+        COMBAT_RULES.handle_player_defeat(self.char1, attacker=self.char2)  # should not raise
+        self.assertIsNone(self.char1.db.active_companion)
+
+
+class TestHandlePlayerDefeatClearsConditions(UnderworldTestBase):
+    """
+    Regression coverage for a real, confirmed gap found live:
+    combat_cleanup only strips combat_*-prefixed attributes, so
+    db.conditions (Poisoned, Frightened, Cursed, Regeneration, etc.)
+    used to survive death completely untouched. Once defeated, the
+    character leaves combat, which hands them to the out-of-combat
+    ticker (fires every 30s forever, regardless of is_dead) - a
+    lingering Regeneration would heal a "dead" body back above the
+    documented 0 HP, and a lingering Poisoned condition would never
+    naturally decay outside combat (its stored turnchar is the
+    poisoner, not the victim) and would re-trigger apply_damage ->
+    at_defeat on the same corpse every single tick, forever. Fixed by
+    clearing db.conditions unconditionally in handle_player_defeat,
+    for both death-severity branches.
+    """
+
+    def test_low_level_defeat_clears_conditions(self):
+        self.char1.db.level = 3
+        self.char1.db.hp = 0
+        self.char1.db.conditions = {"Poisoned": [4, self.char2]}
+        COMBAT_RULES.handle_player_defeat(self.char1, attacker=self.char2)
+        self.assertEqual(self.char1.db.conditions, {})
+
+    def test_high_level_defeat_clears_conditions(self):
+        entrance = create.create_object("typeclasses.rooms.Room", key="Shores of the Styx 3")
+        entrance.tags.add("underworld_entrance", category="underworld")
+
+        self.char1.db.level = 10
+        self.char1.db.hp = 0
+        self.char1.db.conditions = {
+            "Poisoned": [4, self.char2],
+            "Regeneration": [3, self.char1],
+        }
+        COMBAT_RULES.handle_player_defeat(self.char1, attacker=self.char2)
+        self.assertEqual(self.char1.db.conditions, {})
+
+
+class TestAtDefeatNoOpsWhenAlreadyDead(UnderworldTestBase):
+    """
+    Regression coverage for the other half of the same bug: even with
+    conditions cleared on death (see above), at_defeat itself had no
+    guard against being invoked a second time on an already-dead
+    character - a real risk any time something outside the normal
+    apply_damage->at_defeat flow calls it directly (or if a condition
+    somehow re-applies after death via some other path). Confirmed via
+    a live trace that a repeated call would re-run the ENTIRE death
+    sequence again: half the (already-halved) XP a second time, spawn
+    a duplicate CharonTimer script, resend the death messages.
+    """
+
+    def test_at_defeat_is_a_no_op_once_is_dead(self):
+        entrance = create.create_object("typeclasses.rooms.Room", key="Shores of the Styx 4")
+        entrance.tags.add("underworld_entrance", category="underworld")
+
+        self.char1.db.level = 10
+        self.char1.db.xp = 100
+        self.char1.db.hp = 0
+        COMBAT_RULES.handle_player_defeat(self.char1, attacker=self.char2)
+        self.assertEqual(self.char1.db.xp, 50)
+
+        # Simulate whatever would have re-triggered at_defeat a second
+        # time on this same already-dead character.
+        scripts_before = len(self.char1.scripts.all())
+        COMBAT_RULES.at_defeat(self.char1, attacker=self.char2)
+
+        self.assertEqual(self.char1.db.xp, 50)  # NOT halved again
+        self.assertEqual(len(self.char1.scripts.all()), scripts_before)  # no duplicate CharonTimer
+
+    def test_at_defeat_still_works_normally_for_a_living_character(self):
+        """Regression guard: the is_dead check must not accidentally
+        block a real, first-time defeat."""
+        self.char1.db.is_dead = False
+        self.char1.db.level = 3
+        self.char1.db.hp = 0
+        COMBAT_RULES.at_defeat(self.char1, attacker=self.char2)
+        self.assertFalse(self.char1.db.is_dead)  # low-level path never sets is_dead
+
+
+class TestApplyTurnConditionsNoOpsWhenDead(UnderworldTestBase):
+    """
+    Second line of defense alongside the db.conditions clearing above:
+    even if a condition somehow ends up active on an is_dead character
+    (e.g. a stray add_condition call from elsewhere), apply_turn_
+    conditions itself should refuse to act on it - a dead character's
+    HP/MP/SP are deliberately pinned at 0 the whole time they're dead,
+    and this is what makes that true even against a leftover
+    Regeneration/Poisoned condition, not just against ordinary play.
+    """
+
+    def test_regeneration_does_not_heal_a_dead_character(self):
+        self.char1.db.is_dead = True
+        self.char1.db.hp = 0
+        self.char1.db.max_hp = 100
+        self.char1.db.conditions = {"Regeneration": [3, self.char1]}
+        COMBAT_RULES.apply_turn_conditions(self.char1)
+        self.assertEqual(self.char1.db.hp, 0)
+
+    def test_poisoned_does_not_damage_or_redefeat_a_dead_character(self):
+        self.char1.db.is_dead = True
+        self.char1.db.hp = 0
+        self.char1.db.conditions = {"Poisoned": [4, self.char2]}
+        with patch("world.combat.COMBAT_RULES.at_defeat") as mock_at_defeat:
+            COMBAT_RULES.apply_turn_conditions(self.char1)
+        mock_at_defeat.assert_not_called()
+
+    def test_a_living_characters_conditions_are_unaffected(self):
+        """Regression guard: the is_dead check must not accidentally
+        block Regeneration for anyone still alive."""
+        self.char1.db.is_dead = False
+        self.char1.db.hp = 50
+        self.char1.db.max_hp = 100
+        self.char1.db.conditions = {"Regeneration": [3, self.char1]}
+        with patch("world.combat.randint", return_value=10):
+            COMBAT_RULES.apply_turn_conditions(self.char1)
+        self.assertEqual(self.char1.db.hp, 60)
+
+
 class TestResurrectAndSendToUnderworld(UnderworldTestBase):
     def test_resurrect_does_nothing_if_not_dead(self):
         self.char1.db.is_dead = False
@@ -229,6 +402,22 @@ class TestResurrectAndSendToUnderworld(UnderworldTestBase):
         self.assertEqual(self.char1.db.sp, self.char1.db.max_sp)
         self.assertFalse(self.char1.db.sp_low_warned)
         self.assertEqual(self.char1.location, cells)
+
+    def test_resurrect_clears_conditions(self):
+        """
+        Second line of defense alongside handle_player_defeat's own
+        clearing - a clean slate on the way back to life either way,
+        so nothing carried into death (or somehow reapplied while
+        dead) is still active the instant someone's alive again.
+        """
+        self.char1.db.is_dead = True
+        self.char1.db.max_hp = 100
+        self.char1.db.hp = 0
+        self.char1.db.conditions = {"Cursed": [3, self.char2]}
+
+        COMBAT_RULES.resurrect(self.char1)
+
+        self.assertEqual(self.char1.db.conditions, {})
 
     def test_send_to_underworld_sets_is_dead_and_moves_if_entrance_tagged(self):
         entrance = create.create_object(

@@ -230,6 +230,25 @@ DMG_DOWN_MOD = -5
 DEF_UP_MOD = 15
 DEF_DOWN_MOD = -15
 
+# Which named conditions are debuffs (hurt the character carrying them)
+# vs. buffs (help them) - used by CmdCoreStats to color-code the
+# 'stats' command's new active-conditions display so it reads at a
+# glance rather than as a flat list. Sanctuary Broken is the one
+# nonobvious entry: it's a self-inflicted penalty (halves the
+# attacker's own damage, see get_damage) rather than something an
+# enemy did to you, but it's still a debuff from the carrier's own
+# point of view, which is what this display is about.
+HARMFUL_CONDITIONS = frozenset({
+    "Poisoned", "Cursed", "Frightened", "Marked for Death", "Silenced",
+    "Paralyzed", "Accuracy Down", "Damage Down", "Defense Down",
+    "Sanctuary Broken",
+})
+BENEFICIAL_CONDITIONS = frozenset({
+    "Regeneration", "Haste", "Accuracy Up", "Damage Up", "Defense Up",
+    "Death Ward", "Invisible", "Illusory Duplicate", "Shielded",
+    "Ambush", "Riposte Ready",
+})
+
 # ----------------------------------------------------------------------------
 # WEAPON PROFICIENCY
 # ----------------------------------------------------------------------------
@@ -1070,6 +1089,19 @@ class CombatRules:
           - If the defeated object is an actual player character (has a
             connected .account), handles death/respawn based on level.
         """
+        if defeated.db.is_dead:
+            # Real, confirmed gap found live: a hostile condition
+            # (Poisoned in particular - see the db.conditions clearing
+            # in handle_player_defeat's own comment for the full chain)
+            # left active on an already-dead level 6+ character could
+            # re-trigger apply_damage at 0 HP via the out-of-combat
+            # ticker, landing right back here every 30 seconds forever
+            # - re-running the ENTIRE death sequence again each time
+            # (halved XP a second time, a duplicate CharonTimer script,
+            # etc.) on someone who's already dead. Once is_dead is
+            # True, there is nothing left for at_defeat to meaningfully
+            # do - bail out before any of that fires a second time.
+            return
         display_name = defeated.db.base_name or defeated.key
         if defeated.location:
             defeated.location.msg_contents("%s has been defeated!" % display_name)
@@ -1346,6 +1378,29 @@ class CombatRules:
                     turnhandler.db.turn = 0
 
         self.combat_cleanup(defeated)
+        self.release_pet(defeated.db.active_companion, defeated, reason="owner_defeated")
+
+        # A real, confirmed gap found live: combat_cleanup only strips
+        # combat_*-prefixed attributes, so db.conditions (Poisoned,
+        # Frightened, Cursed, Regeneration, etc.) survived death
+        # completely untouched. Once defeated, is_in_combat() goes
+        # False, which hands the character to the out-of-combat ticker
+        # (at_update, fires every 30s forever regardless of is_dead) -
+        # so a lingering Regeneration would actually heal a "dead" body
+        # back above 0 HP, directly contradicting the HP/MP/SP-pinned-
+        # at-0 design below. Worse, a lingering Poisoned condition's
+        # duration only ever decrements when condition_tickdown is
+        # called with the ORIGINAL turnchar - the out-of-combat ticker
+        # calls it as (self, self), so a hostile condition (turnchar =
+        # whoever inflicted it, not the victim) never decays outside
+        # combat and would re-trigger apply_damage -> at_defeat on this
+        # same already-dead character every single tick, forever (see
+        # the is_dead guards added to at_defeat/apply_turn_conditions
+        # below for the other half of this fix). Cleared here,
+        # unconditionally, before the branch split, since both the
+        # level<=5 safe-respawn and level 6+ real-death paths deserve
+        # an equally clean slate.
+        defeated.db.conditions = {}
 
         if level <= 5:
             # Safe respawn - restore stats and send back to the cells,
@@ -1479,6 +1534,12 @@ class CombatRules:
         character.db.mp = character.db.max_mp
         character.db.sp = character.db.max_sp
         character.db.sp_low_warned = False
+        # Second line of defense alongside handle_player_defeat's own
+        # clearing - a clean slate on the way back to life either way,
+        # so nothing carried into death (or somehow reapplied while
+        # dead) is still sitting active the instant someone's alive
+        # again.
+        character.db.conditions = {}
 
         level = character.db.level or 1
         destination = None
@@ -1853,6 +1914,19 @@ class CombatRules:
         Applies conditions that fire at the start of each turn
         (Regeneration, Poisoned, Haste, Paralyzed).
         """
+        if character.db.is_dead:
+            # Real, confirmed gap found live: handle_player_defeat now
+            # clears db.conditions on death, but this guard is a real
+            # second line of defense, not just belt-and-suspenders -
+            # a dead character's HP/MP/SP are deliberately pinned at 0
+            # for the whole time they're dead (see handle_player_
+            # defeat's own comment), and a lingering Regeneration
+            # condition applied here would otherwise heal them back
+            # above 0 while still is_dead, contradicting that by
+            # construction. A dead character has nothing meaningful to
+            # tick either way - they can't act, cast, or fight.
+            return
+
         if "Regeneration" in self.get_conditions(character):
             old_hp = character.db.hp or 0
             to_heal = randint(REGEN_RATE[0], REGEN_RATE[1])
@@ -2459,6 +2533,13 @@ class CombatRules:
             prototype = "AUGUR_FAMILIAR_TIER4"
 
         familiar = self.spawn_personal_npc(kwargs.get("familiar_prototype", prototype), caster)
+        # Same tracking attribute Venator's Call of the Wild already
+        # uses (db.active_companion) - reused rather than a separate
+        # name per class, since a character only ever has one class
+        # and so only ever has one kind of pet active at a time. This
+        # is what lets 'dismiss' and the flee/death cleanup below find
+        # a caster's pet regardless of which class summoned it.
+        caster.db.active_companion = familiar
 
         caster.db.mp -= cost
         caster.location.msg_contents(
@@ -2492,6 +2573,9 @@ class CombatRules:
             prototype = "HARUSPEX_LEMURES_TIER4"
 
         lemures = self.spawn_personal_npc(kwargs.get("lemures_prototype", prototype), caster)
+        # See spell_summon_familiar's own note just above - same
+        # shared db.active_companion tracking attribute.
+        caster.db.active_companion = lemures
 
         caster.db.mp -= cost
         caster.location.msg_contents(
@@ -2848,8 +2932,12 @@ class CombatRules:
         breakpoints AND HP curve as Augur's familiar and Haruspex's
         Lemures (40/80/130/190), so all three summon-capable classes
         stay balanced against each other at equal level. Tracks the
-        companion on db.active_companion so Pack Tactics can check for
-        it.
+        companion on db.active_companion, originally just so Pack
+        Tactics could check for it - now also the shared field
+        spell_summon_familiar/spell_summon_lemures use for the exact
+        same reason, since it's how 'dismiss' and the flee/death
+        cleanup (see CmdDisengage, handle_player_defeat) find a
+        caster's pet regardless of which class summoned it.
         """
         level = user.db.level or 1
         if level < 30:
@@ -3155,6 +3243,49 @@ class CombatRules:
         obj.scripts.add(InstanceCleanupTimer)
 
         return obj
+
+    def release_pet(self, pet, owner, reason="dismissed"):
+        """
+        Cleanly removes a summoned pet (Augur familiar, Haruspex
+        lemures, Venator beast companion - anything tracked via
+        db.active_companion) from play. Shared by the 'dismiss'
+        command, an owner successfully fleeing/disengaging, and an
+        owner being defeated - a real, confirmed gap found live:
+        none of those three previously did anything about a player's
+        active pet at all, leaving it behind to keep fighting
+        completely on its own (its own targeting logic falls back to
+        "attack anyone present who isn't itself or its owner" the
+        moment the owner's own combat_last_target disappears).
+
+        Safe to call with pet=None (owner simply has no active pet
+        right now) - a no-op past clearing the owner's own reference,
+        so callers don't need their own "do they even have one" guard
+        first.
+        """
+        if owner:
+            owner.db.active_companion = None
+
+        if not pet or not pet.pk:
+            return
+
+        turnhandler = pet.db.combat_turnhandler
+        if turnhandler and turnhandler.pk:
+            fighters = turnhandler.db.fighters or []
+            if pet in fighters:
+                fighters.remove(pet)
+                turnhandler.db.fighters = fighters
+                if turnhandler.db.turn >= len(fighters):
+                    turnhandler.db.turn = 0
+
+        messages = {
+            "dismissed": "%s dismisses %s." % (owner, pet) if owner else "%s fades away." % pet,
+            "owner_fled": "%s fades away as its summoner flees." % pet,
+            "owner_defeated": "%s fades away, its summoner fallen." % pet,
+        }
+        if pet.location:
+            pet.location.msg_contents(messages.get(reason, "%s fades away." % pet))
+
+        pet.delete()
 
 
 COMBAT_RULES = CombatRules()
@@ -5083,7 +5214,29 @@ class SummonedAlly(DefaultCharacter):
     stand-in for real team/sides logic, which combat doesn't have
     yet. If the owner hasn't attacked anyone yet this fight, falls
     back to attacking anyone present who isn't itself or its owner.
+
+    Each summon line also has one small, on-theme signature move - a
+    modest, flat proc chance on its own attack, not a random pick from
+    a full class's spell/skill list. That fuller idea was considered
+    and deliberately rejected: these pets have no real stats at all
+    (see below), so plugging in stat-dependent spell/skill formulas
+    either underperforms badly or requires building pets a whole
+    second stat-progression system first; borrowing a human
+    profession's spells (Feint, Sacred Chant, ...) also clashes with
+    an owl or a restless spirit's own established flavor; and
+    "randomly" spending resources removes exactly the deliberateness
+    that makes spending MP/SP feel good everywhere else in this game.
+    A flat, predictable, always-the-same-kind-of-effect proc sidesteps
+    all three: db.pet_line (set on each tier's own prototype) picks
+    which one - "augur" familiars occasionally spot an opening
+    (Accuracy Down, the same condition Feint already uses), "haruspex"
+    lemures occasionally unsettle their target (Frightened, the same
+    condition that already blocks spellcasting), "venator" beasts
+    occasionally just hit harder (flat bonus damage, no condition
+    needed at all).
     """
+
+    PET_PROC_CHANCE = 25  # percent, checked once per landed hit
 
     def at_turn_start(self):
         turnhandler = self.db.combat_turnhandler
@@ -5103,8 +5256,44 @@ class SummonedAlly(DefaultCharacter):
         if not target:
             return
 
+        hp_before = target.db.hp or 0
         COMBAT_RULES.resolve_attack(self, target)
         COMBAT_RULES.spend_action(self, 1, action_name="attack")
+        self._try_signature_move(target, hp_before)
+
+    def _try_signature_move(self, target, hp_before):
+        """
+        Rolls this pet's own signature move - only on a hit that
+        actually landed (confirmed by comparing HP before/after,
+        since resolve_attack doesn't return a hit/miss result) against
+        a target that's still standing. See this class's own docstring
+        for the full design reasoning.
+        """
+        if not target.pk or not target.db.hp or target.db.hp >= hp_before:
+            return
+        if randint(1, 100) > self.PET_PROC_CHANCE:
+            return
+
+        pet_line = self.db.pet_line
+        if pet_line == "augur":
+            COMBAT_RULES.add_condition(target, self, "Accuracy Down", 3)
+            if self.location:
+                self.location.msg_contents(
+                    "|c%s's keen eyes find an opening in %s's guard!|n" % (self, target)
+                )
+        elif pet_line == "haruspex":
+            COMBAT_RULES.add_condition(target, self, "Frightened", 3)
+            if self.location:
+                self.location.msg_contents(
+                    "|mA chill radiates from %s, and %s's nerve wavers!|n" % (self, target)
+                )
+        elif pet_line == "venator":
+            bonus = randint(5, 12)
+            COMBAT_RULES.apply_damage(target, bonus, attacker=self)
+            if self.location:
+                self.location.msg_contents(
+                    "|r%s tears in for %i extra damage!|n" % (self, bonus)
+                )
 
 
 class CombatCharacter(ContribRPCharacter):
@@ -5664,26 +5853,62 @@ class SanctuaryTimer(DefaultScript):
 
 class InstanceCleanupTimer(DefaultScript):
     """
-    A one-shot timer that deletes a personal-instance NPC (see
-    spawn_personal_npc above) if its fight is abandoned rather than
+    A timer that deletes a personal-instance NPC (see
+    spawn_personal_npc above) once its fight is abandoned rather than
     finished. Was a plain delay() call - the confirmed cause of NPCs
     needing a manual `cleanupnpcs` run, since delay() doesn't survive
     a server reload or crash during that window, leaving the instance
     orphaned. As a persistent Script, this timer itself survives a
     reload, so the safety net is now actually safe.
+
+    A real, confirmed gap found live: this used to be a true one-shot
+    (repeats=1) that deleted the NPC unconditionally at the 10-minute
+    mark, with no check at all for whether it was still genuinely
+    fighting - unlike the manual `cleanupnpcs` sweep, which explicitly
+    skips anything with a live combat_turnhandler. A summon (or a
+    Ludus-trainer challenge) in an unusually long fight could simply
+    vanish out from under the player mid-battle for no real reason.
+    Now a repeating check instead: skip (and let it tick again) while
+    still actively fighting, only delete once that's no longer true.
+
+    A second real bug caught by a live test while building the repeat
+    check above: DefaultObject.delete() (Evennia's own base
+    implementation) already cascades to delete every Script attached
+    to that object - this one included, since spawn_personal_npc()
+    attaches it via obj.scripts.add(). So the instant npc.delete()
+    below returns, THIS script has already been deleted out from under
+    itself as a side effect. Calling self.stop()/self.delete() again
+    afterward crashed hard (a Django ValueError writing an attribute
+    to an object with no pk left) - fixed by checking self.pk first,
+    the same "did this already get cleaned up out from under me"
+    guard already used for npc above.
     """
 
     def at_script_creation(self):
         self.key = "instance_cleanup_timer"
         self.interval = INSTANCE_CLEANUP_TIMEOUT
-        self.repeats = 1
         self.persistent = True
         self.start_delay = True
 
     def at_repeat(self):
         npc = self.obj
-        if npc and npc.pk:
-            npc.delete()
+        if not npc or not npc.pk:
+            if self.pk:
+                self.stop()
+                self.delete()
+            return
+
+        turnhandler = npc.db.combat_turnhandler
+        if turnhandler and turnhandler.pk:
+            # Still genuinely fighting - leave it alone and check
+            # again next interval, rather than cutting a real fight
+            # short for no reason.
+            return
+
+        npc.delete()
+        if self.pk:
+            self.stop()
+            self.delete()
 
 
 class CombatTurnHandler(DefaultScript):
@@ -6528,6 +6753,7 @@ class CmdDisengage(Command):
 
             self.rules.spend_action(caller, "all", action_name="disengage")
             self.rules.combat_cleanup(caller)
+            self.rules.release_pet(caller.db.active_companion, caller, reason="owner_fled")
         else:
             self.caller.msg(
                 "|rYou try to break away, but can't shake free - you're still in "
@@ -6728,6 +6954,7 @@ class CmdCoreStats(Command):
     """
 
     key = "stats"
+    aliases = ["score"]
     help_category = "combat"
 
     def func(self):
@@ -6779,7 +7006,8 @@ class CmdCoreStats(Command):
         if custom_title:
             lines.append(box_line('"%s"' % custom_title, w, align="c"))
         lines.append(box_border(w, "-"))
-        lines.append(box_line("  %s, %s" % (race_display, class_display), w))
+        lines.append(box_line("  Race: %s" % race_display, w))
+        lines.append(box_line("  Class: %s" % class_display, w))
         lines.append(box_line("  Level %d (%s)" % (level, title), w))
         lines.append(box_line("  Faction: %s" % faction_line, w))
         lines.append(box_line("  Religion: %s" % religion_line, w))
@@ -6808,11 +7036,35 @@ class CmdCoreStats(Command):
                 w,
             )
         )
+
+        # --- Active conditions - a real, previously-missing feature:
+        # there was no way anywhere in the game for a player to check
+        # what conditions currently affect them (Poisoned, Frightened,
+        # a beneficial Regeneration/Haste from an ally, etc.) - the
+        # only feedback was a one-time room broadcast at the moment a
+        # condition was applied or wore off. Color-coded (green/red) so
+        # it reads at a glance; deliberately no turn-count shown - a
+        # hostile condition's countdown only actually decrements on
+        # its original inflicter's own turn (see condition_tickdown),
+        # so a displayed number here could easily read as frozen or
+        # misleading rather than a reliable ETA. Conditionally shown,
+        # like the unspent-stat-points line below - nothing to say
+        # when there's nothing active.
+        conditions = COMBAT_RULES.get_conditions(char)
+        if conditions:
+            lines.append(box_border(w, "-"))
+            lines.append(box_line("|wConditions|n", w))
+            for name in conditions:
+                color = "|g" if name in BENEFICIAL_CONDITIONS else (
+                    "|r" if name in HARMFUL_CONDITIONS else "|w"
+                )
+                lines.append(box_line("  %s%s|n" % (color, name), w))
+
         lines.append(box_border(w, "-"))
         lines.append(box_line("|wCore Stats|n", w))
         lines.append(box_line("  Virtus:    %2d  |x(melee power)|n" % char.db.virtus, w))
         lines.append(box_line("  Agilitas:  %2d  |x(accuracy, dodge, ranged power)|n" % char.db.agilitas, w))
-        lines.append(box_line("  Ingenium:  %2d  |x(spell power)|n" % char.db.ingenium, w))
+        lines.append(box_line("  Ingenium:  %2d  |x(spell power, Max MP)|n" % char.db.ingenium, w))
         lines.append(box_line("  Vigor:     %2d  |x(Max HP, damage reduction)|n" % char.db.vigor, w))
 
         if char.db.unspent_stat_points:
@@ -7699,6 +7951,7 @@ class CmdUnwield(Command):
     """
 
     key = "unwield"
+    aliases = ["sheath"]
     help_category = "combat"
     rules = COMBAT_RULES
 
@@ -7724,6 +7977,35 @@ class CmdDoff(Command):
 
     def func(self):
         _do_unequip(self.caller, self.args, self.rules)
+
+
+class CmdDismissPet(Command):
+    """
+    Dismiss your summoned pet.
+
+    Usage:
+      dismiss
+
+    Sends away your active familiar, spirit, or beast companion for
+    good - whichever one you've currently got, since only one can be
+    active at a time. Works anywhere, in or out of combat; pets don't
+    follow you around between fights, so this doesn't require you to
+    be standing next to it.
+    """
+
+    key = "dismiss"
+    aliases = ["banish"]
+    help_category = "magic"
+    rules = COMBAT_RULES
+
+    def func(self):
+        caller = self.caller
+        pet = caller.db.active_companion
+        if not pet or not pet.pk:
+            caller.msg("You don't have an active pet to dismiss.")
+            caller.db.active_companion = None
+            return
+        self.rules.release_pet(pet, caller, reason="dismissed")
 
 
 class CmdInventory(Command):
@@ -8765,6 +9047,7 @@ class BattleCmdSet(CharacterCmdSet):
         self.add(CmdUnwield())
         self.add(CmdDon())
         self.add(CmdDoff())
+        self.add(CmdDismissPet())
         self.add(CmdInventory())
         self.add(CmdUse())
         self.add(CmdLearn())

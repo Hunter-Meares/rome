@@ -24,7 +24,7 @@ line to your settings file:
     SEARCH_AT_RESULT = "server.conf.at_search.at_search_result"
 
 ----------------------------------------------------------------------------
-Why this project needed its own version (a real bug found live)
+Why this project needed its own version (two real bugs found live)
 ----------------------------------------------------------------------------
 Every player Character in this game is rpsystem's own ContribRPCharacter,
 which means every ordinary caller.search() call - 'consider ludus', 'look
@@ -33,21 +33,29 @@ trainer', etc. - is routed through rpsystem's sdesc-aware search override
 Evennia's plain object-manager search. That override only recognizes a
 LEADING number - "1-trainer" - as a disambiguator; it never sees a
 trailing "-1" or a space-separated "1" at all (both get treated as one
-literal search string and simply fail to match anything).
+literal search string and simply fail to match anything). This is a
+completely separate step from at_search_result below - it's parsed out
+of the search string before matching even happens, so it keeps working
+unchanged regardless of anything at_search_result itself does with a
+genuine remaining ambiguity.
 
-Evennia's own *default* at_search_result (evennia/utils/utils.py) doesn't
-know that - it prints multimatch results using SEARCH_MULTIMATCH_TEMPLATE,
-whose default format is "{name}-{number}" (trailing), because that's what
-the base engine's own manager-level search actually accepts. So a real
-player, told "a Ludus recruit trainer-1", typing exactly that back, got a
-flat "could not find" error - the displayed syntax and the only syntax
-that actually works were simply different conventions, and nothing about
-the message said so. This override fixes that by displaying the number
-FIRST, matching what will actually work for every real player in this
-game. It also drops the bracketed "[alias;alias]" noise the default
-template adds per match (confirmed confusing/immersion-breaking directly
-by a live player) - the numbered name plus a one-line hint on how to pick
-one is enough to act on, and shorter besides.
+Second, and more consequential: a real player spent roughly 10 minutes
+of a 75-minute first session trying to `consider`/`fight` "the Ludus
+recruit trainer" - not because of a typo, but because three separate
+NPCs in that room are all literally named "a Ludus recruit trainer"
+(deliberately identical, by design - see CLAUDE.md), so every guess
+("recruit", "trainer", "ludus recruit trainer") landed on a genuine
+multi-match. They eventually found the "1-trainer" disambiguation
+format on their own and it worked correctly - but making a brand new
+player hunt for that before their FIRST ambiguous search even
+succeeds once is real, avoidable friction for something that, in
+every case observed so far, doesn't actually matter which match gets
+picked (the candidates are meant to be interchangeable). Multi-matches
+now auto-resolve to the first candidate instead of blocking on a
+disambiguation prompt - a player who genuinely needs to pick a
+specific one (multiple real players' summoned pets sharing a name,
+say) still can, via the exact same "1-name" leading-number format
+documented above; it just isn't forced on everyone by default anymore.
 """
 
 from django.utils.translation import gettext as _
@@ -57,11 +65,13 @@ def at_search_result(matches, caller, query="", quiet=False, **kwargs):
     """
     Same contract as Evennia's own version of this function (see the
     module docstring) - 0 matches reports a not-found error, 1 match
-    passes straight through, 2+ reports a numbered disambiguation list
-    and returns None either way. The only real change is presentation:
-    leading-number format ("1-name") instead of trailing ("name-1"),
-    since that's the format that will actually resolve for a player
-    typing it back in - see the module docstring for why.
+    passes straight through. The real departure from both Evennia's
+    default and this project's own earlier version: 2+ matches no
+    longer block on a disambiguation prompt - they resolve to the
+    first candidate automatically (see the module docstring for why).
+    quiet=True keeps returning the full match list unchanged, for any
+    caller that explicitly wants multiple results rather than one
+    resolved target.
     """
     if not matches:
         if not quiet:
@@ -71,25 +81,7 @@ def at_search_result(matches, caller, query="", quiet=False, **kwargs):
             caller.msg(error)
         return None
 
-    if len(matches) == 1:
-        return matches[0]
-
     if quiet:
         return matches
 
-    multimatch_string = kwargs.get("multimatch_string")
-    if multimatch_string:
-        lines = ["%s\n" % multimatch_string]
-    else:
-        lines = [_("More than one match for '{query}' (please narrow target):\n").format(query=query)]
-
-    for num, result in enumerate(matches, 1):
-        display_name = (
-            result.get_display_name(caller) if hasattr(result, "get_display_name") else str(result)
-        )
-        extra_info = result.get_extra_info(caller) if hasattr(result, "get_extra_info") else ""
-        lines.append("  %d-%s%s\n" % (num, display_name, extra_info))
-
-    lines.append(_("Type the number first, e.g. '1-{query}'.").format(query=query))
-    caller.msg("".join(lines))
-    return None
+    return matches[0]

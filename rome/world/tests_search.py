@@ -1,5 +1,5 @@
 """
-Tests for two related, real bugs found live during a human playtest:
+Tests for three related, real bugs found live during human playtests:
 
 1. Every flavor NPC using typeclasses.characters.Character (which
    pulls in rpsystem's ContribRPCharacter) showed the generic sdesc
@@ -18,11 +18,20 @@ Tests for two related, real bugs found live during a human playtest:
    only recognizes a LEADING number ("1-a Ludus recruit trainer").
    Fixed with a custom SEARCH_AT_RESULT (server/conf/at_search.py)
    that displays the number first, matching what will actually work.
+
+3. A real player spent ~10 minutes of a 75-minute first session stuck
+   on exactly that disambiguation prompt, guessing at "recruit"/
+   "trainer"/"ludus recruit trainer" against three genuinely identical
+   NPCs before finding the "1-name" format on their own. Ambiguous
+   multi-matches now auto-resolve to the first candidate instead of
+   blocking on a prompt - see at_search.py's own module docstring for
+   the full reasoning. The leading-number format from bug #2 still
+   works unchanged for anyone who wants a specific one; it just isn't
+   forced on everyone by default anymore.
 """
 
 from evennia.utils.test_resources import EvenniaTest
 from evennia.utils import create
-from evennia.utils.ansi import ANSIString
 
 from server.conf.at_search import at_search_result
 
@@ -42,7 +51,13 @@ class TestFlavorNPCDefaultSdesc(EvenniaTest):
         self.assertNotIn("normal person", self.char1.sdesc.get())
 
 
-class TestMultimatchLeadingNumberDisplay(EvenniaTest):
+class TestMultimatchAutoResolvesToFirstMatch(EvenniaTest):
+    """
+    Regression coverage for the auto-resolve fix - see this module's
+    own docstring, item 3, for the real player friction that motivated
+    it.
+    """
+
     def setUp(self):
         super().setUp()
         self.trainer1 = create.create_object(
@@ -51,10 +66,31 @@ class TestMultimatchLeadingNumberDisplay(EvenniaTest):
         self.trainer2 = create.create_object(
             "typeclasses.characters.Character", key="a Ludus recruit trainer", location=self.room1
         )
+        self.trainer3 = create.create_object(
+            "typeclasses.characters.Character", key="a Ludus recruit trainer", location=self.room1
+        )
 
-    def test_multimatch_returns_none(self):
-        result = at_search_result([self.trainer1, self.trainer2], self.char1, query="trainer")
-        self.assertIsNone(result)
+    def test_multimatch_auto_resolves_to_the_first_candidate(self):
+        result = at_search_result(
+            [self.trainer1, self.trainer2, self.trainer3], self.char1, query="trainer"
+        )
+        self.assertIs(result, self.trainer1)
+
+    def test_auto_resolve_sends_no_disambiguation_message(self):
+        captured = []
+        self.char1.msg = lambda text="", **kwargs: captured.append(text)
+        at_search_result([self.trainer1, self.trainer2], self.char1, query="trainer")
+        self.assertEqual(captured, [])
+
+    def test_quiet_multimatch_still_returns_the_full_list(self):
+        # A caller that explicitly wants every match (e.g. a "target
+        # all enemies" style command) must be unaffected by the
+        # auto-resolve change - only the non-quiet, single-target path
+        # changed.
+        result = at_search_result(
+            [self.trainer1, self.trainer2], self.char1, query="trainer", quiet=True
+        )
+        self.assertEqual(result, [self.trainer1, self.trainer2])
 
     def test_single_match_passes_straight_through(self):
         result = at_search_result([self.trainer1], self.char1, query="trainer")
@@ -64,11 +100,16 @@ class TestMultimatchLeadingNumberDisplay(EvenniaTest):
         result = at_search_result([], self.char1, query="nonexistent")
         self.assertIsNone(result)
 
-    def test_multimatch_text_shows_leading_number_not_trailing(self):
+    def test_no_match_still_shows_the_not_found_message(self):
         captured = []
         self.char1.msg = lambda text="", **kwargs: captured.append(text)
-        at_search_result([self.trainer1, self.trainer2], self.char1, query="trainer")
-        full_text = ANSIString("".join(captured)).clean()
-        self.assertIn("1-a Ludus recruit trainer", full_text)
-        self.assertIn("2-a Ludus recruit trainer", full_text)
-        self.assertNotIn("a Ludus recruit trainer-1", full_text)
+        at_search_result([], self.char1, query="nonexistent")
+        self.assertIn("Could not find 'nonexistent'.", captured)
+
+    def test_leading_number_disambiguation_still_works_unchanged(self):
+        # This is a SEPARATE mechanism (rpsystem's own search-string
+        # preprocessing, before matching even happens) from the
+        # auto-resolve change above - confirms it's genuinely
+        # untouched, not just coincidentally still passing.
+        result = self.char1.search("2-recruit trainer")
+        self.assertIs(result, self.trainer2)

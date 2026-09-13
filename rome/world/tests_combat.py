@@ -37,6 +37,7 @@ from world.combat import (
     wizinvis_hides_from,
     ARENA_FIGHTER_GEAR,
     equip_arena_fighter,
+    InstanceCleanupTimer,
 )
 
 
@@ -1948,3 +1949,242 @@ class TestHpThresholdAnnouncementIntegration(CombatTestBase):
 
         full_text = "".join(captured)
         self.assertIn("%s looks completely unscathed" % self.char2.key, full_text)
+
+
+class TestSummonedAllySignatureMoves(CombatTestBase):
+    """
+    Regression coverage for each summon line's one on-theme signature
+    move - a flat proc chance on the pet's own landed attack, not a
+    random pick from a full class's spell/skill list (see
+    SummonedAlly's own docstring for the full design reasoning behind
+    that choice). Each line reuses an existing condition/mechanic
+    rather than inventing anything new: Augur familiars apply
+    Accuracy Down, Haruspex lemures apply Frightened, Venator beasts
+    just deal flat bonus damage.
+    """
+
+    def _make_pet(self, pet_line, key="a test pet"):
+        from evennia.utils import create
+
+        pet = create.create_object(
+            "world.combat.SummonedAlly", key=key, location=self.room1
+        )
+        pet.db.pet_line = pet_line
+        return pet
+
+    def test_augur_familiar_applies_accuracy_down_on_a_landed_hit(self):
+        pet = self._make_pet("augur")
+        hp_before = self.char2.db.hp
+        self.char2.db.hp -= 10  # simulate the attack having landed
+        with patch("world.combat.randint", return_value=1):  # force the proc to succeed
+            pet._try_signature_move(self.char2, hp_before)
+        self.assertIn("Accuracy Down", COMBAT_RULES.get_conditions(self.char2))
+
+    def test_haruspex_lemures_applies_frightened_on_a_landed_hit(self):
+        pet = self._make_pet("haruspex")
+        hp_before = self.char2.db.hp
+        self.char2.db.hp -= 10
+        with patch("world.combat.randint", return_value=1):
+            pet._try_signature_move(self.char2, hp_before)
+        self.assertIn("Frightened", COMBAT_RULES.get_conditions(self.char2))
+
+    def test_venator_beast_deals_bonus_damage_on_a_landed_hit(self):
+        pet = self._make_pet("venator")
+        self.char2.db.hp = 100
+        self.char2.db.max_hp = 100
+        hp_before = self.char2.db.hp
+        self.char2.db.hp -= 10
+        # First randint call is the proc-chance roll (force success);
+        # second is the bonus-damage roll (fixed at 8 for an exact
+        # assertion).
+        with patch("world.combat.randint", side_effect=[1, 8]):
+            pet._try_signature_move(self.char2, hp_before)
+        self.assertEqual(self.char2.db.hp, 100 - 10 - 8)
+
+    def test_no_signature_move_on_a_miss(self):
+        pet = self._make_pet("augur")
+        hp_before = self.char2.db.hp  # unchanged - simulates a miss
+        with patch("world.combat.randint", return_value=1):
+            pet._try_signature_move(self.char2, hp_before)
+        self.assertNotIn("Accuracy Down", COMBAT_RULES.get_conditions(self.char2))
+
+    def test_no_signature_move_when_the_hit_was_lethal(self):
+        pet = self._make_pet("augur")
+        hp_before = self.char2.db.hp
+        self.char2.db.hp = 0
+        with patch("world.combat.randint", return_value=1):
+            pet._try_signature_move(self.char2, hp_before)
+        self.assertNotIn("Accuracy Down", COMBAT_RULES.get_conditions(self.char2))
+
+    def test_proc_chance_roll_above_threshold_does_nothing(self):
+        pet = self._make_pet("augur")
+        hp_before = self.char2.db.hp
+        self.char2.db.hp -= 10
+        with patch("world.combat.randint", return_value=pet.PET_PROC_CHANCE + 1):
+            pet._try_signature_move(self.char2, hp_before)
+        self.assertNotIn("Accuracy Down", COMBAT_RULES.get_conditions(self.char2))
+
+    def test_unknown_pet_line_is_a_silent_no_op(self):
+        pet = self._make_pet(None)
+        hp_before = self.char2.db.hp
+        self.char2.db.hp -= 10
+        with patch("world.combat.randint", return_value=1):
+            pet._try_signature_move(self.char2, hp_before)  # should not raise
+        self.assertEqual(COMBAT_RULES.get_conditions(self.char2), {})
+
+
+class TestReleasePet(CombatTestBase):
+    """
+    Regression coverage for CombatRules.release_pet() - the shared
+    cleanup helper backing 'dismiss', a successful flee/disengage, and
+    an owner's own defeat. See handle_player_defeat's and
+    CmdDisengage's own tests for the wiring into those two call sites;
+    this class exercises release_pet() itself directly.
+    """
+
+    def _make_pet(self, key="a test pet"):
+        from evennia.utils import create
+
+        return create.create_object(
+            "world.combat.SummonedAlly", key=key, location=self.room1
+        )
+
+    def test_dismissed_clears_owner_reference_and_deletes_pet(self):
+        pet = self._make_pet()
+        self.char1.db.active_companion = pet
+        COMBAT_RULES.release_pet(pet, self.char1, reason="dismissed")
+        self.assertIsNone(self.char1.db.active_companion)
+        self.assertFalse(pet.pk)
+
+    def test_owner_fled_deletes_the_pet(self):
+        pet = self._make_pet()
+        self.char1.db.active_companion = pet
+        COMBAT_RULES.release_pet(pet, self.char1, reason="owner_fled")
+        self.assertFalse(pet.pk)
+
+    def test_owner_defeated_deletes_the_pet(self):
+        pet = self._make_pet()
+        self.char1.db.active_companion = pet
+        COMBAT_RULES.release_pet(pet, self.char1, reason="owner_defeated")
+        self.assertFalse(pet.pk)
+
+    def test_none_pet_is_a_no_op_past_clearing_the_owner_reference(self):
+        self.char1.db.active_companion = None
+        COMBAT_RULES.release_pet(None, self.char1, reason="dismissed")  # should not raise
+        self.assertIsNone(self.char1.db.active_companion)
+
+    def test_removes_the_pet_from_an_active_turnhandler(self):
+        from evennia.utils import create
+
+        pet = self._make_pet()
+        self.char1.db.active_companion = pet
+        handler = create.create_script(CombatTurnHandler, obj=self.room1, autostart=False)
+        handler.db.fighters = [self.char1, pet, self.char2]
+        handler.db.turn = 1
+        pet.db.combat_turnhandler = handler
+
+        COMBAT_RULES.release_pet(pet, self.char1, reason="dismissed")
+
+        self.assertNotIn(pet, handler.db.fighters)
+        self.assertLess(handler.db.turn, len(handler.db.fighters))
+
+    def test_no_owner_still_deletes_the_pet(self):
+        """A pet dismissed via a nonstandard path with no owner reference
+        (e.g. cleanup code that only has the pet itself) should still
+        be safely removable."""
+        pet = self._make_pet()
+        COMBAT_RULES.release_pet(pet, None, reason="dismissed")
+        self.assertFalse(pet.pk)
+
+
+class TestActiveCompanionTrackingOnSummonSpells(CombatTestBase):
+    """
+    Both Augur's Summon Familiar and Haruspex's Summon Lemures now set
+    db.active_companion on the caster - reusing the field Venator's
+    Call of the Wild already used - so 'dismiss' and the flee/defeat
+    cleanup can find a caster's pet regardless of which class summoned
+    it.
+    """
+
+    def test_summon_familiar_sets_active_companion(self):
+        self.char1.db.level = 5
+        self.char1.db.mp = 50
+        self.char1.location = self.room1
+        try:
+            COMBAT_RULES.spell_summon_familiar(self.char1, "summon familiar", [], 10)
+        except Exception:
+            self.skipTest("AUGUR_FAMILIAR_TIER1 prototype not available in this test DB")
+        self.assertIsNotNone(self.char1.db.active_companion)
+        self.assertTrue(self.char1.db.active_companion.pk)
+
+    def test_summon_lemures_sets_active_companion(self):
+        self.char1.db.level = 5
+        self.char1.db.mp = 50
+        self.char1.location = self.room1
+        try:
+            COMBAT_RULES.spell_summon_lemures(self.char1, "summon lemures", [], 10)
+        except Exception:
+            self.skipTest("HARUSPEX_LEMURES_TIER1 prototype not available in this test DB")
+        self.assertIsNotNone(self.char1.db.active_companion)
+        self.assertTrue(self.char1.db.active_companion.pk)
+
+
+class TestInstanceCleanupTimerSkipsWhileFighting(CombatTestBase):
+    """
+    Regression coverage for a real, confirmed bug: this timer used to
+    be a true one-shot (repeats=1) that deleted a personal-instance
+    NPC (a summoned pet included) unconditionally at the 10-minute
+    mark, with zero check for whether it was still genuinely fighting
+    - unlike the manual cleanupnpcs sweep, which does skip anything
+    with a live combat_turnhandler. Now a repeating check: skip while
+    fighting, delete once that's no longer true.
+    """
+
+    def _make_npc(self):
+        from evennia.utils import create
+
+        return create.create_object(
+            "typeclasses.characters.Character", key="an abandoned instance", location=self.room1
+        )
+
+    def _make_timer(self, npc):
+        from evennia.utils import create
+
+        return create.create_script(InstanceCleanupTimer, obj=npc, autostart=False)
+
+    def test_skips_deletion_while_still_fighting(self):
+        from evennia.utils import create
+
+        npc = self._make_npc()
+        # A live combat_turnhandler is a real Script with a real pk -
+        # at_repeat checks turnhandler.pk specifically, so a bare
+        # truthy string stand-in (used elsewhere in this file for
+        # simpler bool-only checks) won't do here.
+        npc.db.combat_turnhandler = create.create_script(
+            CombatTurnHandler, obj=self.room1, autostart=False
+        )
+        timer = self._make_timer(npc)
+
+        timer.at_repeat()
+
+        self.assertTrue(npc.pk)
+        self.assertTrue(timer.pk)  # timer itself is not stopped/deleted either
+
+    def test_deletes_once_no_longer_fighting(self):
+        npc = self._make_npc()
+        npc.db.combat_turnhandler = None
+        timer = self._make_timer(npc)
+
+        timer.at_repeat()
+
+        self.assertFalse(npc.pk)
+        self.assertFalse(timer.pk)
+
+    def test_a_stale_or_deleted_obj_is_handled_without_crashing(self):
+        npc = self._make_npc()
+        timer = self._make_timer(npc)
+        npc.delete()
+
+        timer.at_repeat()  # should not raise
+
+        self.assertFalse(timer.pk)
