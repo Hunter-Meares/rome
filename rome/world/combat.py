@@ -1887,12 +1887,50 @@ class CombatRules:
                 del cooldowns[name]
 
     def condition_tickdown(self, character, turnchar):
-        """Ticks down condition durations at the start of turnchar's turn."""
+        """
+        Ticks down condition durations once per real "turn" that
+        passes for the character actually carrying them.
+
+        Real, confirmed bug found live (a player stuck permanently
+        Poisoned across entirely unrelated later fights, and even
+        after logging out and back in): this used to only decrement
+        when condition_turnchar == turnchar - condition_turnchar being
+        the ORIGINAL INFLICTER of the condition (stored by
+        add_condition specifically so a damage-over-time kill can
+        still credit the right attacker - see apply_turn_conditions'
+        Poisoned branch, which reads that same stored value). That
+        happens to work in a plain 1v1 duel, since the inflicter is
+        one of only two fighters and their turn reliably comes back
+        around every round - but it breaks completely the moment the
+        affected character later enters a DIFFERENT fight (or leaves
+        combat entirely) without that exact original inflicter
+        present: newchar (whoever's turn is actually starting) then
+        never equals the stored old attacker again, so the duration
+        count never reaches 0 and the condition is stuck forever,
+        reapplying its damage every single turn indefinitely.
+
+        Fixed to decrement once per the CONDITION-HOLDER's own turn
+        instead - character == turnchar, not condition_turnchar ==
+        turnchar. In every case that already worked, this changes
+        nothing: a self-inflicted condition (Regeneration, Haste, ...)
+        already stores the character themselves as turnchar, so
+        character == turnchar and condition_turnchar == turnchar were
+        always identical there; and in any fight where the original
+        inflicter IS still present, both the inflicter's turn and the
+        victim's own turn come up exactly once per round anyway, so
+        the numeric decay rate is unchanged. It only differs - and now
+        actually works - for the previously-broken case: a hostile
+        condition now reliably expires on its own schedule regardless
+        of who else is in the current fight, or whether the character
+        is in a fight at all (the out-of-combat ticker calls this as
+        condition_tickdown(self, self), which now correctly ticks
+        every lingering condition down instead of only ones the
+        character inflicted on themselves).
+        """
         for key in list(self.get_conditions(character)):
             condition_duration = self.get_conditions(character)[key][0]
-            condition_turnchar = self.get_conditions(character)[key][1]
             if condition_duration is not True:
-                if condition_turnchar == turnchar:
+                if character == turnchar:
                     self.get_conditions(character)[key][0] -= 1
                 if self.get_conditions(character)[key][0] <= 0:
                     if character.location:
@@ -5809,8 +5847,22 @@ class CombatCharacter(ContribRPCharacter):
             tickerhandler.remove(NONCOMBAT_TURN_TIME, self.at_update, idstring="update")
             return
         if not self.rules.is_in_combat(self):
-            for key in self.db.conditions:
-                self.db.conditions[key][1] = self
+            # Used to overwrite every condition's stored turnchar with
+            # self here, as a workaround so the OLD (buggy)
+            # condition_tickdown - which only decremented when
+            # condition_turnchar == turnchar - would actually progress
+            # once a character left combat. That workaround is not
+            # just unnecessary now that condition_tickdown decrements
+            # on the condition-HOLDER's own turn regardless of who
+            # inflicted it (see its own docstring for the real bug
+            # this fixed); it was actively harmful: it silently
+            # rewrote who gets credited for a damage-over-time kill
+            # (apply_turn_conditions' Poisoned branch reads that same
+            # stored value) to the VICTIM THEMSELVES the moment one
+            # 30-second idle tick passed, misattributing a poison
+            # death to the person who died from it instead of whoever
+            # actually poisoned them - breaking XP/gold-split and the
+            # colosseum escape-on-victory check for exactly that case.
             self.rules.apply_turn_conditions(self)
             self.rules.condition_tickdown(self, self)
             self.rules.tick_cooldowns(self)
@@ -7476,18 +7528,34 @@ class CmdWizInvis(Command):
 
 class CmdRestore(Command):
     """
-    Fully restore a character's HP, MP, and SP.
+    Fully restore a character - HP/MP/SP topped up, every condition
+    (good or bad) cleared, and brought back to life if they were dead.
 
     Usage:
       restore <character>
       restore me
 
     Requires Auspex (level 102) or higher.
+
+    A living target is topped up to full HP/MP/SP with every
+    condition cleared, right where they already are. A dead target is
+    properly resurrected instead - same destination rules as a normal
+    resurrection (the Temple of Jupiter Optimus Maximus for level 6+,
+    the holding cells for level 5 and below), not unconditionally the
+    temple regardless of level, so it stays consistent with how coming
+    back to life already works everywhere else in the game.
+
+    Added directly in response to two real, confirmed live bugs this
+    same session left a player's state stuck (conditions surviving
+    death, and a hostile condition that could never expire) - a real
+    "something's gone wrong with this character's state" escape hatch
+    is worth having on hand for whatever the next one turns out to be.
     """
 
     key = "restore"
     locks = "cmd:attr_ge(level, 102)"
     help_category = "admin"
+    rules = COMBAT_RULES
 
     def func(self):
         caller = self.caller
@@ -7508,12 +7576,23 @@ class CmdRestore(Command):
             caller.msg("That can't be restored.")
             return
 
+        if target.db.is_dead:
+            # resurrect() already handles hp/mp/sp, clearing
+            # is_dead, clearing every condition, moving to the
+            # correct destination for the target's own level, its own
+            # arrival message to the target, and Pluto piety credit -
+            # nothing left to duplicate here.
+            self.rules.resurrect(target)
+            caller.msg("|gRestored %s, drawing them back from death itself.|n" % target.key)
+            return
+
         target.db.hp = target.db.max_hp
         target.db.mp = target.db.max_mp
         target.db.sp = target.db.max_sp
-        caller.msg("|gRestored %s to full HP/MP/SP.|n" % target.key)
+        target.db.conditions = {}
+        caller.msg("|gRestored %s to full HP/MP/SP, clearing every condition.|n" % target.key)
         if target != caller:
-            target.msg("|gA divine touch restores you fully.|n")
+            target.msg("|gA divine touch restores you fully, clearing every condition.|n")
 
 
 class CmdSnoop(Command):

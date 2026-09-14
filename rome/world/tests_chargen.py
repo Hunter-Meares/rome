@@ -603,6 +603,39 @@ class TestSingleOptionPagesUseRomanNumerals(EvenniaTest):
         self.assertEqual(options[0]["key"], ("I", "1"))
         self.assertIn("Become a", options[0]["desc"])
 
+
+class TestWelcomeNodeHasRealHelpText(EvenniaTest):
+    """
+    Regression coverage for a real bug found live: menunode_welcome's
+    help text was a literal, unfinished placeholder stub - "You can
+    explain the commands for exiting and resuming more specifically
+    here." - shown verbatim to every brand-new player who typed 'help'
+    on the very first chargen screen. Traced directly to a real
+    player's audit log: 'help' twice, then "what options do I have
+    ffs" typed in genuine frustration, at the exact point in the
+    session where they'd have been on this exact node. Every OTHER
+    chargen node already had real help text - this was the one
+    exception, and it's also the highest-stakes one, since it's every
+    new player's very first interaction with the game.
+    """
+
+    class _FakeCaller:
+        def __init__(self, new_char):
+            self.new_char = new_char
+
+    def setUp(self):
+        super().setUp()
+        self.caller = self._FakeCaller(self.char1)
+
+    def test_welcome_help_is_not_the_old_placeholder_stub(self):
+        (text, help_text), options = menunode_welcome(self.caller)
+        self.assertNotIn("explain the commands", help_text)
+
+    def test_welcome_help_actually_explains_quitting_and_resuming(self):
+        (text, help_text), options = menunode_welcome(self.caller)
+        self.assertIn("quit", help_text.lower())
+        self.assertIn("charcreate", help_text.lower())
+
     def test_class_info_become_option_uses_a_roman_numeral_key(self):
         (text, help_text), options = menunode_class_info(self.caller, class_key="legionary")
         self.assertEqual(options[0]["key"], ("I", "1"))

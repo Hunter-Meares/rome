@@ -156,6 +156,32 @@ class Account(DefaultAccount):
 
         super().at_post_login(session=session, **kwargs)
 
+    def get_display_name(self, looker, **kwargs):
+        """
+        This is what channels (see DefaultAccount.at_pre_channel_msg,
+        which calls this to build the "Speaker: message" line) and the
+        'channels' subscriber list use to show who's talking - by
+        default, that's always the account's own real login name.
+
+        Real, confirmed live gap: a player saw "[Public] Zeus: ..."
+        and "[Public] Denvos: ..." on the same channel their actual
+        characters (Jupiter, Aeges) talk on, and it read as two more,
+        unfamiliar characters - not as the people they already knew.
+        While puppeting a character, this now shows the character's
+        own name instead of the account's.
+
+        Uses the character's plain key, not their sdesc - channels are
+        OOC/global, not part of the in-room sdesc-masking system (see
+        CLAUDE.md: "Combat stays real-name-based by design; only
+        social layer uses sdesc"). Falls back to Evennia's own default
+        (the account's key) when nobody's puppeted - e.g. genuinely
+        OOC, right after login before 'ic'.
+        """
+        puppet = self.puppet
+        if puppet:
+            return "|c%s|n" % puppet.key
+        return super().get_display_name(looker, **kwargs)
+
 
 class Guest(DefaultGuest):
     """

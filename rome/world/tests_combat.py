@@ -136,6 +136,105 @@ class TestOrphanedCharacterTicking(CombatTestBase):
         self.assertIn("Haste", self.char1.db.conditions)
 
 
+class TestConditionTickdownDoesNotDependOnTheOriginalInflicter(CombatTestBase):
+    """
+    Regression coverage for a real, confirmed live bug: a player got
+    Poisoned by another player (a Haruspex) in one fight, then kept
+    fighting entirely unrelated NPCs afterward - and the Poisoned
+    condition never expired, reapplying its damage every single turn
+    indefinitely, for hours, even across a disconnect/reconnect.
+
+    Root cause: condition_tickdown only ever decremented duration
+    `if condition_turnchar == turnchar` - condition_turnchar being the
+    ORIGINAL INFLICTER (stored so a DOT kill can still credit the
+    right attacker). The moment that exact inflicter isn't part of
+    the character's current turn rotation (a different fight, or no
+    fight at all), turnchar can never equal them again, so the
+    duration count is permanently frozen above 0. Confirmed live via
+    the actual stuck character's own data: {'Poisoned': [4, Caesar]}
+    - Caesar being the original attacker from a past, unrelated fight.
+
+    Fixed to decrement on the condition-HOLDER's own turn instead.
+    """
+
+    def test_hostile_condition_ticks_down_on_the_victims_own_turn_not_the_inflicters(self):
+        # char2 poisoned char1 in some past encounter - char2 isn't
+        # part of char1's current turn rotation at all anymore.
+        self.char1.db.conditions = {"Poisoned": [3, self.char2]}
+
+        # char1's own turn starting, in a fight that doesn't involve
+        # char2 at all (e.g. char1 vs an NPC) - this must still count.
+        COMBAT_RULES.condition_tickdown(self.char1, self.char1)
+
+        self.assertEqual(self.char1.db.conditions["Poisoned"][0], 2)
+
+    def test_hostile_condition_does_not_tick_down_on_someone_elses_turn(self):
+        self.char1.db.conditions = {"Poisoned": [3, self.char2]}
+
+        # A different fighter's turn starting (not char1's own) -
+        # char1's own condition shouldn't move yet.
+        COMBAT_RULES.condition_tickdown(self.char1, self.char2)
+
+        self.assertEqual(self.char1.db.conditions["Poisoned"][0], 3)
+
+    def test_hostile_condition_eventually_expires_across_unrelated_turns(self):
+        self.char1.db.conditions = {"Poisoned": [2, self.char2]}
+
+        COMBAT_RULES.condition_tickdown(self.char1, self.char1)
+        self.assertIn("Poisoned", self.char1.db.conditions)
+        COMBAT_RULES.condition_tickdown(self.char1, self.char1)
+
+        self.assertNotIn("Poisoned", self.char1.db.conditions)
+
+    def test_self_inflicted_condition_behavior_is_unchanged(self):
+        """
+        Regression guard: a self-inflicted condition (turnchar ==
+        character already) must decrement exactly the same as before -
+        this fix should be a no-op for anything that already worked.
+        """
+        self.char1.db.conditions = {"Regeneration": [2, self.char1]}
+        COMBAT_RULES.condition_tickdown(self.char1, self.char1)
+        self.assertEqual(self.char1.db.conditions["Regeneration"][0], 1)
+
+    def test_out_of_combat_ticker_now_expires_a_lingering_hostile_condition(self):
+        """
+        The exact real-world path the live bug took: the out-of-combat
+        ticker calls condition_tickdown(self, self) every 30 seconds.
+        Under the old logic that never matched a hostile condition's
+        stored (different) inflicter, so it never decremented while
+        idle either - confirmed live (combat_turnhandler was None,
+        condition still stuck). Now it correctly does.
+        """
+        self.char1.location = self.room1
+        self.char1.db.conditions = {"Poisoned": [1, self.char2]}
+        self.char1.db.combat_turnhandler = None
+
+        self.char1.at_update()
+
+        self.assertNotIn("Poisoned", self.char1.db.conditions)
+
+    def test_out_of_combat_tick_no_longer_reattributes_the_condition_to_the_victim(self):
+        """
+        A second, related bug this same fix removed: at_update used to
+        overwrite every condition's stored turnchar with the character
+        themselves before ticking down, as a workaround for the (now
+        fixed) old condition_tickdown logic. That workaround silently
+        misattributed a poisoner's own kill credit to the VICTIM the
+        moment one idle tick passed - breaking XP/gold-split and the
+        colosseum escape-on-victory check for a poison death that
+        happens to land while the victim is out of combat. Confirmed
+        fixed: the real poisoner (char2) must still be the one
+        credited after an out-of-combat tick, not char1 themselves.
+        """
+        self.char1.location = self.room1
+        self.char1.db.conditions = {"Poisoned": [5, self.char2]}
+        self.char1.db.combat_turnhandler = None
+
+        self.char1.at_update()
+
+        self.assertEqual(self.char1.db.conditions["Poisoned"][1], self.char2)
+
+
 class TestPoisonDeathAttributesThePoisoner(CombatTestBase):
     """
     Real gap found live: a kill delivered by Poisoned ticking down at
@@ -1568,11 +1667,15 @@ class TestConditionMessagesColorTheConditionName(CombatTestBase):
         self.assertIn("|MAccuracy Down|n", full_text)
 
     def test_condition_expiry_colors_the_condition_name(self):
+        # turnchar is char1 (the condition-holder) - ticking down now
+        # happens on the HOLDER's own turn, not the original
+        # inflicter's (char2) - see condition_tickdown's own docstring
+        # for the real bug this fixed.
         COMBAT_RULES.get_conditions(self.char1)["Accuracy Down"] = [1, self.char2]
         captured = []
         self.char1.location.msg_contents = lambda text="", **kwargs: captured.append(text)
 
-        COMBAT_RULES.condition_tickdown(self.char1, self.char2)
+        COMBAT_RULES.condition_tickdown(self.char1, self.char1)
 
         full_text = "".join(str(m) for m in captured)
         self.assertIn("|MAccuracy Down|n", full_text)

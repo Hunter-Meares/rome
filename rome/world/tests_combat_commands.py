@@ -44,6 +44,7 @@ from world.combat import (
     CmdDon,
     CmdDoff,
     CmdDismissPet,
+    CmdRestore,
     SKILLS,
     SPELLS,
     POWERATTACK_SP_COST,
@@ -1056,6 +1057,55 @@ class TestCmdRestBlockedWhileDead(CombatCommandTestBase):
         result = self.call(CmdRest(), "", caller=self.char1)
         self.assertIn("settles in to rest", result)
         self.assertTrue(self.char1.db.resting)
+
+
+class TestCmdRestoreClearsConditionsAndRevivesTheDead(CombatCommandTestBase):
+    """
+    CmdRestore extended in direct response to two real, confirmed live
+    bugs found this same session (conditions surviving death, and a
+    hostile condition that could never expire) - a real "something's
+    gone wrong with this character's state" escape hatch for staff,
+    on top of the HP/MP/SP-only restore it already did.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.level = 102  # the acting god
+
+    def test_restore_on_a_living_target_clears_conditions(self):
+        self.char2.db.hp = 10
+        self.char2.db.max_hp = 100
+        self.char2.db.conditions = {"Poisoned": [4, self.char1]}
+
+        self.call(CmdRestore(), "Char2", caller=self.char1)
+
+        self.assertEqual(self.char2.db.hp, self.char2.db.max_hp)
+        self.assertEqual(self.char2.db.conditions, {})
+
+    def test_restore_on_a_dead_target_resurrects_them(self):
+        from evennia.objects.models import ObjectDB
+        from django.conf import settings
+
+        cells = ObjectDB.objects.get_id(settings.START_LOCATION)
+        if not cells:
+            self.skipTest("START_LOCATION not resolvable in this test DB")
+
+        self.char2.db.is_dead = True
+        self.char2.db.level = 3
+        self.char2.db.hp = 0
+        self.char2.db.conditions = {"Poisoned": [4, self.char1]}
+
+        self.call(CmdRestore(), "Char2", caller=self.char1)
+
+        self.assertFalse(self.char2.db.is_dead)
+        self.assertEqual(self.char2.db.hp, self.char2.db.max_hp)
+        self.assertEqual(self.char2.db.conditions, {})
+        self.assertEqual(self.char2.location, cells)
+
+    def test_below_level_102_is_refused(self):
+        self.char1.db.level = 101
+        result = self.call(CmdRestore(), "Char2", caller=self.char1)
+        self.assertIn("lack the standing", result)
 
 
 class TestMovementSPCost(CombatCommandTestBase):

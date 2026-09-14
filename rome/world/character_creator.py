@@ -126,6 +126,27 @@ class ContribCmdCharCreate(MuxAccountCommand):
             requested_name = self.lhs.strip() if self.lhs else ""
             requested_desc = self.rhs.strip() if self.rhs else ""
 
+            # Real, confirmed live gap: a new player typed
+            # "charcreate vaca Barbaric yawp" (no '='), intending
+            # (most likely) a name plus a description - but with no
+            # '=' to split on, self.rhs is None (MuxCommand only ever
+            # sets it when the delimiter actually appears) and the
+            # WHOLE string became the name verbatim, with no warning
+            # anything unusual happened. self.rhs is None here
+            # specifically means no '=' was typed at all - not to be
+            # confused with an '=' followed by nothing, which is a
+            # real (if unusual) empty-description request and
+            # shouldn't be blocked.
+            if self.rhs is None and " " in requested_name:
+                self.msg(
+                    "|rThat looks like it might be a name and a description "
+                    "run together.|n Use an '=' to separate them - e.g. "
+                    "|wcharcreate %s = %s|n - or just 'charcreate' with no "
+                    "arguments to pick a name during creation instead."
+                    % tuple(requested_name.split(" ", 1))
+                )
+                return
+
             if requested_name:
                 from typeclasses.characters import Character
 

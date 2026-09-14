@@ -497,7 +497,13 @@ def menunode_welcome(caller):
         and take it up again later with |wcharcreate|n.
         """
     )
-    help = "You can explain the commands for exiting and resuming more specifically here."
+    help = (
+        "Type 1 (or its full text) to begin. Each step from here is a "
+        "numbered list like this one - type the number of an option to "
+        "pick it. You can leave at any point with 'quit' and pick up "
+        "again later by typing 'charcreate' - nothing you've chosen so "
+        "far is lost."
+    )
     options = _numbered_option(1, "Let the Fates begin their work", "menunode_choose_race")
     return (text, help), options
 
