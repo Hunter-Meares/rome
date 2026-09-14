@@ -72,3 +72,20 @@ class TestCmdQuitCombatOverride(EvenniaCommandTest):
         # Still logged in - the block genuinely stopped the quit, it
         # didn't just print a warning and disconnect anyway.
         self.assertTrue(self.session.logged_in)
+
+    def test_farewell_message_on_a_normal_last_session_quit(self):
+        """
+        Direct request to replace Evennia's own default "Hope to see
+        you again, soon." - this is the func() branch that actually
+        fires for the common case (a single-session account quitting
+        normally), reimplemented in full since Evennia hardcodes the
+        text inline with no separate overridable hook.
+        """
+        self.char1.db.combat_turnhandler = None
+        result = self.call(CmdQuit(), "", caller=self.account)
+        self.assertIn("All good things must come to an end", result)
+
+    def test_farewell_message_on_quit_all(self):
+        self.char1.db.combat_turnhandler = None
+        result = self.call(CmdQuit(), "/all", cmdstring="quit", caller=self.account)
+        self.assertIn("All good things must come to an end", result)

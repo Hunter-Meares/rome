@@ -6653,6 +6653,17 @@ class CmdQuit(DefaultCmdQuit):
     self.caller directly and not just any character owned by the
     account. Only blocks a plain 'quit'; doesn't attempt to reason
     about the rarer 'quit/all' multi-session case.
+
+    func() below is a full reimplementation of Evennia's own
+    CmdQuit.func(), not just a super() call with a wrapper - Evennia
+    hardcodes its farewell text inline with no separate overridable
+    hook, so swapping in a different phrase for the actually-leaving
+    cases means duplicating the rest of the method's logic verbatim.
+    Only the two "this session is genuinely disconnecting from the
+    game entirely" messages (a plain quit with no other session left,
+    and quit/all) use the new phrase - the other two variants (a
+    session remains connected elsewhere) still use Evennia's original
+    wording, since nothing is actually ending in those cases.
     """
 
     def func(self):
@@ -6664,7 +6675,33 @@ class CmdQuit(DefaultCmdQuit):
                 "|rTry to |wdisengage|r first, or finish the fight.|n"
             )
             return
-        super().func()
+
+        account = self.account
+        if "all" in self.switches:
+            account.msg(
+                "|RQuitting|n all sessions. All good things must come to an end.",
+                session=self.session,
+            )
+            reason = "quit/all"
+            for sess in account.sessions.all():
+                account.disconnect_session_from_account(sess, reason)
+        else:
+            nsess = len(account.sessions.all())
+            reason = "quit"
+            if nsess == 2:
+                account.msg("|RQuitting|n. One session is still connected.", session=self.session)
+            elif nsess > 2:
+                account.msg(
+                    "|RQuitting|n. %i sessions are still connected." % (nsess - 1),
+                    session=self.session,
+                )
+            else:
+                # we are quitting the last available session
+                account.msg(
+                    "|RQuitting|n. All good things must come to an end.",
+                    session=self.session,
+                )
+            account.disconnect_session_from_account(self.session, reason)
 
 
 class CmdOOC(DefaultCmdOOC):
