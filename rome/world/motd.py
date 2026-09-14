@@ -76,14 +76,15 @@ def get_motd():
         _box_line("|wWelcome to Rome: The Eternal City|n", align="c"),
         _box_border("-"),
         _box_line("Website: |whttp://rome.vineyard.haus/|n"),
+        _box_line("Discord: |whttps://discord.gg/uh6HPvuM42|n"),
         _box_line("Email:   |wzeus@rome.vineyard.haus|n |x(Admin - bugs, ideas, feedback)|n"),
         _box_border("-"),
     ]
     lines += _box_paragraph(
-        "You're exploring a world still being built - the gods, the streets "
-        "of Rome, and everyone in between are all a work in progress. Things "
-        "will change, break, and grow. Your patience, curiosity, and "
-        "feedback shape where this goes next."
+        "Rome is in its Player Testing phase - the core game is complete "
+        "and playable, and we need real players to help find what still "
+        "needs work. Things will change, break, and grow. Your patience, "
+        "curiosity, and feedback shape where this goes next."
     )
     lines += [
         _box_blank(),
