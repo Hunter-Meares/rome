@@ -86,6 +86,18 @@ def get_motd():
         "needs work. Things will change, break, and grow. Your patience, "
         "curiosity, and feedback shape where this goes next."
     )
+    lines += [_box_blank()]
+    # TEMPORARY - a known, actively-being-fixed hosting issue, not
+    # something wrong with the game itself. Remove this paragraph once
+    # the host confirms it's resolved - deliberately no hard deadline
+    # in the wording itself (a hosting fix slipping past a stated
+    # "48 hours" would read worse than never having promised one), but
+    # this still needs a manual follow-up to take back out.
+    lines += _box_paragraph(
+        "|yHeads up:|n you may notice occasional lag over the next day "
+        "or two - it's a known hosting issue our provider is actively "
+        "resolving, not something wrong with the game itself."
+    )
     lines += [
         _box_blank(),
         _box_line("|r>> Getting Started|n"),
