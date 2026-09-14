@@ -33,6 +33,7 @@ from world import quests
 from world import religion
 from world import titles
 from world import tutorial
+from world import reports
 from evennia.contrib.utils.debugpy import CmdDebugPy
 from evennia.contrib.grid.ingame_map_display import MapDisplayCmdSet
 from evennia.contrib.grid.ingame_map_display.ingame_map_display import CmdMap
@@ -217,6 +218,10 @@ class AccountCmdSet(default_cmds.AccountCmdSet):
         self.add(social.FriendlyCmdPage())
         self.add(motd.MOTDCmdSet())
         self.add(ReportsCmdSet)
+        # Overrides ReportsCmdSet's own CmdManageReports - see
+        # world/reports.py for why (real help-text and bare-"manage
+        # reports" confusion found live, both fixed there).
+        self.add(reports.CmdManageReports())
 
 
 class UnloggedinCmdSet(default_cmds.UnloggedinCmdSet):
