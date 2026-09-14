@@ -32,19 +32,16 @@ from evennia import CmdSet
 from commands.command import Command
 from world.box_display import box_border, box_line, box_paragraph, box_blank
 
-RECENT_UPDATES_DATE = "2026-09-13"
+RECENT_UPDATES_DATE = "2026-09-14"
 
 RECENT_UPDATES_TEXT = (
-    "New characters now start with a free rough map of Rome, and "
-    "'stats' shows your race and class more clearly plus any active "
-    "conditions affecting you, color-coded by whether they're helping "
-    "or hurting. Summoned pets can now be sent away with 'dismiss' (or "
-    "'banish'), and won't be left behind fighting alone if you flee or "
-    "fall in battle. New 'help death', 'help targeting', 'help "
-    "roleplay', and 'help description' topics cover what happens when "
-    "you die, how targeting works when there's more than one of "
-    "something around, this game's roleplay expectations, and the real "
-    "difference between setdesc, sdesc, and mask."
+    "Several real combat bugs are fixed: casting a spell or using a "
+    "skill on someone now actually starts the fight instead of landing "
+    "a free hit with nothing tracking it, 'fight all' no longer causes "
+    "monsters to turn on each other mid-brawl, and an offensive spell "
+    "or skill with no target now defaults to whoever you're currently "
+    "fighting. 'godlevel'/'advance' also properly grants HP/MP/SP and "
+    "stat points now, same as leveling up normally would."
 )
 
 # The box's own interior width, between its left/right borders and
