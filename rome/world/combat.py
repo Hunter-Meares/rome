@@ -811,6 +811,77 @@ class CombatRules:
         attacker.msg("You try to break %s's Sanctuary, but it holds." % defender.key)
         return False
 
+    def start_combat_from_offensive_action(self, caller, targets):
+        """
+        Pulls `caller` into a real, tracked fight against whichever of
+        `targets` are actually hostile, if `caller` isn't already in
+        combat - the same real combat situation 'fight'/'fight all'
+        create (a CombatTurnHandler, real sides, a real initiative-
+        rolled turn order), not just a bare stat calculation with no
+        fight ever starting.
+
+        Real, confirmed live bug this fixes: a player reported "when I
+        used a combat action out of combat, it hits an enemy but does
+        not start a fight" - CmdCast and CmdUseSkill only ever gated
+        their turn-order/action-spending checks behind
+        'if self.rules.is_in_combat(caller):', which is skipped
+        entirely when out of combat rather than blocking the action -
+        so an offensive spell/skill dealt real, undefended damage
+        (even a real kill) against a target with no CombatTurnHandler
+        ever created, no side, no way to strike back, and no
+        'You're already in a fight!' guard on either end ever
+        engaging. Unlike CmdAttack (which requires combat to already
+        exist - "You can only do that in combat"), casting a spell or
+        using a skill is allowed to be the very thing that starts a
+        fight; it just has to actually start one, the same way typing
+        'fight <target>' would, rather than being a free, no-
+        consequence hit.
+
+        Deliberately mirrors CmdFight._start_duel exactly for a single
+        hostile target (same sanctuary check, same "already an open
+        fight in this room? join it instead of starting a second one"
+        check). For more than one hostile target (an AoE spell/skill
+        hitting several enemies at once), deliberately falls through
+        to the turnhandler's own default room-sweep/party-grouping
+        behavior - the same thing 'fight all' already does - rather
+        than inventing an ad hoc multi-way duel shape: pending_fighters
+        only ever assigns sides "A"/"B" to exactly two fighters, so a
+        real 3+-way opening shot needs the full room-sweep path
+        instead, not a shoehorned pending_fighters list.
+
+        A no-op if `caller` has no location, is already in combat, the
+        room forbids violence entirely (is_no_combat_zone), or none of
+        `targets` are actually hostile (an ally, the caller themselves,
+        or something with no HP at all) - callers of this don't need
+        to check any of that themselves first.
+        """
+        here = caller.location
+        if not here or self.is_in_combat(caller):
+            return
+        if is_no_combat_zone(here):
+            return
+
+        hostiles = [
+            t for t in targets
+            if t is not None and t != caller and t.db.hp and not self.is_ally(caller, t)
+        ]
+        if not hostiles:
+            return
+
+        for hostile in hostiles:
+            if not self.try_break_sanctuary(caller, hostile):
+                return
+
+        if here.db.combat_turnhandler:
+            here.msg_contents("%s joins the fight!" % caller)
+            here.db.combat_turnhandler.join_fight(caller)
+            return
+
+        here.msg_contents("%s starts a fight!" % caller)
+        if len(hostiles) == 1:
+            here.ndb.pending_fighters = [caller, hostiles[0]]
+        here.scripts.add(CombatTurnHandler)
+
     def is_proficient(self, character, weapon):
         """
         Returns True if character's class is proficient with the given
@@ -5053,6 +5124,26 @@ class HostileNPC(AutoStatNPC):
                 have = self.db.mp if resource == "mp" else self.db.sp
                 if data["cost"] > (have or 0):
                     continue
+                if target_type == "self":
+                    # Real, confirmed live bug: a self-buff (e.g. the
+                    # barbarian's Rage of the North) stayed eligible
+                    # here even while its own condition was still
+                    # active, so the random draw below could keep
+                    # re-picking and re-casting it turn after turn -
+                    # each cast just refreshes the same duration back
+                    # to full, doing nothing new, while never actually
+                    # attacking. A real player reported this directly:
+                    # "It keeps running a no-damage skill (rage of the
+                    # north) so it's doing minimal damage." Skipping it
+                    # here while it's already up lets the draw fall
+                    # through to attack (or a different, actually
+                    # useful action) instead - it becomes eligible
+                    # again the moment the buff actually expires.
+                    conditions = data.get("conditions")
+                    if conditions:
+                        active = self.db.conditions or {}
+                        if all(cond_name in active for cond_name, _duration in conditions):
+                            continue
                 actions.append((source_name, name, target_type == "self"))
 
         return actions
@@ -5075,7 +5166,24 @@ class HostileNPC(AutoStatNPC):
             return
 
         fighters = turnhandler.db.fighters or []
-        possible_targets = [f for f in fighters if f != self and f.db.hp]
+        # Real, confirmed live bug: this used to just grab the first
+        # other living fighter in turn order with no concept of sides
+        # at all - harmless in the common 1-on-1 case, but the moment
+        # more than one hostile NPC was in the same fight (e.g. 'fight
+        # all' against a room of monsters), a fellow NPC further up
+        # the initiative order was just as valid a "first other
+        # fighter" as the actual player, so NPCs would attack each
+        # other instead - exactly what a real player reported ("the
+        # mobiles are now fighting each other") after 'fight all'.
+        # is_ally() already exists precisely to answer "is this
+        # fighter actually on my side in THIS fight" (via
+        # combat_side) - excluding allies here is the fix, matching
+        # how every other targeting path in this file already avoids
+        # hitting your own side.
+        possible_targets = [
+            f for f in fighters
+            if f != self and f.db.hp and not COMBAT_RULES.is_ally(self, f)
+        ]
         if not possible_targets:
             return
         opponent = possible_targets[0]
@@ -5998,16 +6106,54 @@ class CombatTurnHandler(DefaultScript):
             # combatant (which would make the fight "end" the moment
             # any single ally on the winning team happened to be the
             # last one standing on their side, or never end at all if
-            # several teammates all survive). Solo fighters (no
-            # party) each still get their own individual side, same
-            # as before.
+            # several teammates all survive). Solo PLAYER characters
+            # (no party) each still get their own individual side,
+            # same as before.
+            #
+            # Real, confirmed live bug found this way: every NPC swept
+            # into 'fight all' also has no party_leader (NPCs don't use
+            # the party system at all), so each one used to get its
+            # OWN individual side here too - meaning "fight all" in a
+            # room with 3 hostile NPCs actually created a 4-way brawl
+            # (the player plus 3 separate NPC sides) rather than "you
+            # vs. the mob," exactly matching a real player report:
+            # "the mobiles are now fighting each other" after 'fight
+            # all', since HostileNPC.at_turn_start() (below) just
+            # attacks the first other living fighter in turn order
+            # with no concept of sides at all, and every NPC being on
+            # its own distinct side made a fellow NPC just as valid a
+            # target as the player.
+            #
+            # Fixed by only giving a fighter its own party-based side
+            # if it's genuinely a "someone" in this fight - either a
+            # real player-controlled character (has `.account`) or an
+            # explicit party member (`db.party_leader` set, which is
+            # how a partied companion/ally without an account of its
+            # own would still correctly stay grouped with its party -
+            # see TestCmdFight.test_fight_all_groups_by_party, which
+            # this must keep passing). Anything else - a plain,
+            # partyless NPC swept in from the room - shares one single
+            # collective "the mob" side instead, regardless of how
+            # many separate NPCs are swept in - matching the player-
+            # facing help text's own description of 'fight all' ("your
+            # whole party fights together as one side against everyone
+            # else").
             group_sides = {}
             sides = {}
+            team_count = 0
+            mob_side = None
             for fighter in self.db.fighters:
-                leader = fighter.db.party_leader or fighter
-                if leader not in group_sides:
-                    group_sides[leader] = "team_%d" % len(group_sides)
-                sides[fighter] = group_sides[leader]
+                if fighter.db.party_leader or getattr(fighter, "account", None):
+                    leader = fighter.db.party_leader or fighter
+                    if leader not in group_sides:
+                        group_sides[leader] = "team_%d" % team_count
+                        team_count += 1
+                    sides[fighter] = group_sides[leader]
+                else:
+                    if mob_side is None:
+                        mob_side = "team_%d" % team_count
+                        team_count += 1
+                    sides[fighter] = mob_side
 
         for fighter in self.db.fighters:
             self.initialize_for_combat(fighter, side=sides.get(fighter))
@@ -7448,6 +7594,42 @@ class CmdGodLevel(Command):
         target.db.level = new_level
         target.db.invincible = new_level > 100
 
+        # Real, confirmed live bug: this used to just write db.level
+        # directly, completely bypassing award_xp's whole level-up
+        # loop - a target set from level 1 to 10 this way kept their
+        # level-1 max_hp/mp/sp and never got the stat point every 3rd
+        # level normally grants, unlike anyone who leveled the same
+        # amount through real XP. A real player noticed exactly this
+        # ("I think when you advanced my levels that way, it doesn't
+        # give hp, mp or sp"). Fixed by applying the exact same
+        # per-level growth award_xp uses (LEVEL_UP_HP_GAIN/MP_GAIN/
+        # SP_GAIN, one unspent stat point every 3rd level) for every
+        # level actually crossed, in whichever direction - a demotion
+        # removes growth the same way a promotion adds it. Bounded to
+        # the mortal 1-MAX_LEVEL range, since XP-based growth was
+        # never a thing above it either (a god's level isn't earned,
+        # and gods are already invincible - see target.db.invincible
+        # just above). Delta-based rather than recomputed from
+        # scratch, so it stacks correctly on top of whatever the
+        # target already had - including any max_hp/mp/sp already
+        # bought via 'statup hp/mp/sp', which this must never disturb.
+        old_mortal_level = min(max(old_level, 1), MAX_LEVEL)
+        new_mortal_level = min(max(new_level, 1), MAX_LEVEL)
+        levels_crossed = new_mortal_level - old_mortal_level
+        if levels_crossed:
+            target.db.max_hp = max(1, (target.db.max_hp or 1) + LEVEL_UP_HP_GAIN * levels_crossed)
+            target.db.max_mp = max(0, (target.db.max_mp or 0) + LEVEL_UP_MP_GAIN * levels_crossed)
+            target.db.max_sp = max(0, (target.db.max_sp or 0) + LEVEL_UP_SP_GAIN * levels_crossed)
+            target.db.hp = target.db.max_hp if levels_crossed > 0 else min(target.db.hp or 0, target.db.max_hp)
+            target.db.mp = target.db.max_mp if levels_crossed > 0 else min(target.db.mp or 0, target.db.max_mp)
+            target.db.sp = target.db.max_sp if levels_crossed > 0 else min(target.db.sp or 0, target.db.max_sp)
+            if levels_crossed > 0:
+                stat_points_gained = new_mortal_level // 3 - old_mortal_level // 3
+                if stat_points_gained > 0:
+                    target.db.unspent_stat_points = (
+                        (target.db.unspent_stat_points or 0) + stat_points_gained
+                    )
+
         new_perm = GOD_TIERS.get(new_level, (None, None))[1]
         if new_perm:
             target.permissions.add(new_perm)
@@ -8539,7 +8721,20 @@ class CmdCast(MuxCommand):
             ]
 
             if spelldata["max_targets"] == 1:
-                if len(possible_enemies) == 1:
+                # Direct player suggestion, implemented as asked:
+                # while already fighting, default to whoever you're
+                # actually engaged with (combat_last_target - the
+                # same "who am I currently fighting" tracker attack/
+                # auto-attack/summoned-pet AI all already use) rather
+                # than demanding a name the instant more than one
+                # enemy happens to be in the room. Checked against
+                # possible_enemies (not just "are they alive") so a
+                # stale or now-allied former target can't be defaulted
+                # to by mistake.
+                current_target = caller.db.combat_last_target
+                if current_target in possible_enemies:
+                    spell_targets = [current_target.key]
+                elif len(possible_enemies) == 1:
                     spell_targets = [possible_enemies[0].key]
                 elif len(possible_enemies) == 0:
                     caller.msg("There's nobody here to target.")
@@ -8644,6 +8839,14 @@ class CmdCast(MuxCommand):
         if len(spell_targets) != len(set(spell_targets)):
             caller.msg("You can't specify the same target more than once!")
             return
+
+        # See start_combat_from_offensive_action's own docstring - an
+        # offensive spell cast outside combat is what starts the
+        # fight now, rather than landing as a free hit against a
+        # target with no CombatTurnHandler ever created. A no-op for
+        # every non-offensive cast (self/ally/no target, or already
+        # in combat), so this can't affect the vast majority of casts.
+        self.rules.start_combat_from_offensive_action(caller, spell_targets)
 
         try:
             spelldata["spellfunc"](
@@ -8809,7 +9012,12 @@ class CmdUseSkill(MuxCommand):
             ]
 
             if skilldata["max_targets"] == 1:
-                if len(possible_enemies) == 1:
+                # See the identical fix/comment in CmdCast above - same
+                # combat_last_target default.
+                current_target = user.db.combat_last_target
+                if current_target in possible_enemies:
+                    skill_targets = [current_target.key]
+                elif len(possible_enemies) == 1:
                     skill_targets = [possible_enemies[0].key]
                 elif len(possible_enemies) == 0:
                     user.msg("There's nobody here to target.")
@@ -8881,6 +9089,11 @@ class CmdUseSkill(MuxCommand):
         if len(skill_targets) != len(set(skill_targets)):
             user.msg("You can't specify the same target more than once!")
             return
+
+        # See the identical fix/comment in CmdCast above - an
+        # offensive skill used outside combat is what starts the
+        # fight now, same as an offensive spell.
+        self.rules.start_combat_from_offensive_action(user, skill_targets)
 
         try:
             skilldata["skillfunc"](

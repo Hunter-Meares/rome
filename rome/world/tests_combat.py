@@ -19,9 +19,12 @@ from unittest.mock import patch
 
 from evennia.utils.test_resources import EvenniaTest
 
+from evennia.utils import create
+
 from world.combat import (
     COMBAT_RULES,
     CombatTurnHandler,
+    HostileNPC,
     ACCURACY_STAT_MULTIPLIER,
     NONPROFICIENT_ACCURACY_PENALTY,
     NONPROFICIENT_DAMAGE_MULTIPLIER,
@@ -2291,3 +2294,308 @@ class TestInstanceCleanupTimerSkipsWhileFighting(CombatTestBase):
         timer.at_repeat()  # should not raise
 
         self.assertFalse(timer.pk)
+
+
+class TestStartCombatFromOffensiveAction(CombatTestBase):
+    """
+    CombatRules.start_combat_from_offensive_action - the real fix for a
+    confirmed live player report: "when I used a combat action out of
+    combat, it hits an enemy but does not start a fight." CmdCast and
+    CmdUseSkill only ever gated their turn/action checks behind 'if
+    is_in_combat', which is simply skipped when out of combat rather
+    than blocking anything - an offensive spell/skill dealt real damage
+    against a target with no CombatTurnHandler ever created. See the
+    end-to-end CmdCast/CmdUseSkill coverage in
+    tests_combat_commands.py for the full command-level regression;
+    this covers the shared helper's own logic directly.
+    """
+
+    def test_starts_a_real_tracked_fight_against_a_hostile_target(self):
+        self.char1.location = self.room1
+        self.char2.location = self.room1
+        self.char1.db.combat_turnhandler = None
+        self.char2.db.combat_turnhandler = None
+
+        COMBAT_RULES.start_combat_from_offensive_action(self.char1, [self.char2])
+
+        self.assertTrue(COMBAT_RULES.is_in_combat(self.char1))
+        self.assertTrue(COMBAT_RULES.is_in_combat(self.char2))
+        self.assertNotEqual(self.char1.db.combat_side, self.char2.db.combat_side)
+
+    def test_no_op_if_caller_already_in_combat(self):
+        handler = create.create_script(CombatTurnHandler, obj=self.room1, autostart=False)
+        self.char1.db.combat_turnhandler = handler
+        self.char2.db.combat_turnhandler = None
+
+        COMBAT_RULES.start_combat_from_offensive_action(self.char1, [self.char2])
+
+        # Nothing should have changed the target's own state - no new
+        # fight was started on their account.
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char2))
+
+    def test_no_op_against_an_ally(self):
+        self.char1.location = self.room1
+        self.char2.location = self.room1
+        self.char1.db.combat_turnhandler = None
+        self.char2.db.combat_turnhandler = None
+        self.char1.db.party_leader = self.char1
+        self.char1.db.party_members = [self.char1, self.char2]
+        self.char2.db.party_leader = self.char1
+
+        COMBAT_RULES.start_combat_from_offensive_action(self.char1, [self.char2])
+
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char2))
+
+    def test_no_op_in_a_no_combat_zone(self):
+        self.char1.location = self.room1
+        self.char2.location = self.room1
+        self.char1.db.combat_turnhandler = None
+        self.char2.db.combat_turnhandler = None
+        self.room1.tags.add("no_combat_zone", category="zone")
+
+        COMBAT_RULES.start_combat_from_offensive_action(self.char1, [self.char2])
+
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
+
+    def test_joins_an_already_open_fight_in_the_room_instead_of_starting_a_second_one(self):
+        self.char1.location = self.room1
+        self.char2.location = self.room1
+        third = create.create_object(
+            "typeclasses.characters.Character", key="a bystander", location=self.room1
+        )
+        third.db.hp = 100
+
+        handler = create.create_script(CombatTurnHandler, obj=self.room1, autostart=False)
+        handler.db.fighters = [self.char2, third]
+        handler.db.turn = 0
+        self.room1.db.combat_turnhandler = handler
+        self.char2.db.combat_turnhandler = handler
+        self.char2.db.combat_side = "A"
+        third.db.combat_turnhandler = handler
+        third.db.combat_side = "B"
+        self.char1.db.combat_turnhandler = None
+
+        COMBAT_RULES.start_combat_from_offensive_action(self.char1, [third])
+
+        self.assertIs(self.char1.db.combat_turnhandler, handler)
+        self.assertIn(self.char1, handler.db.fighters)
+
+
+class TestFightAllGroupsHostileNPCsIntoOneSharedSide(CombatTestBase):
+    """
+    CombatTurnHandler.at_script_creation's 'fight all' side-assignment
+    - real, confirmed live bug: every accountless, partyless NPC swept
+    into 'fight all' used to get its OWN individual side (same as a
+    genuinely unrelated solo player would), rather than being grouped
+    with other NPCs as "the mob." Combined with HostileNPC.at_turn_start
+    picking whichever other fighter came first in turn order with no
+    concept of sides at all (see TestHostileNPCDoesNotAttackItsOwnSide
+    below), this made a real player's 'fight all' against a room of
+    monsters turn into the monsters fighting each other instead of the
+    player - reported live, verbatim: "I tried fight all.. And the
+    mobiles are now fighting each other, and my own attacks don't
+    proc."
+    """
+
+    def _make_npc(self, key):
+        npc = create.create_object(
+            "typeclasses.characters.Character", key=key, location=self.room1
+        )
+        npc.db.hp = 50
+        npc.db.max_hp = 50
+        return npc
+
+    def test_three_partyless_npcs_share_one_side_not_three(self):
+        from evennia.utils import create as ev_create
+
+        npc1 = self._make_npc("a wolf")
+        npc2 = self._make_npc("a bandit")
+        npc3 = self._make_npc("a boar")
+        self.char1.location = self.room1
+        self.char1.db.combat_turnhandler = None
+
+        handler = ev_create.create_script(CombatTurnHandler, obj=self.room1, autostart=False)
+
+        self.assertEqual(npc1.db.combat_side, npc2.db.combat_side)
+        self.assertEqual(npc2.db.combat_side, npc3.db.combat_side)
+        self.assertNotEqual(self.char1.db.combat_side, npc1.db.combat_side)
+        self.assertTrue(handler.pk)
+
+    def test_a_partied_companion_with_no_account_still_groups_with_its_party(self):
+        """
+        Regression guard: the fix must not treat every accountless
+        Character as "the mob" - an explicitly partied companion (real
+        party_leader set, just no account of its own) must still end
+        up on its party leader's side, exactly like
+        TestCmdFight.test_fight_all_groups_by_party already covers at
+        the command layer.
+        """
+        from evennia.utils import create as ev_create
+
+        companion = self._make_npc("a loyal companion")
+        companion.db.party_leader = self.char1
+        self.char1.db.party_leader = self.char1
+        self.char1.db.party_members = [self.char1, companion]
+        self.char1.location = self.room1
+        self.char1.db.combat_turnhandler = None
+
+        mob = self._make_npc("a bandit")
+
+        handler = ev_create.create_script(CombatTurnHandler, obj=self.room1, autostart=False)
+
+        self.assertEqual(self.char1.db.combat_side, companion.db.combat_side)
+        self.assertNotEqual(self.char1.db.combat_side, mob.db.combat_side)
+        self.assertTrue(handler.pk)
+
+
+class TestHostileNPCDoesNotAttackItsOwnSide(CombatTestBase):
+    """
+    HostileNPC.at_turn_start - real, confirmed live bug: this picked
+    whichever OTHER fighter came first in turn order with absolutely no
+    concept of sides, so once more than one hostile NPC shared a fight
+    (see TestFightAllGroupsHostileNPCsIntoOneSharedSide above), a
+    fellow NPC on the exact same side was just as valid a target as the
+    actual player. Fixed to exclude allies (same combat_side) via
+    is_ally, matching every other targeting path in this file.
+    """
+
+    def _make_handler(self):
+        from evennia.utils import create as ev_create
+
+        # Deliberately NOT self.room1 - at_script_creation sweeps
+        # whatever's already in obj.contents with truthy hp the moment
+        # the script is created (autostart only gates the repeating
+        # tick, not this one-time creation hook), so building the
+        # handler on a fresh, otherwise-empty room first and wiring
+        # db.fighters by hand afterward - same ordering
+        # TestSideBasedVictory already uses - avoids that sweep
+        # silently picking up real fighters early and running its own
+        # turn cascade before the test ever gets to call
+        # at_turn_start() itself.
+        #
+        # A truly empty room isn't safe either - at_script_creation
+        # unconditionally calls start_turn(fighters[0]), which crashes
+        # with IndexError if the sweep finds nobody at all. One inert
+        # dummy (hp set, no at_turn_start method of its own) satisfies
+        # that without risking any real auto-attack: start_turn's own
+        # fallback for a non-CombatCharacter target ("like a training
+        # dummy" - see its docstring) just sends a plain room message.
+        # Discarded the moment each test overwrites handler.db.fighters
+        # with its own real list right after this returns.
+        room = ev_create.create_object("typeclasses.rooms.Room", key="a testing void")
+        dummy = ev_create.create_object(
+            "evennia.objects.objects.DefaultObject", key="a training dummy", location=room
+        )
+        dummy.db.hp = 1
+        return ev_create.create_script(CombatTurnHandler, obj=room, autostart=False)
+
+    def _make_hostile(self, key, side):
+        npc = create.create_object(HostileNPC, key=key, location=self.room1)
+        npc.db.hp = 50
+        npc.db.max_hp = 50
+        npc.db.mp = 0
+        npc.db.sp = 0
+        npc.db.player_class = None
+        npc.db.combat_side = side
+        return npc
+
+    def test_never_targets_a_fellow_npc_on_its_own_side(self):
+        handler = self._make_handler()
+
+        mob1 = self._make_hostile("a wolf", "team_1")
+        mob2 = self._make_hostile("a boar", "team_1")
+        self.char1.location = self.room1
+        self.char1.db.combat_side = "team_0"
+        self.char1.db.hp = 100
+
+        handler.db.fighters = [mob1, mob2, self.char1]
+        mob1.db.combat_turnhandler = handler
+        mob2.db.combat_turnhandler = handler
+        self.char1.db.combat_turnhandler = handler
+
+        # spend_action is also mocked here - calling at_turn_start
+        # directly (rather than through a real, scripted turn cycle)
+        # would otherwise let its own real turn_end_check/next_turn
+        # cascade straight into mob2's turn too (mob2 is ALSO a
+        # HostileNPC that auto-acts the instant its own turn starts) -
+        # this test is only about mob1's own single target choice, not
+        # the separate, already-covered turn-advancement machinery.
+        with patch("world.combat.COMBAT_RULES.resolve_attack") as mock_attack, \
+                patch("world.combat.COMBAT_RULES.spend_action"):
+            mob1.at_turn_start()
+
+        # Called exactly once, and never against mob2 (same side) -
+        # only the real enemy, char1, is a valid target here.
+        mock_attack.assert_called_once_with(mob1, self.char1)
+
+    def test_does_nothing_if_every_other_fighter_is_an_ally(self):
+        handler = self._make_handler()
+
+        mob1 = self._make_hostile("a wolf", "team_1")
+        mob2 = self._make_hostile("a boar", "team_1")
+        handler.db.fighters = [mob1, mob2]
+        mob1.db.combat_turnhandler = handler
+        mob2.db.combat_turnhandler = handler
+
+        with patch("world.combat.COMBAT_RULES.resolve_attack") as mock_attack, \
+                patch("world.combat.COMBAT_RULES.spend_action"):
+            mob1.at_turn_start()  # should not raise, and should not attack mob2
+
+        mock_attack.assert_not_called()
+
+
+class TestHostileNPCSkipsAnAlreadyActiveSelfBuff(CombatTestBase):
+    """
+    HostileNPC._gather_actions - real, confirmed live bug reported
+    directly by a player: a barbarian champion NPC "keeps running a
+    no-damage skill (rage of the north) so it's doing minimal damage."
+    Rage of the North is a self-buff (Damage Up/Defense Down, no
+    damage of its own) - _gather_actions offered it as an equally
+    likely random pick every single turn regardless of whether it was
+    already active, so re-casting it (which just refreshes the same
+    duration) could keep winning the draw turn after turn instead of
+    ever falling through to an actual attack. Fixed to stop offering a
+    self-buff once its own condition(s) are already up.
+    """
+
+    def _make_champion(self):
+        npc = create.create_object(HostileNPC, key="a champion", location=self.room1)
+        npc.db.player_class = "barbarian"
+        npc.db.level = 90
+        npc.db.mp = 0
+        npc.db.sp = 50
+        npc.db.hp = 200
+        npc.db.max_hp = 200
+        return npc
+
+    def test_active_self_buff_is_not_offered_again(self):
+        champion = self._make_champion()
+        champion.db.conditions = {"Damage Up": [3, champion], "Defense Down": [3, champion]}
+
+        actions = champion._gather_actions()
+
+        names = [name for (_kind, name, _self) in actions]
+        self.assertNotIn("rage of the north", names)
+
+    def test_expired_self_buff_is_offered_again(self):
+        champion = self._make_champion()
+        champion.db.conditions = {}
+
+        actions = champion._gather_actions()
+
+        names = [name for (_kind, name, _self) in actions]
+        self.assertIn("rage of the north", names)
+
+    def test_only_offered_again_once_every_one_of_its_conditions_has_expired(self):
+        """The skip requires ALL of the buff's conditions to still be
+        active - with only one of Rage of the North's two conditions
+        (Damage Up/Defense Down) left, it's re-offered rather than
+        silently withheld."""
+        champion = self._make_champion()
+        champion.db.conditions = {"Damage Up": [1, champion]}
+
+        actions = champion._gather_actions()
+
+        names = [name for (_kind, name, _self) in actions]
+        self.assertIn("rage of the north", names)

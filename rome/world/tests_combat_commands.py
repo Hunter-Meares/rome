@@ -45,6 +45,7 @@ from world.combat import (
     CmdDoff,
     CmdDismissPet,
     CmdRestore,
+    CmdGodLevel,
     SKILLS,
     SPELLS,
     POWERATTACK_SP_COST,
@@ -52,6 +53,10 @@ from world.combat import (
     AUTO_ATTACK_DELAY,
     MOVEMENT_SP_COST,
     MOVEMENT_SP_WARN_THRESHOLD,
+    MAX_LEVEL,
+    LEVEL_UP_HP_GAIN,
+    LEVEL_UP_MP_GAIN,
+    LEVEL_UP_SP_GAIN,
 )
 from evennia.contrib.game_systems.mail import CmdMailCharacter
 
@@ -488,6 +493,123 @@ class TestCmdUseSkillNamedTargeting(CombatCommandTestBase):
     def test_skill_unknown_rejected(self):
         result = self.call(CmdUseSkill(), "made up skill = Char2", caller=self.char1)
         self.assertIn("don't know a skill", result)
+
+
+class TestCmdCastAndCmdUseSkillStartARealFightOutOfCombat(CombatCommandTestBase):
+    """
+    Real, confirmed live bug: a player reported "when I used a combat
+    action out of combat, it hits an enemy but does not start a
+    fight." CmdCast/CmdUseSkill only ever gated their turn/action
+    checks behind 'if is_in_combat', skipped entirely when out of
+    combat rather than blocking the action - an offensive spell/skill
+    landed real, undefended damage with no CombatTurnHandler ever
+    created. Fixed via CombatRules.start_combat_from_offensive_action,
+    called right before the spellfunc/skillfunc actually runs. See
+    world/tests_combat.py's TestStartCombatFromOffensiveAction for
+    direct coverage of that helper; this is the end-to-end command
+    regression.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.skills_known = ["mark"]
+        self.char1.permissions.remove("Developer")
+
+    def test_using_an_offensive_skill_out_of_combat_starts_a_real_fight(self):
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char2))
+
+        self.call(CmdUseSkill(), "mark = Char2", caller=self.char1)
+
+        self.assertTrue(COMBAT_RULES.is_in_combat(self.char1))
+        self.assertTrue(COMBAT_RULES.is_in_combat(self.char2))
+        self.assertNotEqual(self.char1.db.combat_side, self.char2.db.combat_side)
+
+    def test_using_an_offensive_spell_out_of_combat_starts_a_real_fight(self):
+        self.char1.db.spells_known = ["ember bolt"] if "ember bolt" in SPELLS else None
+        # Fall back to any real offensive (otherchar-target) spell in
+        # SPELLS if 'ember bolt' isn't the name actually used - this
+        # only needs *a* genuinely offensive spell to exist, not that
+        # specific one.
+        if not self.char1.db.spells_known:
+            offensive_spell = next(
+                name for name, data in SPELLS.items()
+                if isinstance(data, dict) and data.get("target") == "otherchar"
+            )
+            self.char1.db.spells_known = [offensive_spell]
+        spell_name = self.char1.db.spells_known[0]
+        self.char1.db.mp = 999
+
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
+
+        self.call(CmdCast(), "%s = Char2" % spell_name, caller=self.char1)
+
+        self.assertTrue(COMBAT_RULES.is_in_combat(self.char1))
+        self.assertTrue(COMBAT_RULES.is_in_combat(self.char2))
+
+    def test_a_non_combat_self_buff_skill_does_not_start_a_fight(self):
+        """A no-op for anything that isn't actually offensive - this
+        must not turn every skill/spell use into a fight-starter."""
+        self.char1.db.skills_known = ["keen eye"] if "keen eye" in SKILLS else self.char1.db.skills_known
+        if "keen eye" not in SKILLS:
+            self.skipTest("'keen eye' skill not present in this codebase revision")
+        self.call(CmdUseSkill(), "keen eye", caller=self.char1)
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
+
+
+class TestCmdCastAndCmdUseSkillDefaultToTheCurrentOpponent(CombatCommandTestBase):
+    """
+    Direct player suggestion, implemented as asked: "when we fire an
+    offensive skill/spell, it should auto target the enemy we are
+    fighting." Previously, with no explicit target, CmdCast/CmdUseSkill
+    only auto-targeted when exactly one possible enemy was in the room
+    - useless mid-fight against more than one opponent, forcing a name
+    every single time even though there's an obvious current target
+    (combat_last_target - the same tracker attack/auto-attack/summoned
+    pets already use).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.skills_known = ["mark"]
+        self.char1.permissions.remove("Developer")
+
+    def test_defaults_to_combat_last_target_when_more_than_one_enemy_present(self):
+        third = create.create_object(
+            "typeclasses.characters.Character", key="a third fighter", location=self.room1
+        )
+        third.db.hp = 50
+        third.db.max_hp = 50
+        third.db.conditions = {}
+
+        self._start_duel()
+        self.char1.db.combat_turnhandler.db.fighters.append(third)
+        third.db.combat_turnhandler = self.char1.db.combat_turnhandler
+        third.db.combat_side = "solo_join_%d" % id(third)
+        self.char1.db.combat_last_target = self.char2
+
+        self.call(CmdUseSkill(), "mark", caller=self.char1)
+
+        self.assertIn("Accuracy Down", self.char2.db.conditions)
+        self.assertNotIn("Accuracy Down", third.db.conditions)
+
+    def test_still_asks_for_a_name_with_no_current_target_and_multiple_enemies(self):
+        third = create.create_object(
+            "typeclasses.characters.Character", key="a third fighter", location=self.room1
+        )
+        third.db.hp = 50
+        third.db.max_hp = 50
+        third.db.conditions = {}
+
+        self._start_duel()
+        self.char1.db.combat_turnhandler.db.fighters.append(third)
+        third.db.combat_turnhandler = self.char1.db.combat_turnhandler
+        third.db.combat_side = "solo_join_%d" % id(third)
+        self.char1.db.combat_last_target = None
+
+        result = self.call(CmdUseSkill(), "mark", caller=self.char1)
+
+        self.assertIn("More than one possible target", result)
 
 
 class TestSkillInfoAndSpellInfoListing(CombatCommandTestBase):
@@ -1106,6 +1228,75 @@ class TestCmdRestoreClearsConditionsAndRevivesTheDead(CombatCommandTestBase):
         self.char1.db.level = 101
         result = self.call(CmdRestore(), "Char2", caller=self.char1)
         self.assertIn("lack the standing", result)
+
+
+class TestGodLevelGrantsResourceGrowth(CombatCommandTestBase):
+    """
+    CmdGodLevel ('godlevel'/'advance') - real, confirmed live bug
+    reported directly by a player after being leveled up this way:
+    "I think when you advanced my levels that way, it doesn't give hp,
+    mp or sp." Setting db.level directly used to completely bypass
+    award_xp's level-up loop, so a target advanced 10 levels this way
+    kept their old max_hp/mp/sp and never got the stat point every 3rd
+    level normally grants. Fixed to apply the exact same per-level
+    growth award_xp uses, for every level actually crossed.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.level = 104  # the acting god
+        self.char2.db.level = 1
+        self.char2.db.max_hp, self.char2.db.hp = 100, 100
+        self.char2.db.max_mp, self.char2.db.mp = 20, 20
+        self.char2.db.max_sp, self.char2.db.sp = 30, 30
+        self.char2.db.unspent_stat_points = 0
+
+    def test_advancing_ten_levels_grants_the_full_resource_gain(self):
+        self.call(CmdGodLevel(), "Char2 = 10", caller=self.char1)
+
+        self.assertEqual(self.char2.db.max_hp, 100 + LEVEL_UP_HP_GAIN * 9)
+        self.assertEqual(self.char2.db.max_mp, 20 + LEVEL_UP_MP_GAIN * 9)
+        self.assertEqual(self.char2.db.max_sp, 30 + LEVEL_UP_SP_GAIN * 9)
+        # Topped up to the new max, same as a real level-up would.
+        self.assertEqual(self.char2.db.hp, self.char2.db.max_hp)
+        self.assertEqual(self.char2.db.mp, self.char2.db.max_mp)
+        self.assertEqual(self.char2.db.sp, self.char2.db.max_sp)
+
+    def test_advancing_grants_one_stat_point_per_third_level_crossed(self):
+        # 1 -> 10 crosses levels 3, 6, 9 - three stat points.
+        self.call(CmdGodLevel(), "Char2 = 10", caller=self.char1)
+        self.assertEqual(self.char2.db.unspent_stat_points, 3)
+
+    def test_demoting_reduces_max_resources_without_going_negative(self):
+        self.char2.db.level = 10
+        self.char2.db.max_hp = 100 + LEVEL_UP_HP_GAIN * 9
+        self.char2.db.hp = self.char2.db.max_hp
+
+        self.call(CmdGodLevel(), "Char2 = 1", caller=self.char1)
+
+        self.assertEqual(self.char2.db.max_hp, 100)
+        self.assertLessEqual(self.char2.db.hp, self.char2.db.max_hp)
+
+    def test_growth_stacks_on_top_of_stat_points_already_spent_on_resources(self):
+        """A previous 'statup hp' boost must survive a later godlevel
+        change untouched - this is delta-based, not a reset."""
+        self.char2.db.max_hp = 110  # 100 base + a 'statup hp' +10 already spent
+        self.char2.db.hp = 110
+
+        self.call(CmdGodLevel(), "Char2 = 2", caller=self.char1)
+
+        self.assertEqual(self.char2.db.max_hp, 110 + LEVEL_UP_HP_GAIN)
+
+    def test_god_tier_levels_beyond_max_level_grant_no_extra_growth(self):
+        self.char2.db.level = MAX_LEVEL
+        self.char2.db.max_hp = 100 + LEVEL_UP_HP_GAIN * (MAX_LEVEL - 1)
+        self.char2.db.hp = self.char2.db.max_hp
+
+        self.call(CmdGodLevel(), "Char2 = 102", caller=self.char1)
+
+        # No further hp growth from 100 -> 102 - only the 1-100 mortal
+        # range gets XP-style growth; a god's level isn't earned.
+        self.assertEqual(self.char2.db.max_hp, 100 + LEVEL_UP_HP_GAIN * (MAX_LEVEL - 1))
 
 
 class TestMovementSPCost(CombatCommandTestBase):
