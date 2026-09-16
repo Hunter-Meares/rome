@@ -6,6 +6,33 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## ⚡ Cursed now amplifies every damage source, not just weapon attacks - ✅ this session
+
+- [x] **Real, confirmed live gap, direct player question** (Circe, hoping Rite of the Entrails would boost her own spell damage against a cursed target - it never did): Cursed was checked in exactly one place in the whole codebase, `get_damage()`, which only the basic `attack` command ever calls. Every spell (`spell_attack`), every skill (`skill_attack` and its whole family), poison ticks, and Riposte's counter-hit all compute their own damage number and hand it straight to `apply_damage()` - none of them ever touched `get_damage()`, so Cursed silently did nothing for any of them, directly contradicting its own "extra damage from ALL sources" description.
+- [x] **Fixed by centralizing the multiplier inside `apply_damage()` itself** instead of duplicating a check across a dozen separate functions - every real damage source already funnels through there, the same "universal amplifier, no exceptions" shape Damage Up/Down already use. `get_damage()`'s own duplicate check removed to match.
+- [x] Also confirmed and explained for the player: Weaken Flesh (Defense Down) was never supposed to increase damage - it only affects hit chance, which is working exactly as designed.
+- [x] Website `abilities.html` given canonical tags across all 14 pages (unrelated SEO fix, done alongside).
+- [x] 5 new/updated regression tests in `world/tests_combat.py`.
+
+---
+
+## 🔧 Two live-data staleness repairs - ✅ this session
+
+- [x] **`help armor` wasn't actually live after deploy** - a real process miss, not a code bug: `world/help_setup.py`'s own docstring already says `create_all_help_entries()` must be run after any change to that file, and it wasn't run as part of that deploy. Ran it live, confirmed the entry (and its `weapons`/`proficiency` aliases) now exist, reloaded to be safe.
+- [x] **Ludus weaponsmith was missing staves from her stock**, direct player report - confirmed: `LUDUS_WEAPONSMITH_STOCK` already included the staff tier (added earlier this session), but her `at_object_creation()` (which stocks her once, at creation) only runs when she's first created - she predates that addition, so her live inventory never picked it up. Same class of issue as the help topic: correct code, stale live object. Spawned and added the three missing staff tiers to her live inventory directly, reloaded.
+
+---
+
+## ⚔️🔮 New Gladiator skills + Haruspex utility spells - ✅ this session
+
+- [x] **Gladiator: Double Strike (level 45) / Triple Strike (level 95, mythic)** - a direct player idea ("a skill that fires automatically... attack twice in one round"), built with explicit balance guardrails after a real discussion: unlike every other skill in the game, a passive proc off a normal attack has no SP cost and no setup turn to spend, so chance (25%), reduced bonus damage (50%/35%), and a real cooldown (3 turns) are the only levers keeping it from being a pure, costless damage increase. Triple Strike has no separate gating check of its own - it's only reachable through Double Strike's own bonus swing actually landing first, a natural prerequisite enforced by the code path itself rather than a separate check. Scoped to Gladiator only, not all three warrior classes, to keep the power increase contained.
+- [x] **Haruspex gets three new spells, rounding out a kit that was previously all damage/curses/summons with zero self-buff or self-defense** (unlike Augur, which already has Auspice/Prophetic Ward/Illusory Duplicate): **Bone Ward** (level 12, Defense Up - reskin of Auspice), **Wraith Veil** (level 22, Illusory Duplicate - reskin of Augur's own spell), **Haste** (level 65, grants a real extra action - the dormant Haste condition already existed in the code with nothing granting it until now).
+- [x] **Finger of Death (level 70)** - Haruspex's execute. Direct design pushback on the original pitch (a literal 20%-chance instant-kill, 20%-of-remaining-HP otherwise): an instant death with no counterplay is a serious risk in a game with real, meaningful death stakes (half XP lost, a trip to the Underworld), especially in PvP where it would trigger that full penalty off nothing but a coin-flip regardless of preparation. Built instead as a genuine execute (only usable on an already-weakened target, mirroring Gladiator's Gory Finish) that rolls between a rare severe damage tier and a smaller-but-real fallback - same "will it be the big one" tension, but through the normal apply_damage/at_defeat pipeline (Death Ward, invincibility, etc. all still apply) rather than a new bypass path.
+- [x] 19 new regression tests across `world/tests_combat.py`.
+- [x] Website `abilities.html` updated for all six new entries.
+
+---
+
 ## 🛡️ 'inspect' command + 'help armor' - ✅ this session
 
 - [x] **Direct request**: players had no way to tell what CATEGORY a weapon or armor piece actually was (light_blade vs. heavy_blade, light vs. medium vs. heavy armor), or what proficiency actually costs them if they get it wrong - the mechanic (`CLASS_WEAPON_PROFICIENCIES`/`CLASS_ARMOR_PROFICIENCIES`, `world/combat.py`) has existed for a while but was never documented anywhere, and `look <item>` shows only flavor text, never the mechanical category.

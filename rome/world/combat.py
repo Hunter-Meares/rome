@@ -354,6 +354,24 @@ CURSED_DAMAGE_MULTIPLIER = 1.3
 AMBUSH_DAMAGE_BONUS = 20
 MARKED_FOR_DEATH_DAMAGE_BONUS = 35
 
+# Gladiator's Double Strike/Triple Strike - a passive trait, not a
+# skill cast each turn: once learned, a landed basic attack has a
+# real chance to immediately follow up with another, lighter swing.
+# Direct player discussion before this was built: unlike every other
+# skill in the game, a passive proc off a normal attack has no SP cost
+# and no setup turn to spend - chance, reduced damage, and a real
+# cooldown are the only levers keeping this from being a pure,
+# costless damage increase (the one thing that would make it
+# meaningfully stronger than everything else in the game for free).
+# Triple Strike is a natural, code-enforced prerequisite on Double
+# Strike actually landing first (see resolve_attack) - not a separate
+# gating check, since it's only ever reachable through that path.
+DOUBLE_STRIKE_CHANCE = 25  # percent, checked once per landed original attack
+DOUBLE_STRIKE_DAMAGE_MULTIPLIER = 0.5
+DOUBLE_STRIKE_COOLDOWN = 3  # turns
+TRIPLE_STRIKE_CHANCE = 25  # percent, checked only if the Double Strike bonus swing itself lands
+TRIPLE_STRIKE_DAMAGE_MULTIPLIER = 0.35
+
 # Gladiator's Riposte - flat counter-damage dealt back at whoever
 # lands a hit while Riposte Ready is active.
 RIPOSTE_COUNTER_DAMAGE = 20
@@ -1020,12 +1038,19 @@ class CombatRules:
 
     def get_damage(self, attacker, defender):
         """
-        Damage roll. Factors in:
+        Damage roll for a basic weapon/unarmed attack. Factors in:
             - Wielded weapon's damage range, or unarmed damage range
             - Worn armor's damage reduction (on the defender)
             - Damage Up / Damage Down conditions
             - A penalty if using a weapon outside your class's
               proficiencies
+
+        Cursed (Rite of the Entrails) is deliberately NOT checked here
+        - it's a universal "extra damage from all sources" amplifier,
+        applied once, centrally, inside apply_damage() instead, since
+        every damage source (spells, skills, this function's own
+        result) funnels through there regardless of how it computed
+        its raw number.
         """
         if attacker.db.wielded_weapon:
             weapon = attacker.db.wielded_weapon
@@ -1068,13 +1093,6 @@ class CombatRules:
             damage_value += DMG_DOWN_MOD
         if "Sanctuary Broken" in self.get_conditions(attacker):
             damage_value = int(damage_value * 0.5)
-
-        # Defender-side amplifier - unlike the two above (about the
-        # attacker's own state), this belongs to the defender but
-        # still increases how much they suffer. Used by Haruspex's
-        # Rite of the Entrails.
-        if "Cursed" in self.get_conditions(defender):
-            damage_value = int(damage_value * CURSED_DAMAGE_MULTIPLIER)
 
         if "Ambush" in self.get_conditions(attacker):
             del self.get_conditions(attacker)["Ambush"]
@@ -1120,6 +1138,26 @@ class CombatRules:
         """
         if defender.db.invincible:
             return
+
+        # Rite of the Entrails' whole promise is "extra damage from
+        # ALL sources" - but this used to live as a special case
+        # inside get_damage() alone, which only the basic 'attack'
+        # command ever calls. Every spell (spell_attack), every skill
+        # (skill_attack and its whole family), poison ticks, and
+        # Riposte's counter-hit all compute their own damage number
+        # and hand it straight to THIS method - none of them ever
+        # touched get_damage() at all, so Cursed silently did nothing
+        # for any of them, directly contradicting its own description.
+        # Real, confirmed live gap found via a direct player question
+        # ("Curse depends on how much extra damage it is" - Circe,
+        # hoping it would boost her own SPELL damage, which it never
+        # did). Centralized here instead, since every real damage
+        # source already funnels through apply_damage() - the same
+        # "universal amplifier, no exceptions" shape Damage Up/Down
+        # already use. get_damage()'s own duplicate check is removed
+        # to match, so a basic attack isn't multiplied twice.
+        if damage > 0 and "Cursed" in self.get_conditions(defender):
+            damage = int(damage * CURSED_DAMAGE_MULTIPLIER)
 
         old_hp = defender.db.hp or 0
 
@@ -1698,11 +1736,22 @@ class CombatRules:
         defense_value=None,
         damage_value=None,
         inflict_condition=None,
+        bonus_attack_count=0,
     ):
         """
         Resolves an attack (from the 'attack' command, item use, or a
         spell) and outputs the result. Handles weapon naming and
         condition-on-hit.
+
+        bonus_attack_count tracks how deep into a Double Strike/Triple
+        Strike chain the CURRENT call already is (see the bottom of
+        this method) - 0 for a genuinely original attack, 1 for a
+        Double Strike bonus swing, 2 for a Triple Strike bonus swing.
+        Every real caller (the attack command, item use, spells) omits
+        it, defaulting to 0; only this method's own recursive calls to
+        itself ever pass 1 or 2, both to cap the chain at one bonus
+        swing per skill and to stop a bonus swing from re-triggering
+        Double Strike on itself indefinitely.
         """
         if inflict_condition is None:
             inflict_condition = []
@@ -1803,6 +1852,33 @@ class CombatRules:
 
         if defender.db.hp <= 0:
             self.at_defeat(defender, attacker=attacker)
+        elif damage_value > 0 and bonus_attack_count == 0:
+            if "double strike" in (attacker.db.skills_known or []):
+                cooldowns = self.get_cooldowns(attacker)
+                if (cooldowns.get("double strike") or 0) <= 0:
+                    if randint(1, 100) <= DOUBLE_STRIKE_CHANCE:
+                        cooldowns["double strike"] = DOUBLE_STRIKE_COOLDOWN
+                        attacker.location.msg_contents(
+                            "|c%s strikes again in a blur!|n" % attacker
+                        )
+                        bonus_damage = int(
+                            self.get_damage(attacker, defender) * DOUBLE_STRIKE_DAMAGE_MULTIPLIER
+                        )
+                        self.resolve_attack(
+                            attacker, defender, damage_value=bonus_damage, bonus_attack_count=1
+                        )
+        elif damage_value > 0 and bonus_attack_count == 1:
+            if "triple strike" in (attacker.db.skills_known or []):
+                if randint(1, 100) <= TRIPLE_STRIKE_CHANCE:
+                    attacker.location.msg_contents(
+                        "|c%s's fury carries into a third strike!|n" % attacker
+                    )
+                    bonus_damage = int(
+                        self.get_damage(attacker, defender) * TRIPLE_STRIKE_DAMAGE_MULTIPLIER
+                    )
+                    self.resolve_attack(
+                        attacker, defender, damage_value=bonus_damage, bonus_attack_count=2
+                    )
 
     # ------------------------------------------------------------------
     # COMBAT STATE HELPERS
@@ -2568,6 +2644,61 @@ class CombatRules:
         if self.is_in_combat(caster):
             self.spend_action(caster, 1, action_name="cast")
 
+    def spell_execute(self, caster, spell_name, targets, cost, **kwargs):
+        """
+        A genuine execute spell - Haruspex's Finger of Death. Only
+        usable against a target already below a real HP threshold
+        (the spell-side equivalent of skill_gory_finish, scaled by
+        Ingenium instead of Agilitas), then rolls between two damage
+        tiers: a rare, severe burst or a smaller-but-still-real one.
+
+        Deliberately built this way rather than as a literal bypass-HP
+        instant-kill - an earlier version of this idea was floated
+        directly and walked back over a real concern: an instant
+        death with no counterplay is a serious risk in a game with
+        meaningful, already-painful death stakes (a real player loses
+        half their XP progress and is sent to the Underworld on
+        death), especially in PvP, where it would trigger that full
+        penalty off nothing but a percentage roll regardless of how
+        prepared the target was. This keeps the tension of "will it be
+        the big one" while staying inside the exact same apply_damage/
+        at_defeat pipeline (Death Ward, Shielded, invincible all still
+        apply correctly) every other damage source already respects,
+        rather than duplicating those safety checks in a new path.
+        """
+        target = targets[0]
+        threshold_percent = kwargs.get("threshold_percent", 0.25)
+        if target.db.hp > target.db.max_hp * threshold_percent:
+            caster.msg(
+                "%s is still too strong for this - wait until they're "
+                "closer to falling." % target.key
+            )
+            return
+
+        ingenium_bonus = ((caster.db.ingenium or 10) - 10) // 2
+        severe_chance = kwargs.get("severe_chance", 20)
+        if randint(1, 100) <= severe_chance:
+            min_damage, max_damage = kwargs.get("severe_damage_range", (60, 90))
+            spell_msg = "|rDeath itself answers %s's call - a withering blow tears through %s!|n" % (
+                caster, target
+            )
+        else:
+            min_damage, max_damage = kwargs.get("damage_range", (25, 40))
+            spell_msg = "%s's curse lashes into %s." % (caster, target)
+        damage = randint(min_damage, max_damage) + ingenium_bonus
+
+        caster.db.mp -= cost
+        caster.location.msg_contents(spell_msg)
+        self.apply_damage(target, damage, attacker=caster, announce_threshold=False)
+        caster.location.msg_contents(
+            "%s takes |r%i|n damage - %s %s!"
+            % (target, damage, target, self.hp_status_phrase(target))
+        )
+        if target.db.hp <= 0:
+            self.at_defeat(target, attacker=caster)
+
+        if self.is_in_combat(caster):
+            self.spend_action(caster, 1, action_name="cast")
 
     def spell_add_condition(self, caster, spell_name, targets, cost, **kwargs):
         """
@@ -3093,6 +3224,21 @@ class CombatRules:
         """
         command_name = kwargs.get("command_name", skill_name)
         user.msg("Use the '%s' command for that, not 'skill'." % command_name)
+
+    def skill_passive_info(self, user, skill_name, targets, cost, **kwargs):
+        """
+        Placeholder skillfunc for a passive trait that triggers on its
+        own rather than being cast - Double Strike/Triple Strike
+        (Gladiator, see resolve_attack). Mirrors skill_faction_utility_
+        redirect's own shape: doesn't cost anything or do anything on
+        its own, just explains that 'useskill <name>' has nothing to
+        activate, rather than silently failing or charging SP for
+        nothing.
+        """
+        user.msg(
+            "%s triggers automatically on your own attacks - there's "
+            "nothing to activate." % skill_name.title()
+        )
 
     def skill_ambush(self, user, skill_name, targets, cost, **kwargs):
         """
@@ -3819,6 +3965,15 @@ SPELLS = {
         "conditions": [("Defense Down", 4)],
         "classes": ["haruspex"],
     },
+    "bone ward": {
+        "spellfunc": COMBAT_RULES.spell_add_condition,
+        "level_required": 12,
+        "desc": "Wraps the caster in a ward of ancestral bone, granting a temporary defense boost.",
+        "target": "self",
+        "cost": 4,
+        "conditions": [("Defense Up", 3)],
+        "classes": ["haruspex"],
+    },
     "rite of the entrails": {
         "spellfunc": COMBAT_RULES.spell_add_condition,
         "level_required": 15,
@@ -3837,6 +3992,15 @@ SPELLS = {
         "noncombat_spell": False,
         "attack_name": ("A jet of ritual flame", "jets of ritual flame"),
         "damage_range": (25, 35),
+        "classes": ["haruspex"],
+    },
+    "wraith veil": {
+        "spellfunc": COMBAT_RULES.spell_add_condition,
+        "level_required": 22,
+        "desc": "Surrounds the caster with flickering spectral duplicates, making them harder to hit for a short time.",
+        "target": "self",
+        "cost": 5,
+        "conditions": [("Illusory Duplicate", 2)],
         "classes": ["haruspex"],
     },
     "ill fortune": {
@@ -3907,6 +4071,28 @@ SPELLS = {
         "cost": 9,
         "max_targets": 3,
         "conditions": [("Poisoned", 5)],
+        "classes": ["haruspex"],
+    },
+    "haste": {
+        "spellfunc": COMBAT_RULES.spell_add_condition,
+        "level_required": 65,
+        "desc": "Quickens the caster with unnatural speed, granting an extra action for a short time.",
+        "target": "self",
+        "cost": 10,
+        "conditions": [("Haste", 2)],
+        "classes": ["haruspex"],
+    },
+    "finger of death": {
+        "spellfunc": COMBAT_RULES.spell_execute,
+        "level_required": 70,
+        "desc": "A genuine execute - only usable against a target already close to falling, with a real chance of a severe, final blow.",
+        "target": "otherchar",
+        "cost": 11,
+        "noncombat_spell": False,
+        "threshold_percent": 0.25,
+        "severe_chance": 20,
+        "severe_damage_range": (60, 90),
+        "damage_range": (25, 40),
         "classes": ["haruspex"],
     },
     "summon lemures": {
@@ -4545,6 +4731,14 @@ SKILLS = {
         "classes": ["gladiator"],
         "desc": "The next hit the user takes triggers an immediate counter-attack against whoever landed it.",
     },
+    "double strike": {
+        "skillfunc": COMBAT_RULES.skill_passive_info,
+        "target": "none",
+        "cost": 0,
+        "level_required": 45,
+        "classes": ["gladiator"],
+        "desc": "A passive trait, not something you cast - landing a normal attack has a real chance to immediately follow up with a second, lighter strike.",
+    },
     "finishing blow": {
         "skillfunc": COMBAT_RULES.skill_attack,
         "target": "otherchar",
@@ -4571,6 +4765,14 @@ SKILLS = {
         "damage_range": (45, 65),
         "classes": ["gladiator"],
         "desc": "Mythic tier. A strike worthy of a legend retold for generations - a massive damage finisher.",
+    },
+    "triple strike": {
+        "skillfunc": COMBAT_RULES.skill_passive_info,
+        "target": "none",
+        "cost": 0,
+        "level_required": 95,
+        "classes": ["gladiator"],
+        "desc": "Mythic tier. A passive trait building on Double Strike - if that follow-up strike also lands, there's a real chance of a third, lighter strike still.",
     },
     "hold the line": {
         "skillfunc": COMBAT_RULES.skill_add_condition,

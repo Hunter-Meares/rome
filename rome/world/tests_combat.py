@@ -43,6 +43,7 @@ from world.combat import (
     InstanceCleanupTimer,
     find_combat_target,
     SPELLS,
+    SKILLS,
     RespawningNPC,
     RespawnTimer,
 )
@@ -458,6 +459,85 @@ class TestSpellBloodSacramentScalesWithIngenium(CombatTestBase):
         mock_at_defeat.assert_called_once_with(self.char2, attacker=self.char1)
 
 
+class TestSpellExecute(CombatTestBase):
+    """
+    Haruspex's Finger of Death - a genuine execute (target must
+    already be below a real HP threshold), rolling between a rare
+    severe damage tier and a smaller-but-real fallback tier. Built
+    this way deliberately, not as a literal bypass-HP instant-kill -
+    see spell_execute's own docstring for the direct design reasoning
+    (real, meaningful death stakes + PvP with no counterplay).
+    """
+
+    def test_refuses_above_the_threshold(self):
+        self.char2.db.hp = 50
+        self.char2.db.max_hp = 100  # 50% - above the 25% default threshold
+        self.char1.db.mp = 20
+        COMBAT_RULES.spell_execute(
+            self.char1, "finger of death", [self.char2], 11,
+            threshold_percent=0.25, severe_chance=20,
+            severe_damage_range=(60, 90), damage_range=(25, 40),
+        )
+        self.assertEqual(self.char2.db.hp, 50)
+        self.assertEqual(self.char1.db.mp, 20)  # nothing spent on a refusal
+
+    def test_severe_tier_fires_on_a_favorable_roll(self):
+        # Deliberately non-lethal against the mocked 75 damage - char2
+        # is a real account-linked fixture character, and a lethal hit
+        # here would trigger the real, correct, unrelated low-level
+        # safe-respawn system (full HP restore), masking this test's
+        # own assertion about the severe tier's damage. Same trap
+        # already documented elsewhere in this file.
+        self.char2.db.hp = 800
+        self.char2.db.max_hp = 4000  # 20% - below the 25% threshold
+        self.char1.db.mp = 20
+        # [0] severe-tier roll (<=20, succeeds), [1] the severe damage roll
+        with patch("world.combat.randint", side_effect=[1, 75]):
+            COMBAT_RULES.spell_execute(
+                self.char1, "finger of death", [self.char2], 11,
+                threshold_percent=0.25, severe_chance=20,
+                severe_damage_range=(60, 90), damage_range=(25, 40),
+            )
+        self.assertEqual(self.char2.db.hp, 725)  # 800 - 75
+        self.assertEqual(self.char1.db.mp, 9)
+
+    def test_normal_tier_fires_on_an_unfavorable_roll(self):
+        self.char2.db.hp = 100
+        self.char2.db.max_hp = 400  # 25% exactly - at the threshold, still eligible
+        # [0] severe-tier roll (>20, fails), [1] the normal damage roll
+        with patch("world.combat.randint", side_effect=[50, 30]):
+            COMBAT_RULES.spell_execute(
+                self.char1, "finger of death", [self.char2], 11,
+                threshold_percent=0.25, severe_chance=20,
+                severe_damage_range=(60, 90), damage_range=(25, 40),
+            )
+        self.assertEqual(self.char2.db.hp, 70)  # 100 - 30
+
+    def test_ingenium_adds_a_bonus_to_either_tier(self):
+        self.char2.db.hp = 100
+        self.char2.db.max_hp = 400
+        self.char1.db.ingenium = 20  # (20-10)//2 = +5
+        with patch("world.combat.randint", side_effect=[50, 30]):
+            COMBAT_RULES.spell_execute(
+                self.char1, "finger of death", [self.char2], 11,
+                threshold_percent=0.25, severe_chance=20,
+                severe_damage_range=(60, 90), damage_range=(25, 40),
+            )
+        self.assertEqual(self.char2.db.hp, 65)  # 100 - (30 + 5)
+
+    def test_a_killing_blow_triggers_at_defeat(self):
+        self.char2.db.hp = 5
+        self.char2.db.max_hp = 100
+        with patch("world.combat.randint", side_effect=[50, 30]):
+            with patch.object(COMBAT_RULES, "at_defeat") as mock_at_defeat:
+                COMBAT_RULES.spell_execute(
+                    self.char1, "finger of death", [self.char2], 11,
+                    threshold_percent=0.25, severe_chance=20,
+                    severe_damage_range=(60, 90), damage_range=(25, 40),
+                )
+        mock_at_defeat.assert_called_once_with(self.char2, attacker=self.char1)
+
+
 class TestSkillBackstabScalesWithAgilitas(CombatTestBase):
     """
     Real, confirmed live balance gap - the physical-class sibling of
@@ -624,13 +704,16 @@ class TestGetDamage(CombatTestBase):
         self.assertEqual(COMBAT_RULES.get_damage(self.char1, self.char2), expected)
 
     @patch("world.combat.randint")
-    def test_cursed_multiplies_damage_on_defender(self, mock_randint):
+    def test_cursed_is_not_applied_here_anymore(self, mock_randint):
+        """
+        Cursed moved to apply_damage() (see TestCursedAmplifiesEveryDamageSource
+        below) so it applies universally, not just to basic attacks -
+        get_damage() itself must no longer double-apply it.
+        """
         mock_randint.return_value = 10
         self.char1.db.unarmed_damage_range = (10, 10)
         self.char2.db.conditions = {"Cursed": [3, self.char1]}
-        self.assertEqual(
-            COMBAT_RULES.get_damage(self.char1, self.char2), int(10 * CURSED_DAMAGE_MULTIPLIER)
-        )
+        self.assertEqual(COMBAT_RULES.get_damage(self.char1, self.char2), 10)
 
     @patch("world.combat.randint")
     def test_ambush_bonus_consumed_after_use(self, mock_randint):
@@ -782,6 +865,131 @@ class TestResolveAttackMessageColor(CombatTestBase):
         self.assertIn(self.char2.key, full_text)
 
 
+class TestDoubleStrikeAndTripleStrike(CombatTestBase):
+    """
+    Gladiator's Double Strike/Triple Strike - a passive trait, not a
+    skill cast each turn: once learned, a landed basic attack has a
+    real chance to immediately follow up with another, lighter swing.
+    Direct player discussion before this was built: unlike every other
+    skill in the game, a passive proc has no SP cost and no setup turn
+    to spend, so chance/reduced-damage/cooldown are the only real
+    balance levers - each gets its own regression coverage here.
+
+    Explicit attack_value/defense_value/damage_value overrides (same
+    pattern TestResolveAttackDamageValue above already uses) remove
+    the base attack's own randint calls from the picture entirely, so
+    each mocked randint() call in a test is unambiguously one of
+    Double/Triple Strike's own rolls, not the base attack's.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char2.db.hp = 1000
+        self.char2.db.max_hp = 1000
+
+    def test_procs_and_deals_reduced_bonus_damage(self):
+        self.char1.db.skills_known = ["double strike"]
+        # [0] proc roll (<=25, succeeds), [1] bonus damage precompute
+        # (unarmed 5-15 range, mocked to 10), [2] the bonus swing's own
+        # fresh accuracy roll (hits).
+        with patch("world.combat.randint", side_effect=[1, 10, 100]):
+            COMBAT_RULES.resolve_attack(
+                self.char1, self.char2, attack_value=999, defense_value=1, damage_value=10
+            )
+        # base 10 + bonus int(10 * 0.5) = 5 -> 15 total
+        self.assertEqual(self.char2.db.hp, 1000 - 15)
+
+    def test_does_not_proc_when_the_chance_roll_fails(self):
+        self.char1.db.skills_known = ["double strike"]
+        with patch("world.combat.randint", side_effect=[26]):  # > 25, fails
+            COMBAT_RULES.resolve_attack(
+                self.char1, self.char2, attack_value=999, defense_value=1, damage_value=10
+            )
+        self.assertEqual(self.char2.db.hp, 1000 - 10)
+
+    def test_never_checked_without_the_skill_known(self):
+        self.char1.db.skills_known = []
+        COMBAT_RULES.resolve_attack(
+            self.char1, self.char2, attack_value=999, defense_value=1, damage_value=10
+        )
+        self.assertEqual(self.char2.db.hp, 1000 - 10)
+
+    def test_cooldown_blocks_a_proc_even_on_a_favorable_roll(self):
+        self.char1.db.skills_known = ["double strike"]
+        COMBAT_RULES.get_cooldowns(self.char1)["double strike"] = 2
+        # No randint mock needed - the cooldown check short-circuits
+        # before any roll would even happen.
+        COMBAT_RULES.resolve_attack(
+            self.char1, self.char2, attack_value=999, defense_value=1, damage_value=10
+        )
+        self.assertEqual(self.char2.db.hp, 1000 - 10)
+
+    def test_a_successful_proc_sets_the_cooldown(self):
+        self.char1.db.skills_known = ["double strike"]
+        with patch("world.combat.randint", side_effect=[1, 10, 100]):
+            COMBAT_RULES.resolve_attack(
+                self.char1, self.char2, attack_value=999, defense_value=1, damage_value=10
+            )
+        self.assertEqual(COMBAT_RULES.get_cooldowns(self.char1)["double strike"], 3)
+
+    def test_a_lethal_bonus_swing_still_triggers_at_defeat(self):
+        """
+        Same audit as the skill_attack-family at_defeat fixes earlier
+        this session: the bonus swing is itself a real killing blow
+        here, not just the original hit - it must not be missed.
+        """
+        self.char1.db.skills_known = ["double strike"]
+        self.char2.db.hp = 12  # survives the base 10, not the +5 bonus
+        with patch("world.combat.randint", side_effect=[1, 10, 100]):
+            with patch.object(COMBAT_RULES, "at_defeat") as mock_at_defeat:
+                COMBAT_RULES.resolve_attack(
+                    self.char1, self.char2, attack_value=999, defense_value=1, damage_value=10
+                )
+        mock_at_defeat.assert_called_once_with(self.char2, attacker=self.char1)
+
+    def test_triple_strike_procs_after_a_landed_double_strike(self):
+        self.char1.db.skills_known = ["double strike", "triple strike"]
+        # [0] double proc, [1] double bonus dmg precompute, [2] double
+        # bonus swing's own accuracy roll (hits), [3] triple proc,
+        # [4] triple bonus dmg precompute, [5] triple swing's own
+        # accuracy roll (hits).
+        with patch("world.combat.randint", side_effect=[1, 10, 100, 1, 10, 100]):
+            COMBAT_RULES.resolve_attack(
+                self.char1, self.char2, attack_value=999, defense_value=1, damage_value=10
+            )
+        # base 10 + int(10*0.5)=5 + int(10*0.35)=3 -> 18 total
+        self.assertEqual(self.char2.db.hp, 1000 - 18)
+
+    def test_triple_strike_never_checked_if_the_double_strike_swing_misses(self):
+        self.char1.db.skills_known = ["double strike", "triple strike"]
+        # [0] double proc (succeeds), [1] double bonus dmg precompute,
+        # [2] the bonus swing's own accuracy roll - deliberately a
+        # miss (1, well below the forced defense_value of 50).
+        with patch("world.combat.randint", side_effect=[1, 10, 1]):
+            COMBAT_RULES.resolve_attack(
+                self.char1, self.char2, attack_value=999, defense_value=1, damage_value=10
+            )
+        # base 10 only - the missed bonus swing returns early inside
+        # its own recursive call, so triple strike is never reached.
+        self.assertEqual(self.char2.db.hp, 1000 - 10)
+
+    def test_triple_strike_alone_never_fires_without_double_strike_known(self):
+        """Triple Strike has no separate gating check of its own - it's
+        only ever reachable through Double Strike's own bonus swing
+        landing, so knowing Triple Strike alone does nothing."""
+        self.char1.db.skills_known = ["triple strike"]
+        COMBAT_RULES.resolve_attack(
+            self.char1, self.char2, attack_value=999, defense_value=1, damage_value=10
+        )
+        self.assertEqual(self.char2.db.hp, 1000 - 10)
+
+    def test_both_are_wired_as_gladiator_passive_skills(self):
+        for key in ("double strike", "triple strike"):
+            self.assertEqual(SKILLS[key]["classes"], ["gladiator"])
+            self.assertEqual(SKILLS[key]["cost"], 0)
+            self.assertEqual(SKILLS[key]["skillfunc"], COMBAT_RULES.skill_passive_info)
+
+
 class TestHitChanceCalibration(CombatTestBase):
     """
     The one deliberately un-mocked, statistical test - covers priority
@@ -925,6 +1133,69 @@ class TestApplyDamage(CombatTestBase):
         COMBAT_RULES.apply_damage(self.char2, 50, attacker=self.char1)
         self.assertEqual(self.char2.db.hp, 0)
         self.assertEqual(self.char1.db.hp, 100)  # no counter-damage taken
+
+
+class TestCursedAmplifiesEveryDamageSource(CombatTestBase):
+    """
+    Real, confirmed live gap found via a direct player question
+    (Circe, hoping Rite of the Entrails would boost her own SPELL
+    damage against a cursed target - it never did): Cursed used to be
+    checked only inside get_damage(), which just the basic 'attack'
+    command ever calls - spell_attack, skill_attack (and its whole
+    family), poison ticks, and Riposte's counter-hit all compute their
+    own damage number and hand it straight to apply_damage(), so
+    Cursed silently did nothing for any of them, directly contradicting
+    its own "extra damage from ALL sources" description. Fixed by
+    centralizing the multiplier inside apply_damage() itself, since
+    every real damage source already funnels through there.
+    """
+
+    def test_apply_damage_amplifies_a_plain_damage_number(self):
+        self.char2.db.hp = 100
+        self.char2.db.conditions = {"Cursed": [3, self.char1]}
+        COMBAT_RULES.apply_damage(self.char2, 10, attacker=self.char1)
+        self.assertEqual(self.char2.db.hp, 100 - int(10 * CURSED_DAMAGE_MULTIPLIER))
+
+    def test_no_amplification_without_the_condition(self):
+        self.char2.db.hp = 100
+        self.char2.db.conditions = {}
+        COMBAT_RULES.apply_damage(self.char2, 10, attacker=self.char1)
+        self.assertEqual(self.char2.db.hp, 90)
+
+    def test_spell_attack_damage_is_amplified_too(self):
+        """The exact case that prompted this fix - a caster's own spell
+        damage against a target they've cursed."""
+        self.char2.db.hp = 1000
+        self.char2.db.max_hp = 1000
+        self.char2.db.conditions = {"Cursed": [3, self.char1]}
+        self.char1.db.mp = 20
+        with patch("world.combat.randint", return_value=100):
+            COMBAT_RULES.spell_attack(
+                self.char1, "ritual flame", [self.char2], 3,
+                damage_range=(25, 35), attack_name=("A jet of ritual flame", "jets of ritual flame"),
+            )
+        # base spell damage of 100 (mocked) amplified by CURSED_DAMAGE_MULTIPLIER
+        self.assertEqual(self.char2.db.hp, 1000 - int(100 * CURSED_DAMAGE_MULTIPLIER))
+
+    def test_skill_attack_damage_is_amplified_too(self):
+        self.char2.db.hp = 1000
+        self.char2.db.max_hp = 1000
+        self.char2.db.conditions = {"Cursed": [3, self.char1]}
+        self.char1.db.sp = 20
+        with patch("world.combat.randint", return_value=100):
+            COMBAT_RULES.skill_attack(self.char1, "shield bash", [self.char2], 5, damage_range=(15, 25))
+        self.assertEqual(self.char2.db.hp, 1000 - int(100 * CURSED_DAMAGE_MULTIPLIER))
+
+    def test_poison_tick_damage_is_amplified_too(self):
+        self.char1.db.hp = 1000
+        self.char1.db.max_hp = 1000
+        self.char1.db.conditions = {
+            "Poisoned": [4, self.char2],
+            "Cursed": [3, self.char2],
+        }
+        with patch("world.combat.randint", return_value=6):
+            COMBAT_RULES.apply_turn_conditions(self.char1)
+        self.assertEqual(self.char1.db.hp, 1000 - int(6 * CURSED_DAMAGE_MULTIPLIER))
 
 
 class TestRiposteScalesWithVirtusAndTriggersAtDefeat(CombatTestBase):
@@ -3347,6 +3618,47 @@ class TestAugurKitNoLongerOverlapsMedicusAndHaruspex(CombatTestBase):
 
         self.assertLess(self.char2.db.hp, 1000)
         self.assertLess(third.db.hp, 100)
+
+
+class TestNewHaruspexUtilitySpells(CombatTestBase):
+    """
+    Haste, Wraith Veil, and Bone Ward - direct follow-up request to
+    round out Haruspex's kit, which was previously all damage/curses/
+    summons with zero self-buff or self-defense options of its own
+    (unlike Augur, which already has Auspice, Prophetic Ward, and
+    Illusory Duplicate). Each one reuses an already-proven condition
+    rather than inventing a new mechanic - Wraith Veil is a Haruspex-
+    flavored reskin of Augur's own Illusory Duplicate, Bone Ward of
+    Auspice's Defense Up.
+    """
+
+    def test_haste_exists_for_haruspex_and_grants_haste(self):
+        self.assertEqual(SPELLS["haste"]["classes"], ["haruspex"])
+        self.char1.db.mp = 15
+        COMBAT_RULES.spell_add_condition(
+            self.char1, "haste", [self.char1], 10, conditions=[("Haste", 2)]
+        )
+        self.assertIn("Haste", self.char1.db.conditions)
+
+    def test_wraith_veil_exists_for_haruspex_and_grants_illusory_duplicate(self):
+        self.assertEqual(SPELLS["wraith veil"]["classes"], ["haruspex"])
+        self.char1.db.mp = 10
+        COMBAT_RULES.spell_add_condition(
+            self.char1, "wraith veil", [self.char1], 5, conditions=[("Illusory Duplicate", 2)]
+        )
+        self.assertIn("Illusory Duplicate", self.char1.db.conditions)
+
+    def test_bone_ward_exists_for_haruspex_and_grants_defense_up(self):
+        self.assertEqual(SPELLS["bone ward"]["classes"], ["haruspex"])
+        self.char1.db.mp = 10
+        COMBAT_RULES.spell_add_condition(
+            self.char1, "bone ward", [self.char1], 4, conditions=[("Defense Up", 3)]
+        )
+        self.assertIn("Defense Up", self.char1.db.conditions)
+
+    def test_finger_of_death_exists_for_haruspex_and_uses_spell_execute(self):
+        self.assertEqual(SPELLS["finger of death"]["classes"], ["haruspex"])
+        self.assertEqual(SPELLS["finger of death"]["spellfunc"], COMBAT_RULES.spell_execute)
 
 
 class TestSkillAndRacialAttacksCallAtDefeatOnAKillingBlow(CombatTestBase):

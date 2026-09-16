@@ -35,20 +35,15 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-16"
 
 RECENT_UPDATES_TEXT = (
-    "A broad stat-scaling pass: poison/curse damage, Vampiric Touch, "
-    "Blood Sacrament, Backstab, and Riposte's counter-hit all used to "
-    "ignore your stats entirely - they now scale like every other "
-    "spell/skill. Buff and debuff durations from skills (Poisoned "
-    "Blade, Hold the Line, Precision Strike, and similar) now last "
-    "longer with a stronger build too, matching how spells already "
-    "worked. Also fixed: a handful of ways a kill (Riposte, Vampiric "
-    "Touch, Blood Sacrament, a beast companion's signature strike) "
-    "could leave an enemy stuck and unfightable instead of actually "
-    "falling. Staff weapons also hit harder now - they'd been dealing "
-    "less damage than a one-handed dagger for no good reason. New: "
-    "'inspect <item>' tells you a weapon or armor piece's real type "
-    "and whether your class can use it without a penalty - see 'help "
-    "armor' for the full rules on that."
+    "New for Gladiator: Double Strike (level 45) and Triple Strike "
+    "(level 95) - passive traits that give a landed attack a real "
+    "chance to immediately follow up with another, lighter strike. "
+    "New for Haruspex: Bone Ward, Wraith Veil, and Haste round out a "
+    "kit that had no self-defense options before, plus Finger of "
+    "Death (level 70), a real execute against a weakened target. Also "
+    "fixed: the Ludus weaponsmith is now actually stocking staves, and "
+    "Rite of the Entrails' Cursed effect now actually boosts damage "
+    "from spells and skills, not just plain weapon attacks."
 )
 
 # The box's own interior width, between its left/right borders and
