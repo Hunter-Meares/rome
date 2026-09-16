@@ -35,6 +35,10 @@ from world.religion import (
     ensure_religion_channels_exist,
     get_religion_channel,
     JupiterSanctumGateExit,
+    CmdBeseech,
+    ensure_divine_channel_exists,
+    get_divine_channel,
+    connect_god_to_divine_channel,
 )
 from server.conf.lockfuncs import is_god
 
@@ -549,3 +553,76 @@ class TestJupiterSanctumGateExit(EvenniaTest):
         self.gate.at_traverse(self.char1, self.room2)
 
         self.assertEqual(self.char1.location, self.room2)
+
+
+class TestDivineChannel(EvenniaTest):
+    """
+    The 'divine' channel (world/religion.py) - a direct request for an
+    IC way for players to reach the gods, distinct from the per-god
+    religion channels: one shared channel every god hears regardless of
+    which god a prayer was addressed to, not 14 separate ones.
+    """
+
+    def test_ensure_creates_it_exactly_once(self):
+        first = ensure_divine_channel_exists()
+        self.assertIsNotNone(first)
+        second = ensure_divine_channel_exists()
+        self.assertIsNone(second)  # idempotent - already exists
+
+    def test_a_gods_character_can_listen_with_no_membership_needed(self):
+        ensure_divine_channel_exists()
+        self.char1.db.level = 106
+        channel = get_divine_channel()
+        self.assertTrue(channel.access(self.char1, "listen"))
+
+    def test_an_ordinary_mortal_cannot_listen_or_send(self):
+        ensure_divine_channel_exists()
+        self.char1.db.level = 10
+        channel = get_divine_channel()
+        self.assertFalse(channel.access(self.char1, "listen"))
+        self.assertFalse(channel.access(self.char1, "send"))
+
+    def test_connect_god_to_divine_channel_subscribes_them(self):
+        ensure_divine_channel_exists()
+        self.char1.db.level = 106
+        connect_god_to_divine_channel(self.char1)
+        channel = get_divine_channel()
+        self.assertIn(self.char1, channel.subscriptions.all())
+
+
+class TestCmdBeseech(EvenniaCommandTest):
+    """
+    CmdBeseech - the actual 'cry out to a god' command. Deliberately a
+    separate verb from CmdPray (which is shrine-gated and joins a
+    religion) - this works from anywhere, to any of the 14, regardless
+    of the caller's own devotion, and has no mechanical effect at all
+    beyond the room announcement and the divine-channel post.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.last_beseech_time = None
+        ensure_divine_channel_exists()
+
+    def test_requires_an_equals_sign(self):
+        result = self.call(CmdBeseech(), "mars help me", caller=self.char1)
+        self.assertIn("Usage:", result)
+
+    def test_unknown_god_is_refused(self):
+        result = self.call(CmdBeseech(), "nosuchgod = help", caller=self.char1)
+        self.assertIn("No god matches", result)
+
+    def test_valid_prayer_announces_in_the_room(self):
+        result = self.call(CmdBeseech(), "mars = give me strength", caller=self.char1)
+        self.assertIn("cries out to Mars", result)
+
+    def test_valid_prayer_posts_to_the_divine_channel(self):
+        with patch("world.religion.get_divine_channel") as mock_get_channel:
+            mock_channel = mock_get_channel.return_value
+            self.call(CmdBeseech(), "mars = give me strength", caller=self.char1)
+        mock_channel.msg.assert_called_once()
+
+    def test_cooldown_blocks_a_second_prayer_too_soon(self):
+        self.call(CmdBeseech(), "mars = first plea", caller=self.char1)
+        result = self.call(CmdBeseech(), "mars = second plea", caller=self.char1)
+        self.assertIn("give them a moment", result)

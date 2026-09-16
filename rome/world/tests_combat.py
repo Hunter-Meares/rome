@@ -43,6 +43,8 @@ from world.combat import (
     InstanceCleanupTimer,
     find_combat_target,
     SPELLS,
+    RespawningNPC,
+    RespawnTimer,
 )
 
 
@@ -3074,3 +3076,141 @@ class TestAugurKitNoLongerOverlapsMedicusAndHaruspex(CombatTestBase):
 
         self.assertLess(self.char2.db.hp, 1000)
         self.assertLess(third.db.hp, 100)
+
+
+class TestSkillAndRacialAttacksCallAtDefeatOnAKillingBlow(CombatTestBase):
+    """
+    Real, confirmed live bug: skill_attack, skill_backstab,
+    skill_piercing_shot, skill_gory_finish, skill_thundering_maul,
+    skill_reckless_abandon (world/combat.py), and racial_attack
+    (world/racial_abilities.py) all called apply_damage() directly but
+    never checked for a killing blow afterward - unlike resolve_attack
+    (basic attack) and spell_attack, which both do (see the `if
+    fighter.db.hp <= 0: self.at_defeat(...)` tail on each). This meant
+    at_defeat - and therefore schedule_respawn() for any RespawningNPC -
+    never ran for a kill landed through any of these seven functions:
+    the NPC's HP correctly hit 0, but it never left the room, never got
+    a RespawnTimer, and sat there permanently zombied, forever refused
+    by 'fight' (find_combat_target's/CmdFight's own `if not
+    target.db.hp` check). Reported live, verbatim: "I can no longer
+    fight the ludus beast-handlers... I was getting weird things too
+    like shield bashing them out of combat."
+
+    Uses a RespawningNPC target specifically, not a plain fixture
+    character - a lethal hit against a real account-linked character
+    triggers the unrelated, entirely correct low-level safe-respawn
+    system, which restores HP and would mask whether at_defeat ran at
+    all (the same trap already documented elsewhere in this file, e.g.
+    TestSpellAttackHitsMultipleTargets).
+
+    Builds a real CombatTurnHandler on a fresh, otherwise-empty room
+    (not self.room1) for the same reason TestHostileNPCDoesNotAttack
+    ItsOwnSide does above - at_script_creation sweeps its own room's
+    contents for fighters immediately, which would otherwise scoop up
+    the fixture char1/char2 already sitting in self.room1.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.sp = 50
+
+    def _make_target(self, max_hp=20):
+        npc = create.create_object(RespawningNPC, key="a training dummy", location=self.room1)
+        npc.db.max_hp = max_hp
+        npc.db.hp = max_hp
+        npc.db.virtus = npc.db.agilitas = npc.db.vigor = 10
+        npc.db.worn_armor = None
+        npc.db.worn_shield = None
+        npc.db.conditions = {}
+        return npc
+
+    def _make_handler_for(self, target):
+        # A fresh, empty room isn't safe as-is - at_script_creation
+        # unconditionally calls start_turn(fighters[0]), which
+        # IndexErrors on a truly empty sweep. One inert dummy (hp set,
+        # no at_turn_start of its own) satisfies that; discarded the
+        # moment db.fighters is overwritten below. See the identical
+        # pattern/comment on TestHostileNPCDoesNotAttackItsOwnSide's
+        # own _make_handler above.
+        void = create.create_object("typeclasses.rooms.Room", key="a testing void")
+        dummy = create.create_object(
+            "evennia.objects.objects.DefaultObject", key="a training dummy stand-in", location=void
+        )
+        dummy.db.hp = 1
+        handler = create.create_script(CombatTurnHandler, obj=void, autostart=False)
+        handler.db.fighters = [self.char1, target]
+        handler.db.turn = 0
+        self.char1.db.combat_turnhandler = handler
+        self.char1.db.combat_actionsleft = 1
+        target.db.combat_turnhandler = handler
+        return handler
+
+    def _assert_respawn_was_scheduled(self, npc):
+        self.assertIsNone(npc.location)
+        timers = [s for s in npc.scripts.all() if isinstance(s, RespawnTimer)]
+        self.assertEqual(len(timers), 1)
+
+    @patch("world.combat.randint")
+    def test_skill_attack_triggers_at_defeat(self, mock_randint):
+        mock_randint.return_value = 100
+        target = self._make_target()
+        self._make_handler_for(target)
+        COMBAT_RULES.skill_attack(self.char1, "shield bash", [target], 5, damage_range=(15, 25))
+        self._assert_respawn_was_scheduled(target)
+
+    @patch("world.combat.randint")
+    def test_skill_backstab_triggers_at_defeat(self, mock_randint):
+        mock_randint.return_value = 100
+        target = self._make_target()
+        target.db.combat_lastaction = "null"
+        self._make_handler_for(target)
+        COMBAT_RULES.skill_backstab(self.char1, "backstab", [target], 5, bonus_damage=30)
+        self._assert_respawn_was_scheduled(target)
+
+    @patch("world.combat.randint")
+    def test_skill_piercing_shot_triggers_at_defeat(self, mock_randint):
+        mock_randint.return_value = 100
+        target = self._make_target()
+        self._make_handler_for(target)
+        COMBAT_RULES.skill_piercing_shot(self.char1, "piercing shot", [target], 5, damage_range=(20, 30))
+        self._assert_respawn_was_scheduled(target)
+
+    @patch("world.combat.randint")
+    def test_skill_gory_finish_triggers_at_defeat(self, mock_randint):
+        mock_randint.return_value = 100
+        target = self._make_target()
+        target.db.hp = 3  # below the 20% threshold gory finish requires
+        self._make_handler_for(target)
+        COMBAT_RULES.skill_gory_finish(self.char1, "gory finish", [target], 5, damage_range=(30, 45))
+        self._assert_respawn_was_scheduled(target)
+
+    @patch("world.combat.randint")
+    def test_skill_thundering_maul_triggers_at_defeat(self, mock_randint):
+        mock_randint.return_value = 100
+        target = self._make_target()
+        weapon = create.create_object(
+            "typeclasses.objects.Object", key="a huge maul", location=self.char1
+        )
+        weapon.db.two_handed = True
+        self.char1.db.wielded_weapon = weapon
+        self._make_handler_for(target)
+        COMBAT_RULES.skill_thundering_maul(self.char1, "thundering maul", [target], 5, damage_range=(30, 45))
+        self._assert_respawn_was_scheduled(target)
+
+    @patch("world.combat.randint")
+    def test_skill_reckless_abandon_triggers_at_defeat(self, mock_randint):
+        mock_randint.return_value = 100
+        target = self._make_target()
+        self._make_handler_for(target)
+        COMBAT_RULES.skill_reckless_abandon(self.char1, "reckless abandon", [target], 5, damage_range=(35, 55))
+        self._assert_respawn_was_scheduled(target)
+
+    @patch("world.racial_abilities.randint")
+    def test_racial_attack_triggers_at_defeat(self, mock_randint):
+        from world.racial_abilities import racial_attack
+
+        mock_randint.return_value = 100
+        target = self._make_target()
+        self._make_handler_for(target)
+        racial_attack(self.char1, "galloping charge", [target], damage_range=(15, 25))
+        self._assert_respawn_was_scheduled(target)

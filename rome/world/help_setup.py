@@ -80,7 +80,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "animate dead"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "animate dead", "beseech"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
         + list(RACIAL_ABILITIES.keys())
     )
@@ -1097,6 +1097,32 @@ def create_all_help_entries():
             "winning lets you convert that kill into a companion "
             "genuinely stronger than Lemures could ever give you at your "
             "current level. The HP cost is what that upside costs."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Beseech (divine intervention) ---
+    HelpEntry.objects.create(
+        db_key="beseech",
+        db_help_category="General",
+        db_entrytext=(
+            "|wBeseech|n\n\n"
+            "|xNot every prayer is a vow. Sometimes a mortal simply has "
+            "nowhere else to turn, and cries out - not to the god they've "
+            "sworn themselves to, but to whichever god might actually be "
+            "listening. The gods hear every such plea, whether or not it "
+            "was addressed to them by name.|n\n\n"
+            "|wUsage:|n beseech <god> = <message>\n\n"
+            "Works from anywhere, to any of the 14 gods, regardless of "
+            "your own religion (or lack of one) - unlike 'pray', which "
+            "is the formal ritual for actually joining a religion at a "
+            "shrine. Your plea is announced in the room as a real scene, "
+            "and reaches every god currently playing, not just followers "
+            "of that one deity.\n\n"
+            "This has no mechanical effect of its own - no piety, no "
+            "guaranteed reply. It's a pure roleplay hook: what happens "
+            "next is entirely up to whichever god chooses to answer, and "
+            "how. See 'help religion' for how piety actually works."
         ),
         db_lock_storage="view:all()",
     )

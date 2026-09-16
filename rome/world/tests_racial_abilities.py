@@ -180,10 +180,19 @@ class TestCmdRacialDefaultsToCurrentOpponent(RacialAbilityCommandTestBase):
         third.db.combat_turnhandler = self.char1.db.combat_turnhandler
         third.db.combat_side = "solo_join_%d" % id(third)
         self.char1.db.combat_last_target = self.char2
+        # Non-lethal against the mocked 100-damage hit below - char2 is
+        # a real account-linked fixture character, and racial_attack
+        # correctly calling at_defeat() on a killing blow (a real fix
+        # from this same session) would otherwise trigger the genuine,
+        # unrelated low-level safe-respawn system, which restores HP to
+        # full and would silently undo this test's own assertion. Same
+        # trap already documented elsewhere in this suite (e.g.
+        # TestAugurKitNoLongerOverlapsMedicusAndHaruspex).
+        self.char2.db.max_hp = self.char2.db.hp = 1000
 
         with patch("world.racial_abilities.randint", return_value=100):
             self.call(CmdRacial(), "crushing blow", caller=self.char1)
 
         # Landed on char2 (the current target), not third.
-        self.assertLess(self.char2.db.hp, 100)
+        self.assertLess(self.char2.db.hp, 1000)
         self.assertEqual(third.db.hp, 50)

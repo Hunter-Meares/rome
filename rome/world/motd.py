@@ -35,16 +35,13 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-16"
 
 RECENT_UPDATES_TEXT = (
-    "Haruspex gets a new spell - Animate Dead (level 55) raises the "
-    "corpse of an enemy you helped kill as a real companion - and both "
-    "casters' pet summons moved from level 65 to 50, matching Venator. "
-    "Curses like Mark of Decay now scale with Ingenium like every other "
-    "spell. Augur's kit was rebalanced too - Cure Wounds is now a "
-    "Medicus-only spell, replaced by a new debuff (Bane), and Wrath of "
-    "Olympus now strikes up to three enemies instead of one. Also fixed: "
-    "wielding/unwielding your own gear by name actually works now, "
-    "searching for an item matches any word in its name, and NPCs in a "
-    "fight now pause a beat between turns instead of chaining instantly."
+    "New: 'beseech <god> = <message>' lets you cry out to any god for "
+    "intervention from anywhere, seen by every god online - no religion "
+    "required, no guarantee of an answer, just an open plea. Also fixed "
+    "a real bug where killing an enemy with certain skills (Shield "
+    "Bash and others) or a racial ability could leave it stuck, "
+    "permanently unfightable - several Ludus and sewer monsters were "
+    "already affected and have been repaired."
 )
 
 # The box's own interior width, between its left/right borders and

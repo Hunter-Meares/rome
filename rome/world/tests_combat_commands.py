@@ -1338,6 +1338,30 @@ class TestGodLevelGrantsResourceGrowth(CombatCommandTestBase):
         self.assertEqual(self.char2.db.max_hp, 100 + LEVEL_UP_HP_GAIN * (MAX_LEVEL - 1))
 
 
+class TestGodLevelConnectsToDivineChannel(CombatCommandTestBase):
+    """
+    CmdGodLevel's crossing-into-godhood branch already auto-joins every
+    faction/religion channel (connect_god_to_all_faction_channels/
+    connect_god_to_all_religion_channels) - the new 'divine' channel
+    (world/religion.py) gets the exact same treatment, added alongside
+    those two calls, so a freshly-promoted god doesn't have to wait for
+    a server restart to hear a prayer.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.level = 106  # the acting god
+        self.char2.db.level = 1
+
+    def test_promotion_past_100_joins_the_divine_channel(self):
+        from world.religion import ensure_divine_channel_exists, get_divine_channel
+
+        ensure_divine_channel_exists()
+        self.call(CmdGodLevel(), "Char2 = 101", caller=self.char1)
+        channel = get_divine_channel()
+        self.assertIn(self.char2, channel.subscriptions.all())
+
+
 class TestCmdCompare(CombatCommandTestBase):
     """
     'compare' - a direct player request for a way to tell which of two

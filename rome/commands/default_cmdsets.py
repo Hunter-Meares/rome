@@ -184,6 +184,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(religion.CmdBlemish())
         self.add(religion.CmdExpel())
         self.add(religion.CmdReligion())
+        self.add(religion.CmdBeseech())
         self.add(titles.CmdTitles())
         self.add(tutorial.CmdJourney())
         self.add(CmdNoInput())

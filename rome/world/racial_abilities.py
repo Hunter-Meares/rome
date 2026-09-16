@@ -90,6 +90,7 @@ def racial_attack(user, ability_name, targets, **kwargs):
     agilitas_bonus = ((user.db.agilitas or 10) - 10) // 2
 
     msg = "%s calls on %s!" % (user, ability_name.title())
+    defeated_targets = []
     for target in targets:
         attack_value = randint(1, 100) + accuracy + agilitas_accuracy
         defense_value = COMBAT_RULES.get_defense(user, target)
@@ -101,8 +102,16 @@ def racial_attack(user, ability_name, targets, **kwargs):
         msg += " %s takes |r%i|n damage - %s %s!" % (
             target, damage, target, COMBAT_RULES.hp_status_phrase(target)
         )
+        if target.db.hp <= 0:
+            defeated_targets.append(target)
 
     user.location.msg_contents(msg)
+
+    # Deferred until after msg is sent - see skill_attack's identical
+    # ordering note in world/combat.py.
+    for target in defeated_targets:
+        COMBAT_RULES.at_defeat(target, attacker=user)
+
     if COMBAT_RULES.is_in_combat(user):
         COMBAT_RULES.spend_action(user, 1, action_name="racial")
 

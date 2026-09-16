@@ -6,6 +6,17 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## 🙏 Divine intervention (beseech) + a much bigger combat bug - ✅ this session
+
+- [x] **Real, confirmed live bug, much bigger than it first looked**: a player (Countdown) reported being unable to fight the Ludus beast-handlers anymore ("You can't fight that"), and separately noticed "weird things like shield bashing them out of combat." Root cause: `resolve_attack` (basic attack) and `spell_attack` both check for a killing blow afterward and call `at_defeat()` (which schedules a respawn, awards XP/loot/bounty/quest credit) - but seven other damage paths never did: `skill_attack` (shield bash lives here), `skill_backstab`, `skill_piercing_shot`, `skill_gory_finish`, `skill_thundering_maul`, `skill_reckless_abandon` (world/combat.py), and `racial_attack` (world/racial_abilities.py, covers Galloping Charge/Aerial Assault/Crushing Blow). A kill landed through any of these left the NPC's HP at 0 but otherwise untouched - never removed from the room, never given a respawn timer - permanently zombied and forever refused by `fight`.
+- [x] **Fixed all seven call sites** to check for a killing blow and call `at_defeat()`, matching resolve_attack/spell_attack's existing pattern. 7 new regression tests confirm each one now correctly schedules a respawn.
+- [x] **Live database audit found 21 more NPCs already stuck this same way** (the beast-handler, plus 20 sewer NPCs - feral sewer mutants, cistern lurkers) - all repaired live via `schedule_respawn()`, picked up properly once the server restarts (see CLAUDE.md gotcha #16 on why a restart, not just the shell command, is what actually fixes it for players).
+- [x] **New feature, direct player request**: an in-character way to reach the gods beyond joining a religion. `beseech <god> = <message>` (alias `invoke`) works from anywhere, to any of the 14 gods regardless of the caller's own devotion - unlike `pray`, which is the shrine-gated ritual for actually joining one. Announces as a real room emote, and posts to one new shared `divine` channel every god hears regardless of which god was addressed (not 14 separate channels to babysit). No mechanical effect at all (no piety, no guaranteed reply) - a pure roleplay hook, with a 60s per-account cooldown just to prevent spam.
+- [x] Gods auto-join the new `divine` channel the moment they cross into godhood (`CmdGodLevel`, same hook that already auto-joins every faction/religion channel) - no restart needed for a freshly-promoted god to hear a prayer.
+- [x] New `help beseech` topic; `beseech`/`invoke` added to `managed_keys`.
+
+---
+
 ## ⏱️ NPC turn pacing fix - ✅ this session
 
 - [x] **Direct player report**: combat turn timing felt "wonky" - diagnosed (not lag) as a real, deterministic consequence of hostile NPCs resolving their turns with zero delay while players wait on real typing, made more visible by this session's earlier `fight all` side-grouping fix (a group of NPCs now legitimately shares one side and cascades through several instant turns in a row before a player gets another turn).

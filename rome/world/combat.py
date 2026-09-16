@@ -3067,6 +3067,8 @@ class CombatRules:
         user.location.msg_contents(
             "%s finds an opening and strikes %s from the shadows!" % (user, target)
         )
+        if target.db.hp <= 0:
+            self.at_defeat(target, attacker=user)
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -3137,6 +3139,7 @@ class CombatRules:
         agilitas_bonus = ((user.db.agilitas or 10) - 10) // 2
 
         total_damage = 0
+        defeated_targets = []
         for target in targets:
             attack_value = randint(1, 100) + accuracy + agilitas_accuracy
             defense_value = self.get_defense(user, target)
@@ -3151,9 +3154,18 @@ class CombatRules:
             skill_msg += " %s takes |r%i|n damage - %s %s!" % (
                 target, damage, target, self.hp_status_phrase(target)
             )
+            if target.db.hp <= 0:
+                defeated_targets.append(target)
 
         user.db.sp -= cost
         user.location.msg_contents(skill_msg)
+
+        # Deferred until after skill_msg is sent, matching spell_attack's
+        # own ordering - at_defeat's "has been defeated" announcement
+        # (and, for a RespawningNPC, schedule_respawn's move_to(None))
+        # should read AFTER the hit itself, not interleave mid-message.
+        for target in defeated_targets:
+            self.at_defeat(target, attacker=user)
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -3177,6 +3189,8 @@ class CombatRules:
             "%s's shot finds a gap in %s's armor entirely, striking for %i damage!"
             % (user, target, damage)
         )
+        if target.db.hp <= 0:
+            self.at_defeat(target, attacker=user)
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -3316,6 +3330,8 @@ class CombatRules:
             "%s delivers a cinematic finishing blow to %s for %i damage!"
             % (user, target, damage)
         )
+        if target.db.hp <= 0:
+            self.at_defeat(target, attacker=user)
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -3346,6 +3362,8 @@ class CombatRules:
             "%s brings their weapon down in a thundering two-handed blow, "
             "striking %s for %i damage!" % (user, target, damage)
         )
+        if target.db.hp <= 0:
+            self.at_defeat(target, attacker=user)
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -3369,6 +3387,8 @@ class CombatRules:
             "dealing %i damage!" % (user, target, damage)
         )
         self.add_condition(user, user, "Defense Down", 3)
+        if target.db.hp <= 0:
+            self.at_defeat(target, attacker=user)
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -7987,8 +8007,9 @@ class CmdGodLevel(Command):
             target.db.mortal_class_display = target.db.class_display
             from world.factions import connect_god_to_all_faction_channels
             connect_god_to_all_faction_channels(target)
-            from world.religion import connect_god_to_all_religion_channels
+            from world.religion import connect_god_to_all_religion_channels, connect_god_to_divine_channel
             connect_god_to_all_religion_channels(target)
+            connect_god_to_divine_channel(target)
         if new_level > 100:
             target.db.race_display = "Olympian"
             target.db.class_display = "Divine"

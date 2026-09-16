@@ -236,6 +236,144 @@ def connect_god_to_all_religion_channels(character):
             channel.connect(character)
 
 
+# ----------------------------------------------------------------------
+# Divine intervention - a mortal's IC way to actually reach the gods,
+# not just worship one. Built by direct request: "players want IC ways
+# to contact the gods... prayer command that gets a message to a gods
+# only channel." Deliberately a SEPARATE verb/command from `pray` above
+# - `pray` is the shrine-gated ritual that joins a religion; `beseech`
+# is an open cry for help from anywhere, to any of the 14 regardless of
+# the caller's own devotion (a desperate mortal doesn't stop to check
+# whether they've formally joined a cult first). One shared channel,
+# not 14 - a real god playing the game wants one firehose of "someone
+# needs something," not to babysit 14 separate per-god channels for
+# something this infrequent.
+# ----------------------------------------------------------------------
+
+DIVINE_CHANNEL_KEY = "divine"
+
+# A modest per-account rate limit, not a resource cost - beseech has no
+# mechanical effect at all (no piety, no guaranteed reply, same as
+# `pray` itself per this module's own design notes above), so the only
+# real abuse vector is spam. 60s is enough to stop that without making
+# a genuine back-to-back crisis (two prayers in a real emergency) feel
+# punished.
+BESEECH_COOLDOWN_SECONDS = 60
+
+
+def get_divine_channel():
+    """Finds the live Channel object for divine intervention, or None if
+    it hasn't been created yet (see ensure_divine_channel_exists)."""
+    found = search.search_channel(DIVINE_CHANNEL_KEY)
+    return found[0] if found else None
+
+
+def ensure_divine_channel_exists():
+    """
+    Creates the single shared 'divine' channel if it doesn't already
+    exist. Safe to call repeatedly - idempotent, matches the shape of
+    ensure_faction_channels_exist/ensure_religion_channels_exist.
+    Deliberately locked so ordinary players can never listen OR send
+    directly (send:is_god() means typing 'divine <text>' yourself does
+    nothing for a mortal) - the only way a prayer reaches this channel
+    is through CmdBeseech below, which posts to it programmatically via
+    Channel.msg() (a direct broadcast call that isn't gated by the
+    channel's own send lock at all - that lock only gates the generic
+    typed-into-the-channel path). This is deliberate: a prayer should
+    always carry CmdBeseech's own framing/cooldown, never be spammable
+    as a bare raw channel.
+    """
+    if get_divine_channel():
+        return None
+    channel = create_channel(
+        key=DIVINE_CHANNEL_KEY,
+        desc="Mortal prayers for divine intervention - gods only",
+        locks="control:is_god();listen:is_god();send:is_god()",
+    )
+    _connect_all_gods_to(channel)
+    return channel
+
+
+def connect_god_to_divine_channel(character):
+    """Called from CmdGodLevel whenever someone is promoted above level
+    100 - joins the divine channel immediately, mirroring
+    connect_god_to_all_faction_channels/connect_god_to_all_religion_
+    channels exactly."""
+    channel = get_divine_channel()
+    if channel:
+        channel.connect(character)
+
+
+class CmdBeseech(Command):
+    """
+    Cry out to a god for intervention - visible to every god, not just
+    that god's own followers.
+
+    Usage:
+      beseech <god> = <message>
+
+    Works from anywhere, regardless of whether you follow that god (or
+    any god at all) - unlike 'pray', which is the formal, shrine-bound
+    ritual for actually joining a religion. This is just a mortal's
+    open plea, posted where every god can see it and choose whether (or
+    how) to answer - it has no mechanical effect of its own: no piety,
+    no guaranteed response, purely a hook for the story that follows.
+    """
+
+    key = "beseech"
+    aliases = ["invoke"]
+    help_category = "general"
+
+    def func(self):
+        caller = self.caller
+        if "=" not in self.args:
+            caller.msg("Usage: beseech <god> = <message>")
+            return
+
+        lhs, rhs = self.args.split("=", 1)
+        god_arg = lhs.strip().lower()
+        message = rhs.strip()
+        if not god_arg or not message:
+            caller.msg("Usage: beseech <god> = <message>")
+            return
+
+        god_key = None
+        if god_arg in PANTHEON:
+            god_key = god_arg
+        else:
+            matches = [k for k in PANTHEON if god_arg in PANTHEON[k][0].lower()]
+            if len(matches) == 1:
+                god_key = matches[0]
+        if not god_key:
+            caller.msg("No god matches '%s'." % god_arg)
+            return
+
+        import time
+
+        last = caller.db.last_beseech_time or 0
+        if time.time() - last < BESEECH_COOLDOWN_SECONDS:
+            caller.msg("You've already called out to the gods - give them a moment.")
+            return
+        caller.db.last_beseech_time = time.time()
+
+        god_name = god_display_name(god_key)
+
+        if caller.location:
+            caller.location.msg_contents(
+                "|y%s raises their hands and cries out to %s: |w\"%s\"|n"
+                % (caller, god_name, message)
+            )
+        else:
+            caller.msg('You cry out to %s: "%s"' % (god_name, message))
+
+        channel = get_divine_channel()
+        if channel:
+            channel.msg(
+                "|y[Prayer to %s]|n %s: \"%s\"" % (god_name, caller.key, message),
+                senders=caller,
+            )
+
+
 def piety_tier(value):
     tier = None
     for threshold, name in PIETY_TIERS:
