@@ -58,6 +58,25 @@ class TestComputeWeaponStats(unittest.TestCase):
         self.assertGreater(gladius_max, dagger_max)
         self.assertGreater(dagger_acc, gladius_acc)
 
+    def test_staff_deals_more_than_light_blade_not_less(self):
+        """
+        Real, confirmed live inconsistency: 'staff' used to have a
+        LOWER damage_mult (0.6) than light_blade (1.0) despite sharing
+        its exact accuracy (25) and being two-handed - every other
+        two-handed category gets a damage bonus to offset losing the
+        shield slot, never a penalty. A caster's own signature weapon
+        (staff is a full proficiency for Augur/Medicus/Haruspex, same
+        as light_blade) was strictly worse than picking up a one-handed
+        dagger. Fixed to sit modestly above light_blade instead.
+        """
+        (staff_min, staff_max), staff_acc, _ = compute_weapon_stats("ritual staff", 50)
+        (dagger_min, dagger_max), dagger_acc, _ = compute_weapon_stats("dagger", 50)
+        self.assertGreater(staff_max, dagger_max)
+        # Same base accuracy category (25) - the light_blade/staff gap
+        # is purely a damage-side tradeoff for losing the shield slot,
+        # not an accuracy one too.
+        self.assertEqual(WEAPON_CATEGORIES["staff"]["accuracy"], WEAPON_CATEGORIES["light_blade"]["accuracy"])
+
     def test_accuracy_never_scales_with_level(self):
         _, acc_low, _ = compute_weapon_stats("waraxe", 1)
         _, acc_high, _ = compute_weapon_stats("waraxe", 100)

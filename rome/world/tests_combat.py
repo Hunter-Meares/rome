@@ -324,6 +324,171 @@ class TestPoisonDeathAttributesThePoisoner(CombatTestBase):
         self.assertGreater(self.char1.db.damage_log[self.char2], 0)
 
 
+class TestPoisonTickScalesWithThePoisonersStats(CombatTestBase):
+    """
+    Real, confirmed live balance gap: apply_turn_conditions' Poisoned
+    tick used to be a flat, unscaled roll no matter how the poisoner
+    was built - unlike every other damage source in the game. A player
+    (Circe) worked out live that Mark of Decay's total damage over its
+    full duration came out roughly equal to a single weapon hit even
+    with real Ingenium invested, since growing that stat only ever
+    extended the curse's DURATION (see spell_add_condition), never its
+    bite. Fixed by adding the same halved-stat bonus every other
+    damage source already gets, using whichever of Ingenium/Agilitas
+    the poisoner actually built into - fair to a caster's curse AND a
+    physical class's own poison (Speculator's Poisoned Blade, Venator's
+    Snare both share this exact tick).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.hp = 100
+        self.char1.db.max_hp = 100
+
+    def test_base_stats_add_no_bonus(self):
+        self.char1.db.conditions = {"Poisoned": [4, self.char2]}
+        with patch("world.combat.randint", return_value=6):
+            COMBAT_RULES.apply_turn_conditions(self.char1)
+        self.assertEqual(self.char1.db.hp, 94)
+
+    def test_a_high_ingenium_poisoner_hits_harder(self):
+        self.char2.db.ingenium = 20  # (20-10)//2 = +5
+        self.char1.db.conditions = {"Poisoned": [4, self.char2]}
+        with patch("world.combat.randint", return_value=6):
+            COMBAT_RULES.apply_turn_conditions(self.char1)
+        self.assertEqual(self.char1.db.hp, 89)
+
+    def test_a_high_agilitas_poisoner_also_hits_harder(self):
+        """A physical poison source (Speculator/Venator) benefits from
+        their own build too, not just an Ingenium caster."""
+        self.char2.db.agilitas = 22  # (22-10)//2 = +6
+        self.char1.db.conditions = {"Poisoned": [4, self.char2]}
+        with patch("world.combat.randint", return_value=6):
+            COMBAT_RULES.apply_turn_conditions(self.char1)
+        self.assertEqual(self.char1.db.hp, 88)
+
+    def test_uses_whichever_stat_is_higher_not_both_added_together(self):
+        self.char2.db.ingenium = 20  # +5
+        self.char2.db.agilitas = 22  # +6 - higher, should win alone
+        self.char1.db.conditions = {"Poisoned": [4, self.char2]}
+        with patch("world.combat.randint", return_value=6):
+            COMBAT_RULES.apply_turn_conditions(self.char1)
+        self.assertEqual(self.char1.db.hp, 88)
+
+    def test_no_poisoner_on_record_adds_no_bonus_and_does_not_crash(self):
+        self.char1.db.conditions = {"Poisoned": [4, None]}
+        with patch("world.combat.randint", return_value=6):
+            COMBAT_RULES.apply_turn_conditions(self.char1)  # must not raise
+        self.assertEqual(self.char1.db.hp, 94)
+
+
+class TestSpellVampiricScalesWithIngenium(CombatTestBase):
+    """
+    Real, confirmed live balance gap found in the same audit as the
+    Poisoned tick fix above: spell_vampiric (Haruspex's Vampiric Touch)
+    never gave Ingenium any bonus to its damage roll at all, unlike
+    spell_attack. Fixed with the same halved-stat bonus.
+    """
+
+    def test_base_stats_add_no_bonus(self):
+        self.char1.db.ingenium = 10
+        with patch("world.combat.randint", return_value=15):
+            COMBAT_RULES.spell_vampiric(
+                self.char1, "vampiric touch", [self.char2], 8, damage_range=(15, 25)
+            )
+        self.assertEqual(self.char2.db.hp, 85)
+
+    def test_a_high_ingenium_caster_hits_harder(self):
+        self.char1.db.ingenium = 20  # (20-10)//2 = +5
+        with patch("world.combat.randint", return_value=15):
+            COMBAT_RULES.spell_vampiric(
+                self.char1, "vampiric touch", [self.char2], 8, damage_range=(15, 25)
+            )
+        self.assertEqual(self.char2.db.hp, 80)
+
+    def test_a_killing_blow_triggers_at_defeat(self):
+        """
+        Real, confirmed live gap found alongside the missing Ingenium
+        bonus: this never checked for a killing blow at all, unlike
+        spell_attack - a kill via Vampiric Touch left its target
+        permanently zombied (same class of bug as the skill_attack
+        family fixed earlier this session).
+        """
+        self.char2.db.hp = 10
+        with patch("world.combat.randint", return_value=15):
+            with patch.object(COMBAT_RULES, "at_defeat") as mock_at_defeat:
+                COMBAT_RULES.spell_vampiric(
+                    self.char1, "vampiric touch", [self.char2], 8, damage_range=(15, 25)
+                )
+        mock_at_defeat.assert_called_once_with(self.char2, attacker=self.char1)
+
+
+class TestSpellBloodSacramentScalesWithIngenium(CombatTestBase):
+    """Same gap, same fix, for Haruspex's Blood Sacrament."""
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.hp = 100
+        self.char1.db.max_hp = 100
+
+    def test_base_stats_add_no_bonus(self):
+        self.char1.db.ingenium = 10
+        with patch("world.combat.randint", return_value=40):
+            COMBAT_RULES.spell_blood_sacrament(
+                self.char1, "blood sacrament", [self.char2], 6, hp_cost=15, damage_range=(35, 50)
+            )
+        self.assertEqual(self.char2.db.hp, 60)
+
+    def test_a_high_ingenium_caster_hits_harder(self):
+        self.char1.db.ingenium = 20  # +5
+        with patch("world.combat.randint", return_value=40):
+            COMBAT_RULES.spell_blood_sacrament(
+                self.char1, "blood sacrament", [self.char2], 6, hp_cost=15, damage_range=(35, 50)
+            )
+        self.assertEqual(self.char2.db.hp, 55)
+
+    def test_a_killing_blow_triggers_at_defeat(self):
+        """Same gap, same fix, as Vampiric Touch's own at_defeat test."""
+        self.char2.db.hp = 10
+        with patch("world.combat.randint", return_value=40):
+            with patch.object(COMBAT_RULES, "at_defeat") as mock_at_defeat:
+                COMBAT_RULES.spell_blood_sacrament(
+                    self.char1, "blood sacrament", [self.char2], 6, hp_cost=15, damage_range=(35, 50)
+                )
+        mock_at_defeat.assert_called_once_with(self.char2, attacker=self.char1)
+
+
+class TestSkillBackstabScalesWithAgilitas(CombatTestBase):
+    """
+    Real, confirmed live balance gap - the physical-class sibling of
+    the Vampiric Touch/Blood Sacrament fixes above: skill_backstab's
+    bonus_damage was a flat kwarg with no Agilitas scaling at all,
+    unlike every other Speculator damage skill. Fixed the same way.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # is_in_combat(user) must be truthy to get past skill_backstab's
+        # own refusal check, but spend_action's real implementation
+        # calls combat_turnhandler.turn_end_check(user) - not needed
+        # for these damage-math-only tests, so it's mocked out rather
+        # than building a full CombatTurnHandler.
+        self.char1.db.combat_turnhandler = True
+        self.char2.db.combat_lastaction = "null"
+
+    def test_base_stats_add_no_bonus(self):
+        self.char1.db.agilitas = 10
+        with patch.object(COMBAT_RULES, "spend_action"):
+            COMBAT_RULES.skill_backstab(self.char1, "backstab", [self.char2], 5, bonus_damage=20)
+        self.assertEqual(self.char2.db.hp, 80)
+
+    def test_a_high_agilitas_user_hits_harder(self):
+        self.char1.db.agilitas = 22  # (22-10)//2 = +6
+        with patch.object(COMBAT_RULES, "spend_action"):
+            COMBAT_RULES.skill_backstab(self.char1, "backstab", [self.char2], 5, bonus_damage=20)
+        self.assertEqual(self.char2.db.hp, 74)
+
+
 class TestGetDefense(CombatTestBase):
     """get_defense has zero random component - fully deterministic."""
 
@@ -760,6 +925,53 @@ class TestApplyDamage(CombatTestBase):
         COMBAT_RULES.apply_damage(self.char2, 50, attacker=self.char1)
         self.assertEqual(self.char2.db.hp, 0)
         self.assertEqual(self.char1.db.hp, 100)  # no counter-damage taken
+
+
+class TestRiposteScalesWithVirtusAndTriggersAtDefeat(CombatTestBase):
+    """
+    Real, confirmed live gap found in the same audit as Vampiric Touch/
+    Blood Sacrament/skill_backstab: Riposte's counter-hit (inside
+    apply_damage itself, not a named skillfunc) was a flat
+    RIPOSTE_COUNTER_DAMAGE constant with no Virtus scaling, never
+    credited the riposting character in the original attacker's
+    damage_log, and never checked for a killing blow at all - meaning
+    a kill delivered by a riposte counter-hit left its target
+    permanently zombied, same class of bug as the skill_attack family
+    fixed earlier this session.
+    """
+
+    def test_base_stats_add_no_bonus(self):
+        self.char1.db.hp = 100
+        self.char2.db.hp = 100
+        self.char2.db.virtus = 10
+        self.char2.db.conditions = {"Riposte Ready": [True, self.char1]}
+        COMBAT_RULES.apply_damage(self.char2, 10, attacker=self.char1)
+        self.assertEqual(self.char1.db.hp, 100 - RIPOSTE_COUNTER_DAMAGE)
+
+    def test_a_high_virtus_riposte_hits_harder(self):
+        self.char1.db.hp = 100
+        self.char2.db.hp = 100
+        self.char2.db.virtus = 20  # (20-10)//2 = +5
+        self.char2.db.conditions = {"Riposte Ready": [True, self.char1]}
+        COMBAT_RULES.apply_damage(self.char2, 10, attacker=self.char1)
+        self.assertEqual(self.char1.db.hp, 100 - RIPOSTE_COUNTER_DAMAGE - 5)
+
+    def test_riposte_credits_the_riposting_character_in_damage_log(self):
+        self.char1.db.hp = 100
+        self.char2.db.hp = 100
+        self.char2.db.conditions = {"Riposte Ready": [True, self.char1]}
+        self.char1.db.damage_log = {}
+        COMBAT_RULES.apply_damage(self.char2, 10, attacker=self.char1)
+        self.assertIn(self.char2, self.char1.db.damage_log)
+
+    def test_a_lethal_riposte_triggers_at_defeat(self):
+        self.char1.db.hp = 5
+        self.char2.db.hp = 100
+        self.char2.db.virtus = 10
+        self.char2.db.conditions = {"Riposte Ready": [True, self.char1]}
+        with patch.object(COMBAT_RULES, "at_defeat") as mock_at_defeat:
+            COMBAT_RULES.apply_damage(self.char2, 10, attacker=self.char1)
+        mock_at_defeat.assert_called_once_with(self.char1, attacker=self.char2)
 
 
 class TestAtDefeatXpGoldSplit(CombatTestBase):
@@ -1867,6 +2079,65 @@ class TestSpellAddConditionScalesDurationWithIngenium(CombatTestBase):
         )
         for condition in ("Frightened", "Accuracy Down", "Damage Down"):
             self.assertEqual(self.char2.db.conditions[condition][0], 6)
+
+
+class TestSkillAddConditionScalesDurationWithAgilitasOrVirtus(CombatTestBase):
+    """
+    Real, confirmed live balance gap - the physical-class mirror of
+    spell_add_condition's own Ingenium-duration fix above: a condition
+    granted via skill_add_condition (Speculator's Sneak/Precision
+    Strike/Crippling Strike/Poisoned Blade, Legionary's Hold the Line/
+    Provoke, Venator's Snare, faction Hex) never scaled its duration by
+    the user's own stat at all, the exact same bug spell_add_condition
+    had before its fix - just on the skill side.
+    """
+
+    def test_base_stats_leave_duration_unchanged(self):
+        self.char1.db.agilitas = 10
+        self.char1.db.virtus = 10
+        self.char1.db.sp = 10
+        COMBAT_RULES.skill_add_condition(
+            self.char1, "poisoned blade", [self.char2], 4, conditions=[("Poisoned", 4)]
+        )
+        self.assertEqual(self.char2.db.conditions["Poisoned"][0], 4)
+
+    def test_higher_agilitas_extends_duration(self):
+        self.char1.db.agilitas = 19  # (19-10)//3 = 3 extra turns
+        self.char1.db.virtus = 10
+        self.char1.db.sp = 10
+        COMBAT_RULES.skill_add_condition(
+            self.char1, "poisoned blade", [self.char2], 4, conditions=[("Poisoned", 4)]
+        )
+        self.assertEqual(self.char2.db.conditions["Poisoned"][0], 7)
+
+    def test_higher_virtus_also_extends_duration(self):
+        """A physical class's OTHER core stat benefits too - Legionary's
+        Hold the Line leans Virtus, not Agilitas."""
+        self.char1.db.agilitas = 10
+        self.char1.db.virtus = 19  # +3
+        self.char1.db.sp = 10
+        COMBAT_RULES.skill_add_condition(
+            self.char1, "hold the line", [self.char1], 4, conditions=[("Defense Up", 3)]
+        )
+        self.assertEqual(self.char1.db.conditions["Defense Up"][0], 6)
+
+    def test_uses_whichever_stat_is_higher_not_both_added_together(self):
+        self.char1.db.agilitas = 19  # +3
+        self.char1.db.virtus = 22  # +4 - higher, should win alone
+        self.char1.db.sp = 10
+        COMBAT_RULES.skill_add_condition(
+            self.char1, "poisoned blade", [self.char2], 4, conditions=[("Poisoned", 4)]
+        )
+        self.assertEqual(self.char2.db.conditions["Poisoned"][0], 8)  # 4+4, not 4+3+4
+
+    def test_below_base_stats_never_shorten_duration(self):
+        self.char1.db.agilitas = 5
+        self.char1.db.virtus = 5
+        self.char1.db.sp = 10
+        COMBAT_RULES.skill_add_condition(
+            self.char1, "poisoned blade", [self.char2], 4, conditions=[("Poisoned", 4)]
+        )
+        self.assertEqual(self.char2.db.conditions["Poisoned"][0], 4)
 
 
 class TestPromptRefreshDuringAutoAttack(CombatTestBase):

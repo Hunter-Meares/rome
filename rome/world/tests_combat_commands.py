@@ -44,6 +44,7 @@ from world.combat import (
     CmdDon,
     CmdDoff,
     CmdCompare,
+    CmdInspect,
     CmdDismissPet,
     CmdRestore,
     CmdGodLevel,
@@ -1484,6 +1485,79 @@ class TestCmdCompare(CombatCommandTestBase):
 
         result = self.call(CmdCompare(), "gladius = spear", caller=self.char1)
         self.assertNotIn("Note:", result)
+
+
+class TestCmdInspect(CombatCommandTestBase):
+    """
+    'inspect' - direct player request for a way to tell what category
+    or weight tier an item actually is, and whether it's safe to use
+    without a penalty. Reuses compare's own CombatWeapon/CombatArmor
+    helper pattern.
+    """
+
+    def _weapon(self, key, category="light_blade", two_handed=False):
+        weapon = create.create_object(
+            "world.combat.CombatWeapon", key=key, location=self.char1
+        )
+        weapon.db.weapon_category = category
+        weapon.db.two_handed = two_handed
+        return weapon
+
+    def _armor(self, key, category="light", armor_slot="body"):
+        armor = create.create_object(
+            "world.combat.CombatArmor", key=key, location=self.char1
+        )
+        armor.db.armor_category = category
+        armor.db.armor_slot = armor_slot
+        return armor
+
+    def test_shows_weapon_category(self):
+        self._weapon("a waraxe", category="heavy_weapon")
+        result = self.call(CmdInspect(), "waraxe", caller=self.char1)
+        self.assertIn("a Heavy Weapon-type weapon", result)
+
+    def test_shows_two_handed_note(self):
+        self._weapon("a waraxe", category="heavy_weapon", two_handed=True)
+        result = self.call(CmdInspect(), "waraxe", caller=self.char1)
+        self.assertIn("requires both hands", result)
+
+    def test_shows_armor_weight_tier(self):
+        self._armor("a scutum", category="medium", armor_slot="shield")
+        result = self.call(CmdInspect(), "scutum", caller=self.char1)
+        self.assertIn("Medium-weight shield", result)
+
+    def test_proficient_class_gets_a_yes(self):
+        self.char1.db.player_class = "barbarian"
+        self._weapon("a waraxe", category="heavy_weapon")
+        result = self.call(CmdInspect(), "waraxe", caller=self.char1)
+        self.assertIn("proficient with this", result)
+        self.assertNotIn("NOT proficient", result)
+
+    def test_non_proficient_class_gets_a_no_and_a_pointer(self):
+        self.char1.db.player_class = "augur"
+        self._weapon("a waraxe", category="heavy_weapon")
+        result = self.call(CmdInspect(), "waraxe", caller=self.char1)
+        self.assertIn("NOT proficient", result)
+        self.assertIn("help armor", result)
+
+    def test_classless_caller_gets_no_verdict_line_at_all(self):
+        self.char1.db.player_class = None
+        self._weapon("a waraxe", category="heavy_weapon")
+        result = self.call(CmdInspect(), "waraxe", caller=self.char1)
+        self.assertNotIn("proficient", result)
+
+    def test_refuses_a_non_equipment_item(self):
+        from evennia.utils import create as ev_create
+
+        prop = ev_create.create_object(
+            "typeclasses.objects.Object", key="a wooden bucket", location=self.char1
+        )
+        result = self.call(CmdInspect(), "bucket", caller=self.char1)
+        self.assertIn("isn't a weapon or a piece of armor", result)
+
+    def test_no_argument_shows_usage(self):
+        result = self.call(CmdInspect(), "", caller=self.char1)
+        self.assertIn("Usage:", result)
 
 
 class TestMovementSPCost(CombatCommandTestBase):

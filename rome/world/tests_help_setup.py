@@ -216,6 +216,40 @@ class TestShortcutsHelpTopic(EvenniaTest):
         self.assertIn("help shortcuts", entry.db_entrytext.lower())
 
 
+class TestArmorHelpTopic(EvenniaTest):
+    """
+    Direct player-support request: a single help topic explaining
+    class weapon/armor proficiency (CLASS_WEAPON_PROFICIENCIES/
+    CLASS_ARMOR_PROFICIENCIES in world/combat.py) and the real
+    penalties for going outside it - previously undocumented anywhere,
+    despite the mechanic already existing.
+    """
+
+    def test_armor_topic_exists_and_mentions_the_penalty_numbers(self):
+        create_all_help_entries()
+        entry = HelpEntry.objects.filter(db_key="armor").first()
+        self.assertIsNotNone(entry)
+        self.assertIn("-20 accuracy", entry.db_entrytext)
+        self.assertIn("25%", entry.db_entrytext)
+
+    def test_armor_topic_points_to_inspect(self):
+        create_all_help_entries()
+        entry = HelpEntry.objects.get(db_key="armor")
+        self.assertIn("inspect", entry.db_entrytext.lower())
+
+    def test_weapons_and_proficiency_are_aliases_for_armor(self):
+        create_all_help_entries()
+        entry = HelpEntry.objects.get(db_key="armor")
+        alias_list = [a.lower() for a in entry.aliases.all()]
+        self.assertIn("weapons", alias_list)
+        self.assertIn("proficiency", alias_list)
+
+    def test_rerunning_setup_does_not_create_duplicate_armor_entries(self):
+        create_all_help_entries()
+        create_all_help_entries()
+        self.assertEqual(HelpEntry.objects.filter(db_key="armor").count(), 1)
+
+
 class TestIndividualRacialAbilityHelpEntries(EvenniaTest):
     """
     Real, confirmed live gap: a player asked in-character how to use

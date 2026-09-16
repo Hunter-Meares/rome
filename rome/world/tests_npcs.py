@@ -327,6 +327,31 @@ class TestSummonedAlly(EvenniaTest):
         self.assertLess(self.char2.db.hp, 100)
 
 
+class TestSummonedAllySignatureMoveTriggersAtDefeat(EvenniaTest):
+    """
+    Real, confirmed live gap found in the same at_defeat audit as
+    Riposte/Vampiric Touch/Blood Sacrament: a Venator beast companion's
+    signature-move proc (_try_signature_move's "venator" branch) can
+    itself be the actual killing blow if the base attack alone wasn't
+    lethal, but never checked for one - leaving the target permanently
+    zombied exactly like those other cases.
+    """
+
+    def test_a_lethal_signature_move_bonus_triggers_at_defeat(self):
+        ally = create.create_object(SummonedAlly, key="a beast companion", location=self.room1)
+        ally.db.pet_line = "venator"
+
+        target = self.char2
+        target.db.hp = 5  # already low, as if the base attack just landed
+
+        # side_effect: [proc-chance roll (<=25 succeeds), bonus damage roll]
+        with patch("world.combat.randint", side_effect=[1, 12]):
+            with patch.object(COMBAT_RULES, "at_defeat") as mock_at_defeat:
+                ally._try_signature_move(target, hp_before=10)
+
+        mock_at_defeat.assert_called_once_with(target, attacker=ally)
+
+
 class TestRespawningNPCAndTimer(EvenniaTest):
     def test_at_object_post_creation_marks_respawns_and_home(self):
         npc = create.create_object(RespawningNPC, key="trainer", location=self.room1)

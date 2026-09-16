@@ -6,6 +6,35 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## 🛡️ 'inspect' command + 'help armor' - ✅ this session
+
+- [x] **Direct request**: players had no way to tell what CATEGORY a weapon or armor piece actually was (light_blade vs. heavy_blade, light vs. medium vs. heavy armor), or what proficiency actually costs them if they get it wrong - the mechanic (`CLASS_WEAPON_PROFICIENCIES`/`CLASS_ARMOR_PROFICIENCIES`, `world/combat.py`) has existed for a while but was never documented anywhere, and `look <item>` shows only flavor text, never the mechanical category.
+- [x] **New `inspect <item>` command** (not `examine` - that's already Evennia's own Builder-only admin debug command, a real naming collision avoided) - works on anything visible (own gear, the ground, a shop display), shows the item's weapon category or armor weight tier plus a personalized "your class is/isn't proficient" verdict, pointing to `help armor` for the exact cost when it isn't. Deliberately narrow scope, no overlap with `compare` (no raw stat dump - that's compare's job).
+- [x] **New `help armor` topic** (aliases `weapons`/`proficiency`) - the full class-by-class weapon/armor tables, what each category name actually means in real item terms, and the exact penalty numbers (-20 accuracy + 25% less damage for an off-proficiency weapon, -20 defense per off-proficiency armor/shield piece) - matching the numeric convention other mechanics topics (`help sp`) already use.
+- [x] 12 new regression tests across `world/tests_combat_commands.py` and `world/tests_help_setup.py`.
+
+---
+
+## ⚔️ Full stat-scaling + at_defeat audit across every remaining spell/skill - ✅ this session
+
+- [x] **Direct follow-up request after the poison fix**: "are there any other damage-over-time spells or other spells not tied to Ingenium?" and "do all skills also scale with stats?" - a full audit of every `spell_*`/`skill_*` damage function plus every raw `apply_damage()` call site in the game.
+- [x] **Found and fixed 3 more missing stat-scaling gaps**: `spell_vampiric` (Vampiric Touch, Haruspex) and `spell_blood_sacrament` (Blood Sacrament, Haruspex) both dealt damage via a flat `randint` with zero Ingenium bonus, unlike spell_attack. `skill_backstab` (Speculator) had the identical gap for Agilitas. All three fixed with the same halved-stat bonus every other damage source already uses.
+- [x] **Found and fixed a second, more serious class of bug while checking "does every damage source also call at_defeat"**: Riposte's counter-hit (Gladiator, lives inside `apply_damage` itself, not a named skillfunc - missed by the earlier skill_attack-family sweep), `spell_vampiric`, `spell_blood_sacrament`, and a Venator beast companion's signature-move proc (`_try_signature_move`) could all deliver an actual killing blow that never checked for one - leaving the target permanently zombied, the exact same "unfightable forever" bug found and fixed in 7 other functions earlier this session. All four now correctly call `at_defeat()`. Riposte's counter-damage also gained real damage_log crediting (previously uncredited) and a Virtus stat bonus (previously flat).
+- [x] **Found and fixed the skill-side mirror of the very first Ingenium-duration bug**: `skill_add_condition` (every Speculator/Legionary/Venator buff-debuff skill, plus faction skills like Hex) never scaled its condition's DURATION by the user's own stat at all - the identical bug `spell_add_condition` had before its own Ingenium fix, just never caught on the skill side. Fixed with a duration bonus off `max(Agilitas, Virtus)`, whichever the user actually built into.
+- [x] 25 new regression tests across `world/tests_combat.py` and `world/tests_npcs.py`, full suite green.
+- [x] **Staff weapon category fixed too, confirmed by direct request**: `damage_mult` was 0.6 - LESS than light_blade's 1.0 despite sharing its exact accuracy (25) and being two-handed (every other two-handed category gets a damage bonus, never a penalty, for losing the shield slot). Raised to 1.15 - modestly above light_blade, mirroring the same +0.15 gap "ranged" already uses over its own baseline. A caster's own signature weapon (full proficiency for Augur/Medicus/Haruspex) no longer loses to picking up a one-handed dagger.
+
+---
+
+## ☠️ Poison/curse damage now scales with stats - ✅ this session
+
+- [x] **Real, confirmed live balance gap, direct player report**: Circe worked out live that Mark of Decay's total damage over its full 4-turn duration came out roughly equal to a single weapon hit, despite costing a whole turn (no attack that turn) plus MP - "i feel like i do more damage with my dagger than spells and costs no mana." Root cause: `POISON_RATE` (the shared per-tick roll every Poisoned source uses - Haruspex curses, Speculator's Poisoned Blade, Venator's Snare) was a flat (4, 8) constant with NO scaling at all, by level or by stats - unlike weapons (scale with level) or spell_attack (scales with Ingenium). Duration already got Ingenium-scaling earlier this session, but the actual bite per tick never did, so the gap only widened as a caster's weapon kept growing with level while poison stayed flat forever.
+- [x] **Two-part fix**: (1) `apply_turn_conditions` now adds a real per-tick bonus using `max(Ingenium bonus, Agilitas bonus)` off whoever inflicted the Poisoned condition - Ingenium for a caster's curse, Agilitas for a physical class's own poison, fair to both rather than hardcoding one stat. (2) The shared base `POISON_RATE` itself raised from (4, 8) to (6, 12), so even at zero bonus a DoT clearly beats just swinging a weapon that turn instead of roughly breaking even.
+- [x] 5 new regression tests (`world/tests_combat.py`), full suite green.
+- [x] MOTD updated.
+
+---
+
 ## 🙏 Divine intervention (beseech) + a much bigger combat bug - ✅ this session
 
 - [x] **Real, confirmed live bug, much bigger than it first looked**: a player (Countdown) reported being unable to fight the Ludus beast-handlers anymore ("You can't fight that"), and separately noticed "weird things like shield bashing them out of combat." Root cause: `resolve_attack` (basic attack) and `spell_attack` both check for a killing blow afterward and call `at_defeat()` (which schedules a respawn, awards XP/loot/bounty/quest credit) - but seven other damage paths never did: `skill_attack` (shield bash lives here), `skill_backstab`, `skill_piercing_shot`, `skill_gory_finish`, `skill_thundering_maul`, `skill_reckless_abandon` (world/combat.py), and `racial_attack` (world/racial_abilities.py, covers Galloping Charge/Aerial Assault/Crushing Blow). A kill landed through any of these left the NPC's HP at 0 but otherwise untouched - never removed from the room, never given a respawn timer - permanently zombied and forever refused by `fight`.

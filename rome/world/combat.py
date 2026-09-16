@@ -240,7 +240,17 @@ def wizinvis_hides_from(character, looker):
 
 # Condition modifiers
 REGEN_RATE = (4, 8)
-POISON_RATE = (4, 8)
+# Real, confirmed live balance gap: this was a flat, shared roll with
+# NO scaling at all - not by level, not by stats - unlike literally
+# every other damage source in the game (weapons scale with level,
+# spell_attack/skill_attack both get a stat bonus). A player (Circe)
+# worked out live that Mark of Decay's total damage over its full
+# duration came out roughly EQUAL to a single weapon hit, despite
+# costing a whole turn (no attack that turn) plus MP - meaning there
+# was never a real reason to prefer casting it over just attacking.
+# Raised from (4, 8) as one half of the fix - see apply_turn_
+# conditions for the other half (a real stat bonus at tick time).
+POISON_RATE = (6, 12)
 ACC_UP_MOD = 25
 ACC_DOWN_MOD = -25
 DMG_UP_MOD = 5
@@ -1160,7 +1170,23 @@ class CombatRules:
             defender.location.msg_contents(
                 "%s takes the hit and answers immediately with a riposte!" % defender
             )
-            self.apply_damage(attacker, RIPOSTE_COUNTER_DAMAGE)
+            # Real, confirmed live balance/correctness gap, found in the
+            # same audit that fixed Vampiric Touch/Blood Sacrament/
+            # Backstab: this used to be a flat RIPOSTE_COUNTER_DAMAGE
+            # constant with no stat scaling at all (Gladiator's own
+            # Virtus did nothing here), AND - a real bug, not just a
+            # balance gap - never passed `attacker=` on the recursive
+            # call (so a riposte kill was never credited in the
+            # original attacker's own damage_log) and never checked for
+            # a killing blow afterward at all, meaning a kill delivered
+            # by a riposte counter-hit left its target permanently
+            # zombied - the exact same class of bug as the skill_attack
+            # family fixed earlier this session, just embedded here
+            # instead of in a named skillfunc.
+            virtus_bonus = ((defender.db.virtus or 10) - 10) // 2
+            self.apply_damage(attacker, RIPOSTE_COUNTER_DAMAGE + virtus_bonus, attacker=defender)
+            if attacker.db.hp <= 0:
+                self.at_defeat(attacker, attacker=defender)
 
     def spectator_react(self, location, lines, chance=100):
         """
@@ -2087,6 +2113,23 @@ class CombatRules:
             # which apply_damage's own attacker param exists for.
             poisoner = self.get_conditions(character)["Poisoned"][1]
             to_hurt = randint(POISON_RATE[0], POISON_RATE[1])
+            # Real, confirmed live balance gap: this used to be a flat
+            # roll with no stat scaling at all, no matter how the
+            # poisoner was built - a Haruspex's Ingenium investment did
+            # nothing for their own curse's actual damage (only its
+            # duration, see spell_add_condition). Fixed by adding the
+            # same halved-stat bonus every other damage source already
+            # gets, using whichever offensive stat the poisoner
+            # actually built into - Ingenium for a caster's curse,
+            # Agilitas for a Speculator's Poisoned Blade or a Venator's
+            # Snare (both also inflict Poisoned via this exact same
+            # shared tick) - rather than hardcoding Ingenium, which
+            # would give a physical poison-user nothing at all for
+            # their own build.
+            if poisoner is not None and poisoner.pk:
+                ingenium_bonus = ((poisoner.db.ingenium or 10) - 10) // 2
+                agilitas_bonus = ((poisoner.db.agilitas or 10) - 10) // 2
+                to_hurt += max(ingenium_bonus, agilitas_bonus, 0)
             self.apply_damage(character, to_hurt, attacker=poisoner)
             if character.location:
                 character.location.msg_contents(
@@ -2432,17 +2475,30 @@ class CombatRules:
         """
         Deals damage to a target and heals the caster for a portion of
         it - Haruspex's Vampiric Touch.
+
+        Real, confirmed live balance gap (same audit that found the
+        Poisoned tick's own flat-damage bug): unlike spell_attack, this
+        never gave Ingenium any bonus to the damage roll at all - a
+        caster's own primary stat did nothing for their damage here.
+        Fixed with the same halved-stat bonus spell_attack already
+        uses. Deliberately left the guaranteed-hit behavior (no
+        accuracy roll) untouched - that matches spell_add_condition's
+        own convention for effect-application spells, not a gap.
         """
         spell_msg = "%s casts %s!" % (caster, spell_name)
         min_damage, max_damage = kwargs.get("damage_range", (15, 25))
         drain_percent = kwargs.get("drain_percent", 0.5)
+        ingenium_bonus = ((caster.db.ingenium or 10) - 10) // 2
         total_drained = 0
+        defeated_targets = []
 
         for target in targets:
-            damage = randint(min_damage, max_damage)
+            damage = randint(min_damage, max_damage) + ingenium_bonus
             self.apply_damage(target, damage, attacker=caster)
             spell_msg += " %s takes %i damage!" % (target, damage)
             total_drained += damage
+            if target.db.hp <= 0:
+                defeated_targets.append(target)
 
         caster_old_hp = caster.db.hp or 0
         heal_amount = int(total_drained * drain_percent)
@@ -2452,6 +2508,16 @@ class CombatRules:
 
         caster.db.mp -= cost
         caster.location.msg_contents(spell_msg)
+
+        # Real, confirmed live gap found alongside the missing Ingenium
+        # bonus above: this never checked for a killing blow at all,
+        # unlike spell_attack - a kill via Vampiric Touch left its
+        # target permanently zombied (see the skill_attack family fix
+        # earlier this session, and Riposte's identical fix above).
+        # Deferred until after spell_msg is sent, matching spell_
+        # attack's own ordering.
+        for target in defeated_targets:
+            self.at_defeat(target, attacker=caster)
 
         if heal_amount > 0:
             self.announce_hp_threshold_change(caster, caster_old_hp)
@@ -2467,9 +2533,16 @@ class CombatRules:
         casting this recklessly at low HP is genuinely risky, not
         just expensive. Refuses to cast (and doesn't spend anything)
         if the caster doesn't have enough HP to safely pay the cost.
+
+        Real, confirmed live balance gap (same audit as spell_vampiric
+        above): no Ingenium bonus at all on the damage roll - fixed the
+        same way, with the same halved-stat bonus spell_attack uses.
+        Also never checked for a killing blow at all - fixed the same
+        way as spell_vampiric above.
         """
         hp_cost = kwargs.get("hp_cost", 15)
         min_damage, max_damage = kwargs.get("damage_range", (35, 50))
+        ingenium_bonus = ((caster.db.ingenium or 10) - 10) // 2
 
         if caster.db.hp <= hp_cost:
             caster.msg("You don't have enough blood left to spare for this ritual.")
@@ -2477,14 +2550,20 @@ class CombatRules:
 
         spell_msg = "%s casts %s, spilling their own blood as payment!" % (caster, spell_name)
         caster.db.hp -= hp_cost
+        defeated_targets = []
 
         for target in targets:
-            damage = randint(min_damage, max_damage)
+            damage = randint(min_damage, max_damage) + ingenium_bonus
             self.apply_damage(target, damage, attacker=caster)
             spell_msg += " %s takes %i damage!" % (target, damage)
+            if target.db.hp <= 0:
+                defeated_targets.append(target)
 
         caster.db.mp -= cost
         caster.location.msg_contents(spell_msg)
+
+        for target in defeated_targets:
+            self.at_defeat(target, attacker=caster)
 
         if self.is_in_combat(caster):
             self.spend_action(caster, 1, action_name="cast")
@@ -2508,20 +2587,28 @@ class CombatRules:
         see apply_turn_conditions/POISON_RATE) came out lower than a
         single unbuffed basic attack, even with 17 Ingenium invested.
 
-        Fixed by extending DURATION with Ingenium instead of touching
-        the shared per-tick damage roll itself - that mechanic is also
-        used by other classes' own conditions (a Speculator's Poisoned
-        Blade, a wilderness NPC's bite, etc.), and rescaling it by the
-        INFLICTER's Ingenium specifically would be wrong for any
-        non-Ingenium source. A longer curse (or a longer buff - this
-        applies to every condition this function grants, not just
-        harmful ones) extends its total value the same way more
-        damage per tick would, without touching a mechanic other
-        classes also depend on. Divisor of 3 (vs. spell_attack/
-        spell_healing's own divisor of 2 for damage) is deliberately
-        gentler - a duration turn is worth more than a damage point,
-        and every core stat's own lifetime cap already bounds the
-        maximum bonus this can ever reach.
+        Fixed here by extending DURATION with Ingenium - a longer curse
+        (or a longer buff - this applies to every condition this
+        function grants, not just harmful ones) extends its total
+        value the same way more damage per tick would. Divisor of 3
+        (vs. spell_attack/spell_healing's own divisor of 2 for damage)
+        is deliberately gentler - a duration turn is worth more than a
+        damage point, and every core stat's own lifetime cap already
+        bounds the maximum bonus this can ever reach.
+
+        UPDATE, same underlying complaint resurfacing once duration
+        alone turned out not to be enough (a longer curse doing the
+        same weak damage-per-tick barely matters in a short fight, and
+        the gap only widens as the caster's WEAPON keeps growing with
+        level while a flat poison roll never did): apply_turn_
+        conditions now ALSO adds a real per-tick stat bonus, using
+        whichever of Ingenium/Agilitas the poison's actual source built
+        into - see that method's own comment. That earlier "rescaling
+        the shared roll by Ingenium would be wrong for a non-Ingenium
+        source" concern (a real one - Speculator's Poisoned Blade and
+        Venator's Snare share this exact mechanic) is why it's `max(
+        ingenium_bonus, agilitas_bonus)` rather than Ingenium alone -
+        fair to a physical poison-user's own build too, not just casters.
         """
         conditions = kwargs.get("conditions", [("Defense Up", 3)])
         spell_msg = "%s casts %s!" % (caster, spell_name)
@@ -2955,10 +3042,27 @@ class CombatRules:
         SP-costing equivalent of spell_add_condition - grants one or
         more conditions to the target(s). Used for most of the
         Speculator's buff/debuff skills (Sneak, Poisoned Blade,
-        Precision Strike, Crippling Strike, Smoke and Shadow, Vanish).
+        Precision Strike, Crippling Strike, Smoke and Shadow, Vanish),
+        Legionary's Hold the Line/Provoke, Venator's Snare, and faction
+        skills like Hex.
+
+        Real, confirmed live balance gap - the physical-class mirror of
+        spell_add_condition's own Ingenium-duration fix from earlier
+        this session: a condition granted here used to land with a
+        fixed duration no matter how invested the user was in their own
+        build, making Agilitas/Virtus do nothing for half these
+        classes' own kit (exactly the bug spell_add_condition had
+        before its fix). Fixed the same way, using whichever of
+        Agilitas/Virtus the user actually built into - Agilitas for a
+        Speculator's finesse skills, Virtus for a Legionary's - rather
+        than hardcoding one stat, the same fairness reasoning apply_
+        turn_conditions' own poison-tick bonus already uses.
         """
         conditions = kwargs.get("conditions", [("Defense Up", 3)])
         skill_msg = "%s uses %s!" % (user, skill_name)
+        agilitas_bonus = ((user.db.agilitas or 10) - 10) // 3
+        virtus_bonus = ((user.db.virtus or 10) - 10) // 3
+        duration_bonus = max(agilitas_bonus, virtus_bonus, 0)
 
         # Announce the skill BEFORE applying its condition(s) - a real
         # bug found live: feint's "Rutilus uses feint!" printed AFTER
@@ -2971,7 +3075,7 @@ class CombatRules:
 
         for target in targets:
             for condition in conditions:
-                self.add_condition(target, user, condition[0], condition[1])
+                self.add_condition(target, user, condition[0], condition[1] + duration_bonus)
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -3042,8 +3146,16 @@ class CombatRules:
         bonus - if both would apply, Ambush is simply
         consumed without adding its own bonus on top, so a player
         can't stack two "surprise" bonuses into one absurd hit.
+
+        Real, confirmed live balance gap - the physical-class sibling
+        of the same audit that found Vampiric Touch/Blood Sacrament's
+        missing Ingenium bonus: bonus_damage here was a flat kwarg with
+        no Agilitas scaling at all, unlike every other Speculator skill
+        (skill_attack, skill_piercing_shot, skill_gory_finish all add
+        their own agilitas_bonus). Fixed the same way.
         """
         bonus_damage = kwargs.get("bonus_damage", 20)
+        agilitas_bonus = ((user.db.agilitas or 10) - 10) // 2
         target = targets[0]
 
         if not self.is_in_combat(user):
@@ -3062,7 +3174,7 @@ class CombatRules:
         if "Ambush" in self.get_conditions(user):
             del self.get_conditions(user)["Ambush"]
 
-        self.apply_damage(target, bonus_damage, attacker=user)
+        self.apply_damage(target, bonus_damage + agilitas_bonus, attacker=user)
         user.db.sp -= cost
         user.location.msg_contents(
             "%s finds an opening and strikes %s from the shadows!" % (user, target)
@@ -5177,7 +5289,20 @@ WEAPON_CATEGORIES = {
     "ranged": {"damage_mult": 1.15, "accuracy": 18},
     "polearm": {"damage_mult": 1.35, "accuracy": 8},
     "heavy_blade": {"damage_mult": 1.5, "accuracy": 8},
-    "staff": {"damage_mult": 0.6, "accuracy": 25},
+    # Real, confirmed live inconsistency, found while auditing spell/
+    # skill stat scaling: this was 0.6 (LESS than light_blade) despite
+    # sharing light_blade's exact same accuracy (25) and being flagged
+    # two_handed - every other two-handed category (heavy_blade,
+    # heavy_weapon) gets a damage BONUS to compensate for losing the
+    # shield slot, never a penalty. A caster wielding their own class's
+    # signature weapon (staff is a full proficiency for Augur/Medicus/
+    # Haruspex, same as light_blade) got a strictly worse deal than
+    # picking up a one-handed dagger, for no mechanical reason. Raised
+    # to modestly above light_blade - matching the same +0.15 gap
+    # "ranged" already uses over its own baseline - reflecting the
+    # real cost of giving up an off-hand shield, not a penalty on top
+    # of it.
+    "staff": {"damage_mult": 1.15, "accuracy": 25},
     "heavy_weapon": {"damage_mult": 2.0, "accuracy": -10},
 }
 
@@ -5730,6 +5855,15 @@ class SummonedAlly(DefaultCharacter):
                 self.location.msg_contents(
                     "|r%s tears in for %i extra damage!|n" % (self, bonus)
                 )
+            # Real, confirmed live gap found in the same at_defeat audit
+            # as Riposte/Vampiric Touch/Blood Sacrament: the base attack
+            # just above (resolve_attack, called from at_turn_start)
+            # already checks for its own killing blow, but this bonus
+            # proc damage - which can ALSO be the actual killing blow if
+            # the base hit alone wasn't lethal - never did, leaving the
+            # target permanently zombied exactly like those other cases.
+            if target.db.hp <= 0:
+                COMBAT_RULES.at_defeat(target, attacker=self)
 
 
 class CombatCharacter(ContribRPCharacter):
@@ -8917,6 +9051,74 @@ class CmdCompare(Command):
         caller.msg("\n".join(lines))
 
 
+class CmdInspect(Command):
+    """
+    Check what type of weapon or armor an item is, and whether your
+    own class is proficient with it.
+
+    Usage:
+      inspect <item>
+
+    Works on anything you can see - your own gear, something sitting
+    on the ground, a shop's display - not just what you're already
+    carrying, since the whole point is deciding BEFORE you commit to
+    buying or wielding something. Shows the item's weapon category or
+    armor weight tier, and a plain yes/no on whether your class
+    handles it without a penalty. See 'help armor' for the full class
+    tables and exactly what that penalty costs you.
+    """
+
+    key = "inspect"
+    help_category = "combat"
+    rules = COMBAT_RULES
+
+    def func(self):
+        caller = self.caller
+        if not self.args:
+            caller.msg("Usage: inspect <item>")
+            return
+
+        item = caller.search(self.args.strip())
+        if not item:
+            return
+
+        is_weapon = item.is_typeclass(CombatWeapon, exact=False)
+        is_armor = item.is_typeclass(CombatArmor, exact=False)
+
+        if not (is_weapon or is_armor):
+            caller.msg("%s isn't a weapon or a piece of armor." % item.key)
+            return
+
+        char_class = caller.db.player_class
+
+        if is_weapon:
+            category_display = (item.db.weapon_category or "unknown").replace("_", " ").title()
+            lines = ["%s is a %s-type weapon." % (item.key, category_display)]
+            if item.db.two_handed:
+                lines.append("It requires both hands.")
+            proficient = self.rules.is_proficient(caller, item)
+        else:
+            category_display = (item.db.armor_category or "unknown").title()
+            slot_word = "shield" if item.db.armor_slot == "shield" else "armor"
+            lines = ["%s is %s-weight %s." % (item.key, category_display, slot_word)]
+            proficient = self.rules.is_armor_proficient(caller, item)
+
+        # A classless character (a god, or an edge case) is always
+        # treated as proficient by is_proficient/is_armor_proficient -
+        # showing that as a real "yes" would be misleading, so the
+        # verdict line is skipped entirely rather than printed anyway.
+        if char_class:
+            if proficient:
+                lines.append("Your class is proficient with this.")
+            else:
+                lines.append(
+                    "Your class is NOT proficient with this - see 'help "
+                    "armor' for what that costs you."
+                )
+
+        caller.msg("\n".join(lines))
+
+
 class CmdDismissPet(Command):
     """
     Dismiss your summoned pet.
@@ -10073,6 +10275,7 @@ class BattleCmdSet(CharacterCmdSet):
         self.add(CmdDon())
         self.add(CmdDoff())
         self.add(CmdCompare())
+        self.add(CmdInspect())
         self.add(CmdDismissPet())
         self.add(CmdInventory())
         self.add(CmdUse())

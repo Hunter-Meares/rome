@@ -80,7 +80,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "animate dead", "beseech"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "animate dead", "beseech", "armor"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
         + list(RACIAL_ABILITIES.keys())
     )
@@ -1126,6 +1126,52 @@ def create_all_help_entries():
         ),
         db_lock_storage="view:all()",
     )
+
+    # --- Armor & weapon proficiency ---
+    armor_entry = HelpEntry.objects.create(
+        db_key="armor",
+        db_help_category="General",
+        db_entrytext=(
+            "|wArmor & Weapon Proficiency|n\n\n"
+            "Every class handles certain weapons and certain armor "
+            "weight tiers 'at full effectiveness' - anything outside "
+            "that still works, it's just worse. Nothing is ever fully "
+            "blocked; picking up a stranger's weapon or wearing a "
+            "lucky drop is always a real option, just a costlier one "
+            "outside your own kit.\n\n"
+            "|wWeapon categories, by class:|n\n"
+            "  - Augur, Medicus, Haruspex: Staff, Light Blade\n"
+            "  - Speculator: Light Blade, Ranged\n"
+            "  - Venator: Ranged, Polearm\n"
+            "  - Gladiator, Legionary: Light Blade, Heavy Blade, Polearm\n"
+            "  - Barbarian: Heavy Weapon, Heavy Blade\n\n"
+            "|wWhat those categories actually are:|n\n"
+            "  - Light Blade - dagger, gladius\n"
+            "  - Heavy Blade - broadsword, greatsword\n"
+            "  - Polearm - spear, trident\n"
+            "  - Ranged - javelin, shortbow\n"
+            "  - Heavy Weapon - waraxe\n"
+            "  - Staff - ritual staff\n\n"
+            "|wArmor weight tiers, by class:|n\n"
+            "  - Augur, Medicus, Haruspex, Speculator: Light only\n"
+            "  - Venator: Light, Medium\n"
+            "  - Gladiator, Legionary: Light, Medium, Heavy\n"
+            "  - Barbarian: Medium, Heavy\n\n"
+            "|wThe actual penalty:|n\n"
+            "  - Wielding a weapon outside your proficiency: -20 "
+            "accuracy on every attack, and 25% less damage on every "
+            "hit that lands.\n"
+            "  - Wearing armor or a shield outside your proficiency: "
+            "-20 defense (easier to hit) for each mismatched piece - "
+            "a mismatched shield AND breastplate both apply their own "
+            "separate penalty.\n\n"
+            "Not sure what category or weight tier something actually "
+            "is? Use 'inspect <item>' on it - see 'help inspect'."
+        ),
+        db_lock_storage="view:all()",
+    )
+    armor_entry.aliases.add("weapons")
+    armor_entry.aliases.add("proficiency")
 
     # --- Shortcuts (the built-in 'nick' command) ---
     HelpEntry.objects.create(

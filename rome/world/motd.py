@@ -35,13 +35,20 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-16"
 
 RECENT_UPDATES_TEXT = (
-    "New: 'beseech <god> = <message>' lets you cry out to any god for "
-    "intervention from anywhere, seen by every god online - no religion "
-    "required, no guarantee of an answer, just an open plea. Also fixed "
-    "a real bug where killing an enemy with certain skills (Shield "
-    "Bash and others) or a racial ability could leave it stuck, "
-    "permanently unfightable - several Ludus and sewer monsters were "
-    "already affected and have been repaired."
+    "A broad stat-scaling pass: poison/curse damage, Vampiric Touch, "
+    "Blood Sacrament, Backstab, and Riposte's counter-hit all used to "
+    "ignore your stats entirely - they now scale like every other "
+    "spell/skill. Buff and debuff durations from skills (Poisoned "
+    "Blade, Hold the Line, Precision Strike, and similar) now last "
+    "longer with a stronger build too, matching how spells already "
+    "worked. Also fixed: a handful of ways a kill (Riposte, Vampiric "
+    "Touch, Blood Sacrament, a beast companion's signature strike) "
+    "could leave an enemy stuck and unfightable instead of actually "
+    "falling. Staff weapons also hit harder now - they'd been dealing "
+    "less damage than a one-handed dagger for no good reason. New: "
+    "'inspect <item>' tells you a weapon or armor piece's real type "
+    "and whether your class can use it without a penalty - see 'help "
+    "armor' for the full rules on that."
 )
 
 # The box's own interior width, between its left/right borders and
