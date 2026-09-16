@@ -879,6 +879,32 @@ def create_all_help_entries():
         db_lock_storage="view:all()",
     )
 
+    # --- Racial abilities ---
+    HelpEntry.objects.create(
+        db_key="racial",
+        db_help_category="General",
+        db_entrytext=(
+            "|wRacial Abilities|n\n\n"
+            "Your race grants you one or two innate abilities of its own, "
+            "on top of whatever your class teaches - see 'help race' for "
+            "each race's own. Unlike spells and skills, these are yours "
+            "from the moment you're created: no trainer, no gold, no "
+            "learning required. They cost no MP or SP either - only a "
+            "cooldown limits how often you can call on one.\n\n"
+            "  racialinfo             - see your own racial abilities, "
+            "their cooldowns, and what they do\n"
+            "  racial <ability>       - use one (aliased 'race')\n"
+            "  racial <ability> = <target>  - use one on a specific "
+            "target, where it applies\n\n"
+            "Not every race's listed traits are built yet - some (like a "
+            "Human's Command Presence or a Cyclops's Forge Mastery) are "
+            "purely social or crafting-flavored, with no matching system "
+            "in the game yet. 'racialinfo' only ever lists what's actually "
+            "usable right now."
+        ),
+        db_lock_storage="view:all()",
+    )
+
     # --- Factions ---
     HelpEntry.objects.create(
         db_key="factions",

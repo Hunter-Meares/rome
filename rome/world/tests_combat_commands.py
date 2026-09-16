@@ -43,6 +43,7 @@ from world.combat import (
     CmdUnwield,
     CmdDon,
     CmdDoff,
+    CmdCompare,
     CmdDismissPet,
     CmdRestore,
     CmdGodLevel,
@@ -458,6 +459,14 @@ class TestCmdCastNamedTargeting(CombatCommandTestBase):
     def test_cast_unknown_spell_rejected(self):
         result = self.call(CmdCast(), "fireball of doom = Char2", caller=self.char1)
         self.assertIn("don't know a spell", result)
+
+    def test_cast_with_target_but_no_equals_sign_hints_at_the_syntax(self):
+        # Real player report: "cast mark trainer" (forgetting the "=")
+        # fails the spell-name lookup with no clue why, since the whole
+        # "mark trainer" string is treated as one spell name.
+        result = self.call(CmdCast(), "cure wounds Char2", caller=self.char1)
+        self.assertIn("don't know a spell", result)
+        self.assertIn("interpose an =", result)
 
     def test_cast_without_enough_mp_rejected(self):
         self.char1.db.mp = 0
@@ -945,6 +954,36 @@ class TestSpellSkillTrainers(CombatCommandTestBase):
         # A level-90 skill should show up locked for a level-5 character.
         self.assertIn("Not yet available", result)
 
+    def test_wrong_trainer_type_points_to_the_right_one(self):
+        """
+        Real, confirmed live confusion: a player found A trainer (the
+        skill trainer, standing right at Ludus Entrance) but plays a
+        caster class, got a bare "has nothing to teach your class",
+        and had no idea a second, spell-teaching trainer even existed
+        elsewhere - despite a 'help trainers' topic already covering
+        this, which they clearly weren't finding either. Fixed to name
+        exactly where the right trainer for their class actually is,
+        right in this same message.
+        """
+        self._make_trainer("skills")
+        self.char1.db.player_class = "medicus"  # a spell-using class
+
+        result = self.call(CmdTrainer(), "", caller=self.char1)
+
+        self.assertIn("learns spells instead", result)
+        self.assertIn("Flamen of the Cella", result)
+        self.assertIn("Capitoline Hill", result)
+
+    def test_wrong_trainer_type_the_other_direction(self):
+        self._make_trainer("spells")
+        self.char1.db.player_class = "legionary"  # a skill-using class
+
+        result = self.call(CmdTrainer(), "", caller=self.char1)
+
+        self.assertIn("learns skills instead", result)
+        self.assertIn("Ludus weapons master", result)
+        self.assertIn("Ludus Entrance", result)
+
 
 class TestInCharacterMail(CombatCommandTestBase):
     """
@@ -1299,6 +1338,130 @@ class TestGodLevelGrantsResourceGrowth(CombatCommandTestBase):
         self.assertEqual(self.char2.db.max_hp, 100 + LEVEL_UP_HP_GAIN * (MAX_LEVEL - 1))
 
 
+class TestCmdCompare(CombatCommandTestBase):
+    """
+    'compare' - a direct player request for a way to tell which of two
+    weapons or armor pieces is actually better without doing the math
+    by hand. By explicit request: never shows raw numbers in the
+    verdict, only qualitative language ("much better", "more
+    accurate"), but does flag when an item sits outside the caller's
+    class proficiency, since that makes its real performance worse
+    than its own numbers alone would suggest.
+    """
+
+    def _weapon(self, key, min_dmg, max_dmg, accuracy_bonus, category="light_blade"):
+        weapon = create.create_object(
+            "world.combat.CombatWeapon", key=key, location=self.char1
+        )
+        weapon.db.damage_range = (min_dmg, max_dmg)
+        weapon.db.accuracy_bonus = accuracy_bonus
+        weapon.db.weapon_category = category
+        return weapon
+
+    def _armor(self, key, damage_reduction, defense_modifier, armor_slot="body"):
+        armor = create.create_object(
+            "world.combat.CombatArmor", key=key, location=self.char1
+        )
+        armor.db.damage_reduction = damage_reduction
+        armor.db.defense_modifier = defense_modifier
+        armor.db.armor_slot = armor_slot
+        return armor
+
+    def test_strictly_better_weapon_gets_a_clean_verdict_with_no_numbers(self):
+        self._weapon("a rusty dagger", 5, 10, 5)
+        self._weapon("a fine gladius", 61, 71, 15)
+
+        result = self.call(CmdCompare(), "rusty dagger = fine gladius", caller=self.char1)
+        verdict = result.split("\n")[0]  # the prompt line appended after includes HP/MP/SP numbers
+
+        self.assertIn("much better", verdict)
+        self.assertIn("hits harder", verdict)
+        self.assertIn("more accurate", verdict)
+        # Never raw numbers in the verdict - only qualitative language,
+        # by explicit request.
+        self.assertFalse(any(char.isdigit() for char in verdict))
+
+    def test_weapon_tradeoff_names_both_sides_honestly(self):
+        self._weapon("a swift dagger", 10, 15, 20)
+        self._weapon("a heavy waraxe", 30, 40, 5)
+
+        result = self.call(CmdCompare(), "swift dagger = heavy waraxe", caller=self.char1)
+
+        self.assertIn("hits harder", result)
+        self.assertIn("more accurate", result)
+        self.assertIn("Depends what you're looking for", result)
+
+    def test_two_identical_weapons_are_about_the_same(self):
+        self._weapon("a plain gladius", 20, 30, 10)
+        self._weapon("a spare gladius", 20, 30, 10)
+
+        result = self.call(CmdCompare(), "plain gladius = spare gladius", caller=self.char1)
+        self.assertIn("about the same", result)
+
+    def test_body_armor_compares_on_damage_reduction_alone(self):
+        """
+        Real design correction caught while testing this: an earlier
+        draft compared armor the same two-axis way as weapons
+        (damage_reduction AND defense_modifier), but
+        compute_armor_stats always derives defense_modifier as the
+        exact negative of damage_reduction for body armor - so every
+        single body-armor comparison came back as a "tradeoff" even
+        though it's a fixed relationship every piece already has, not
+        a real choice. Comparing on damage_reduction alone is what
+        actually answers "which one protects me better".
+        """
+        self._armor("a leather vest", 2, -2)
+        self._armor("a plate cuirass", 8, -8)
+
+        result = self.call(CmdCompare(), "leather vest = plate cuirass", caller=self.char1)
+        self.assertIn("much better", result)
+        self.assertIn("reduces more incoming damage", result)
+        self.assertNotIn("Depends", result)
+
+    def test_shields_compare_on_defense_modifier_not_damage_reduction(self):
+        self._armor("a small parma", 0, 4, armor_slot="shield")
+        self._armor("a large scutum", 0, 12, armor_slot="shield")
+
+        result = self.call(CmdCompare(), "small parma = large scutum", caller=self.char1)
+        self.assertIn("better", result)
+        self.assertIn("makes you harder to hit", result)
+
+    def test_cannot_compare_weapon_to_armor(self):
+        self._weapon("a gladius", 20, 30, 10)
+        self._armor("a leather vest", 2, -2)
+
+        result = self.call(CmdCompare(), "gladius = leather vest", caller=self.char1)
+        self.assertIn("can't compare a weapon to a piece of armor", result)
+
+    def test_cannot_compare_different_armor_slots(self):
+        self._armor("a leather vest", 2, -2, armor_slot="body")
+        self._armor("a bronze shield", 0, 10, armor_slot="shield")
+
+        result = self.call(CmdCompare(), "leather vest = bronze shield", caller=self.char1)
+        self.assertIn("different slots", result)
+
+    def test_comparing_an_item_to_itself_is_rejected(self):
+        self._weapon("a gladius", 20, 30, 10)
+        result = self.call(CmdCompare(), "gladius = gladius", caller=self.char1)
+        self.assertIn("same item", result)
+
+    def test_flags_a_weapon_outside_class_proficiency(self):
+        self.char1.db.player_class = "legionary"  # not proficient with heavy_weapon
+        self._weapon("a gladius", 20, 30, 10, category="light_blade")
+        self._weapon("a waraxe", 25, 35, 5, category="heavy_weapon")
+
+        result = self.call(CmdCompare(), "gladius = waraxe", caller=self.char1)
+        self.assertIn("waraxe is outside your class's usual weapons", result)
+
+    def test_no_proficiency_note_when_both_are_proficient(self):
+        self.char1.db.player_class = "legionary"
+        self._weapon("a gladius", 20, 30, 10, category="light_blade")
+        self._weapon("a spear", 22, 32, 8, category="polearm")
+
+        result = self.call(CmdCompare(), "gladius = spear", caller=self.char1)
+        self.assertNotIn("Note:", result)
+
+
 class TestMovementSPCost(CombatCommandTestBase):
     """
     at_pre_move's movement-SP gate (world/combat.py) - MOVEMENT_SP_COST
@@ -1439,6 +1602,61 @@ class TestCmdWieldFailureMessage(CombatCommandTestBase):
         )
         result = self.call(CmdWield(), "rock", caller=self.char1)
         self.assertIn("That's not something you can wield or wear!", result)
+
+
+class TestWieldAndUnwieldWorkForAnOrdinaryNonBuilderPlayer(CombatCommandTestBase):
+    """
+    Real, confirmed live bug reported directly by a player: "Unable to
+    target a weapon to wield or unwield." Root cause - the exact same
+    rpsystem sdesc-search gap already documented for find_combat_target
+    elsewhere in this file, but for equipment instead of characters:
+    ContribRPCharacter.get_search_result() tries to match every
+    candidate by SDESC first when an explicit candidates list is
+    passed, and a plain CombatWeapon/CombatArmor object has no sdesc
+    at all - so caller.search(args, candidates=...) found nothing for
+    an ordinary player, every single time. Only ever masked during
+    development because EvenniaTest's char1 fixture carries the
+    Developer permission by default, and rpsystem's own override
+    specifically grants BUILDERS a plain-key fallback it never gives
+    real players - every test above this one in the file (all still
+    using the default Developer-permission caller) would have kept
+    passing even with the bug very much still live.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.permissions.remove("Developer")
+
+    def test_ordinary_player_can_wield_a_weapon_by_exact_name(self):
+        create.create_object(
+            "world.combat.CombatWeapon", key="a bronze dagger", location=self.char1
+        )
+        self.call(CmdWield(), "a bronze dagger", caller=self.char1)
+        self.assertIsNotNone(self.char1.db.wielded_weapon)
+        self.assertEqual(self.char1.db.wielded_weapon.key, "a bronze dagger")
+
+    def test_ordinary_player_can_wield_a_weapon_by_partial_name(self):
+        create.create_object(
+            "world.combat.CombatWeapon", key="a rune-etched greatsword", location=self.char1
+        )
+        self.call(CmdWield(), "greatsword", caller=self.char1)
+        self.assertIsNotNone(self.char1.db.wielded_weapon)
+
+    def test_ordinary_player_can_unwield_by_exact_name(self):
+        weapon = create.create_object(
+            "world.combat.CombatWeapon", key="a bronze dagger", location=self.char1
+        )
+        self.char1.db.wielded_weapon = weapon
+        self.call(CmdUnwield(), "a bronze dagger", caller=self.char1)
+        self.assertIsNone(self.char1.db.wielded_weapon)
+
+    def test_ordinary_player_can_don_armor_by_exact_name(self):
+        armor = create.create_object(
+            "world.combat.CombatArmor", key="a leather vest", location=self.char1
+        )
+        armor.db.armor_slot = "body"
+        self.call(CmdDon(), "a leather vest", caller=self.char1)
+        self.assertEqual(self.char1.db.worn_armor, armor)
 
 
 class TestWieldAndDonAreCrossCompatible(CombatCommandTestBase):

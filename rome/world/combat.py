@@ -2630,7 +2630,20 @@ class CombatRules:
         attack target each turn (or picks any valid target if the
         caster hasn't attacked yet this fight), with no player input
         needed. See SummonedAlly.at_turn_start().
+
+        Real, confirmed live bug this fixes: re-casting this (or
+        Haruspex's Summon Lemures / Venator's Call of the Wild) while
+        a companion was already active used to just overwrite
+        db.active_companion with the new one, silently orphaning the
+        old one - it kept existing (and, if still in a fight, kept
+        fighting) with nothing left pointing back to it, so 'dismiss'
+        could no longer find or release it at all. release_pet already
+        exists for exactly this kind of cleanup - calling it on
+        whatever's already active first, before spawning the new one,
+        means a recast always cleanly replaces rather than duplicates.
         """
+        self.release_pet(caster.db.active_companion, caster, reason="replaced")
+
         level = caster.db.level or 1
         if level < 30:
             prototype = "AUGUR_FAMILIAR_TIER1"
@@ -2669,8 +2682,12 @@ class CombatRules:
         so both classes' summon spells stay balanced against each
         other at equal level rather than one quietly outscaling the
         other. Also a SummonedAlly, same automatic per-turn behavior
-        as the familiar above - see spell_summon_familiar's docstring.
+        as the familiar above - see spell_summon_familiar's docstring
+        (including its note on why this releases any already-active
+        companion first, rather than silently orphaning it).
         """
+        self.release_pet(caster.db.active_companion, caster, reason="replaced")
+
         level = caster.db.level or 1
         if level < 30:
             prototype = "HARUSPEX_LEMURES_TIER1"
@@ -3046,8 +3063,12 @@ class CombatRules:
         spell_summon_familiar/spell_summon_lemures use for the exact
         same reason, since it's how 'dismiss' and the flee/death
         cleanup (see CmdDisengage, handle_player_defeat) find a
-        caster's pet regardless of which class summoned it.
+        caster's pet regardless of which class summoned it. Also
+        shares that function's fix for the same orphaned-pet bug on a
+        recast - see spell_summon_familiar's docstring.
         """
+        self.release_pet(user.db.active_companion, user, reason="replaced")
+
         level = user.db.level or 1
         if level < 30:
             prototype = "VENATOR_BEAST_TIER1"
@@ -3390,6 +3411,7 @@ class CombatRules:
             "dismissed": "%s dismisses %s." % (owner, pet) if owner else "%s fades away." % pet,
             "owner_fled": "%s fades away as its summoner flees." % pet,
             "owner_defeated": "%s fades away, its summoner fallen." % pet,
+            "replaced": "%s fades away, replaced by a new summoning." % pet,
         }
         if pet.location:
             pet.location.msg_contents(messages.get(reason, "%s fades away." % pet))
@@ -5163,6 +5185,30 @@ class HostileNPC(AutoStatNPC):
     def at_turn_start(self):
         turnhandler = self.db.combat_turnhandler
         if not turnhandler or not turnhandler.pk:
+            return
+
+        # Real, confirmed live bug: this never applied per-turn
+        # conditions at all - CombatCharacter.at_turn_start (the real-
+        # player equivalent) calls this, but this one never did, so
+        # Poisoned/Regeneration/Haste/Paralyzed on an NPC were silently
+        # inert: the condition visibly landed (add_condition's own
+        # message) and ticked down and expired right on schedule (see
+        # condition_tickdown, driven by next_turn - typeclass-agnostic,
+        # so duration counting was never the problem), but the actual
+        # per-turn effect - Poisoned's own damage tick in particular -
+        # never fired even once. A player reported exactly this after
+        # landing Mark of Decay on an enemy: "seems to poison the enemy
+        # for 1 turn and then it ends but i dont see it do any damage."
+        # tick_cooldowns is included for the same reason, even though
+        # _gather_actions/_use_ability don't currently consult an
+        # NPC's own cooldowns - keeping this NPC turn-start in step
+        # with the real player one it's meant to mirror, rather than
+        # leaving a second silent gap for whenever that changes.
+        COMBAT_RULES.apply_turn_conditions(self)
+        COMBAT_RULES.tick_cooldowns(self)
+        if not self.pk or not self.db.hp:
+            # Killed by its own Poisoned tick just now - nothing left
+            # to act with.
             return
 
         fighters = turnhandler.db.fighters or []
@@ -8083,6 +8129,48 @@ def _try_don_armor(caller, armor):
         caller.location.msg_contents("%s dons %s." % (caller, armor))
 
 
+def _search_carried_or_equipped(caller, search_text, candidates, nofound_string):
+    """
+    Finds a named item among `candidates` (the caller's own carried or
+    equipped gear) - shared by wield/don/unwield/doff.
+
+    Real, confirmed live bug this fixes: a plain caller.search() with
+    an explicit candidates list runs into the exact same rpsystem
+    sdesc-search gap already documented for find_combat_target
+    elsewhere in this file - ContribRPCharacter's own
+    get_search_result() tries to match every candidate by SDESC
+    first, and a plain CombatWeapon/CombatArmor object has no sdesc at
+    all (that's a Character-only concept, like an NPC with no sdesc
+    handler) - so a non-Builder player's 'wield <exact item name>'
+    silently failed to find their own gear every single time. A real
+    player reported this directly: "Unable to target a weapon to
+    wield or unwield." Only ever masked during development because
+    EvenniaTest/Builder accounts get a plain-key fallback rpsystem's
+    own override specifically grants Builders (see get_search_result's
+    own is_builder branch) - never real players.
+
+    Kept as its own function rather than just calling
+    find_combat_target directly - same fallback shape (sdesc search,
+    then a plain case-insensitive key/alias match), but preserves the
+    richer, item-specific nofound_string each call site already builds
+    (listing exactly what's carried/worn) instead of that function's
+    own generic "Could not find" message.
+    """
+    result = caller.search(search_text, candidates=candidates, quiet=True)
+    if result:
+        return result[0] if isinstance(result, list) else result
+
+    search_lower = search_text.strip().lower()
+    for obj in candidates:
+        if obj.key.lower().startswith(search_lower):
+            return obj
+        if any(alias.lower().startswith(search_lower) for alias in obj.aliases.all()):
+            return obj
+
+    caller.msg(nofound_string)
+    return None
+
+
 def _do_equip(caller, args, rules):
     """
     Shared implementation for wield and don - direct follow-up
@@ -8107,7 +8195,7 @@ def _do_equip(caller, args, rules):
     else:
         nofound_string += " You aren't carrying anything you could wield or wear."
 
-    item = caller.search(args, candidates=caller.contents, nofound_string=nofound_string)
+    item = _search_carried_or_equipped(caller, args, caller.contents, nofound_string)
     if not item:
         return
 
@@ -8229,7 +8317,7 @@ def _do_unequip(caller, args, rules):
         "You aren't wielding or wearing anything called '%s'. You have: %s."
         % (args, ", ".join(i.key for i in equipped))
     )
-    item = caller.search(args, candidates=list(equipped.keys()), nofound_string=nofound_string)
+    item = _search_carried_or_equipped(caller, args, list(equipped.keys()), nofound_string)
     if not item:
         return
     _unequip_item(caller, item, equipped[item], rules)
@@ -8275,6 +8363,248 @@ class CmdDoff(Command):
 
     def func(self):
         _do_unequip(self.caller, self.args, self.rules)
+
+
+def _band_word(higher, lower, kind):
+    """
+    Classifies how much `higher` beats `lower` by into one of four
+    plain-English magnitudes: None (not meaningfully different),
+    "slightly", "clearly", or "much". Deliberately never returns an
+    empty string for the "clearly" tier - that would be falsy in
+    Python and silently break every truthiness check downstream in
+    CmdCompare._verdict that means "is there a real difference here",
+    a real bug caught while writing this function's own tests.
+
+    kind="percent" bands the RELATIVE difference (higher-lower)/lower -
+    right for quantities that are always positive and where "how much
+    bigger" genuinely means percent-more (weapon damage, armor
+    damage_reduction). kind="points" bands the RAW difference instead -
+    right for a stat that can be zero or negative and has no natural
+    "percent of what" baseline (accuracy_bonus, defense_modifier).
+    Different scales need different bands, not one formula stretched
+    to cover both.
+    """
+    diff = higher - lower
+    if kind == "percent":
+        base = max(abs(lower), 1)
+        magnitude = (diff / base) * 100
+        slight, moderate, large = 5, 15, 35
+    else:
+        magnitude = diff
+        slight, moderate, large = 3, 8, 16
+
+    if magnitude < slight:
+        return None
+    elif magnitude < moderate:
+        return "slightly"
+    elif magnitude < large:
+        return "clearly"
+    return "much"
+
+# Ranked so the two bands from a two-axis comparison can be compared
+# against each other to pick which one drives the OVERALL verdict's
+# wording (see CmdCompare._verdict below).
+_BAND_RANK = {None: 0, "slightly": 1, "clearly": 2, "much": 3}
+
+
+class CmdCompare(Command):
+    """
+    Compare two weapons, or two pieces of armor/a shield, against each
+    other.
+
+    Usage:
+      compare <item1> = <item2>
+
+    Works on anything you're carrying or wearing - no need to unequip
+    first. Only compares like against like (two weapons, or two armor
+    pieces from the same slot) - a weapon against armor, or a shield
+    against a helmet, isn't a meaningful comparison.
+
+    Never shows raw numbers, only how the two actually compare - "much
+    better", "slightly more accurate", and so on - plus a note if
+    either one is outside your class's usual proficiency, since that
+    makes its real performance worse than its numbers alone suggest.
+    """
+
+    key = "compare"
+    help_category = "combat"
+    rules = COMBAT_RULES
+
+    def _verdict(self, name_a, name_b, axis1, axis2, phrase1, phrase2):
+        """
+        axis1/axis2 are each (value_a, value_b, "percent"|"points")
+        tuples for one stat. phrase1/phrase2 describe what winning
+        that axis actually means in plain language (e.g. "hits
+        harder", "is more accurate"). Returns the finished verdict
+        sentence - a single "X is <how much> better than Y" plus a
+        parenthetical naming which axes actually differ, unless the
+        two items split the axes between them, in which case it's
+        an honest tradeoff sentence instead of a forced winner.
+        """
+        def _axis_result(value_a, value_b, kind):
+            if value_a == value_b:
+                return None, None
+            if value_a > value_b:
+                return "a", _band_word(value_a, value_b, kind)
+            return "b", _band_word(value_b, value_a, kind)
+
+        winner1, band1 = _axis_result(*axis1)
+        winner2, band2 = _axis_result(*axis2)
+        # A raw numeric difference too small to cross even the
+        # "slightly" threshold (band is None) doesn't count as a real
+        # win for narrative purposes below - otherwise two items whose
+        # numbers are only trivially different could still get handed
+        # a bare "X is better than Y" with no real basis for it.
+        if not band1:
+            winner1 = None
+        if not band2:
+            winner2 = None
+
+        # Genuine tradeoff: each item leads on a DIFFERENT axis, both
+        # with a real (non-negligible) difference. Naming both
+        # honestly beats forcing a single fake winner - see this
+        # command's own design notes.
+        if winner1 and winner2 and winner1 != winner2:
+            leader1 = name_a if winner1 == "a" else name_b
+            other1 = name_b if winner1 == "a" else name_a
+            leader2 = name_a if winner2 == "a" else name_b
+            return (
+                "%s %s than %s, but %s %s. Depends what you're "
+                "looking for." % (leader1, phrase1, other1, leader2, phrase2)
+            )
+
+        # Otherwise: whichever item leads on any (non-negligible) axis
+        # is the overall winner - the other axis, if it differs at
+        # all, only ever agrees or is negligible, never contradicts it
+        # (the tradeoff branch above would have caught that case).
+        overall_winner = winner1 or winner2
+        if not overall_winner:
+            return "%s and %s are about the same." % (name_a, name_b)
+
+        winning_name = name_a if overall_winner == "a" else name_b
+        losing_name = name_b if overall_winner == "a" else name_a
+
+        winning_bands = [
+            band for winner, band in ((winner1, band1), (winner2, band2))
+            if winner == overall_winner
+        ]
+        best_band = max(winning_bands, key=lambda b: _BAND_RANK[b])
+        magnitude = "much better" if best_band == "much" else "%s better" % best_band
+
+        details = []
+        if winner1 == overall_winner:
+            details.append(phrase1)
+        if winner2 == overall_winner:
+            details.append(phrase2)
+        detail_str = " (%s)" % " and ".join(details) if details else ""
+
+        return "%s is %s than %s%s." % (winning_name, magnitude, losing_name, detail_str)
+
+    def _single_axis_verdict(self, name_a, name_b, value_a, value_b, kind, phrase):
+        """
+        A plain, single-stat verdict - no tradeoff logic needed, since
+        there's only one axis to weigh. Used for armor instead of the
+        weapon-style two-axis _verdict above: damage_reduction and
+        defense_modifier aren't actually two independent tradeoffs the
+        way a weapon's damage/accuracy are - compute_armor_stats
+        always derives defense_modifier as the exact negative of
+        damage_reduction for body armor, so treating both as
+        independent axes (as an earlier draft of this command did)
+        made EVERY body-armor comparison read as a "tradeoff" -
+        correctly true in the strict math, but useless as a verdict,
+        since it's a fixed design relationship every piece already
+        has, not a real per-item decision a player is weighing. A
+        shield has no damage_reduction of its own at all (see
+        prototypes.py's SCUTUM), so it compares on defense_modifier
+        instead - see func()'s own branch for which one applies here.
+        """
+        if value_a == value_b:
+            return "%s and %s are about the same." % (name_a, name_b)
+        if value_a > value_b:
+            winner, loser, band = name_a, name_b, _band_word(value_a, value_b, kind)
+        else:
+            winner, loser, band = name_b, name_a, _band_word(value_b, value_a, kind)
+        if not band:
+            return "%s and %s are about the same." % (name_a, name_b)
+        magnitude = "much better" if band == "much" else "%s better" % band
+        return "%s is %s than %s (%s)." % (winner, magnitude, loser, phrase)
+
+    def _proficiency_note(self, caller, item):
+        if item.is_typeclass(CombatWeapon, exact=False):
+            if not self.rules.is_proficient(caller, item):
+                return "%s is outside your class's usual weapons." % item.key
+        elif item.is_typeclass(CombatArmor, exact=False):
+            if not self.rules.is_armor_proficient(caller, item):
+                return "%s is outside your class's usual armor." % item.key
+        return None
+
+    def func(self):
+        caller = self.caller
+        if not self.args or "=" not in self.args:
+            caller.msg("Usage: compare <item1> = <item2>")
+            return
+
+        lhs, rhs = self.args.split("=", 1)
+        item_a = caller.search(lhs.strip())
+        if not item_a:
+            return
+        item_b = caller.search(rhs.strip())
+        if not item_b:
+            return
+        if item_a == item_b:
+            caller.msg("That's the same item.")
+            return
+
+        a_is_weapon = item_a.is_typeclass(CombatWeapon, exact=False)
+        b_is_weapon = item_b.is_typeclass(CombatWeapon, exact=False)
+        a_is_armor = item_a.is_typeclass(CombatArmor, exact=False)
+        b_is_armor = item_b.is_typeclass(CombatArmor, exact=False)
+
+        if not ((a_is_weapon or a_is_armor) and (b_is_weapon or b_is_armor)):
+            caller.msg("You can only compare weapons or armor.")
+            return
+
+        if a_is_weapon != b_is_weapon:
+            caller.msg("You can't compare a weapon to a piece of armor.")
+            return
+
+        if a_is_armor and item_a.db.armor_slot != item_b.db.armor_slot:
+            caller.msg(
+                "You can't meaningfully compare %s to %s - they go in "
+                "different slots." % (item_a.key, item_b.key)
+            )
+            return
+
+        if a_is_weapon:
+            dmg_a = sum(item_a.db.damage_range or (0, 0)) / 2
+            dmg_b = sum(item_b.db.damage_range or (0, 0)) / 2
+            verdict = self._verdict(
+                item_a.key, item_b.key,
+                (dmg_a, dmg_b, "percent"),
+                (item_a.db.accuracy_bonus or 0, item_b.db.accuracy_bonus or 0, "points"),
+                "hits harder", "is more accurate",
+            )
+        elif item_a.db.armor_slot == "shield":
+            # A shield's damage_reduction is always 0 (see SCUTUM in
+            # prototypes.py) - defense_modifier is the only real axis.
+            verdict = self._single_axis_verdict(
+                item_a.key, item_b.key,
+                item_a.db.defense_modifier or 0, item_b.db.defense_modifier or 0,
+                "points", "makes you harder to hit",
+            )
+        else:
+            verdict = self._single_axis_verdict(
+                item_a.key, item_b.key,
+                item_a.db.damage_reduction or 0, item_b.db.damage_reduction or 0,
+                "percent", "reduces more incoming damage",
+            )
+
+        lines = [verdict]
+        for item in (item_a, item_b):
+            note = self._proficiency_note(caller, item)
+            if note:
+                lines.append("Note: %s" % note)
+        caller.msg("\n".join(lines))
 
 
 class CmdDismissPet(Command):
@@ -8635,7 +8965,14 @@ class CmdCast(MuxCommand):
                     spell_to_cast.append(spell)
 
         if not spell_to_cast:
-            caller.msg("You don't know a spell of that name.")
+            if self.rhs is None and " " in spellname:
+                caller.msg(
+                    "You don't know a spell of that name. If you're trying "
+                    "to cast at a target, interpose an = before the target, "
+                    "e.g. cast <spell name> = <target>."
+                )
+            else:
+                caller.msg("You don't know a spell of that name.")
             return
         if len(spell_to_cast) > 1:
             matched_spells = ", ".join(spell_to_cast)
@@ -9141,6 +9478,59 @@ class CmdTrainer(Command):
             source, known, verb = SKILLS, set(caller.db.skills_known or []), "learnskill"
 
         player_class = caller.db.player_class
+
+        def _classes_taught_by(spell_or_skill_dict):
+            """Every class explicitly named in ANY entry's 'classes'
+            list - i.e. who this dict actually belongs to, ignoring
+            classless universal entries (like 'conjure torch', usable
+            by any class) that would otherwise make a wrong-trainer
+            visit look like it has something to offer."""
+            return {
+                cls
+                for data in spell_or_skill_dict.values()
+                if isinstance(data, dict)
+                for cls in (data.get("classes") or [])
+            }
+
+        if player_class not in _classes_taught_by(source):
+            # Real, confirmed live confusion: "there's a trainer right
+            # here, why won't they teach me anything?" - since spells
+            # and skills split cleanly by class (see help_setup.py's
+            # 'trainers' topic and this module's own docstring), this
+            # only ever means the caller found the WRONG one of the
+            # two trainers for their own class, not a genuine dead
+            # end. Naming exactly where the right one is, right in
+            # this message, is what a player actually needs in the
+            # moment - a separate 'help trainers' topic already had
+            # this same information and players still weren't finding
+            # it (a live player asked in-character where the trainers
+            # even were, despite the topic existing this whole time).
+            #
+            # Checked against the class set, not against whether the
+            # displayed listing below happens to be empty - a real gap
+            # found writing this fix's own test: SPELLS has one
+            # classless, any-class utility spell ('conjure torch'), so
+            # a skills class standing at the SPELLS trainer would
+            # still see something listed and never hit an "available
+            # is empty" check at all.
+            other_kind = "skills" if trainer.db.teaches == "spells" else "spells"
+            other_source = SKILLS if other_kind == "skills" else SPELLS
+            if player_class in _classes_taught_by(other_source):
+                other_trainer = (
+                    "the Ludus weapons master, at the Ludus Entrance"
+                    if other_kind == "skills"
+                    else "the Flamen of the Cella, in the Main Cella of the "
+                    "Temple of Jupiter on the Capitoline Hill"
+                )
+                caller.msg(
+                    "%s doesn't teach anything your class uses. Your class "
+                    "learns %s instead - seek out %s."
+                    % (trainer.key, other_kind, other_trainer)
+                )
+            else:
+                caller.msg("%s has nothing to teach your class." % trainer.key)
+            return
+
         available = sorted(
             (
                 name for name, data in source.items()
@@ -9148,10 +9538,6 @@ class CmdTrainer(Command):
             ),
             key=lambda n: source[n].get("level_required", 1),
         )
-
-        if not available:
-            caller.msg("%s has nothing to teach your class." % trainer.key)
-            return
 
         caller_level = caller.db.level or 1
         caller_gold = caller.db.gold or 0
@@ -9376,6 +9762,7 @@ class BattleCmdSet(CharacterCmdSet):
         self.add(CmdUnwield())
         self.add(CmdDon())
         self.add(CmdDoff())
+        self.add(CmdCompare())
         self.add(CmdDismissPet())
         self.add(CmdInventory())
         self.add(CmdUse())

@@ -32,16 +32,16 @@ from evennia import CmdSet
 from commands.command import Command
 from world.box_display import box_border, box_line, box_paragraph, box_blank
 
-RECENT_UPDATES_DATE = "2026-09-14"
+RECENT_UPDATES_DATE = "2026-09-16"
 
 RECENT_UPDATES_TEXT = (
-    "Several real combat bugs are fixed: casting a spell or using a "
-    "skill on someone now actually starts the fight instead of landing "
-    "a free hit with nothing tracking it, 'fight all' no longer causes "
-    "monsters to turn on each other mid-brawl, and an offensive spell "
-    "or skill with no target now defaults to whoever you're currently "
-    "fighting. 'godlevel'/'advance' also properly grants HP/MP/SP and "
-    "stat points now, same as leveling up normally would."
+    "Every race now has real, usable innate abilities of its own - see "
+    "'racialinfo' to check yours, 'racial <ability>' to use one, no MP "
+    "or SP required. New 'compare' command tells you which of two "
+    "weapons or armor pieces is actually better, in plain language. "
+    "Also fixed: conditions like Poison now actually deal their damage "
+    "against enemies (not just players), and a trainer who can't teach "
+    "your class now tells you exactly where the right one is."
 )
 
 # The box's own interior width, between its left/right borders and

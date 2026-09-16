@@ -2235,6 +2235,82 @@ class TestActiveCompanionTrackingOnSummonSpells(CombatTestBase):
         self.assertTrue(self.char1.db.active_companion.pk)
 
 
+class TestRecastingASummonReplacesRatherThanOrphansTheOldOne(CombatTestBase):
+    """
+    Real, confirmed live bug: spell_summon_familiar/spell_summon_lemures/
+    skill_call_of_the_wild all just overwrote db.active_companion with
+    a freshly-spawned pet, with no check for one already being active -
+    a player recasting (whether by mistake or wanting a fresh one at a
+    new level) silently orphaned the old instance, which kept existing
+    (and, if still in a fight, kept fighting) with nothing left
+    pointing back to it - 'dismiss' could no longer find or release it
+    at all. Fixed by releasing whatever's already active first, via the
+    same release_pet() the real 'dismiss' command already uses.
+    """
+
+    def test_recasting_summon_familiar_deletes_the_old_one(self):
+        self.char1.db.level = 5
+        self.char1.db.mp = 50
+        self.char1.location = self.room1
+        try:
+            COMBAT_RULES.spell_summon_familiar(self.char1, "summon familiar", [], 10)
+        except Exception:
+            self.skipTest("AUGUR_FAMILIAR_TIER1 prototype not available in this test DB")
+        old_companion = self.char1.db.active_companion
+
+        COMBAT_RULES.spell_summon_familiar(self.char1, "summon familiar", [], 10)
+
+        self.assertFalse(old_companion.pk)  # deleted, not left behind
+        new_companion = self.char1.db.active_companion
+        self.assertIsNotNone(new_companion)
+        self.assertNotEqual(old_companion, new_companion)
+
+    def test_recasting_summon_lemures_deletes_the_old_one(self):
+        self.char1.db.level = 5
+        self.char1.db.mp = 50
+        self.char1.location = self.room1
+        try:
+            COMBAT_RULES.spell_summon_lemures(self.char1, "summon lemures", [], 10)
+        except Exception:
+            self.skipTest("HARUSPEX_LEMURES_TIER1 prototype not available in this test DB")
+        old_companion = self.char1.db.active_companion
+
+        COMBAT_RULES.spell_summon_lemures(self.char1, "summon lemures", [], 10)
+
+        self.assertFalse(old_companion.pk)
+        self.assertNotEqual(old_companion, self.char1.db.active_companion)
+
+    def test_recasting_call_of_the_wild_deletes_the_old_one(self):
+        self.char1.db.level = 55
+        self.char1.db.sp = 50
+        self.char1.location = self.room1
+        try:
+            COMBAT_RULES.skill_call_of_the_wild(self.char1, "call of the wild", [], 10)
+        except Exception:
+            self.skipTest("VENATOR_BEAST_TIER2 prototype not available in this test DB")
+        old_companion = self.char1.db.active_companion
+
+        COMBAT_RULES.skill_call_of_the_wild(self.char1, "call of the wild", [], 10)
+
+        self.assertFalse(old_companion.pk)
+        self.assertNotEqual(old_companion, self.char1.db.active_companion)
+
+    def test_first_summon_with_no_prior_companion_does_not_crash(self):
+        """release_pet(None, ...) must be a safe no-op - the common
+        case of summoning for the very first time."""
+        self.char1.db.level = 5
+        self.char1.db.mp = 50
+        self.char1.location = self.room1
+        self.char1.db.active_companion = None
+        try:
+            COMBAT_RULES.spell_summon_familiar(self.char1, "summon familiar", [], 10)
+        except Exception as e:
+            if "prototype" in str(e).lower() or "AUGUR_FAMILIAR" in str(e):
+                self.skipTest("AUGUR_FAMILIAR_TIER1 prototype not available in this test DB")
+            raise
+        self.assertIsNotNone(self.char1.db.active_companion)
+
+
 class TestInstanceCleanupTimerSkipsWhileFighting(CombatTestBase):
     """
     Regression coverage for a real, confirmed bug: this timer used to
@@ -2599,3 +2675,93 @@ class TestHostileNPCSkipsAnAlreadyActiveSelfBuff(CombatTestBase):
 
         names = [name for (_kind, name, _self) in actions]
         self.assertIn("rage of the north", names)
+
+
+class TestHostileNPCAppliesPerTurnConditions(CombatTestBase):
+    """
+    HostileNPC.at_turn_start - real, confirmed live bug: it never
+    called apply_turn_conditions at all (unlike CombatCharacter's own
+    at_turn_start, which does), so Poisoned/Regeneration/Haste/
+    Paralyzed inflicted on an NPC silently did nothing. Duration
+    counting is unaffected (condition_tickdown is driven by the
+    turnhandler itself, not by at_turn_start), so the condition still
+    visibly landed and still expired right on schedule - only the
+    actual per-turn EFFECT never fired. A player reported exactly this
+    after landing a Poisoned-inflicting spell (Mark of Decay) on an
+    enemy: "seems to poison the enemy for 1 turn and then it ends but
+    i dont see it do any damage."
+    """
+
+    def _make_handler(self):
+        from evennia.utils import create as ev_create
+
+        # See the identical setup/comment in
+        # TestHostileNPCDoesNotAttackItsOwnSide - building the handler
+        # on a fresh, otherwise-empty room (plus one inert dummy so
+        # at_script_creation's own start_turn(fighters[0]) doesn't
+        # IndexError on a truly empty sweep) avoids its creation-time
+        # room sweep silently picking up real fighters early.
+        room = ev_create.create_object("typeclasses.rooms.Room", key="a testing void")
+        dummy = ev_create.create_object(
+            "evennia.objects.objects.DefaultObject", key="a training dummy", location=room
+        )
+        dummy.db.hp = 1
+        return ev_create.create_script(CombatTurnHandler, obj=room, autostart=False)
+
+    def _make_hostile(self, key):
+        npc = create.create_object(HostileNPC, key=key, location=self.room1)
+        npc.db.hp = 50
+        npc.db.max_hp = 50
+        npc.db.mp = 0
+        npc.db.sp = 0
+        npc.db.player_class = None
+        return npc
+
+    def test_poisoned_npc_takes_damage_on_its_own_turn(self):
+        handler = self._make_handler()
+        npc = self._make_hostile("a wolf")
+        npc.db.combat_turnhandler = handler
+        npc.db.combat_side = "team_1"
+        npc.db.conditions = {"Poisoned": [3, self.char1]}
+        handler.db.fighters = [npc]
+
+        with patch("world.combat.COMBAT_RULES.resolve_attack"), \
+                patch("world.combat.COMBAT_RULES.spend_action"):
+            npc.at_turn_start()
+
+        self.assertLess(npc.db.hp, 50)
+
+    def test_a_lethal_poison_tick_stops_it_from_also_attacking(self):
+        handler = self._make_handler()
+        npc = self._make_hostile("a wolf")
+        npc.db.combat_turnhandler = handler
+        npc.db.combat_side = "team_1"
+        npc.db.hp = 1  # POISON_RATE's minimum (4) guarantees a kill
+        npc.db.conditions = {"Poisoned": [3, self.char1]}
+        self.char1.location = self.room1
+        self.char1.db.combat_side = "team_0"
+        self.char1.db.hp = 100
+        handler.db.fighters = [npc, self.char1]
+
+        with patch("world.combat.COMBAT_RULES.resolve_attack") as mock_attack, \
+                patch("world.combat.COMBAT_RULES.spend_action"):
+            npc.at_turn_start()
+
+        mock_attack.assert_not_called()
+
+    def test_unpoisoned_npc_still_acts_normally(self):
+        handler = self._make_handler()
+        npc = self._make_hostile("a wolf")
+        npc.db.combat_turnhandler = handler
+        npc.db.combat_side = "team_1"
+        npc.db.conditions = {}
+        self.char1.location = self.room1
+        self.char1.db.combat_side = "team_0"
+        self.char1.db.hp = 100
+        handler.db.fighters = [npc, self.char1]
+
+        with patch("world.combat.COMBAT_RULES.resolve_attack") as mock_attack, \
+                patch("world.combat.COMBAT_RULES.spend_action"):
+            npc.at_turn_start()
+
+        mock_attack.assert_called_once_with(npc, self.char1)

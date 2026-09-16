@@ -1920,6 +1920,55 @@ SMITH_WARAXE_CHAMPION = {
     "two_handed": True,
 }
 
+# Real gap found and fixed live: RITUAL_STAFF (the fixed chargen
+# starting weapon for every caster class - Augur, Haruspex, Medicus)
+# never had a leveled upgrade path anywhere in the game - the only
+# other "ritual staff" prototype in existence (SEWER_LOOT_RITUAL_STAFF)
+# turned out to have IDENTICAL stats, a pure flavor reskin, not a real
+# power upgrade. A real player asked directly whether better weapons
+# existed for their class and the honest answer was no. These three
+# mirror every other SMITH_* weapon tier exactly (spawn_leveled_weapon
+# fills in damage_range/accuracy_bonus/price at spawn time from
+# weapon_type_name/weapon_category, same as every other tier here).
+SMITH_STAFF_NOVICE = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a plain acolyte's staff",
+    "desc": (
+        "Unadorned ash wood, still smelling faintly of the workshop - "
+        "a first staff for someone whose training in the old rites has "
+        "barely begun."
+    ),
+    "weapon_type_name": "ritual staff",
+    "weapon_category": "staff",
+    "two_handed": True,
+}
+
+SMITH_STAFF_VETERAN = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a rune-bound staff",
+    "desc": (
+        "Bands of inscribed bronze wrap the shaft at even intervals, "
+        "each one worn smooth by a hand that has called on it many "
+        "times before."
+    ),
+    "weapon_type_name": "ritual staff",
+    "weapon_category": "staff",
+    "two_handed": True,
+}
+
+SMITH_STAFF_CHAMPION = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a high priest's staff",
+    "desc": (
+        "Dark, oiled wood capped in gold, carved top to bottom with "
+        "sky-signs and sacred verses - a staff carried by someone the "
+        "gods have clearly not finished with yet."
+    ),
+    "weapon_type_name": "ritual staff",
+    "weapon_category": "staff",
+    "two_handed": True,
+}
+
 SMITH_LEATHER_NOVICE = {
     "prototype_parent": "BASEARMOR",
     "key": "a patched leather jerkin",

@@ -28,6 +28,7 @@ from world import languages
 from world import building_menu
 from world import motd
 from world import worldcheck
+from world import racial_abilities
 from world import bounties
 from world import quests
 from world import religion
@@ -161,6 +162,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(simpledoor.SimpleDoorCmdSet)
         self.add(doors.DescriptiveOpenCloseDoor())
         self.add(languages.LanguageCmdSet())
+        self.add(racial_abilities.RacialAbilitiesCmdSet())
         self.add(building_menu.RomeBuildingCmdSet())
         self.add(worldcheck.CmdWorldCheck())
         self.add(FriendlyCmdMailCharacter())

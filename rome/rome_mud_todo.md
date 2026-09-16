@@ -6,6 +6,30 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## 🧬 Racial abilities - ✅ framework + 5 abilities built this session, rest deliberately deferred
+
+- [x] **A real, confirmed gap, not a new idea**: `world/chargen_menu.py`'s own module docstring already said as much ("Signature abilities listed for each race/class are not yet implemented as real commands... a good next project once basic combat is solid") - but only the CLASS half of that ever actually got built (Mark of Decay, Rage of the North, etc. are all real, working spells/skills). Race abilities stayed pure flavor text, with no command, mechanic, or even a way to check them - confirmed live when a player asked directly in-character how to use their own race's listed abilities and there was genuinely no answer.
+- [x] **New module, `world/racial_abilities.py`**: a `RACIAL_ABILITIES` dict (same shape as `SPELLS`/`SKILLS`), a `racial <ability> [= target]` command, and a `racialinfo` command (mirrors `skillinfo`/`spellinfo` - directly answers "how do I check them"). Deliberately its own small system rather than folded into spells/skills: innate from chargen (no trainer, no gold), and costs no MP/SP at all (a Cyclops has -10 max_mp from its own race stat_mods alone - gating an innate racial trait on a resource some race/class combos barely have would be backwards) - just a flat cooldown, reusing the exact `get_cooldowns`/`tick_cooldowns` machinery spells/skills already use (confirmed already ticking correctly both in and out of combat for a real player).
+- [x] **5 abilities actually built** (the ones that map onto a mechanic this game already has - reusing `add_condition`/`apply_damage`/`get_defense` directly, not new plumbing): Nymph's *Boon of the Wilds* (heal, Ingenium-scaled) and *Elemental Ward* (self Defense Up), Centaur's *Galloping Charge* and Harpy's *Aerial Assault* and Cyclops's *Crushing Blow* (bonus-damage attacks), Cyclops's *Intimidating Presence* (Accuracy/Defense Down), Minotaur's *Bull Rush* (1-turn Paralyze, same severity `coerce` already uses for a faction skill).
+- [x] An offensive racial ability used out of combat correctly starts a real, tracked fight first (`start_combat_from_offensive_action`) - the exact same fix CmdCast/CmdUseSkill got this same session, applied here from the start rather than as a follow-up gap.
+- [ ] **Deliberately NOT built - no supporting system exists yet, would be forcing a weak mapping** (the same judgment call `world/religion.py` already made for 10 of the 14 gods rather than fake a mechanic for them):
+  - Human: *Command Presence*, *Civic Access* - no politics/reputation/civic-standing system exists to hook into.
+  - Minotaur: *Labyrinth Sense*, Centaur: *Forest Tracker*, Harpy: *Skyward Scout* - no "lost"/hidden-foe-detection mechanic exists to meaningfully improve.
+  - Cyclops: *Forge Mastery* - blocked on `crafting` (already listed separately below as not-yet-built).
+  - Revisit once any of the above systems actually exist - don't force these into today's combat-only ability shape just for completeness.
+- [x] 16 new tests (`world/tests_racial_abilities.py`), full suite green.
+
+---
+
+## ⚖️ 'compare' command - ✅ built this session, a direct player request
+
+- [x] **`compare <item1> = <item2>`** (`world/combat.py`) - weapons compare on damage + accuracy, armor/shields on damage_reduction or defense_modifier (whichever one is actually the real axis - see the next point). Works on anything carried or worn, refuses a weapon-vs-armor or cross-slot comparison outright.
+- [x] **By explicit request, the verdict never shows raw numbers** - only qualitative language ("much better", "slightly more accurate"), plus a flagged note (still no numbers) when either item sits outside the caller's class proficiency, since that makes its real performance worse than its stats alone suggest.
+- [x] **A real design correction caught while building this, not after**: an early draft compared armor the same two-axis way as weapons (damage_reduction AND defense_modifier as independent tradeoffs) - but `compute_armor_stats` always derives `defense_modifier` as the exact negative of `damage_reduction` for body armor, so *every* body-armor comparison came back reading as a "tradeoff", technically true but useless as a verdict, since it's a fixed relationship every piece already has, not a real per-item choice. Fixed to compare body armor on damage_reduction alone, and shields (which have no damage_reduction of their own at all) on defense_modifier alone instead.
+- [x] 10 new tests (`world/tests_combat_commands.py`).
+
+---
+
 ## 🏰 The Germanic Stronghold is built - ✅ this session, closes out "Beyond the Walls"
 
 - [x] **115 rooms, matching the design settled on earlier this session**: the Outer Palisade & Approach (10), the Great Hall/chieftain's compound (10), Livestock & Farmstead (8) and Craft & Smithy (6) branching off it, the Sacred Grove (8), four distinct warband camps (Wolf-kin/Boar-marked/Raven's Watch/Storm-callers, 15 each, levels 27-43), and the Contested Borderlands (13, levels 41-45) - the original "Forest Fringe" pre-approach zone was dropped as redundant, since the wilderness road's own final-approach band already covers that beat. `world/batch_germania_data.py` + `world/setup_germania_live.py`.

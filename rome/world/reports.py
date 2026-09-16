@@ -44,6 +44,7 @@ from evennia.contrib.base_systems.ingame_reports.reports import (
     _REPORT_TYPES,
 )
 from evennia.utils import evmenu
+from evennia.utils.utils import crop
 
 
 def menunode_list_reports(caller, raw_string, **kwargs):
@@ -65,8 +66,52 @@ def menunode_choose_filter(caller, raw_string, **kwargs):
     return (text, helptext), options
 
 
+def _notify_reporter_of_status_change(caller, raw_string, report, tag, **kwargs):
+    """
+    Wraps the contrib's own _report_toggle_tag with a player-facing
+    notification - a direct player-facing feature request: whoever
+    filed a bug/idea/player report had no way to know it was ever
+    actually looked at, short of a god separately telling them
+    in-character. Reuses the exact tags this menu already tracks (no
+    new state of its own) - only fires on the "marked" direction
+    (tag being added), matching the request as asked ("gets a status
+    update once its marked as...") rather than also announcing every
+    unmark, which is a much less interesting event to be told about.
+
+    report.senders is the reporting ACCOUNT (see ReportCmdBase.func in
+    the contrib itself - create_message(self.account, ...), not the
+    character) - .msg() works on it directly. Silently does nothing
+    for a sender who's since deleted their account or isn't reachable
+    for some other reason, same as any other .msg() call would.
+    """
+    was_active = tag in report.tags.all()
+    result = _stock_menu._report_toggle_tag(caller, raw_string, report=report, tag=tag, **kwargs)
+    now_active = tag in report.tags.all()
+
+    if now_active and not was_active:
+        summary = crop(report.message, 60)
+        for sender in report.senders:
+            if hasattr(sender, "msg"):
+                sender.msg(
+                    '|y[Report Update]|n Your report - "%s" - has been marked '
+                    "|w%s|n." % (summary, tag)
+                )
+
+    return result
+
+
 def menunode_manage_report(caller, raw_string, report, **kwargs):
     text, options = _stock_menu.menunode_manage_report(caller, raw_string, report, **kwargs)
+    # Real gap this closes: the stock options point straight at the
+    # contrib's own _report_toggle_tag with no notification hook at
+    # all - swap in the wrapper above so every status change flowing
+    # through THIS menu (the only one this project actually uses)
+    # reaches the reporter, without touching the contrib's own toggle
+    # logic or duplicating the tag list it's built from.
+    for option in options:
+        goto = option.get("goto")
+        if isinstance(goto, tuple) and goto[0] is _stock_menu._report_toggle_tag:
+            option["goto"] = (_notify_reporter_of_status_change, goto[1])
     helptext = (
         "Pick a status to toggle it on this report, 'Manage another "
         "report' to go back to the full list, or 'quit' to leave."

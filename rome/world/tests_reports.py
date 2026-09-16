@@ -16,6 +16,7 @@ boundary tests_economy.py's own CmdShop tests already draw.
 """
 
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from evennia.utils.test_resources import EvenniaTest, EvenniaCommandTest
 from evennia.utils import create
@@ -70,6 +71,90 @@ class TestMenuNodesAttachRealHelpText(ReportsMenuTestBase):
         self.assertTrue(helptext)
         self.assertIn("quit", helptext.lower())
         self.assertIn("Something's broken.", text)
+
+
+class TestReportStatusChangeNotifiesTheReporter(ReportsMenuTestBase):
+    """
+    Direct player-facing feature request: whoever filed a bug/idea/
+    player report had no way to know it was ever looked at, short of
+    a god separately telling them in-character. Every status tag
+    being MARKED (not unmarked - a much less interesting event) now
+    messages report.senders directly - the reporting ACCOUNT, per how
+    the contrib's own ReportCmdBase.func creates the report
+    (create_message(self.account, ...), not the character).
+    """
+
+    def _get_toggle_option(self, options, tag):
+        for option in options:
+            if option["desc"].lower() in ("mark as %s" % tag, "unmark as %s" % tag):
+                return option
+        raise AssertionError("no option for tag %r in %r" % (tag, options))
+
+    def test_marking_in_progress_notifies_the_reporting_account(self):
+        hub = self._make_hub()
+        self._attach_fake_evmenu(self.char1, hub)
+        msg = create.create_message(self.account, "Wield is broken.", receivers=hub)
+
+        (text, helptext), options = reports.menunode_manage_report(self.char1, "", report=msg)
+        option = self._get_toggle_option(options, "in progress")
+        goto, goto_kwargs = option["goto"]
+
+        with patch.object(self.account, "msg") as mock_msg:
+            goto(self.char1, "", **goto_kwargs)
+
+        mock_msg.assert_called_once()
+        sent_text = mock_msg.call_args[0][0]
+        self.assertIn("Wield is broken.", sent_text)
+        self.assertIn("in progress", sent_text)
+
+    def test_the_underlying_tag_is_still_actually_toggled(self):
+        """The notification wrapper must not skip the real effect -
+        this isn't just decoration on top of a no-op."""
+        hub = self._make_hub()
+        self._attach_fake_evmenu(self.char1, hub)
+        msg = create.create_message(self.account, "Wield is broken.", receivers=hub)
+
+        (text, helptext), options = reports.menunode_manage_report(self.char1, "", report=msg)
+        option = self._get_toggle_option(options, "in progress")
+        goto, goto_kwargs = option["goto"]
+
+        with patch.object(self.account, "msg"):
+            goto(self.char1, "", **goto_kwargs)
+
+        self.assertIn("in progress", [str(t) for t in msg.tags.all()])
+
+    def test_unmarking_does_not_notify(self):
+        """Only the 'marked' direction is interesting enough to
+        announce - toggling a status back off stays silent."""
+        hub = self._make_hub()
+        self._attach_fake_evmenu(self.char1, hub)
+        msg = create.create_message(self.account, "Wield is broken.", receivers=hub)
+        msg.tags.add("in progress")
+
+        (text, helptext), options = reports.menunode_manage_report(self.char1, "", report=msg)
+        option = self._get_toggle_option(options, "in progress")
+        goto, goto_kwargs = option["goto"]
+
+        with patch.object(self.account, "msg") as mock_msg:
+            goto(self.char1, "", **goto_kwargs)
+
+        mock_msg.assert_not_called()
+        self.assertNotIn("in progress", [str(t) for t in msg.tags.all()])
+
+    def test_marking_closed_notifies_too(self):
+        hub = self._make_hub()
+        self._attach_fake_evmenu(self.char1, hub)
+        msg = create.create_message(self.account, "Wield is broken.", receivers=hub)
+
+        (text, helptext), options = reports.menunode_manage_report(self.char1, "", report=msg)
+        option = self._get_toggle_option(options, "closed")
+        goto, goto_kwargs = option["goto"]
+
+        with patch.object(self.account, "msg") as mock_msg:
+            goto(self.char1, "", **goto_kwargs)
+
+        mock_msg.assert_called_once()
+        self.assertIn("closed", mock_msg.call_args[0][0])
 
 
 class TestCmdManageReportsBareFormNoLongerGuesses(EvenniaCommandTest):

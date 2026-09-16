@@ -209,6 +209,24 @@ class TestLudusWeaponsmith(EvenniaTest):
     def test_shopname_set(self):
         self.assertEqual(self.smith.db.shopname, "the weaponsmith's stall")
 
+    def test_stocks_three_tiers_of_ritual_staff(self):
+        """
+        Real, confirmed live gap this fixes: RITUAL_STAFF (the fixed
+        chargen starting weapon for every caster class) never had a
+        leveled upgrade anywhere in the game - a real player asked
+        directly whether a better weapon existed for their class, and
+        the honest answer used to be no. These three tiers give every
+        caster class the same real progression every other weapon
+        type already has.
+        """
+        staves = [i for i in self.smith.contents if i.db.weapon_type_name == "ritual staff"]
+        self.assertEqual(len(staves), 3)
+        staves_by_level = sorted(staves, key=lambda i: i.db.item_level)
+        prices = [i.db.price for i in staves_by_level]
+        self.assertEqual(prices, sorted(prices))
+        self.assertLess(prices[0], prices[-1])
+        self.assertEqual(len({i.key for i in staves}), 3)  # distinct names per tier
+
     def test_stocks_weapons_armor_and_shields(self):
         from world.combat import CombatWeapon, CombatArmor
 
@@ -219,6 +237,6 @@ class TestLudusWeaponsmith(EvenniaTest):
         shields = [i for i in armor_and_shields if i.db.armor_slot == "shield"]
         body_armor = [i for i in armor_and_shields if i.db.armor_slot != "shield"]
 
-        self.assertEqual(len(weapons), 15)  # 5 weapons x 3 tiers
+        self.assertEqual(len(weapons), 18)  # 6 weapons x 3 tiers (staff added)
         self.assertEqual(len(shields), 9)  # 3 shield categories x 3 tiers
         self.assertEqual(len(body_armor), 9)  # 3 armor categories x 3 tiers
