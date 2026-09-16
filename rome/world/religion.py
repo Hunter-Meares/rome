@@ -199,7 +199,15 @@ def ensure_religion_channels_exist():
     religion (or a god) can actually listen/send.
     """
     created = []
-    god_clause = "attr(level, 100, compare=gt)"
+    # is_god() (server/conf/lockfuncs.py), not a plain
+    # attr(level, 100, compare=gt) - see the identical note/fix in
+    # world/factions.py's own ensure_faction_channels_exist. A real,
+    # confirmed live bug: Evennia's channel /sub path checks the
+    # ACCOUNT, not the puppeted character, and db.level only ever
+    # lives on the character - a plain attr() check here always read
+    # the account's own (nonexistent) db.level and silently failed for
+    # every real god except a true superuser.
+    god_clause = "is_god()"
     for god_key, data in PANTHEON.items():
         if get_religion_channel(god_key):
             continue

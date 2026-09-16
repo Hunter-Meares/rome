@@ -74,12 +74,15 @@ def _format_stat_mods(mods):
 
 
 def create_all_help_entries():
+    from world.racial_abilities import RACIAL_ABILITIES
+
     managed_keys = (
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "animate dead"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
+        + list(RACIAL_ABILITIES.keys())
     )
 
     # Clean slate for anything this script manages, so re-running it
@@ -747,7 +750,9 @@ def create_all_help_entries():
             "you've had enough.\n\n"
             "General tips: 'rest' to recover between fights, 'disengage' "
             "if one's going badly, 'stats' any time to check where you "
-            "stand, and 'help' for absolutely everything else."
+            "stand, 'help shortcuts' once typing out the same spell/skill "
+            "command every turn gets old, and 'help' for absolutely "
+            "everything else."
         ),
         db_lock_storage="view:all()",
     )
@@ -905,6 +910,42 @@ def create_all_help_entries():
         db_lock_storage="view:all()",
     )
 
+    # --- Individual racial abilities ---
+    #
+    # Same reasoning and pattern as the individual faction abilities
+    # below - pulled directly from world.racial_abilities.
+    # RACIAL_ABILITIES so these can't drift from the real mechanics,
+    # and so 'help <ability name>' actually finds something instead of
+    # a false-positive fuzzy match on an unrelated topic. Real,
+    # confirmed live gap: a player twice asked in-character how to use
+    # Boon of the Wilds, and 'help boon of the wilds' was matching
+    # "Wild Rite of Bacchus" - a real cult topic that happens to share
+    # the word "wild" - instead of anything relevant, since no entry
+    # for the ability itself existed at all.
+    from world.racial_abilities import RACIAL_ABILITIES
+
+    for ability_name, data in RACIAL_ABILITIES.items():
+        HelpEntry.objects.create(
+            db_key=ability_name,
+            db_help_category="General",
+            db_entrytext=(
+                "|w%s|n\n\n"
+                "An innate %s racial ability (cooldown: %d turn%s). No "
+                "MP/SP cost, no trainer needed - see 'help racial'.\n\n"
+                "  racial %s%s\n\n"
+                "%s"
+            ) % (
+                ability_name.title(),
+                data["race"].title(),
+                data["cooldown"],
+                "" if data["cooldown"] == 1 else "s",
+                ability_name,
+                "" if data["target"] == "self" else " = <target>",
+                data["desc"],
+            ),
+            db_lock_storage="view:all()",
+        )
+
     # --- Factions ---
     HelpEntry.objects.create(
         db_key="factions",
@@ -1016,6 +1057,70 @@ def create_all_help_entries():
             "Cost scales with how powerful the spell/skill is - a "
             "level 1 pick is cheap, a level 90 one is a real "
             "investment. See 'help gold' for how to earn it."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Animate Dead (Haruspex) ---
+    HelpEntry.objects.create(
+        db_key="animate dead",
+        db_help_category="General",
+        db_entrytext=(
+            "|wAnimate Dead|n\n\n"
+            "|xHaruspices read the future in entrails and sky-signs - but "
+            "the most feared of them go further still, claiming not just "
+            "the reading of death but a debt upon it. In the heat of a "
+            "fight, such a Haruspex marks a foe with a silent hex - and "
+            "when the killing blow finally falls, that death becomes a "
+            "due payment. The corpse rises, hollowed of everything it "
+            "once was, and answers to no one else ever again.|n\n\n"
+            "|wUsage:|n cast animate dead = <corpse>\n"
+            "|wLevel:|n 55 | |wCost:|n 12 MP + 10 HP\n\n"
+            "Raises the corpse of an enemy you personally helped kill "
+            "THIS fight as a real companion - the same active_companion "
+            "slot Summon Lemures, Summon Familiar, and Call of the Wild "
+            "all share, so casting this (or any of those) replaces "
+            "whatever you already have out.\n\n"
+            "|wReal requirements, not flavor:|n the target must actually "
+            "be dead, you must have personally dealt it damage this "
+            "fight (a kill you had no hand in won't answer), and it must "
+            "be an ordinary NPC - never a real player's death, and never "
+            "anything story-critical (an Arena Fighter, a Colosseum "
+            "escape trainer, or a quest target).\n\n"
+            "|wHow this differs from Summon Lemures:|n Lemures scales "
+            "with YOUR OWN level - always available, zero risk, a "
+            "reliable baseline. Animate Dead scales with whichever is "
+            "LOWER of the corpse's own level or your level + 10 - so "
+            "beating something at or below your own level is a wash "
+            "against just recasting Lemures (the HP cost makes Lemures "
+            "the smarter routine pick), but deliberately punching up and "
+            "winning lets you convert that kill into a companion "
+            "genuinely stronger than Lemures could ever give you at your "
+            "current level. The HP cost is what that upside costs."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Shortcuts (the built-in 'nick' command) ---
+    HelpEntry.objects.create(
+        db_key="shortcuts",
+        db_help_category="General",
+        db_entrytext=(
+            "|wShortcuts|n\n\n"
+            "Typing out 'cast <spell> = <target>' or 'skill <skill> = "
+            "<target>' every single turn gets old fast, especially for "
+            "a spell/skill you use constantly. 'nick' (a built-in "
+            "command, not something specific to this game) lets you "
+            "define your own personal shortcuts, with arguments:\n\n"
+            "  nick fb $1 = cast fireball = $1\n"
+            "  fb goblin              (now casts fireball on the goblin)\n\n"
+            "  nick hl = skill hold the line\n"
+            "  hl                     (no argument needed for this one)\n\n"
+            "Nicks are entirely personal - nobody else sees or is "
+            "affected by the ones you set. 'nicks' lists everything "
+            "you've defined so far, and 'nick/delete <string or "
+            "number>' removes one. See 'help nick' for the full "
+            "syntax, including matching multiple arguments at once."
         ),
         db_lock_storage="view:all()",
     )

@@ -184,14 +184,24 @@ def ensure_faction_channels_exist():
     for key, data in FACTIONS.items():
         if get_faction_channel(key):
             continue
-        # Gods are gated by db.level directly (attr(level, 100,
-        # compare=gt)), not by Evennia permission tier - matches every
-        # other god-check in this codebase (CmdGodLevel, CmdRestore,
-        # CmdWizInvis all compare caller.db.level, not perm()). Using
-        # perm(Admin) here would only work for Praeses (104+), silently
-        # locking out Novus Deus/Auspex/Aedilis (101-103) despite them
-        # being real gods per every other check in the game.
-        god_clause = "attr(level, 100, compare=gt)"
+        # Gods are gated by db.level directly, not by Evennia
+        # permission tier - matches every other god-check in this
+        # codebase (CmdGodLevel, CmdRestore, CmdWizInvis all compare
+        # caller.db.level, not perm()). Using perm(Admin) here would
+        # only work for Praeses (104+), silently locking out Novus
+        # Deus/Auspex/Aedilis (101-103) despite them being real gods
+        # per every other check in the game.
+        #
+        # is_god() (server/conf/lockfuncs.py), not a plain
+        # attr(level, 100, compare=gt) - a real, confirmed live bug:
+        # Evennia's own channel /sub path checks the ACCOUNT, not the
+        # puppeted character, and db.level only ever lives on the
+        # character. A plain attr() check here always read the
+        # account's own (nonexistent) db.level and failed for every
+        # real god except a true superuser (which bypasses locks
+        # entirely regardless - see CLAUDE.md gotcha #6, and see
+        # is_god's own docstring for the full account/character story).
+        god_clause = "is_god()"
         channel = create_channel(
             key=data["channel"],
             desc="%s - private faction channel" % data["name"],

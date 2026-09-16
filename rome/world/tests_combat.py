@@ -42,6 +42,7 @@ from world.combat import (
     equip_arena_fighter,
     InstanceCleanupTimer,
     find_combat_target,
+    SPELLS,
 )
 
 
@@ -1807,6 +1808,65 @@ class TestSkillAndSpellAnnouncementOrdering(CombatTestBase):
         self._assert_announcement_before_condition(captured, "ambushing")
 
 
+class TestSpellAddConditionScalesDurationWithIngenium(CombatTestBase):
+    """
+    Real, confirmed live balance gap reported directly by a player:
+    Mark of Decay (and every other Haruspex curse/DOT, all built on
+    spell_add_condition) never referenced Ingenium at all, unlike
+    every direct-damage spell in the same class's kit - stacking
+    Ingenium did nothing for half of Haruspex's own spells. Fixed by
+    extending the condition's DURATION by the caster's Ingenium
+    instead of touching the shared, cross-class per-tick damage roll
+    (apply_turn_conditions/POISON_RATE) other classes' own conditions
+    also depend on.
+    """
+
+    def test_base_ingenium_leaves_duration_unchanged(self):
+        self.char1.db.ingenium = 10
+        self.char1.db.mp = 10
+        COMBAT_RULES.spell_add_condition(
+            self.char1, "mark of decay", [self.char2], 4, conditions=[("Poisoned", 4)]
+        )
+        self.assertEqual(self.char2.db.conditions["Poisoned"][0], 4)
+
+    def test_higher_ingenium_extends_duration(self):
+        self.char1.db.ingenium = 19  # (19-10)//3 = 3 extra turns
+        self.char1.db.mp = 10
+        COMBAT_RULES.spell_add_condition(
+            self.char1, "mark of decay", [self.char2], 4, conditions=[("Poisoned", 4)]
+        )
+        self.assertEqual(self.char2.db.conditions["Poisoned"][0], 7)
+
+    def test_below_base_ingenium_never_shortens_duration(self):
+        self.char1.db.ingenium = 5
+        self.char1.db.mp = 10
+        COMBAT_RULES.spell_add_condition(
+            self.char1, "mark of decay", [self.char2], 4, conditions=[("Poisoned", 4)]
+        )
+        self.assertEqual(self.char2.db.conditions["Poisoned"][0], 4)
+
+    def test_beneficial_conditions_get_the_same_bonus(self):
+        """The bonus applies to every condition this function grants,
+        not just harmful ones - a stronger caster's buffs last longer
+        too, the same principle as a longer curse."""
+        self.char1.db.ingenium = 16  # (16-10)//3 = 2 extra turns
+        self.char1.db.mp = 10
+        COMBAT_RULES.spell_add_condition(
+            self.char1, "auspice", [self.char1], 4, conditions=[("Defense Up", 3)]
+        )
+        self.assertEqual(self.char1.db.conditions["Defense Up"][0], 5)
+
+    def test_multiple_conditions_each_get_the_bonus(self):
+        self.char1.db.ingenium = 19
+        self.char1.db.mp = 10
+        COMBAT_RULES.spell_add_condition(
+            self.char1, "omen of ruin", [self.char2], 8,
+            conditions=[("Frightened", 3), ("Accuracy Down", 3), ("Damage Down", 3)],
+        )
+        for condition in ("Frightened", "Accuracy Down", "Damage Down"):
+            self.assertEqual(self.char2.db.conditions[condition][0], 6)
+
+
 class TestPromptRefreshDuringAutoAttack(CombatTestBase):
     """
     Regression coverage for two real bugs found live, in sequence:
@@ -2358,6 +2418,138 @@ class TestRecastingASummonReplacesRatherThanOrphansTheOldOne(CombatTestBase):
         self.assertIsNotNone(self.char1.db.active_companion)
 
 
+class TestSpellAnimateDead(CombatTestBase):
+    """
+    Haruspex's Animate Dead - a direct follow-up to a real player
+    question ("mechanically, how is this different from just casting
+    Summon Lemures again?"). Answer, locked in here: it scales with
+    whichever is LOWER of the killed target's own level or the
+    caster's level + ANIMATE_DEAD_LEVEL_CEILING_BONUS, so beating
+    something above your own level can genuinely outscale what Summon
+    Lemures could ever give you at your current level - Lemures stays
+    the safe, zero-risk baseline; this is the "convert a hard-won kill
+    into a real upgrade" option, at a real HP cost.
+    """
+
+    def _make_corpse(self, level=20, tag=None, quest_key=None, instance_owner=None):
+        from evennia.utils import create
+
+        corpse = create.create_object(
+            "typeclasses.characters.Character", key="a dead bandit", location=self.room1
+        )
+        corpse.db.hp = 0
+        corpse.db.max_hp = 50
+        corpse.db.level = level
+        corpse.db.damage_log = {self.char1: 50}
+        if tag:
+            corpse.tags.add(tag, category="npc_role")
+        if quest_key:
+            corpse.db.quest_key = quest_key
+        if instance_owner:
+            corpse.db.instance_owner = instance_owner
+        return corpse
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.level = 20
+        self.char1.db.mp = 50
+        self.char1.db.hp = 100
+        self.char1.db.max_hp = 100
+        self.char1.location = self.room1
+
+    def test_raises_a_companion_from_a_corpse_the_caster_helped_kill(self):
+        corpse = self._make_corpse()
+        COMBAT_RULES.spell_animate_dead(self.char1, "animate dead", [corpse], 12, hp_cost=10)
+
+        self.assertIsNotNone(self.char1.db.active_companion)
+        self.assertIn("animated corpse of", self.char1.db.active_companion.key)
+        self.assertIn("dead bandit", self.char1.db.active_companion.key)
+
+    def test_costs_both_mp_and_hp(self):
+        corpse = self._make_corpse()
+        COMBAT_RULES.spell_animate_dead(self.char1, "animate dead", [corpse], 12, hp_cost=10)
+
+        self.assertEqual(self.char1.db.mp, 38)
+        self.assertEqual(self.char1.db.hp, 90)
+
+    def test_refuses_a_living_target(self):
+        corpse = self._make_corpse()
+        corpse.db.hp = 50
+        COMBAT_RULES.spell_animate_dead(self.char1, "animate dead", [corpse], 12, hp_cost=10)
+        self.assertIsNone(self.char1.db.active_companion)
+
+    def test_refuses_a_real_player_characters_corpse(self):
+        self.char2.db.hp = 0
+        self.char2.db.damage_log = {self.char1: 50}
+        COMBAT_RULES.spell_animate_dead(self.char1, "animate dead", [self.char2], 12, hp_cost=10)
+        self.assertIsNone(self.char1.db.active_companion)
+
+    def test_refuses_a_kill_the_caster_had_no_part_in(self):
+        corpse = self._make_corpse()
+        corpse.db.damage_log = {self.char2: 50}  # someone ELSE got this kill
+        COMBAT_RULES.spell_animate_dead(self.char1, "animate dead", [corpse], 12, hp_cost=10)
+        self.assertIsNone(self.char1.db.active_companion)
+
+    def test_refuses_an_arena_fighter_corpse(self):
+        corpse = self._make_corpse(tag="arena_fighter")
+        COMBAT_RULES.spell_animate_dead(self.char1, "animate dead", [corpse], 12, hp_cost=10)
+        self.assertIsNone(self.char1.db.active_companion)
+
+    def test_refuses_a_colosseum_trainers_corpse(self):
+        corpse = self._make_corpse(tag="colosseum_trainer")
+        COMBAT_RULES.spell_animate_dead(self.char1, "animate dead", [corpse], 12, hp_cost=10)
+        self.assertIsNone(self.char1.db.active_companion)
+
+    def test_refuses_a_quest_npcs_corpse(self):
+        corpse = self._make_corpse(quest_key="some_quest")
+        COMBAT_RULES.spell_animate_dead(self.char1, "animate dead", [corpse], 12, hp_cost=10)
+        self.assertIsNone(self.char1.db.active_companion)
+
+    def test_refuses_a_personal_instance_corpse(self):
+        corpse = self._make_corpse(instance_owner=self.char2)
+        COMBAT_RULES.spell_animate_dead(self.char1, "animate dead", [corpse], 12, hp_cost=10)
+        self.assertIsNone(self.char1.db.active_companion)
+
+    def test_refuses_if_the_caster_cannot_afford_the_hp_cost(self):
+        corpse = self._make_corpse()
+        self.char1.db.hp = 10  # not enough to pay 10 and survive
+        COMBAT_RULES.spell_animate_dead(self.char1, "animate dead", [corpse], 12, hp_cost=10)
+        self.assertIsNone(self.char1.db.active_companion)
+        self.assertEqual(self.char1.db.hp, 10)  # nothing spent on a refused cast
+
+    def test_low_level_kill_gives_the_low_tier_minion(self):
+        corpse = self._make_corpse(level=10)
+        COMBAT_RULES.spell_animate_dead(self.char1, "animate dead", [corpse], 12, hp_cost=10)
+        self.assertEqual(self.char1.db.active_companion.db.max_hp, 40)  # TIER1
+
+    def test_a_kill_far_above_the_casters_level_is_capped_not_unbounded(self):
+        # caster is level 20; ceiling bonus is 10 -> effective level 30,
+        # even though the corpse itself claims to be level 90.
+        corpse = self._make_corpse(level=90)
+        COMBAT_RULES.spell_animate_dead(self.char1, "animate dead", [corpse], 12, hp_cost=10)
+        self.assertEqual(self.char1.db.active_companion.db.max_hp, 80)  # TIER2, not TIER4
+
+    def test_beating_something_above_caster_level_outscales_a_same_level_lemures(self):
+        # Summon Lemures at the caster's own level 20 would give TIER1
+        # (max_hp 40) - beating a level 35 target instead gives TIER2.
+        corpse = self._make_corpse(level=35)
+        COMBAT_RULES.spell_animate_dead(self.char1, "animate dead", [corpse], 12, hp_cost=10)
+        self.assertEqual(self.char1.db.active_companion.db.max_hp, 80)
+
+    def test_replaces_an_existing_companion_rather_than_orphaning_it(self):
+        corpse1 = self._make_corpse()
+        COMBAT_RULES.spell_animate_dead(self.char1, "animate dead", [corpse1], 12, hp_cost=10)
+        old_companion = self.char1.db.active_companion
+
+        corpse2 = self._make_corpse()
+        self.char1.db.mp = 50
+        self.char1.db.hp = 100
+        COMBAT_RULES.spell_animate_dead(self.char1, "animate dead", [corpse2], 12, hp_cost=10)
+
+        self.assertFalse(old_companion.pk)
+        self.assertNotEqual(old_companion, self.char1.db.active_companion)
+
+
 class TestInstanceCleanupTimerSkipsWhileFighting(CombatTestBase):
     """
     Regression coverage for a real, confirmed bug: this timer used to
@@ -2812,3 +3004,73 @@ class TestHostileNPCAppliesPerTurnConditions(CombatTestBase):
             npc.at_turn_start()
 
         mock_attack.assert_called_once_with(npc, self.char1)
+
+
+class TestAugurKitNoLongerOverlapsMedicusAndHaruspex(CombatTestBase):
+    """
+    Real, confirmed live balance fix from a direct player question
+    ("why does augur do all?"): Augur's own documented role (chargen_
+    menu.py) is "Support caster - buffs, predictive effects, and
+    short-range battlefield control" - but it shared Medicus's exact
+    signature heal (Cure Wounds) AND had a mythic-tier single-target
+    nuke (Wrath of Olympus, 45-65 damage) that out-hit anything
+    Haruspex - the actual dedicated offense caster - has at the same
+    level 90 tier. Fixed: Cure Wounds is Medicus-only again, replaced
+    on Augur's list with Bane (a real support-flavored curse, not a
+    heal), and Wrath of Olympus reworked into a controlled AoE that
+    never rivals Haruspex's own ceiling in damage-per-target or
+    target count.
+    """
+
+    def test_cure_wounds_is_medicus_only_now(self):
+        self.assertEqual(SPELLS["cure wounds"]["classes"], ["medicus"])
+
+    def test_bane_exists_for_augur_and_is_not_a_heal(self):
+        self.assertIn("bane", SPELLS)
+        self.assertEqual(SPELLS["bane"]["classes"], ["augur"])
+        self.assertIsNot(SPELLS["bane"]["spellfunc"], COMBAT_RULES.spell_healing)
+
+    def test_bane_applies_accuracy_down(self):
+        self.char1.db.mp = 10
+        COMBAT_RULES.spell_add_condition(
+            self.char1, "bane", [self.char2], 3, conditions=[("Accuracy Down", 3)]
+        )
+        self.assertIn("Accuracy Down", self.char2.db.conditions)
+
+    def test_wrath_of_olympus_never_out_damages_haruspexs_own_level_90_spell(self):
+        """
+        The actual balance requirement, checked directly against the
+        real numbers rather than just eyeballing it: neither Wrath of
+        Olympus's per-target damage nor its target count may exceed
+        Wail of the Damned's (Haruspex, also level 90) - Augur can
+        upgrade over ITS OWN Divine Judgment, but must never rival the
+        dedicated offense caster's own mythic tier.
+        """
+        wrath = SPELLS["wrath of olympus"]
+        wail = SPELLS["wail of the damned"]
+        self.assertLessEqual(wrath["damage_range"][1], wail["damage_range"][1])
+        self.assertLessEqual(wrath.get("max_targets", 1), wail["max_targets"])
+
+    def test_wrath_of_olympus_can_still_hit_multiple_targets(self):
+        third = create.create_object(
+            "typeclasses.characters.Character", key="a third target", location=self.room1
+        )
+        third.db.hp = third.db.max_hp = 100
+        third.db.virtus = third.db.agilitas = third.db.vigor = 10
+        # Deliberately high max_hp/hp, not the usual 100 - char2 is a
+        # real account-linked EvenniaTest fixture character, and a
+        # mocked randint=100 hit is otherwise LETHAL at 100 max_hp,
+        # which triggers the real, correct, entirely unrelated player-
+        # death/respawn system (a low-level "death" fully restores HP
+        # at the holding cells) - this test is only about whether the
+        # spell reaches multiple targets, not about death/respawn.
+        self.char2.db.hp = self.char2.db.max_hp = 1000
+
+        with patch("world.combat.randint", return_value=100):
+            COMBAT_RULES.spell_attack(
+                self.char1, "wrath of olympus", [self.char2, third], 15,
+                damage_range=(25, 35), attack_name=("A bolt of Olympian lightning", "bolts"),
+            )
+
+        self.assertLess(self.char2.db.hp, 1000)
+        self.assertLess(third.db.hp, 100)

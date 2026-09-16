@@ -35,13 +35,16 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-16"
 
 RECENT_UPDATES_TEXT = (
-    "Every race now has real, usable innate abilities of its own - see "
-    "'racialinfo' to check yours, 'racial <ability>' to use one, no MP "
-    "or SP required. New 'compare' command tells you which of two "
-    "weapons or armor pieces is actually better, in plain language. "
-    "Also fixed: conditions like Poison now actually deal their damage "
-    "against enemies (not just players), and a trainer who can't teach "
-    "your class now tells you exactly where the right one is."
+    "Haruspex gets a new spell - Animate Dead (level 55) raises the "
+    "corpse of an enemy you helped kill as a real companion - and both "
+    "casters' pet summons moved from level 65 to 50, matching Venator. "
+    "Curses like Mark of Decay now scale with Ingenium like every other "
+    "spell. Augur's kit was rebalanced too - Cure Wounds is now a "
+    "Medicus-only spell, replaced by a new debuff (Bane), and Wrath of "
+    "Olympus now strikes up to three enemies instead of one. Also fixed: "
+    "wielding/unwielding your own gear by name actually works now, "
+    "searching for an item matches any word in its name, and NPCs in a "
+    "fight now pause a beat between turns instead of chaining instantly."
 )
 
 # The box's own interior width, between its left/right borders and

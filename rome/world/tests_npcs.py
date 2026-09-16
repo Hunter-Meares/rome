@@ -220,7 +220,7 @@ class TestHostileNPCGatherActions(EvenniaTest):
 
         actions = npc._gather_actions()
         names = [a[1] for a in actions if a[0] == "spell"]
-        # "cure wounds" belongs to medicus/augur, not haruspex.
+        # "cure wounds" belongs to medicus, not haruspex.
         self.assertNotIn("cure wounds", names)
 
 

@@ -195,3 +195,67 @@ class TestDescriptionHelpTopic(EvenniaTest):
         create_all_help_entries()
         entry = HelpEntry.objects.get(db_key="description")
         self.assertIn("recog", entry.db_entrytext.lower())
+
+
+class TestShortcutsHelpTopic(EvenniaTest):
+    """
+    Direct follow-up request: point new players at Evennia's own
+    built-in 'nick' command for shortening repetitive spell/skill
+    commands, since it's easy to not know it exists at all.
+    """
+
+    def test_shortcuts_topic_exists_and_mentions_nick(self):
+        create_all_help_entries()
+        entry = HelpEntry.objects.filter(db_key="shortcuts").first()
+        self.assertIsNotNone(entry)
+        self.assertIn("nick", entry.db_entrytext.lower())
+
+    def test_newbie_topic_points_to_shortcuts(self):
+        create_all_help_entries()
+        entry = HelpEntry.objects.get(db_key="newbie")
+        self.assertIn("help shortcuts", entry.db_entrytext.lower())
+
+
+class TestIndividualRacialAbilityHelpEntries(EvenniaTest):
+    """
+    Real, confirmed live gap: a player asked in-character how to use
+    Boon of the Wilds, and 'help boon of the wilds' matched "Wild Rite
+    of Bacchus" (an unrelated cult topic sharing the word "wild")
+    instead of anything relevant, since no entry for the ability
+    itself existed. Mirrors the existing individual-faction-ability
+    help entries exactly, pulled from RACIAL_ABILITIES directly so
+    these can't drift from the real mechanics.
+    """
+
+    def test_every_racial_ability_gets_its_own_findable_entry(self):
+        from world.racial_abilities import RACIAL_ABILITIES
+
+        create_all_help_entries()
+        for ability_name in RACIAL_ABILITIES:
+            entry = HelpEntry.objects.filter(db_key=ability_name).first()
+            self.assertIsNotNone(entry, "no help entry for racial ability %r" % ability_name)
+
+    def test_boon_of_the_wilds_entry_is_the_real_one_not_a_fuzzy_match(self):
+        create_all_help_entries()
+        entry = HelpEntry.objects.get(db_key="boon of the wilds")
+        text = entry.db_entrytext.lower()
+        self.assertIn("nymph", text)
+        self.assertIn("racial boon of the wilds", text)
+
+    def test_rerunning_setup_does_not_create_duplicate_racial_entries(self):
+        """
+        Regression guard for the actual bug found while adding this:
+        the racial ability keys (and 'racial'/'shortcuts' themselves)
+        were missing from managed_keys, the list create_all_help_entries
+        clears before regenerating - re-running it would have silently
+        piled up duplicate HelpEntry rows for the same key instead of
+        replacing them.
+        """
+        from world.racial_abilities import RACIAL_ABILITIES
+
+        create_all_help_entries()
+        create_all_help_entries()
+        for ability_name in RACIAL_ABILITIES:
+            self.assertEqual(HelpEntry.objects.filter(db_key=ability_name).count(), 1)
+        self.assertEqual(HelpEntry.objects.filter(db_key="racial").count(), 1)
+        self.assertEqual(HelpEntry.objects.filter(db_key="shortcuts").count(), 1)

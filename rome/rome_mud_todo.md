@@ -6,6 +6,39 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## ⏱️ NPC turn pacing fix - ✅ this session
+
+- [x] **Direct player report**: combat turn timing felt "wonky" - diagnosed (not lag) as a real, deterministic consequence of hostile NPCs resolving their turns with zero delay while players wait on real typing, made more visible by this session's earlier `fight all` side-grouping fix (a group of NPCs now legitimately shares one side and cascades through several instant turns in a row before a player gets another turn).
+- [x] **`NPC_TURN_PACING_DELAY = 1.5`** (`world/combat.py`) - a real player only ever calls `start_turn` immediately (`CombatTurnHandler._start_turn_with_pacing`, checked via `getattr(character, "account", None)`); an NPC's turn is scheduled 1.5s later instead (`_delayed_start_turn`, re-validating the fight/turn state before actually starting - the same defensive re-check shape `try_auto_attack` already uses), giving a fight an actual human-readable rhythm without changing turn order, sides, or damage math at all.
+- [x] Full suite (379 tests) confirmed clean with this change in place - no existing turn-cascade test broke.
+
+## 🔮 Augur rebalance - ✅ this session
+
+- [x] **Direct player question** ("why does augur do all?" - Circe) confirmed real: Augur's own documented role (`chargen_menu.py`: "Support caster - buffs, predictive effects, and short-range battlefield control") had drifted to include Medicus's exact signature heal (Cure Wounds, shared identically) and a level-90 nuke (Wrath of Olympus) that out-damaged Haruspex's own level-90 spell per target.
+- [x] **Cure Wounds is now Medicus-only.** Replaced on Augur's list with a new level-1 spell, **Bane** (3 MP, Accuracy Down) - fits "predictive/battlefield control" without healing or raw damage.
+- [x] **Wrath of Olympus reworked from a single-target 45-65 hit into a 3-target AoE (25-35 each)** - verified by test to never out-damage-per-target or out-range Haruspex's own Wail of the Damned in either dimension.
+- [x] Website `abilities.html` and MOTD updated to match.
+
+---
+
+## 💀 Animate Dead + caster pet parity + channel god-access fix - ✅ this session
+
+- [x] **Caster summon spells rebalanced for level parity**: Summon Lemures (Haruspex) and Summon Familiar (Augur) both moved from level 65 to level 50, matching Venator's Call of the Wild - a real, direct question ("shouldn't casters get a pet before level 65?") confirmed both caster summons were tier-matched to EACH OTHER already, just needlessly 15 levels behind the physical class's own pet.
+- [x] **New Haruspex spell: Animate Dead (level 55, 12 MP + 10 HP)** - direct response to a real player asking "mechanically, how is this different from Summon Lemures?" after an earlier draft of the idea (raise ANY hexed NPC, up to 5 at once, for 3 real-world hours) got real pushback for being an unbounded, unprecedented power spike at level 10. Final version: raises the corpse of an enemy the caster personally helped kill THIS fight (checked against the same `damage_log` the XP split already uses), excludes players/bosses/quest NPCs, uses the same one-companion slot every other summon shares. Scales with whichever is LOWER of the target's own level or the caster's level + 10 - a real risk/reward niche (punch above your weight and win, get a companion Lemures could never give you at your current level) rather than a strictly-worse reskin of the caster's existing spell.
+- [x] **Real, confirmed live bug found and fixed while answering an unrelated channel complaint**: a real god (Jupiter, level 106) could not `channel/sub` any faction/religion channel - the lock strings checked `attr(level, 100, compare=gt)` directly, which reads db.level off whatever's being checked, but Evennia's own channel-subscribe path checks the ACCOUNT, and db.level only ever lives on the CHARACTER. Invisible until now because Jupiter's account is also a true superuser (bypasses every lock regardless - masking this for the one account most likely to test with). Fixed with a dedicated `is_god()` lockfunc (`server/conf/lockfuncs.py`) that falls back to the puppeted character's level when checking an Account.
+- [x] Per-racial-ability help entries added (`help boon of the wilds` etc. now find the real topic instead of a fuzzy false-positive match on an unrelated cult page) plus a new `help animate dead` (with in-fiction lore) and `help shortcuts` (points new players at Evennia's built-in `nick` command for spell/skill shortcuts) - `help newbie` now references it too.
+- [x] Website `abilities.html` updated to match (both summon spells at 50, Animate Dead listed).
+
+---
+
+## 🎓 Tiered trainers (beginner vs. advanced) - 💡 idea only, deliberately deferred
+
+- [ ] **Direct player suggestion, not yet built**: split each class's spells/skills across trainers by level instead of one trainer teaching everything for their whole path - e.g. the Ludus teaches only up to ~level 10, with more advanced instruction found elsewhere in the city (reinforcing "there's more to Rome than the Ludus," matching the tone `help newbie` already leans into).
+- [ ] **Why this is a real content project, not a quick tweak**: today there are exactly 2 trainers total, one per learning path (Ludus weapons master for skills, Flamen of the Cella for spells - see `help trainers`), and `CmdTrainer`/`find_trainer` (`world/combat.py`) assume exactly that: one trainer per path, globally. Doing this properly means designing and placing a real advanced-trainer NPC per class (8 of them) somewhere thematically fitting, and reworking the trainer-lookup logic to route by level tier instead of just by teaches-type.
+- [ ] Explicitly asked to be pushed later rather than built now - revisit once there's room for a real content pass on it.
+
+---
+
 ## 🧬 Racial abilities - ✅ framework + 5 abilities built this session, rest deliberately deferred
 
 - [x] **A real, confirmed gap, not a new idea**: `world/chargen_menu.py`'s own module docstring already said as much ("Signature abilities listed for each race/class are not yet implemented as real commands... a good next project once basic combat is solid") - but only the CLASS half of that ever actually got built (Mark of Decay, Rage of the North, etc. are all real, working spells/skills). Race abilities stayed pure flavor text, with no command, mechanic, or even a way to check them - confirmed live when a player asked directly in-character how to use their own race's listed abilities and there was genuinely no answer.

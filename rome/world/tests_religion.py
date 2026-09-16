@@ -36,6 +36,7 @@ from world.religion import (
     get_religion_channel,
     JupiterSanctumGateExit,
 )
+from server.conf.lockfuncs import is_god
 
 
 class TestPietyTier(EvenniaTest):
@@ -384,6 +385,107 @@ class TestReligionChannels(EvenniaTest):
         mercury_channel = get_religion_channel("mercury")
         self.assertFalse(mars_channel.has_connection(self.char1))
         self.assertTrue(mercury_channel.has_connection(self.char1))
+
+
+class TestIsGodLockfunc(EvenniaTest):
+    """
+    Real, confirmed live bug reported directly by a player: a real god
+    (Jupiter, level 106) could not 'channel/sub' any faction/religion
+    channel at all. Root cause - these channels' listen/send/control
+    locks used to read "attr(level, 100, compare=gt)" directly, which
+    is correct when checked against a CHARACTER (every other god-check
+    in this game compares caller.db.level the same way) but wrong for
+    an ACCOUNT: Evennia's own channel /sub path (comms.py's
+    sub_to_channel -> Channel.connect) checks self.caller, which for
+    an account-level command IS the account, not the puppeted
+    character - and db.level only ever lives on the character. It was
+    invisible for a long time specifically because Jupiter's account
+    also happens to be a true superuser, which bypasses every lock
+    unconditionally regardless of what the lock string even says (see
+    CLAUDE.md gotcha #6) - masking this for the one account most
+    likely to be used for testing, while leaving it silently broken
+    for any future non-superuser god. Fixed with a dedicated is_god()
+    lockfunc (server/conf/lockfuncs.py) that checks the puppeted
+    character's level when given an Account.
+
+    Tests is_god() directly against plain Mock stand-ins for the
+    account case, rather than a real Account - Account.puppet depends
+    on an actual live SESSION currently puppeting (get_all_puppets()
+    reads self.sessions.all()), not any stored attribute a test could
+    just set directly, so a real end-to-end simulation would mean
+    standing up a whole fake session just to prove this one function's
+    own logic. The channel-integration tests below it don't have that
+    problem - a plain Character needs no session at all.
+    """
+
+    def test_true_for_a_characters_own_high_level(self):
+        self.char1.db.level = 106
+        self.assertTrue(is_god(self.char1, None))
+
+    def test_false_for_a_characters_own_low_level(self):
+        self.char1.db.level = 10
+        self.assertFalse(is_god(self.char1, None))
+
+    def test_false_when_level_was_never_set_at_all(self):
+        self.assertFalse(is_god(self.char1, None))
+
+    def test_true_for_an_account_via_its_puppeted_characters_level(self):
+        """The actual bug this fixes: an Account has no db.level of
+        its own at all - only a Character does."""
+        from unittest.mock import Mock
+
+        self.char1.db.level = 106
+        fake_account = Mock()
+        fake_account.attributes.get.return_value = None
+        fake_account.puppet = self.char1
+        self.assertTrue(is_god(fake_account, None))
+
+    def test_false_for_an_account_with_no_puppet_at_all(self):
+        from unittest.mock import Mock
+
+        fake_account = Mock()
+        fake_account.attributes.get.return_value = None
+        fake_account.puppet = None
+        self.assertFalse(is_god(fake_account, None))
+
+    def test_false_for_an_account_whose_puppet_is_not_a_god(self):
+        from unittest.mock import Mock
+
+        self.char1.db.level = 10
+        fake_account = Mock()
+        fake_account.attributes.get.return_value = None
+        fake_account.puppet = self.char1
+        self.assertFalse(is_god(fake_account, None))
+
+
+class TestGodChannelAccess(EvenniaTest):
+    """Integration coverage: the real faction/religion channel lock
+    strings actually use is_god() and grant a god's CHARACTER access
+    regardless of faction/religion membership - the part that doesn't
+    require simulating a real session to test."""
+
+    def test_a_gods_character_can_listen_without_being_a_member(self):
+        ensure_religion_channels_exist()
+        self.char1.db.level = 106
+        self.char1.db.religion = None
+        channel = get_religion_channel("mars")
+        self.assertTrue(channel.access(self.char1, "listen"))
+
+    def test_a_non_god_non_member_is_denied(self):
+        ensure_religion_channels_exist()
+        self.char1.db.level = 10
+        self.char1.db.religion = None
+        channel = get_religion_channel("mars")
+        self.assertFalse(channel.access(self.char1, "listen"))
+
+    def test_faction_channels_get_the_same_fix(self):
+        from world.factions import ensure_faction_channels_exist, get_faction_channel
+
+        ensure_faction_channels_exist()
+        self.char1.db.level = 101
+        self.char1.db.faction = None
+        channel = get_faction_channel("imperial_legion")
+        self.assertTrue(channel.access(self.char1, "listen"))
 
 
 class TestJupiterSanctumGateExit(EvenniaTest):

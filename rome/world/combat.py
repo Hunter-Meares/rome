@@ -71,6 +71,24 @@ ACTIONS_PER_TURN = 1  # Number of actions allowed per turn
 # (none of which hardcode this exact number) if tuning it again.
 AUTO_ATTACK_DELAY = 8
 
+# How many real seconds to wait before an auto-acting fighter's own
+# turn actually starts (see CombatTurnHandler.next_turn/
+# _delayed_start_turn). Real, confirmed live complaint: a player
+# ("Countdown") reported combat timing as "wonky" - long waits, then
+# several turns in under a second. Traced to real, deterministic
+# behavior, not lag: a real player's turn genuinely waits on their own
+# typing (up to TURN_TIMEOUT), but nothing here EVER delayed a
+# HostileNPC/SummonedAlly's own turn - at_turn_start for either one
+# resolves an attack synchronously the instant it's called, so a chain
+# of several auto-acting fighters in a row (the exact shape 'fight
+# all' now correctly produces after this session's own side-grouping
+# fix) could all act within the same fraction of a second, faster than
+# a player could ever read the first one's own combat message. This
+# doesn't change any combat math at all - only how long an
+# already-decided auto-action waits before firing - so it's purely a
+# pacing/readability fix, not a balance change.
+NPC_TURN_PACING_DELAY = 1.5
+
 # Percentage of max MP/SP restored at the start of a character's own
 # turn. MP/SP previously never recovered mid-fight at all (only
 # 'rest', out of combat, touched them) - meaning every fight's later
@@ -330,6 +348,13 @@ MARKED_FOR_DEATH_DAMAGE_BONUS = 35
 # lands a hit while Riposte Ready is active.
 RIPOSTE_COUNTER_DAMAGE = 20
 NONPROFICIENT_DAMAGE_MULTIPLIER = 0.75  # 25% damage reduction
+
+# Haruspex's Animate Dead - how far above the caster's OWN level a
+# raised minion's effective level can reach (see spell_animate_dead's
+# own docstring for the full "why this differs from Summon Lemures"
+# reasoning). Bounds the upside a single tough kill can grant, the
+# same way every core stat's own lifetime cap bounds a stat point.
+ANIMATE_DEAD_LEVEL_CEILING_BONUS = 10
 
 # Mirrors the weapon penalties above exactly, applied to body armor/shields
 # worn outside CLASS_ARMOR_PROFICIENCIES - too heavy/unfamiliar to move in
@@ -2469,10 +2494,38 @@ class CombatRules:
         """
         Spell that grants a condition to its targets - the spell
         equivalent of itemfunc_add_condition. Used for buff spells like
-        Augur's Auspice (Defense Up) and Favour of the Sky (Accuracy Up).
+        Augur's Auspice (Defense Up) and Favour of the Sky (Accuracy Up),
+        and every Haruspex curse/DOT (Mark of Decay, Soul Rot, etc.).
+
+        Real, confirmed live balance gap found this way: every OTHER
+        Haruspex/Augur damage spell (spell_attack) gives Ingenium a
+        real, felt bonus to both accuracy and damage - but a condition
+        applied here used to land with a fixed duration no matter how
+        invested the caster was in their own class's primary stat,
+        making Ingenium do nothing at all for half the class's own
+        kit. A real player noticed directly: Mark of Decay's total
+        damage (a few ticks of a flat, global 4-8/turn poison roll -
+        see apply_turn_conditions/POISON_RATE) came out lower than a
+        single unbuffed basic attack, even with 17 Ingenium invested.
+
+        Fixed by extending DURATION with Ingenium instead of touching
+        the shared per-tick damage roll itself - that mechanic is also
+        used by other classes' own conditions (a Speculator's Poisoned
+        Blade, a wilderness NPC's bite, etc.), and rescaling it by the
+        INFLICTER's Ingenium specifically would be wrong for any
+        non-Ingenium source. A longer curse (or a longer buff - this
+        applies to every condition this function grants, not just
+        harmful ones) extends its total value the same way more
+        damage per tick would, without touching a mechanic other
+        classes also depend on. Divisor of 3 (vs. spell_attack/
+        spell_healing's own divisor of 2 for damage) is deliberately
+        gentler - a duration turn is worth more than a damage point,
+        and every core stat's own lifetime cap already bounds the
+        maximum bonus this can ever reach.
         """
         conditions = kwargs.get("conditions", [("Defense Up", 3)])
         spell_msg = "%s casts %s!" % (caster, spell_name)
+        duration_bonus = max(0, ((caster.db.ingenium or 10) - 10) // 3)
 
         # Announce the cast BEFORE applying conditions - add_condition()
         # sends its own "gains the condition" message immediately, so
@@ -2484,7 +2537,9 @@ class CombatRules:
 
         for target in targets:
             for condition in conditions:
-                self.add_condition(target, caster, condition[0], condition[1])
+                self.add_condition(
+                    target, caster, condition[0], condition[1] + duration_bonus
+                )
 
         if self.is_in_combat(caster):
             self.spend_action(caster, 1, action_name="cast")
@@ -2712,6 +2767,104 @@ class CombatRules:
             turnhandler = caster.db.combat_turnhandler
             if turnhandler and turnhandler.pk:
                 turnhandler.join_fight(lemures, side=caster.db.combat_side)
+            self.spend_action(caster, 1, action_name="cast")
+
+    def spell_animate_dead(self, caster, spell_name, targets, cost, **kwargs):
+        """
+        Haruspex's Animate Dead - raises the corpse of an enemy the
+        caster personally helped kill THIS fight as a real companion,
+        in the same active_companion slot Summon Lemures/Summon
+        Familiar/Call of the Wild all share (one at a time, recasting
+        - or casting this - replaces whatever's already out).
+
+        Direct design response to a real question: how is this
+        mechanically different from just casting Summon Lemures again?
+        Lemures scales with the CASTER's own level - always available,
+        zero risk, a flat and predictable baseline. This scales with
+        whichever is LOWER of the target's own level or (caster's
+        level + ANIMATE_DEAD_LEVEL_CEILING_BONUS) - so fighting and
+        beating something at or below your own level is a pure wash
+        against just recasting Lemures (not worse, but the added HP
+        cost below makes Lemures the smarter routine choice), while
+        deliberately punching up and winning lets this genuinely
+        outscale what Lemures could ever give you at your current
+        level, up to that bonus's cap. The HP cost is what makes that
+        upside cost something real, the same "blood magic" precedent
+        Blood Sacrament already sets, rather than a strictly-better
+        replacement for the caster's existing spell.
+
+        Refuses cleanly (spending nothing) rather than raising a corpse
+        that shouldn't answer: only a genuinely defeated NPC (never a
+        real player's death - that's a much bigger consent question
+        this spell deliberately stays out of), only one the caster's
+        own damage_log shows they actually helped kill (found via the
+        same damage_log every XP/gold split already reads - a bystander
+        can't claim a kill that wasn't theirs), and never anything
+        tagged as unique/story-critical content (an Arena Fighter, a
+        Colosseum escape trainer, or any quest-key/personal-instance
+        NPC) - otherwise a single named boss kill could be farmed into
+        a permanent, always-available top-tier minion forever.
+        """
+        hp_cost = kwargs.get("hp_cost", 10)
+
+        if not targets or targets[0] is None:
+            caster.msg("Animate Dead needs a target - the corpse of something you just helped kill.")
+            return
+        target = targets[0]
+
+        if getattr(target, "account", None):
+            caster.msg(
+                "You cannot animate the dead of the living - only a defeated "
+                "NPC's corpse will answer this rite."
+            )
+            return
+        if target.db.hp:
+            caster.msg("%s is not dead." % target.key)
+            return
+        damage_log = target.db.damage_log or {}
+        if damage_log.get(caster, 0) <= 0:
+            caster.msg("You must have a hand in this one's death to claim their corpse.")
+            return
+        if (
+            target.tags.has("arena_fighter", category="npc_role")
+            or target.tags.has("colosseum_trainer", category="npc_role")
+            or target.db.quest_key
+            or target.db.instance_owner
+        ):
+            caster.msg("Something protects this corpse - it will not answer your call.")
+            return
+        if caster.db.hp <= hp_cost:
+            caster.msg("You don't have enough blood left to spare for this rite.")
+            return
+
+        level = min(target.db.level or 1, (caster.db.level or 1) + ANIMATE_DEAD_LEVEL_CEILING_BONUS)
+        if level < 30:
+            prototype = "HARUSPEX_LEMURES_TIER1"
+        elif level < 60:
+            prototype = "HARUSPEX_LEMURES_TIER2"
+        elif level < 90:
+            prototype = "HARUSPEX_LEMURES_TIER3"
+        else:
+            prototype = "HARUSPEX_LEMURES_TIER4"
+
+        self.release_pet(caster.db.active_companion, caster, reason="replaced")
+
+        corpse_name = target.db.base_name or target.key
+        minion = self.spawn_personal_npc(kwargs.get("lemures_prototype", prototype), caster)
+        minion.key = "the animated corpse of %s" % corpse_name
+        caster.db.active_companion = minion
+
+        caster.db.hp -= hp_cost
+        caster.db.mp -= cost
+        caster.location.msg_contents(
+            "%s intones a rite of the underworld over %s - the corpse rises, "
+            "bound to their will!" % (caster, corpse_name)
+        )
+
+        if self.is_in_combat(caster):
+            turnhandler = caster.db.combat_turnhandler
+            if turnhandler and turnhandler.pk:
+                turnhandler.join_fight(minion, side=caster.db.combat_side)
             self.spend_action(caster, 1, action_name="cast")
 
     # Destinations Gate is allowed to reach - deliberately a small,
@@ -3626,10 +3779,36 @@ SPELLS = {
     },
     "summon lemures": {
         "spellfunc": COMBAT_RULES.spell_summon_lemures,
-        "level_required": 65,
+        # Real, direct balance question from the user: casters getting
+        # their one summon 15 levels later than Venator (level 50,
+        # skill_call_of_the_wild) - both physical and caster summons
+        # already share the exact same tier breakpoints/HP curve
+        # (level<30/60/90), so lowering this to match doesn't change
+        # anything about the companion itself, only when it becomes
+        # available - a real level 50 access parity fix, not a power
+        # increase.
+        "level_required": 50,
         "desc": "Calls a restless spirit of the dead to fight at the caster's side. Strength scales with the caster's level.",
         "target": "none",
         "cost": 10,
+        "classes": ["haruspex"],
+    },
+    "animate dead": {
+        "spellfunc": COMBAT_RULES.spell_animate_dead,
+        "level_required": 55,
+        "desc": "Raises the corpse of an enemy you personally helped "
+        "kill this fight as a companion - see 'help animate dead' for "
+        "the real requirements and how this differs from Summon "
+        "Lemures.",
+        "target": "otherchar",
+        "cost": 12,
+        "hp_cost": 10,
+        # Deliberately usable OUT of combat too (the default for any
+        # spell here, but worth stating explicitly given the theme) -
+        # a solo kill ends the fight the instant the last enemy dies,
+        # so the corpse this spell needs to target is very often
+        # already lying in a room with no active combat left at all
+        # by the time the caster gets a chance to raise it.
         "classes": ["haruspex"],
     },
     "necrotic storm": {
@@ -3732,7 +3911,10 @@ SPELLS = {
     },
     "summon familiar": {
         "spellfunc": COMBAT_RULES.spell_summon_familiar,
-        "level_required": 65,
+        # See the identical note on Haruspex's Summon Lemures - both
+        # caster summons now match Venator's level 50 access instead
+        # of lagging 15 levels behind for no examined reason.
+        "level_required": 50,
         "desc": "Calls a divine bird to fight at the caster's side. Strength scales with the caster's level.",
         "target": "none",
         "cost": 10,
@@ -3750,12 +3932,44 @@ SPELLS = {
     "wrath of olympus": {
         "spellfunc": COMBAT_RULES.spell_attack,
         "level_required": 90,
-        "desc": "Mythic tier. A devastating bolt of Olympian lightning.",
+        # Real, confirmed live balance fix, found by direct player
+        # question ("why does augur do all?"): this used to be a
+        # single-target 45-65 hit - stronger PER-TARGET than anything
+        # Haruspex (the actual dedicated offense caster) has at the
+        # same level 90 tier, on top of Augur already matching
+        # Medicus's healing and Haruspex's own debuffs. Reworked into
+        # a controlled AoE instead - fewer targets (3, not Wail of the
+        # Damned's 5) AND less damage per target (25-35, not 30-45) -
+        # a real mythic-tier upgrade over Divine Judgment, but never
+        # rivaling Haruspex's own ceiling in either dimension. Also a
+        # better thematic fit for Augur's actual documented role
+        # ("short-range battlefield control") than a single bolt ever
+        # was - lightning that arcs between several targets, not one.
+        "desc": "Mythic tier. Olympian lightning arcs between up to three enemies at once.",
         "target": "otherchar",
         "cost": 15,
         "noncombat_spell": False,
+        "max_targets": 3,
         "attack_name": ("A bolt of Olympian lightning", "bolts of Olympian lightning"),
-        "damage_range": (45, 65),
+        "damage_range": (25, 35),
+        "classes": ["augur"],
+    },
+    "bane": {
+        "spellfunc": COMBAT_RULES.spell_add_condition,
+        "level_required": 1,
+        # Replaces Cure Wounds as Augur's level-1 spell - see that
+        # entry's own comment for the full reasoning. A real, classic
+        # low-level curse (not a heal, not raw damage) actually fits
+        # "buffs, predictive effects, and short-range battlefield
+        # control" - an ill omen read against a target, souring their
+        # next few strikes, mirrors Auspice/Favour of the Sky's own
+        # shape (a short Accuracy swing) but aimed at an enemy instead
+        # of the caster/an ally, giving a level-1 Augur a real
+        # class-appropriate option from the very start.
+        "desc": "Reads an ill omen against a target, souring their aim for a short time.",
+        "target": "otherchar",
+        "cost": 3,
+        "conditions": [("Accuracy Down", 3)],
         "classes": ["augur"],
     },
     "birdsight": {
@@ -3791,7 +4005,17 @@ SPELLS = {
         "desc": "Heals a single ally a moderate amount.",
         "target": "anychar",
         "cost": 5,
-        "classes": ["medicus", "augur"],
+        # Medicus-only now - a real, confirmed live balance gap found
+        # by direct player question ("why does augur do all?"):
+        # Augur's own documented role is "Support caster - buffs,
+        # predictive effects, and short-range battlefield control",
+        # not healing - Medicus's ENTIRE reason to exist is "Primary
+        # healer" (see both classes' own "role" text, chargen_menu.py).
+        # Sharing Medicus's exact signature heal, unmodified, meant
+        # Augur genuinely healed exactly as well as the dedicated
+        # healer on top of everything else it already does. Replaced
+        # with "bane" below - a real Augur spell, not a healing one.
+        "classes": ["medicus"],
     },
     "mass cure wounds": {
         "spellfunc": COMBAT_RULES.spell_healing,
@@ -6215,7 +6439,7 @@ class CombatTurnHandler(DefaultScript):
         self.db.timer = TURN_TIMEOUT
         self.db.timeout_warning_given = False
 
-        self.start_turn(self.db.fighters[0])
+        self._start_turn_with_pacing(self.db.fighters[0])
 
     def at_stop(self):
         for fighter in self.db.fighters:
@@ -6469,7 +6693,49 @@ class CombatTurnHandler(DefaultScript):
         for fighter in self.db.fighters:
             self.rules.condition_tickdown(fighter, newchar)
 
-        self.start_turn(newchar)
+        self._start_turn_with_pacing(newchar)
+
+    def _start_turn_with_pacing(self, character):
+        """
+        Starts `character`'s turn - immediately if they're a real
+        player (getattr(character, "account", None), the same "is
+        this a real player" check used throughout this file, e.g.
+        gotcha #14's PvP-XP fix), since a human's own turn already
+        waits on their own typing and delaying the "it's your turn"
+        message itself would only make the game feel unresponsive.
+
+        For anything else (HostileNPC, SummonedAlly - any auto-acting
+        fighter), waits NPC_TURN_PACING_DELAY seconds first (see that
+        constant's own comment for the full "why" - a real player-
+        reported timing complaint traced to zero-delay NPC turns, not
+        lag). Not a persistent delay - this is a purely cosmetic
+        pacing gap on the order of a second or two, nothing worth
+        surviving a server reload for (contrast RespawnTimer, which
+        genuinely needs to).
+        """
+        if getattr(character, "account", None):
+            self.start_turn(character)
+        else:
+            evennia_utils.delay(NPC_TURN_PACING_DELAY, self._delayed_start_turn, character)
+
+    def _delayed_start_turn(self, character):
+        """
+        Callback for _start_turn_with_pacing's own delay - re-validates
+        before actually calling start_turn(), the same defensive shape
+        try_auto_attack already uses for its own delayed callback, in
+        case anything about this fight changed in the second or two
+        since the delay was scheduled (the fight already ending, this
+        character having been pruned from db.fighters, or the turn
+        somehow having already moved on for some other reason).
+        """
+        if not self.pk:
+            return
+        fighters = self.db.fighters or []
+        if character not in fighters:
+            return
+        if fighters[self.db.turn] != character:
+            return
+        self.start_turn(character)
 
     def turn_end_check(self, character):
         if not character.db.combat_actionsleft:
