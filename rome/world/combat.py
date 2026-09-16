@@ -4209,6 +4209,22 @@ SPELLS = {
         "conditions": [("Accuracy Down", 4), ("Damage Down", 4)],
         "classes": ["augur"],
     },
+    "enchant weapon": {
+        "spellfunc": COMBAT_RULES.spell_add_condition,
+        "level_required": 45,
+        # Direct balance request: Augur had Bane/Favour of the Sky/
+        # Blessing of Fortune for buffing/debuffing an ALLY or enemy,
+        # but nothing offensive it could cast on ITSELF - Auspice is
+        # its only self-buff, and that's purely defensive. Reuses
+        # Accuracy Up/Damage Up together rather than inventing a real
+        # temporary-item-enchantment mechanic (which doesn't exist
+        # anywhere in the game) - same shape as Gladiator's own Favor.
+        "desc": "Traces a rune of power across the caster's own weapon, sharpening both its edge and its aim.",
+        "target": "self",
+        "cost": 6,
+        "conditions": [("Accuracy Up", 3), ("Damage Up", 3)],
+        "classes": ["augur"],
+    },
     "prophetic ward": {
         "spellfunc": COMBAT_RULES.spell_add_condition,
         "level_required": 50,
@@ -4245,6 +4261,21 @@ SPELLS = {
         "target": "keyword",
         "cost": 8,
         "combat_spell": False,
+        "classes": ["augur"],
+    },
+    "petrify": {
+        "spellfunc": COMBAT_RULES.spell_add_condition,
+        "level_required": 85,
+        # Direct balance request, a genuinely new tool for Augur - no
+        # Augur/Medicus spell grants Paralyzed anywhere in the game
+        # (only Minotaur's racial Bull Rush and Praetorian's Coerce
+        # skill do, both also just 1 turn). Gated high, matching how
+        # both of those existing sources already treat skipping a
+        # whole turn as a serious effect, not a cheap one.
+        "desc": "Turns a target's flesh to stone for a single, unbroken moment - they cannot act.",
+        "target": "otherchar",
+        "cost": 12,
+        "conditions": [("Paralyzed", 1)],
         "classes": ["augur"],
     },
     "wrath of olympus": {
@@ -4371,6 +4402,26 @@ SPELLS = {
         "conditions": [("Death Ward", 6)],
         "classes": ["medicus"],
     },
+    "cancellation": {
+        "spellfunc": COMBAT_RULES.spell_cure_condition,
+        "level_required": 55,
+        # Direct balance request: Antidote/Purify/Cleanse all cure the
+        # exact same five conditions (Poisoned, Frightened, Accuracy/
+        # Damage/Defense Down) - none of them ever touch Cursed,
+        # Silenced, or Marked for Death, which have no cure anywhere
+        # in the game. This is the real top-tier version, not a
+        # fourth duplicate - cures everything the other three do, plus
+        # the three gaps none of them cover.
+        "desc": "A true dispelling - cures every harmful condition known, up to five allies at once.",
+        "target": "anychar",
+        "cost": 14,
+        "max_targets": 5,
+        "to_cure": [
+            "Poisoned", "Frightened", "Accuracy Down", "Damage Down", "Defense Down",
+            "Cursed", "Silenced", "Marked for Death",
+        ],
+        "classes": ["medicus"],
+    },
     "blessing of asclepius": {
         "spellfunc": COMBAT_RULES.spell_resurrect,
         "level_required": 80,
@@ -4387,10 +4438,29 @@ SPELLS = {
         "cost": 20,
         "classes": ["medicus"],
     },
+    "bolt of glory": {
+        "spellfunc": COMBAT_RULES.spell_attack,
+        "level_required": 95,
+        # Direct request: Medicus's own signature capstone, matching
+        # the mythic single-target benchmark every other class already
+        # has (Gladiator's Glory, Haruspex's Wail of the Damned/AoE).
+        # Deliberately single-target, not AoE - Medicus's kit is a
+        # support caster's, not a battlefield-control one, so its own
+        # capstone doesn't need to chase Wrath of Olympus/Wail of the
+        # Damned's target count, just hit as hard as their own single
+        # hardest hit.
+        "desc": "Mythic tier. A column of divine light crashes down on a single enemy - Medicus's own signature strike.",
+        "target": "otherchar",
+        "cost": 18,
+        "noncombat_spell": False,
+        "attack_name": ("A column of divine light", "columns of divine light"),
+        "damage_range": (45, 65),
+        "classes": ["medicus"],
+    },
     "smite the unclean": {
         "spellfunc": COMBAT_RULES.spell_attack,
         "level_required": 65,
-        "desc": "A lance of holy light - Medicus's one offensive spell.",
+        "desc": "A lance of holy light - Medicus's mid-tier offensive spell.",
         "target": "otherchar",
         "cost": 6,
         "noncombat_spell": False,
@@ -4469,6 +4539,22 @@ SPELLS = {
         "target": "anychar",
         "cost": 4,
         "to_cure": ["Poisoned", "Frightened", "Accuracy Down", "Damage Down", "Defense Down"],
+        "classes": ["medicus"],
+    },
+    "spear of faith": {
+        "spellfunc": COMBAT_RULES.spell_attack,
+        "level_required": 10,
+        # Direct balance request: Medicus had no offensive option at
+        # all until Smite the Unclean (level 65) - a genuine gap for a
+        # class whose whole early game was otherwise pure support.
+        # Deliberately weaker than Smite, not a reskin of it - a real
+        # early option, not the class's real damage identity.
+        "desc": "A spear of pure faith, hurled at an enemy - Medicus's first real offensive option.",
+        "target": "otherchar",
+        "cost": 4,
+        "noncombat_spell": False,
+        "attack_name": ("A spear of searing faith", "spears of searing faith"),
+        "damage_range": (12, 20),
         "classes": ["medicus"],
     },
     "conjure torch": {
@@ -5119,10 +5205,21 @@ SKILLS = {
         "target": "otherchar",
         "cost": 7,
         "level_required": 10,
-        "conditions": [("Poisoned", 4)],
+        # Real, confirmed live complaint: this used to grant Poisoned -
+        # the exact same condition Haruspex's own Mark of Decay/Soul
+        # Rot already grant, meaning a Haruspex who also joins Cult of
+        # Hecate got a spell that was never anything more than a
+        # reskinned duplicate of one they already had (conditions
+        # don't stack by name, so casting one just overwrites the
+        # other). Switched to Frightened - genuinely distinct from
+        # everything in Haruspex's own kit (which already covers
+        # Poisoned, Accuracy/Defense/Damage Down, Cursed, and Silenced
+        # via dedicated spells - Frightened is the one condition it
+        # only ever grants as part of a combo, never on its own).
+        "conditions": [("Frightened", 4)],
         "classes": ["faction"],
         "factions": ["cult_of_hecate"],
-        "desc": "A classic witch's curse - damage over time.",
+        "desc": "A classic witch's curse - leaves a target too unnerved to fight effectively.",
     },
     "curse": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -5623,9 +5720,12 @@ class AutoStatNPC(DefaultCharacter):
     derived automatically from race/class/level, instead of every
     single prototype needing to hand-compute and hardcode hp/mp/sp
     and core stats individually (the old pattern used for the Arena
-    Fighters). Set db.race, db.player_class, and db.level in the
-    prototype - at_object_post_creation calls derive_npc_stats() and
-    applies the results automatically.
+    Fighters). Set db.level in the prototype, and db.race/db.
+    player_class too if this NPC has a real playable-archetype
+    identity - at_object_post_creation calls derive_npc_stats() and
+    applies the results automatically either way, race/class or not
+    (see derive_npc_stats' own docstring for its None/None baseline,
+    meant for beasts and other creatures with no race/class at all).
 
     Deliberately uses at_object_post_creation, NOT at_object_creation
     - a real, documented Evennia gotcha: at_object_creation fires
@@ -5641,6 +5741,22 @@ class AutoStatNPC(DefaultCharacter):
     should NOT use this typeclass - they don't need combat stats at
     all, and should stick with plain evennia.objects.objects.
     DefaultCharacter, same as Milo/Titus/Herald already do.
+
+    Real, confirmed live bug found via a direct player report ("are
+    feral sewer mutants not supposed to be fightable?"): this used to
+    only call derive_npc_stats() `if race or player_class` - but
+    derive_npc_stats() explicitly documents that BOTH can be None for
+    "beasts, spirits, generic mooks" with no real playable-archetype
+    identity, returning a flat level-scaled baseline for exactly that
+    case. The guard defeated that on purpose-built monster prototypes
+    that never set either (SEWER_FERAL_MUTANT, SEWER_CISTERN_LURKER),
+    leaving them with db.hp/max_hp/etc. as None forever - not merely
+    "at 0 HP" (the earlier, unrelated at_defeat bug this project
+    already fixed), but never having had real stats at all from the
+    moment they were ever spawned. `fight`'s own `if not target.db.hp`
+    check can't tell the difference between "dead" and "never had HP,"
+    which is why this looked identical to that earlier bug from a
+    player's perspective despite having a completely different cause.
     """
 
     def at_object_post_creation(self):
@@ -5650,10 +5766,9 @@ class AutoStatNPC(DefaultCharacter):
         player_class = self.db.player_class
         level = self.db.level or 1
 
-        if race or player_class:
-            stats = derive_npc_stats(race, player_class, level)
-            for key, value in stats.items():
-                self.attributes.add(key, value)
+        stats = derive_npc_stats(race, player_class, level)
+        for key, value in stats.items():
+            self.attributes.add(key, value)
 
 
 class HostileNPC(AutoStatNPC):

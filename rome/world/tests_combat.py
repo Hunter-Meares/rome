@@ -2411,6 +2411,29 @@ class TestSkillAddConditionScalesDurationWithAgilitasOrVirtus(CombatTestBase):
         self.assertEqual(self.char2.db.conditions["Poisoned"][0], 4)
 
 
+class TestHexGrantsFrightenedNotPoisoned(CombatTestBase):
+    """
+    Real, confirmed live complaint (Circe): Hex (Cult of Hecate) used
+    to grant Poisoned - the exact same condition Haruspex's own Mark
+    of Decay/Soul Rot already grant, so a Haruspex who also joined
+    Hecate got nothing but a reskinned duplicate (conditions don't
+    stack by name, so casting one just overwrites the other). Switched
+    to Frightened, which Haruspex never grants as its own dedicated
+    spell (only as one part of Omen of Ruin's combo).
+    """
+
+    def test_hex_is_wired_to_grant_frightened(self):
+        self.assertEqual(SKILLS["hex"]["conditions"], [("Frightened", 4)])
+
+    def test_casting_hex_grants_frightened_not_poisoned(self):
+        self.char1.db.sp = 10
+        COMBAT_RULES.skill_add_condition(
+            self.char1, "hex", [self.char2], 7, conditions=SKILLS["hex"]["conditions"]
+        )
+        self.assertIn("Frightened", self.char2.db.conditions)
+        self.assertNotIn("Poisoned", self.char2.db.conditions)
+
+
 class TestPromptRefreshDuringAutoAttack(CombatTestBase):
     """
     Regression coverage for two real bugs found live, in sequence:
@@ -3618,6 +3641,67 @@ class TestAugurKitNoLongerOverlapsMedicusAndHaruspex(CombatTestBase):
 
         self.assertLess(self.char2.db.hp, 1000)
         self.assertLess(third.db.hp, 100)
+
+
+class TestNewMedicusAndAugurBalanceSpells(CombatTestBase):
+    """
+    Direct balance follow-up after Haruspex's kit grew to 20 spells
+    against Augur's 15 and Medicus's 16 - five new spells, trimmed
+    down from a longer player-suggested list after checking each idea
+    against the existing kits (several of the original suggestions
+    turned out to already exist under other names: Bless, Invisibility/
+    Veil of Night, Chain Lightning/Wrath of Olympus).
+    """
+
+    def test_spear_of_faith_exists_for_medicus_and_deals_damage(self):
+        self.assertEqual(SPELLS["spear of faith"]["classes"], ["medicus"])
+        self.char2.db.hp = self.char2.db.max_hp = 1000
+        self.char1.db.mp = 10
+        with patch("world.combat.randint", return_value=100):
+            COMBAT_RULES.spell_attack(
+                self.char1, "spear of faith", [self.char2], 4,
+                damage_range=(12, 20), attack_name=("A spear of searing faith", "spears"),
+            )
+        self.assertLess(self.char2.db.hp, 1000)
+
+    def test_bolt_of_glory_exists_for_medicus_as_a_mythic_capstone(self):
+        self.assertEqual(SPELLS["bolt of glory"]["classes"], ["medicus"])
+        self.assertEqual(SPELLS["bolt of glory"]["level_required"], 95)
+        self.assertEqual(SPELLS["bolt of glory"]["spellfunc"], COMBAT_RULES.spell_attack)
+
+    def test_cancellation_cures_the_gap_conditions_no_other_cure_touches(self):
+        self.assertEqual(SPELLS["cancellation"]["classes"], ["medicus"])
+        self.char1.db.mp = 20
+        self.char2.db.conditions = {
+            "Cursed": [3, self.char1],
+            "Silenced": [3, self.char1],
+            "Marked for Death": [3, self.char1],
+            "Poisoned": [3, self.char1],
+        }
+        COMBAT_RULES.spell_cure_condition(
+            self.char1, "cancellation", [self.char2], 14,
+            to_cure=SPELLS["cancellation"]["to_cure"],
+        )
+        self.assertEqual(self.char2.db.conditions, {})
+
+    def test_enchant_weapon_exists_for_augur_and_grants_a_self_combat_buff(self):
+        self.assertEqual(SPELLS["enchant weapon"]["classes"], ["augur"])
+        self.char1.db.mp = 10
+        COMBAT_RULES.spell_add_condition(
+            self.char1, "enchant weapon", [self.char1], 6,
+            conditions=[("Accuracy Up", 3), ("Damage Up", 3)],
+        )
+        self.assertIn("Accuracy Up", self.char1.db.conditions)
+        self.assertIn("Damage Up", self.char1.db.conditions)
+
+    def test_petrify_exists_for_augur_and_grants_paralyzed(self):
+        self.assertEqual(SPELLS["petrify"]["classes"], ["augur"])
+        self.assertEqual(SPELLS["petrify"]["level_required"], 85)
+        self.char1.db.mp = 15
+        COMBAT_RULES.spell_add_condition(
+            self.char1, "petrify", [self.char2], 12, conditions=[("Paralyzed", 1)]
+        )
+        self.assertIn("Paralyzed", self.char2.db.conditions)
 
 
 class TestNewHaruspexUtilitySpells(CombatTestBase):

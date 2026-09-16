@@ -35,15 +35,13 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-16"
 
 RECENT_UPDATES_TEXT = (
-    "New for Gladiator: Double Strike (level 45) and Triple Strike "
-    "(level 95) - passive traits that give a landed attack a real "
-    "chance to immediately follow up with another, lighter strike. "
-    "New for Haruspex: Bone Ward, Wraith Veil, and Haste round out a "
-    "kit that had no self-defense options before, plus Finger of "
-    "Death (level 70), a real execute against a weakened target. Also "
-    "fixed: the Ludus weaponsmith is now actually stocking staves, and "
-    "Rite of the Entrails' Cursed effect now actually boosts damage "
-    "from spells and skills, not just plain weapon attacks."
+    "Fixed: feral sewer mutants and cistern lurkers had no real stats "
+    "at all and were never actually fightable - closed for good. Also "
+    "fixed: Cult of Hecate's Hex used to duplicate Haruspex's own Mark "
+    "of Decay - it now leaves a target frightened instead. New for "
+    "Medicus: Spear of Faith (level 10), Cancellation (55), and Bolt "
+    "of Glory (95, mythic). New for Augur: Enchant Weapon (45) and "
+    "Petrify (85) - rounding both casters out to match Haruspex's kit."
 )
 
 # The box's own interior width, between its left/right borders and

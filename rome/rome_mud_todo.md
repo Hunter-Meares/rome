@@ -6,6 +6,30 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## ⚖️ Five new spells rebalance Medicus/Augur against Haruspex - ✅ this session
+
+- [x] **Direct follow-up after the Haruspex spell-count gap** (20 vs. Augur's 15, Medicus's 16) - proposed a longer list first, trimmed after checking every idea against the existing kits: Bless, Invisibility, and Chain Lightning all turned out to already exist under other names (Bless itself, Veil of Night, Wrath of Olympus), so building them again would've added nothing but a duplicate name.
+- [x] **Medicus**: **Spear of Faith** (level 10, 12-20 damage) - Medicus had zero offensive options before level 65 (Smite the Unclean); this gives it a real early one without duplicating Smite. **Cancellation** (level 55) - Antidote/Purify/Cleanse all cure the exact same five conditions; none of them touch Cursed, Silenced, or Marked for Death, which had no cure anywhere in the game. Cancellation is the genuine top-tier version, curing all eight. **Bolt of Glory** (level 95, mythic) - Medicus's own signature capstone, matching the single-target damage benchmark every other class's top spell already sets (Gladiator's Glory, 45-65).
+- [x] **Augur**: **Enchant Weapon** (level 45) - Augur had buff/debuff spells for allies and enemies but nothing offensive for itself (Auspice is purely defensive); grants Accuracy Up + Damage Up together, the same shape as Gladiator's Favor. **Petrify** (level 85) - a genuinely new tool; no Augur/Medicus spell grants Paralyzed anywhere in the game (only Minotaur's Bull Rush and Praetorian's Coerce do), gated high to match how those two already treat a skipped turn as a serious effect.
+- [x] 5 new regression tests in `world/tests_combat.py`.
+- [x] Website `abilities.html` updated for all five entries.
+
+---
+
+## 🧟 Feral sewer mutants/cistern lurkers had NO stats at all, ever - ✅ this session
+
+- [x] **Real, confirmed live bug, direct player report** ("are feral sewer mutants not supposed to be fightable?") - a much deeper bug than the earlier at_defeat fix (which is what my first repair attempt today mistook it for). `AutoStatNPC.at_object_post_creation()` only called `derive_npc_stats()` (the function that sets hp/mp/sp/core stats) `if race or player_class` - but `derive_npc_stats()` explicitly documents a real flat-baseline path for BOTH being `None`, meant for exactly "beasts, spirits, generic mooks" with no playable-archetype identity. The guard defeated that on the two prototypes that actually rely on it (`SEWER_FERAL_MUTANT`, `SEWER_CISTERN_LURKER` - the only two in the whole game with neither field set), leaving all 20 live instances with `db.hp`/`max_hp` as `None` forever, not just "at 0." `fight`'s own `if not target.db.hp` check can't tell "dead" from "never had HP," which is why this looked identical to the earlier at_defeat bug to a player despite having a totally different cause.
+- [x] **Fixed by removing the guard** - `derive_npc_stats()` is called unconditionally now, exactly as it was always meant to support. A pre-existing test (`test_no_race_or_class_leaves_stats_untouched`) had actually encoded the buggy behavior as correct - rewritten to assert the real flat baseline instead.
+- [x] All 20 live instances repaired directly (feral sewer mutants now 212/212 HP, cistern lurkers 284/284).
+
+## 🎯 Hex no longer duplicates Mark of Decay - ✅ this session
+
+- [x] **Direct player suggestion** (Circe): Hex (Cult of Hecate) granted Poisoned - identical to Haruspex's own Mark of Decay/Soul Rot, so a Haruspex who also joined Hecate got a reskinned duplicate, not a new tool (conditions don't stack by name). Checked every other class for the same "curse" shape first - confirmed Cursed is exclusively Haruspex's own (Rite of the Entrails), so moving Hex there would have just relocated the same overlap. Switched to Frightened instead - genuinely distinct from Haruspex's own kit, which already covers every other debuff type via a dedicated spell.
+- [x] **Flagged, not addressed**: Haruspex now has 20 spells vs. Augur's 15 and Medicus's 16 - not a bug, but worth knowing before adding anything else to that class specifically.
+- [x] 6 new/updated regression tests across `world/tests_combat.py` and `world/tests_npcs.py`.
+
+---
+
 ## ⚡ Cursed now amplifies every damage source, not just weapon attacks - ✅ this session
 
 - [x] **Real, confirmed live gap, direct player question** (Circe, hoping Rite of the Entrails would boost her own spell damage against a cursed target - it never did): Cursed was checked in exactly one place in the whole codebase, `get_damage()`, which only the basic `attack` command ever calls. Every spell (`spell_attack`), every skill (`skill_attack` and its whole family), poison ticks, and Riposte's counter-hit all compute their own damage number and hand it straight to `apply_damage()` - none of them ever touched `get_damage()`, so Cursed silently did nothing for any of them, directly contradicting its own "extra damage from ALL sources" description.

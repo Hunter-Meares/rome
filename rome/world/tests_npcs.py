@@ -154,12 +154,24 @@ class TestAutoStatNPC(EvenniaTest):
         self.assertEqual(npc.db.vigor, 15)  # cyclops +2, legionary +3
         self.assertEqual(npc.db.max_hp, npc.db.hp)
 
-    def test_no_race_or_class_leaves_stats_untouched(self):
+    def test_no_race_or_class_still_derives_the_flat_baseline(self):
+        """
+        Real, confirmed live bug this test used to encode as correct:
+        this used to assert stats stayed untouched with no race/class
+        set, but derive_npc_stats() explicitly documents a None/None
+        flat baseline for exactly this case (beasts, spirits, generic
+        mooks) - the old guard silently skipped calling it at all,
+        leaving purpose-built monster prototypes (SEWER_FERAL_MUTANT,
+        SEWER_CISTERN_LURKER) with db.hp/max_hp as None forever, found
+        live via a direct player report ("are feral sewer mutants not
+        supposed to be fightable?").
+        """
         npc = create.create_object(AutoStatNPC, key="test npc 2", location=self.room1)
+        npc.db.level = 1
         npc.at_object_post_creation()
-        # Plain DefaultCharacter has no db.virtus at all - just confirm
-        # this doesn't crash and doesn't fabricate one.
-        self.assertIsNone(npc.db.virtus)
+        self.assertIsNotNone(npc.db.hp)
+        self.assertEqual(npc.db.max_hp, npc.db.hp)
+        self.assertEqual(npc.db.virtus, 10)  # flat baseline, no race/class bonus
 
 
 class TestHostileNPCGatherActions(EvenniaTest):
