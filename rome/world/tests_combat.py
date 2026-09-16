@@ -41,6 +41,7 @@ from world.combat import (
     ARENA_FIGHTER_GEAR,
     equip_arena_fighter,
     InstanceCleanupTimer,
+    find_combat_target,
 )
 
 
@@ -102,6 +103,52 @@ class CombatTestBase(EvenniaTest):
             char.db.vigor = 10
             char.db.player_class = None
             char.db.damage_log = {}
+
+
+class TestFindCombatTargetMatchesAnyWordInAMultiWordName(CombatTestBase):
+    """
+    find_combat_target's plain-key fallback (used whenever the sdesc-
+    aware search finds nothing - see the function's own docstring) -
+    real, confirmed live bug: it only matched a search string against
+    the START of an object's WHOLE key, so a multi-word name's own
+    trailing, most-distinguishing word ("stiletto" in "a duelist's
+    stiletto") could never match at all, only a genuine prefix of the
+    full name ("a duelist"). Found via the shared equipment-search
+    helper this same fix applies to (_search_carried_or_equipped,
+    world/tests_combat_commands.py) - fixed at the shared root
+    (_key_or_alias_matches) so both call sites benefit.
+    """
+
+    def test_matches_the_trailing_word_of_a_multiword_key(self):
+        from evennia.utils import create
+
+        npc = create.create_object(
+            "typeclasses.characters.Character", key="a grizzled old veteran", location=self.room1
+        )
+        self.char1.location = self.room1
+        # Strip Builder-tier permission so this actually exercises the
+        # fallback path being tested, not rpsystem's own separate
+        # plain-key fallback for Builders (get_search_result's
+        # is_builder branch) - see the equivalent note in
+        # tests_combat_commands.py's equipment-search tests.
+        self.char1.permissions.remove("Developer")
+
+        found = find_combat_target(self.char1, "veteran", candidates=self.room1.contents)
+
+        self.assertEqual(found, npc)
+
+    def test_still_matches_a_genuine_whole_key_prefix(self):
+        from evennia.utils import create
+
+        npc = create.create_object(
+            "typeclasses.characters.Character", key="a grizzled old veteran", location=self.room1
+        )
+        self.char1.location = self.room1
+        self.char1.permissions.remove("Developer")
+
+        found = find_combat_target(self.char1, "a grizzled", candidates=self.room1.contents)
+
+        self.assertEqual(found, npc)
 
 
 class TestOrphanedCharacterTicking(CombatTestBase):

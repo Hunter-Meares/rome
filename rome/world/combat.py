@@ -6635,12 +6635,39 @@ class CmdFight(Command):
         self._start_duel(possible[0])
 
 
+def _key_or_alias_matches(obj, search_lower):
+    """
+    True if `search_lower` is a prefix of obj's key, of any INDIVIDUAL
+    WORD within that key, or of any of its aliases - shared fallback
+    logic for find_combat_target/_search_carried_or_equipped.
+
+    Real, confirmed live bug this fixes: matching only against the
+    whole key's own start ("a duelist's stiletto".startswith(x)) meant
+    typing the one distinguishing word a player would most naturally
+    reach for - the last one, "stiletto" - failed outright, while "a
+    duelist" (an actual prefix of the full key) worked. Reported
+    directly by a real player who'd correctly guessed something was
+    inconsistent but not what: "'wield a duelist' works" right below
+    "You aren't carrying anything called 'stiletto'." Splitting the
+    key into words and checking each one individually is what actually
+    matches how a player thinks of an item's name - by any of its
+    words, not only by its exact start.
+    """
+    key_lower = obj.key.lower()
+    if key_lower.startswith(search_lower):
+        return True
+    if any(word.startswith(search_lower) for word in key_lower.split()):
+        return True
+    return any(alias.lower().startswith(search_lower) for alias in obj.aliases.all())
+
+
 def find_combat_target(caller, search_text, candidates=None):
     """
     Robust target search for combat commands. Tries the standard,
     sdesc-aware search first (correctly handles other player
     characters, who may be disguised) - if that finds nothing, falls
-    back to a plain, case-insensitive key/alias match.
+    back to a plain, case-insensitive key/alias match (see
+    _key_or_alias_matches).
 
     The fallback matters specifically for NPCs like Rutilus, which
     have no sdesc set up at all (they're plain HostileNPC, not
@@ -6662,9 +6689,7 @@ def find_combat_target(caller, search_text, candidates=None):
 
     search_lower = search_text.lower()
     for obj in candidates:
-        if obj.key.lower().startswith(search_lower):
-            return obj
-        if any(alias.lower().startswith(search_lower) for alias in obj.aliases.all()):
+        if _key_or_alias_matches(obj, search_lower):
             return obj
 
     caller.msg("Could not find '%s'." % search_text)
@@ -8162,9 +8187,7 @@ def _search_carried_or_equipped(caller, search_text, candidates, nofound_string)
 
     search_lower = search_text.strip().lower()
     for obj in candidates:
-        if obj.key.lower().startswith(search_lower):
-            return obj
-        if any(alias.lower().startswith(search_lower) for alias in obj.aliases.all()):
+        if _key_or_alias_matches(obj, search_lower):
             return obj
 
     caller.msg(nofound_string)

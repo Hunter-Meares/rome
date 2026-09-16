@@ -1642,6 +1642,24 @@ class TestWieldAndUnwieldWorkForAnOrdinaryNonBuilderPlayer(CombatCommandTestBase
         self.call(CmdWield(), "greatsword", caller=self.char1)
         self.assertIsNotNone(self.char1.db.wielded_weapon)
 
+    def test_ordinary_player_can_wield_by_the_trailing_word_of_a_possessive_name(self):
+        """
+        Real, confirmed live follow-up bug: "a duelist's stiletto"
+        could be found by 'wield a duelist' (a real prefix of the
+        whole key) but NOT by 'wield stiletto' - the one word a player
+        would most naturally reach for, since it's the actual item
+        type. The fallback used to only check whether the search text
+        prefixed the KEY AS A WHOLE, never an individual word within
+        it. Reported directly: "'wield a duelist' works" right below
+        "You aren't carrying anything called 'stiletto'."
+        """
+        create.create_object(
+            "world.combat.CombatWeapon", key="a duelist's stiletto", location=self.char1
+        )
+        self.call(CmdWield(), "stiletto", caller=self.char1)
+        self.assertIsNotNone(self.char1.db.wielded_weapon)
+        self.assertEqual(self.char1.db.wielded_weapon.key, "a duelist's stiletto")
+
     def test_ordinary_player_can_unwield_by_exact_name(self):
         weapon = create.create_object(
             "world.combat.CombatWeapon", key="a bronze dagger", location=self.char1
