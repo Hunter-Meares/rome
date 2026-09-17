@@ -6,6 +6,14 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## 🏃 Closed the disengage/rest/re-engage grind loop - ✅ this session
+
+- [x] **NPC out-of-combat HP regen** - a `RespawningNPC` left alive but wounded used to just sit at whatever HP it was left at forever, with nothing healing it except a full kill going through the existing respawn cycle. That meant disengaging right before dying, resting to full, and coming back to the same still-wounded NPC was repeatable indefinitely - confirmed live (Silbys, a level 10 Augur, soloing a level 16 Minotaur Gladiator this exact way, chip damage carrying over across many separate pulls). Fixed with a lazy, computed-on-demand regen (`CombatRules.regen_out_of_combat_hp`) at the same 15%/minute rate a resting player already gets - a plain timestamp (`db.last_damaged_at`, stamped in `apply_damage`) is read back and applied once, right before a NEW fight starts (`initialize_for_combat`), rather than a real per-NPC ticking Script (which would mean hundreds of scripts running for a benefit nobody's watching live). Needs no persistent Script and survives reload for free.
+- [x] **XP penalty on a successful `disengage`/`flee`** - 10% of current XP progress, deliberately much lighter than death's 50%. Applies to every successful escape regardless of the fleeing target's level (a direct design call - gating it to "only when outleveled" was considered and rejected, since the flat cost also discourages using disengage as a completely free escape hatch from ordinary, fair fights). A failed attempt still costs nothing beyond the already-existing lost turn.
+- [x] Both landed together deliberately - the regen fix is what actually closes the loop (a fully-healed NPC means zero net progress from a hit-and-run cycle); the XP penalty is the deterrent on top, so even a partial win along the way isn't entirely free.
+
+---
+
 ## 🐛 Two real player-reported bugs (Silbys) - ✅ this session
 
 - [x] **Augur's chargen starting spell fixed** - `chargen_menu.py`'s `CLASSES["augur"]["starting_spells"]` still listed `"cure wounds"`, a leftover from before that spell was made Medicus-only and "bane" was added as Augur's real level-1 replacement (chargen was simply never updated to match at the time). Confirmed live: 4 real Augur characters (Silbys, Marius, velarus, a test char) had it. `CmdCast` never re-validates a spell's `classes` list against an already-known spell, so this wasn't just a chargen display bug - every affected Augur could freely cast a full Medicus-strength heal forever. Fixed at the source and repaired live: all 4 had "cure wounds" swapped for "bane" directly.

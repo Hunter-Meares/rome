@@ -35,14 +35,13 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-17"
 
 RECENT_UPDATES_TEXT = (
-    "Haruspex's Animate Dead is gone - it only ever really worked "
-    "against a lingering wilderness kill, never a real corpse system. "
-    "In its place: Summon Fury (level 85), a genuine late-game "
-    "upgrade to your companion that calls forth a real mythic horror, "
-    "well beyond what Summon Lemures alone can give you. Also fixed: "
-    "new Augurs no longer start with a full healer's spell they "
-    "shouldn't have, and 'spell'/'spellinfo' no longer crashes for "
-    "anyone who'd learned something since removed from the game."
+    "'disengage'/'flee' now costs a bit of XP progress on a "
+    "successful escape - still far lighter than dying, but no longer "
+    "free. Wounded monsters you leave standing also recover HP over "
+    "time now, same rate a resting player does, instead of sitting at "
+    "whatever HP you left them at forever. Also: Haruspex's Animate "
+    "Dead is gone, replaced by Summon Fury (level 85) - a real late-"
+    "game companion upgrade beyond what Summon Lemures gives you."
 )
 
 # The box's own interior width, between its left/right borders and
