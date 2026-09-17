@@ -30,6 +30,7 @@ from world.chargen_menu import (
     menunode_race_info,
     menunode_class_info,
     menunode_end,
+    menunode_choose_name,
     _format_starting_gear,
 )
 from world.combat import SPELLS, SKILLS
@@ -701,3 +702,29 @@ class TestRaceAndClassInfoFormatting(EvenniaTest):
     def test_gifts_and_equipped_for_war_have_a_real_blank_line_between_them(self):
         (text, help_text), options = menunode_class_info(self.caller, class_key="legionary")
         self.assertIn("\n\n|wEquipped for War:|n", text)
+
+
+class TestNameNodeExplainsInThemeExpectation(EvenniaTest):
+    """
+    Direct request after a real out-of-theme character name (a modern
+    word, not a period-appropriate one) turned up live during Player
+    Testing: the name-selection node now explains the expectation
+    directly, rather than only being covered in a help topic a player
+    would have to think to look up on their own.
+    """
+
+    class _FakeCaller:
+        def __init__(self, new_char):
+            self.new_char = new_char
+
+    def setUp(self):
+        super().setUp()
+        self.caller = self._FakeCaller(self.char1)
+
+    def test_name_node_explains_what_does_not_fit(self):
+        (text, help_text), options = menunode_choose_name(self.caller)
+        self.assertIn("modern", text.lower())
+
+    def test_name_node_points_to_the_full_help_topic(self):
+        (text, help_text), options = menunode_choose_name(self.caller)
+        self.assertIn("help naming", text.lower())

@@ -250,6 +250,34 @@ class TestArmorHelpTopic(EvenniaTest):
         self.assertEqual(HelpEntry.objects.filter(db_key="armor").count(), 1)
 
 
+class TestNamingHelpTopic(EvenniaTest):
+    """
+    Direct request after a real out-of-theme character name (a modern
+    word, not a period-appropriate one) turned up live during Player
+    Testing: chargen's own name-selection node now explains the
+    expectation directly, and this topic gives the fuller version for
+    later reference. Deliberately informational only, not enforced by
+    a name-validation filter - reliably detecting "does this sound
+    Roman" programmatically isn't realistic, and the request itself
+    was scoped as "not strictly enforced yet."
+    """
+
+    def test_naming_topic_exists(self):
+        create_all_help_entries()
+        entry = HelpEntry.objects.filter(db_key="naming").first()
+        self.assertIsNotNone(entry)
+
+    def test_naming_topic_explains_what_does_not_fit(self):
+        create_all_help_entries()
+        entry = HelpEntry.objects.get(db_key="naming")
+        self.assertIn("modern", entry.db_entrytext.lower())
+
+    def test_rerunning_setup_does_not_create_duplicate_naming_entries(self):
+        create_all_help_entries()
+        create_all_help_entries()
+        self.assertEqual(HelpEntry.objects.filter(db_key="naming").count(), 1)
+
+
 class TestIndividualRacialAbilityHelpEntries(EvenniaTest):
     """
     Real, confirmed live gap: a player asked in-character how to use

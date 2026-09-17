@@ -3664,10 +3664,38 @@ class TestNewMedicusAndAugurBalanceSpells(CombatTestBase):
             )
         self.assertLess(self.char2.db.hp, 1000)
 
-    def test_bolt_of_glory_exists_for_medicus_as_a_mythic_capstone(self):
-        self.assertEqual(SPELLS["bolt of glory"]["classes"], ["medicus"])
-        self.assertEqual(SPELLS["bolt of glory"]["level_required"], 95)
-        self.assertEqual(SPELLS["bolt of glory"]["spellfunc"], COMBAT_RULES.spell_attack)
+    def test_panacea_exists_for_medicus_as_a_support_capstone(self):
+        """
+        Real, confirmed live redesign, direct player pushback (Circe):
+        this started as "Bolt of Glory," a damage nuke - even after
+        fixing its numbers to stop out-damaging Haruspex, it still
+        didn't fit as a CONCEPT for a class whose role is healing/
+        cleansing, not damage, and which had already picked up two
+        other damage spells. Rebuilt as a genuine support capstone
+        instead - a full heal to up to five allies at once.
+        """
+        panacea = SPELLS["panacea"]
+        self.assertEqual(panacea["classes"], ["medicus"])
+        self.assertEqual(panacea["level_required"], 95)
+        self.assertEqual(panacea["spellfunc"], COMBAT_RULES.spell_healing)
+        self.assertEqual(panacea["heal_percent"], 1.0)
+        self.assertEqual(panacea["max_targets"], 5)
+
+    def test_panacea_fully_heals_multiple_allies_at_once(self):
+        third = create.create_object(
+            "typeclasses.characters.Character", key="a third ally", location=self.room1
+        )
+        third.db.hp, third.db.max_hp = 40, 200
+        self.char2.db.hp, self.char2.db.max_hp = 10, 500
+        self.char1.db.mp = 20
+        self.char1.db.ingenium = 10
+
+        COMBAT_RULES.spell_healing(
+            self.char1, "panacea", [self.char2, third], 18, heal_percent=1.0
+        )
+
+        self.assertEqual(self.char2.db.hp, 500)
+        self.assertEqual(third.db.hp, 200)
 
     def test_cancellation_cures_the_gap_conditions_no_other_cure_touches(self):
         self.assertEqual(SPELLS["cancellation"]["classes"], ["medicus"])
@@ -3703,42 +3731,44 @@ class TestNewMedicusAndAugurBalanceSpells(CombatTestBase):
         )
         self.assertIn("Paralyzed", self.char2.db.conditions)
 
-
-class TestNewHaruspexUtilitySpells(CombatTestBase):
-    """
-    Haste, Wraith Veil, and Bone Ward - direct follow-up request to
-    round out Haruspex's kit, which was previously all damage/curses/
-    summons with zero self-buff or self-defense options of its own
-    (unlike Augur, which already has Auspice, Prophetic Ward, and
-    Illusory Duplicate). Each one reuses an already-proven condition
-    rather than inventing a new mechanic - Wraith Veil is a Haruspex-
-    flavored reskin of Augur's own Illusory Duplicate, Bone Ward of
-    Auspice's Defense Up.
-    """
-
-    def test_haste_exists_for_haruspex_and_grants_haste(self):
-        self.assertEqual(SPELLS["haste"]["classes"], ["haruspex"])
+    def test_haste_moved_to_augur_and_still_grants_haste(self):
+        """
+        Real, confirmed live class-identity fix, direct player
+        pushback: Haste started on Haruspex ("curses, damage-over-time,
+        dark rituals") purely to give it something no spell of its own
+        did - Augur's own role ("buffs, predictive effects, battlefield
+        control") already owns this niche outright.
+        """
+        self.assertEqual(SPELLS["haste"]["classes"], ["augur"])
+        self.assertNotIn("haruspex", SPELLS["haste"]["classes"])
         self.char1.db.mp = 15
         COMBAT_RULES.spell_add_condition(
-            self.char1, "haste", [self.char1], 10, conditions=[("Haste", 2)]
+            self.char1, "haste", [self.char1], 9, conditions=[("Haste", 2)]
         )
         self.assertIn("Haste", self.char1.db.conditions)
 
-    def test_wraith_veil_exists_for_haruspex_and_grants_illusory_duplicate(self):
-        self.assertEqual(SPELLS["wraith veil"]["classes"], ["haruspex"])
-        self.char1.db.mp = 10
-        COMBAT_RULES.spell_add_condition(
-            self.char1, "wraith veil", [self.char1], 5, conditions=[("Illusory Duplicate", 2)]
-        )
-        self.assertIn("Illusory Duplicate", self.char1.db.conditions)
 
-    def test_bone_ward_exists_for_haruspex_and_grants_defense_up(self):
-        self.assertEqual(SPELLS["bone ward"]["classes"], ["haruspex"])
-        self.char1.db.mp = 10
-        COMBAT_RULES.spell_add_condition(
-            self.char1, "bone ward", [self.char1], 4, conditions=[("Defense Up", 3)]
-        )
-        self.assertIn("Defense Up", self.char1.db.conditions)
+class TestHaruspexRoleAuditCutTheMisfitSpells(CombatTestBase):
+    """
+    Real, confirmed live class-identity walkback, direct player
+    pushback (Circe: "the classes should have specific things they can
+    do and they are each becoming all of them"): Bone Ward and Wraith
+    Veil were added earlier this same session to give Haruspex self-
+    defense it supposedly lacked - but checked against Haruspex's own
+    documented role ("curses, damage-over-time, and dark rituals"),
+    neither one actually fit; they were the physical embodiment of the
+    exact class-bloat complaint. Cut outright, not reworked - a curse-
+    caster with no personal defense, leaning on offense and drain
+    (Vampiric Touch) to survive, turned out to be the correct, already-
+    intentional identity, not a real gap. Nobody had learned either
+    spell yet, confirmed live before cutting.
+    """
+
+    def test_bone_ward_no_longer_exists(self):
+        self.assertNotIn("bone ward", SPELLS)
+
+    def test_wraith_veil_no_longer_exists(self):
+        self.assertNotIn("wraith veil", SPELLS)
 
     def test_finger_of_death_exists_for_haruspex_and_uses_spell_execute(self):
         self.assertEqual(SPELLS["finger of death"]["classes"], ["haruspex"])

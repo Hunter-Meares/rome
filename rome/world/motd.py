@@ -32,16 +32,17 @@ from evennia import CmdSet
 from commands.command import Command
 from world.box_display import box_border, box_line, box_paragraph, box_blank
 
-RECENT_UPDATES_DATE = "2026-09-16"
+RECENT_UPDATES_DATE = "2026-09-17"
 
 RECENT_UPDATES_TEXT = (
-    "Fixed: feral sewer mutants and cistern lurkers had no real stats "
-    "at all and were never actually fightable - closed for good. Also "
-    "fixed: Cult of Hecate's Hex used to duplicate Haruspex's own Mark "
-    "of Decay - it now leaves a target frightened instead. New for "
-    "Medicus: Spear of Faith (level 10), Cancellation (55), and Bolt "
-    "of Glory (95, mythic). New for Augur: Enchant Weapon (45) and "
-    "Petrify (85) - rounding both casters out to match Haruspex's kit."
+    "A class-identity pass on the newest spells: Haruspex's Bone Ward "
+    "and Wraith Veil are gone (a curse-caster leaning on offense and "
+    "drain instead of self-defense turned out to be the right call, "
+    "not a gap), Haste moved to Augur where it actually fits, and "
+    "Medicus's mythic capstone is now Panacea - a full heal to up to "
+    "five allies at once, replacing what used to be a damage spell "
+    "that didn't belong on a healer. Also: chargen now explains what "
+    "Rome expects from a character name - see 'help naming'."
 )
 
 # The box's own interior width, between its left/right borders and

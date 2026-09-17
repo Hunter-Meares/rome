@@ -3965,15 +3965,6 @@ SPELLS = {
         "conditions": [("Defense Down", 4)],
         "classes": ["haruspex"],
     },
-    "bone ward": {
-        "spellfunc": COMBAT_RULES.spell_add_condition,
-        "level_required": 12,
-        "desc": "Wraps the caster in a ward of ancestral bone, granting a temporary defense boost.",
-        "target": "self",
-        "cost": 4,
-        "conditions": [("Defense Up", 3)],
-        "classes": ["haruspex"],
-    },
     "rite of the entrails": {
         "spellfunc": COMBAT_RULES.spell_add_condition,
         "level_required": 15,
@@ -3992,15 +3983,6 @@ SPELLS = {
         "noncombat_spell": False,
         "attack_name": ("A jet of ritual flame", "jets of ritual flame"),
         "damage_range": (25, 35),
-        "classes": ["haruspex"],
-    },
-    "wraith veil": {
-        "spellfunc": COMBAT_RULES.spell_add_condition,
-        "level_required": 22,
-        "desc": "Surrounds the caster with flickering spectral duplicates, making them harder to hit for a short time.",
-        "target": "self",
-        "cost": 5,
-        "conditions": [("Illusory Duplicate", 2)],
         "classes": ["haruspex"],
     },
     "ill fortune": {
@@ -4071,15 +4053,6 @@ SPELLS = {
         "cost": 9,
         "max_targets": 3,
         "conditions": [("Poisoned", 5)],
-        "classes": ["haruspex"],
-    },
-    "haste": {
-        "spellfunc": COMBAT_RULES.spell_add_condition,
-        "level_required": 65,
-        "desc": "Quickens the caster with unnatural speed, granting an extra action for a short time.",
-        "target": "self",
-        "cost": 10,
-        "conditions": [("Haste", 2)],
         "classes": ["haruspex"],
     },
     "finger of death": {
@@ -4232,6 +4205,24 @@ SPELLS = {
         "target": "anychar",
         "cost": 8,
         "conditions": [("Shielded", 6)],
+        "classes": ["augur"],
+    },
+    "haste": {
+        # Direct player pushback, a genuine class-identity fix: this
+        # started life on Haruspex (whose role is "curses, damage-
+        # over-time, and dark rituals") purely as a way to give it
+        # something no spell of its own actually did. Augur's own
+        # documented role ("buffs, predictive effects, and short-range
+        # battlefield control") already owns exactly this niche - it's
+        # a straightforward self/ally buff, the same shape as Auspice/
+        # Favour of the Sky/Blessing of Fortune, just a stronger effect
+        # for a higher level.
+        "spellfunc": COMBAT_RULES.spell_add_condition,
+        "level_required": 55,
+        "desc": "Quickens the target with unnatural speed, granting an extra action for a short time.",
+        "target": "anychar",
+        "cost": 9,
+        "conditions": [("Haste", 2)],
         "classes": ["augur"],
     },
     "conjure weapon": {
@@ -4433,28 +4424,39 @@ SPELLS = {
     "sanctuary": {
         "spellfunc": COMBAT_RULES.spell_sanctuary,
         "level_required": 90,
-        "desc": "Mythic tier. Equal-or-lower-level characters cannot drag the target into a fight. Higher-level attackers can try to break through, at a cost to their own damage if they succeed. Lasts 1 hour.",
+        # No longer tagged "Mythic tier." - Bolt of Glory (level 95)
+        # took over as Medicus's actual signature capstone when it was
+        # added; leaving both tagged mythic gave Medicus two "signature"
+        # abilities at once, breaking the one-per-class convention
+        # every other class's kit follows. Found live via direct
+        # player observation of the website showing both in gold.
+        "desc": "Equal-or-lower-level characters cannot drag the target into a fight. Higher-level attackers can try to break through, at a cost to their own damage if they succeed. Lasts 1 hour.",
         "target": "anychar",
         "cost": 20,
         "classes": ["medicus"],
     },
-    "bolt of glory": {
-        "spellfunc": COMBAT_RULES.spell_attack,
+    "panacea": {
+        # Real, confirmed live redesign, direct player pushback
+        # (Circe): this started life as "Bolt of Glory," a single-
+        # target damage nuke calibrated against Gladiator's Glory -
+        # even after fixing its numbers to stop out-damaging Haruspex's
+        # own ceiling, it still didn't fit as a CONCEPT: Medicus's role
+        # is "sustained HP recovery, cleansing harmful conditions, and
+        # keeping the party standing," not damage, and it had already
+        # picked up two damage spells (Spear of Faith, Smite the
+        # Unclean) beyond its actual identity. Rebuilt as a genuine
+        # support capstone instead - Panacea (Asclepius's own daughter
+        # in myth, a fitting namesake alongside Blessing of Asclepius)
+        # fully restores up to five allies at once, a real escalation
+        # beyond Mass Cure Wounds' partial heal rather than a bigger
+        # number on the same spell.
+        "spellfunc": COMBAT_RULES.spell_healing,
         "level_required": 95,
-        # Direct request: Medicus's own signature capstone, matching
-        # the mythic single-target benchmark every other class already
-        # has (Gladiator's Glory, Haruspex's Wail of the Damned/AoE).
-        # Deliberately single-target, not AoE - Medicus's kit is a
-        # support caster's, not a battlefield-control one, so its own
-        # capstone doesn't need to chase Wrath of Olympus/Wail of the
-        # Damned's target count, just hit as hard as their own single
-        # hardest hit.
-        "desc": "Mythic tier. A column of divine light crashes down on a single enemy - Medicus's own signature strike.",
-        "target": "otherchar",
+        "desc": "Mythic tier. A wave of pure divine grace washes over up to five allies, restoring them to full health at once.",
+        "target": "anychar",
         "cost": 18,
-        "noncombat_spell": False,
-        "attack_name": ("A column of divine light", "columns of divine light"),
-        "damage_range": (45, 65),
+        "max_targets": 5,
+        "heal_percent": 1.0,
         "classes": ["medicus"],
     },
     "smite the unclean": {

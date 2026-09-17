@@ -6,6 +6,32 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## 💡 Two new spell ideas - 💡 idea only, deliberately deferred
+
+- [ ] **"False Life"-style temporary HP** (Medicus, or possibly Augur as a pre-emptive ward) - a real new mechanic, not a reskin: the game's condition system only ever stores `[duration, who-inflicted-it]`, with no precedent for a condition that also carries a depleting numeric pool. Needs a new `db.temp_hp` attribute, a check in `apply_damage()` to drain it before real HP, and a hook into condition-expiry to clear any leftover pool when the duration runs out. Good fit for Medicus given Panacea's own "keeping the party standing" direction. Explicitly deferred, not urgent.
+- [ ] **A real "summon a lesser mythic horror" capstone for Haruspex** - inspired by a website inaccuracy caught the same day (`classes.html`'s Progression blurb promised this outright, but nothing in the actual kit does it - Wail of the Damned is a damage spell, Summon Lemures/Animate Dead are mid-tier persistent companions, not a late-game one-off summon). The website copy was corrected to describe what actually exists, but the original idea is a good one worth building for real later - a genuine one-off ritual summon distinct from the existing persistent-companion model.
+
+---
+
+## 🎭 Class role-audit pass + character naming guidance - ✅ this session
+
+- [x] **Full role-audit, direct player pushback** (Circe: "the classes should have specific things they can do and they are each becoming all of them"): checked every Haruspex/Augur/Medicus spell against that class's own documented "role" string in `chargen_menu.py` - the same yardstick that caught the earlier Augur overreach. Found the misfit was entirely confined to spells added earlier this same session, not a long-standing drift: **Bone Ward, Wraith Veil, and Haste** (all three added to give Haruspex self-defense it "lacked") don't fit Haruspex's own role ("curses, damage-over-time, dark rituals") at all.
+- [x] **Bone Ward and Wraith Veil cut outright**, not reworked - a curse-caster with no personal defense, surviving on offense and drain (Vampiric Touch), turned out to be the correct, already-intentional identity, not a real gap. Confirmed live first: nobody had learned either spell yet, so this was zero-cost to reverse.
+- [x] **Haste moved to Augur** (level 55, now targetable on an ally too, not just self) - Augur's own role ("buffs, predictive effects, battlefield control") already owns this niche outright; it never belonged on Haruspex in the first place.
+- [x] **Bolt of Glory redesigned into Panacea** - even after the damage-number fix, a third damage spell still didn't fit Medicus's role ("healing, cleansing, keeping the party standing"). Rebuilt as a genuine support capstone instead: a full heal to up to 5 allies at once, named for Asclepius's own daughter in myth - a real escalation beyond Mass Cure Wounds' partial heal, not a bigger number on the same spell.
+- [x] **New: `help naming` + chargen guidance**, direct request after a real out-of-theme character name turned up live during Player Testing. The name-selection node in chargen now explains the expectation directly (a period-appropriate name, not a modern word/username), with a fuller help topic for later reference. Deliberately informational only, not enforced by a filter - reliably auto-detecting "does this sound Roman" isn't realistic, and this is playtesting-phase guidance, not a hard block.
+- [x] 15 new/updated regression tests across `world/tests_combat.py`, `world/tests_help_setup.py`, and `world/tests_chargen.py`.
+- [x] Website `abilities.html` updated for all spell changes.
+
+---
+
+## 🏆 Medicus had two "mythic" capstones at once - ✅ this session
+
+- [x] **Real, confirmed live inconsistency, direct player observation** ("the website has both sanctuary and bolt of glory in bold"): adding Bolt of Glory (95) as Medicus's signature capstone didn't account for Sanctuary (90) already carrying the "Mythic tier." tag from before - both ended up gold-highlighted on the website, breaking the one-mythic-per-class convention every other class's kit follows. Fixed by dropping the tag from Sanctuary (in both the in-game spell text and the website) now that Bolt of Glory - at a genuinely higher level - is the real capstone.
+- [x] **Follow-up, same complaint thread, a real second occurrence of the Wrath of Olympus mistake**: Bolt of Glory's 45-65 damage actually EXCEEDED Haruspex's own highest unconditional single-target spell (Blood Sacrament, 35-50, which also costs real HP) - calibrated against Gladiator's Glory (a warrior spell) instead of the dedicated damage caster, the exact same error already fixed once this session on a different class. Lowered to 30-45. New regression test locks the relationship in directly (`bolt of glory` damage ceiling <= `blood sacrament`'s), not just eyeballed.
+
+---
+
 ## ⚖️ Five new spells rebalance Medicus/Augur against Haruspex - ✅ this session
 
 - [x] **Direct follow-up after the Haruspex spell-count gap** (20 vs. Augur's 15, Medicus's 16) - proposed a longer list first, trimmed after checking every idea against the existing kits: Bless, Invisibility, and Chain Lightning all turned out to already exist under other names (Bless itself, Veil of Night, Wrath of Olympus), so building them again would've added nothing but a duplicate name.

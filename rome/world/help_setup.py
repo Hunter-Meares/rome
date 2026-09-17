@@ -80,7 +80,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "animate dead", "beseech", "armor"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "animate dead", "beseech", "armor", "naming"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
         + list(RACIAL_ABILITIES.keys())
     )
@@ -1123,6 +1123,34 @@ def create_all_help_entries():
             "guaranteed reply. It's a pure roleplay hook: what happens "
             "next is entirely up to whichever god chooses to answer, and "
             "how. See 'help religion' for how piety actually works."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Naming ---
+    HelpEntry.objects.create(
+        db_key="naming",
+        db_help_category="General",
+        db_entrytext=(
+            "|wNaming Your Character|n\n\n"
+            "|xRome is set at the height of the Empire - the illusion "
+            "matters, and a single out-of-place name breaks it for "
+            "everyone else in the room, not just you.|n\n\n"
+            "Your name should sound like it could genuinely belong to "
+            "someone living in that world - a citizen, a slave, a "
+            "freedman, a foreign trader, a soldier - Roman, Greek, or "
+            "otherwise period-appropriate. It doesn't need to be "
+            "historically famous, just plausible.\n\n"
+            "|wWhat doesn't fit:|n modern words or phrases, internet "
+            "usernames, meme references, real-world brand names, or "
+            "anything that reads as a joke rather than a person who "
+            "lives here. If a name wouldn't make sense shouted across "
+            "the Forum in 100 AD, it doesn't belong in Rome.\n\n"
+            "We're still in Player Testing, so this isn't strictly "
+            "enforced yet - but a god may ask you to pick something "
+            "else if your name breaks the setting, and it's much "
+            "easier to get it right the first time than to get used "
+            "to a name and then have to change it later."
         ),
         db_lock_storage="view:all()",
     )

@@ -819,6 +819,13 @@ def menunode_choose_name(caller, raw_string="", **kwargs):
 
         A name is the one thing even the gods cannot choose for you.
 
+        |xRome expects a name that could belong to someone actually living
+        here at the height of the Empire - a real Roman, Greek, or other
+        period-appropriate name, not a modern word, meme, or username. A
+        name like "Xx_Gladiator99_xX" or "Steve" breaks the illusion for
+        everyone else in the room. See 'help naming' for more once you're
+        in-game.|n
+
         |c{prompt_text}|n
         """
     )
