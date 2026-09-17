@@ -27,6 +27,7 @@ To install:
     tb_basic, tb_equip, tb_items, and tb_magic's separate cmdsets.)
 """
 
+import time
 from random import randint
 from collections import defaultdict
 
@@ -377,6 +378,14 @@ TRIPLE_STRIKE_DAMAGE_MULTIPLIER = 0.35
 RIPOSTE_COUNTER_DAMAGE = 20
 NONPROFICIENT_DAMAGE_MULTIPLIER = 0.75  # 25% damage reduction
 
+# Out-of-combat regen for a persistent NPC (RespawningNPC) left alive
+# but wounded between separate fights - see CombatRules.regen_out_of_
+# combat_hp for the full reasoning. Deliberately the same 15%/minute
+# rate as a resting player's own REST_TICK_PERCENT (CombatCharacter,
+# below), not a separately tuned number - an NPC left alone recovers
+# exactly as fast as a player who sits down and rests would.
+NPC_OUT_OF_COMBAT_REGEN_PERCENT_PER_MINUTE = 15
+
 # Mirrors the weapon penalties above exactly, applied to body armor/shields
 # worn outside CLASS_ARMOR_PROFICIENCIES - too heavy/unfamiliar to move in
 # properly costs you dodge (the same -20 as an off-class weapon's accuracy)
@@ -661,6 +670,24 @@ LEVEL_UP_SP_GAIN = 4
 # Chance (out of 100) that a 'disengage' attempt actually succeeds.
 # Failing still costs the full turn - you don't get a free retry.
 DISENGAGE_SUCCESS_CHANCE = 55
+
+# A SUCCESSFUL disengage now costs a slice of current XP progress,
+# mirroring the shape of the existing death penalty (handle_player_
+# defeat, below - half of current_xp) but deliberately much lighter,
+# since fleeing is meant to stay the safer alternative to dying, not
+# an equally costly one. Applies regardless of the fight's own level -
+# a direct design call: gating this on "only if an enemy outleveled
+# you" was considered and rejected in favor of a flat, simple,
+# universal cost that also discourages using disengage as a free
+# escape hatch from ordinary, fair fights, not just from punching
+# above your own weight. Deliberately NOT reduced by Pluto's own
+# death-XP-penalty bonus (world/religion.py) - that bonus is scoped to
+# death specifically, and folding disengage into it would silently
+# buff every Pluto devotee further without a separate design pass.
+# Failing the roll above already costs a full turn and leaves the
+# character in danger - no XP penalty stacks on top of a failed
+# attempt.
+DISENGAGE_XP_PENALTY_PERCENT = 0.10
 
 # ----------------------------------------------------------------------------
 # PER-WEAPON-CATEGORY COMBAT MESSAGES - resolve_attack() used one single
@@ -1177,6 +1204,15 @@ class CombatRules:
         if defender.db.hp <= 0:
             defender.db.hp = 0
 
+        # Stamped so regen_out_of_combat_hp (below) can compute real
+        # elapsed time since this NPC was last actually hit - only
+        # meaningful for a persistent NPC (db.respawns), so a player
+        # taking damage never picks up an attribute they have no use
+        # for. Same "stamp a plain timestamp, read it back later"
+        # pattern world/loot.py already uses for dropped_at.
+        if damage > 0 and defender.db.respawns:
+            defender.db.last_damaged_at = time.time()
+
         if attacker and damage > 0:
             damage_log = defender.db.damage_log or {}
             damage_log[attacker] = damage_log.get(attacker, 0) + damage
@@ -1485,6 +1521,52 @@ class CombatRules:
             persistent=True,
             autostart=True,
         )
+
+    def regen_out_of_combat_hp(self, npc):
+        """
+        Heals a persistent NPC (RespawningNPC) for time spent alive
+        but unengaged since its last hit - closes a real, confirmed
+        live gap: a wounded RespawningNPC just sat at whatever HP it
+        was left at forever, unless it was fully killed and went
+        through schedule_respawn's own full-heal-and-return cycle
+        above. That meant a player could disengage right before
+        dying, rest to full themselves, and come back to the exact
+        same still-wounded NPC - repeatable indefinitely, letting any
+        level gap eventually be ground down with zero real risk
+        (confirmed live: a level 10 Augur soloing a level 16 Minotaur
+        this way, chip damage carrying over across many separate
+        pulls rather than resetting).
+
+        Deliberately lazy/computed-on-demand rather than a literal
+        per-NPC mirror of player rest's TICKER_HANDLER - a real
+        ticking Script for every persistent NPC in the game (there are
+        hundreds) would mean hundreds of scripts ticking constantly
+        for a benefit nobody's watching in real time. Instead, this
+        reads a plain timestamp (db.last_damaged_at, stamped in
+        apply_damage) and computes however much regen elapsed real
+        time is worth, right before the NPC enters a NEW fight -
+        called from initialize_for_combat, the same single choke
+        point that already resets damage_log for exactly this "start
+        of every fight, regardless of how the last one ended" reason.
+        Needs no persistent Script of its own and survives a reload
+        for free, since there's nothing running to resume - only a
+        plain attribute to read.
+        """
+        if not npc.db.respawns:
+            return
+        max_hp = npc.db.max_hp or 0
+        current_hp = npc.db.hp or 0
+        if current_hp <= 0 or current_hp >= max_hp:
+            return
+        last_damaged = npc.db.last_damaged_at
+        if not last_damaged:
+            return
+        elapsed_minutes = (time.time() - last_damaged) / 60
+        if elapsed_minutes <= 0:
+            return
+        regen = int(max_hp * (NPC_OUT_OF_COMBAT_REGEN_PERCENT_PER_MINUTE / 100) * elapsed_minutes)
+        if regen > 0:
+            npc.db.hp = min(max_hp, current_hp + regen)
 
     def handle_player_defeat(self, defeated, attacker=None):
         """
@@ -6931,6 +7013,15 @@ class CombatTurnHandler(DefaultScript):
         # whether the previous encounter ended in defeat+respawn,
         # disengage, or a timeout.
         character.db.damage_log = {}
+        # Same "start of every fight, however the last one ended"
+        # guarantee as the damage_log reset just above - heals a
+        # persistent NPC for time spent alive-but-wounded since it was
+        # last actually hit, closing the disengage/rest/re-engage
+        # grind loop (see regen_out_of_combat_hp's own docstring). A
+        # no-op for anything that isn't a respawning NPC (checked
+        # first thing inside the method), so this is safe to call
+        # unconditionally for every fighter, player or NPC.
+        self.rules.regen_out_of_combat_hp(character)
         # Being pulled into a fight always ends resting - NPCs don't
         # have this method at all (plain DefaultCharacter, not
         # CombatCharacter), hence the defensive check.
@@ -7693,6 +7784,10 @@ class CmdDisengage(Command):
     Ends your turn and attempts to break away from the fight. Success
     isn't guaranteed - if you fail, you're still in the fight and will
     need to try again next turn (or fight your way out instead).
+
+    A successful escape costs a small amount of your current XP
+    progress - much less than dying would, but real. Failing costs
+    nothing extra beyond the lost turn.
     """
 
     key = "disengage"
@@ -7714,6 +7809,16 @@ class CmdDisengage(Command):
             caller.location.msg_contents(
                 "%s breaks away and disengages from the fight!" % caller
             )
+
+            # See DISENGAGE_XP_PENALTY_PERCENT's own comment above for
+            # why this applies unconditionally rather than only against
+            # a higher-level enemy - a real, deliberate design call,
+            # not an oversight.
+            current_xp = caller.db.xp or 0
+            xp_loss = int(current_xp * DISENGAGE_XP_PENALTY_PERCENT)
+            if xp_loss > 0:
+                caller.db.xp = current_xp - xp_loss
+                caller.msg("|rBreaking away costs you experience - you lose %d XP.|n" % xp_loss)
 
             # The original version stopped after this message - the
             # player was told they'd escaped but never actually got

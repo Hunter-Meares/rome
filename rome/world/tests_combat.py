@@ -14,6 +14,7 @@ calibration target) is deliberately left un-mocked, but constructed so
 its analytically-true probability is 100% - see that test's docstring.
 """
 
+import time
 import unittest
 from unittest.mock import patch
 
@@ -3843,3 +3844,99 @@ class TestSkillAndRacialAttacksCallAtDefeatOnAKillingBlow(CombatTestBase):
         self._make_handler_for(target)
         racial_attack(self.char1, "galloping charge", [target], damage_range=(15, 25))
         self._assert_respawn_was_scheduled(target)
+
+
+class TestNpcOutOfCombatRegen(CombatTestBase):
+    """
+    Real, confirmed live gap: a persistent NPC (RespawningNPC) left
+    alive but wounded just sat at whatever HP it was left at forever -
+    nothing healed it back except a full kill going through
+    schedule_respawn's own cycle. That let a player disengage right
+    before dying, rest to full themselves, and come back to the exact
+    same still-wounded NPC, repeatable indefinitely (confirmed live: a
+    level 10 Augur soloing a level 16 Minotaur Gladiator this way,
+    chip damage carrying over across many separate pulls instead of
+    resetting). regen_out_of_combat_hp closes this by healing a
+    wounded, unengaged persistent NPC based on real elapsed time since
+    it was last actually hit - char2 stands in for a persistent NPC
+    here via a plain db.respawns flag, the same lightweight pattern
+    other tests in this file use rather than spawning a real prototype.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char2.db.respawns = True
+        self.char2.db.max_hp = 200
+        self.char2.db.hp = 100
+
+    def test_no_regen_for_a_non_respawning_character(self):
+        self.char2.db.respawns = False
+        self.char2.db.last_damaged_at = time.time() - 600
+        COMBAT_RULES.regen_out_of_combat_hp(self.char2)
+        self.assertEqual(self.char2.db.hp, 100)
+
+    def test_no_regen_if_never_damaged(self):
+        self.char2.db.last_damaged_at = None
+        COMBAT_RULES.regen_out_of_combat_hp(self.char2)
+        self.assertEqual(self.char2.db.hp, 100)
+
+    def test_no_regen_for_an_already_defeated_npc(self):
+        # A defeated (0 HP) persistent NPC is mid schedule_respawn's
+        # own full-heal-and-return cycle already - this method isn't
+        # meant to double up on that separate mechanism.
+        self.char2.db.hp = 0
+        self.char2.db.last_damaged_at = time.time() - 600
+        COMBAT_RULES.regen_out_of_combat_hp(self.char2)
+        self.assertEqual(self.char2.db.hp, 0)
+
+    def test_no_regen_if_already_at_full_hp(self):
+        self.char2.db.hp = 200
+        self.char2.db.last_damaged_at = time.time() - 600
+        COMBAT_RULES.regen_out_of_combat_hp(self.char2)
+        self.assertEqual(self.char2.db.hp, 200)
+
+    def test_heals_a_partial_amount_for_a_short_gap(self):
+        # 1 minute elapsed -> 15% of 200 max_hp = 30 healed: 100 -> 130.
+        self.char2.db.last_damaged_at = time.time() - 60
+        COMBAT_RULES.regen_out_of_combat_hp(self.char2)
+        self.assertEqual(self.char2.db.hp, 130)
+
+    def test_regen_caps_at_max_hp_not_beyond(self):
+        # 4 minutes elapsed -> 15%/minute * 4 = 60% of 200 = 120 healed,
+        # which would overshoot 100 -> 220; capped at max_hp (200).
+        self.char2.db.last_damaged_at = time.time() - 240
+        COMBAT_RULES.regen_out_of_combat_hp(self.char2)
+        self.assertEqual(self.char2.db.hp, 200)
+
+
+class TestApplyDamageStampsLastDamagedAt(CombatTestBase):
+    """
+    apply_damage stamps db.last_damaged_at on a persistent NPC so
+    regen_out_of_combat_hp (above) has a real timestamp to compute
+    elapsed time from - the same "stamp now, read back later" pattern
+    world/loot.py already uses for dropped_at.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.hp = 100
+        self.char2.db.hp = 100
+        self.char2.db.max_hp = 100
+
+    def test_stamps_for_a_respawning_npc(self):
+        self.char2.db.respawns = True
+        self.char2.db.last_damaged_at = None
+        COMBAT_RULES.apply_damage(self.char2, 10, attacker=self.char1)
+        self.assertIsNotNone(self.char2.db.last_damaged_at)
+
+    def test_does_not_stamp_a_non_respawning_character(self):
+        self.char2.db.respawns = False
+        self.char2.db.last_damaged_at = None
+        COMBAT_RULES.apply_damage(self.char2, 10, attacker=self.char1)
+        self.assertIsNone(self.char2.db.last_damaged_at)
+
+    def test_does_not_stamp_on_zero_damage(self):
+        self.char2.db.respawns = True
+        self.char2.db.last_damaged_at = None
+        COMBAT_RULES.apply_damage(self.char2, 0, attacker=self.char1)
+        self.assertIsNone(self.char2.db.last_damaged_at)

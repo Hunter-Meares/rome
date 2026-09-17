@@ -52,6 +52,7 @@ from world.combat import (
     SPELLS,
     POWERATTACK_SP_COST,
     DISENGAGE_SUCCESS_CHANCE,
+    DISENGAGE_XP_PENALTY_PERCENT,
     AUTO_ATTACK_DELAY,
     MOVEMENT_SP_COST,
     MOVEMENT_SP_WARN_THRESHOLD,
@@ -138,6 +139,22 @@ class TestCmdFight(CombatCommandTestBase):
         self.char1.db.is_dead = True
         result = self.call(CmdFight(), "Char2", caller=self.char1)
         self.assertIn("dead", result)
+
+    def test_starting_a_fight_regens_a_wounded_respawning_npc(self):
+        # Integration coverage for the disengage/rest/re-engage grind
+        # loop fix: char2 stands in for a persistent NPC (db.respawns)
+        # left wounded from an earlier encounter - starting a fresh
+        # fight against it should trigger regen_out_of_combat_hp via
+        # initialize_for_combat before any new damage is dealt.
+        import time
+        self.char2.db.respawns = True
+        self.char2.db.max_hp = 200
+        self.char2.db.hp = 100
+        self.char2.db.last_damaged_at = time.time() - 60  # 1 minute ago
+
+        self.call(CmdFight(), "Char2", caller=self.char1)
+
+        self.assertEqual(self.char2.db.hp, 130)  # 15%/minute of 200 = 30
 
     def test_fight_all_groups_by_party(self):
         ally = create.create_object(
@@ -317,6 +334,43 @@ class TestCmdDisengage(CombatCommandTestBase):
     def test_flee_is_a_real_alias(self):
         """'flee' should resolve to the exact same command as 'disengage'."""
         self.assertIn("flee", CmdDisengage.aliases)
+
+    @patch("world.combat.randint")
+    def test_successful_disengage_costs_xp(self, mock_randint):
+        mock_randint.return_value = 1  # <= DISENGAGE_SUCCESS_CHANCE -> success
+        self.char1.db.xp = 1000
+        self._start_duel()
+        self.call(CmdDisengage(), "", caller=self.char1)
+        self.assertEqual(self.char1.db.xp, 1000 - int(1000 * DISENGAGE_XP_PENALTY_PERCENT))
+
+    @patch("world.combat.randint")
+    def test_failed_disengage_costs_no_xp(self, mock_randint):
+        mock_randint.return_value = 100  # > DISENGAGE_SUCCESS_CHANCE -> failure
+        self.char1.db.xp = 1000
+        self._start_duel()
+        self.call(CmdDisengage(), "", caller=self.char1)
+        self.assertEqual(self.char1.db.xp, 1000)
+
+    @patch("world.combat.randint")
+    def test_disengage_xp_penalty_applies_even_against_a_lower_level_enemy(self, mock_randint):
+        # Direct design call: the penalty is deliberately NOT gated on
+        # the enemy's level - a flat cost on every successful escape,
+        # not just against something you're outmatched by.
+        mock_randint.return_value = 1
+        self.char1.db.xp = 1000
+        self.char1.db.level = 50
+        self.char2.db.level = 1
+        self._start_duel()
+        self.call(CmdDisengage(), "", caller=self.char1)
+        self.assertLess(self.char1.db.xp, 1000)
+
+    @patch("world.combat.randint")
+    def test_disengage_with_zero_xp_does_not_crash_or_go_negative(self, mock_randint):
+        mock_randint.return_value = 1
+        self.char1.db.xp = 0
+        self._start_duel()
+        self.call(CmdDisengage(), "", caller=self.char1)
+        self.assertEqual(self.char1.db.xp, 0)
 
     @patch("world.combat.randint")
     def test_successful_disengage_releases_the_active_pet(self, mock_randint):
