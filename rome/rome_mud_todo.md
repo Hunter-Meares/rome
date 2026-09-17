@@ -6,10 +6,24 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
-## 💡 Two new spell ideas - 💡 idea only, deliberately deferred
+## 🐛 Two real player-reported bugs (Silbys) - ✅ this session
+
+- [x] **Augur's chargen starting spell fixed** - `chargen_menu.py`'s `CLASSES["augur"]["starting_spells"]` still listed `"cure wounds"`, a leftover from before that spell was made Medicus-only and "bane" was added as Augur's real level-1 replacement (chargen was simply never updated to match at the time). Confirmed live: 4 real Augur characters (Silbys, Marius, velarus, a test char) had it. `CmdCast` never re-validates a spell's `classes` list against an already-known spell, so this wasn't just a chargen display bug - every affected Augur could freely cast a full Medicus-strength heal forever. Fixed at the source and repaired live: all 4 had "cure wounds" swapped for "bane" directly.
+- [x] **Fixed a real crash**: `_format_ability_list()` (the shared helper behind `spell`/`spells`/`spellinfo`/`spellbook`/`spelldesc`, and `skillinfo`) looked up every name in a character's known list directly in `SPELLS`/`SKILLS` with no existence check - so a character who'd learned something later cut from the game outright (Bone Ward, Wraith Veil, Animate Dead, the old Bolt of Glory) got a `KeyError` every time they ran any of those commands. Found live: **Circe** still had "bone ward" in her `spells_known` from before it was cut this session, and reproducing her exact data crashed immediately. Fixed by dropping unknown names before they ever reach the lookup - a stale ability just quietly stops being listed instead of breaking the command. Repaired Circe's own data directly. Added regression coverage in both `tests_combat_commands.py` (the crash itself) and `tests_chargen.py` (a new check that every class's starting spells/skills are still actually allowed for that class, not just that they still exist - the exact gap that let the Augur bug through unnoticed).
+
+---
+
+## 💡 One new spell idea - 💡 idea only, deliberately deferred
 
 - [ ] **"False Life"-style temporary HP** (Medicus, or possibly Augur as a pre-emptive ward) - a real new mechanic, not a reskin: the game's condition system only ever stores `[duration, who-inflicted-it]`, with no precedent for a condition that also carries a depleting numeric pool. Needs a new `db.temp_hp` attribute, a check in `apply_damage()` to drain it before real HP, and a hook into condition-expiry to clear any leftover pool when the duration runs out. Good fit for Medicus given Panacea's own "keeping the party standing" direction. Explicitly deferred, not urgent.
-- [ ] **A real "summon a lesser mythic horror" capstone for Haruspex** - inspired by a website inaccuracy caught the same day (`classes.html`'s Progression blurb promised this outright, but nothing in the actual kit does it - Wail of the Damned is a damage spell, Summon Lemures/Animate Dead are mid-tier persistent companions, not a late-game one-off summon). The website copy was corrected to describe what actually exists, but the original idea is a good one worth building for real later - a genuine one-off ritual summon distinct from the existing persistent-companion model.
+
+---
+
+## 👹 Animate Dead removed, Summon Fury built instead - ✅ this session
+
+- [x] **Animate Dead cut outright**, not patched. A direct question ("why does it have both a help file and a spellinfo file, and how does it actually work - we don't have corpses") led to tracing its real targeting mechanic: it targeted the defeated NPC's own character object directly (there was never a literal "corpse" item anywhere in the codebase), and whether that object was still reachable depended entirely on NPC type - `RespawningNPC`s (most farmable enemies) move to `None` synchronously the instant they die, personal-instance NPCs get `.delete()`d instantly, and only a plain wilderness `HostileNPC` lingers long enough to actually be targetable. In practice the spell only ever really worked against a lingering wilderness kill. Confirmed live first: nobody had learned it, so cutting it was zero-cost.
+- [x] **New Haruspex spell: Summon Fury (level 85, 16 MP)** - built to answer the *real* gap the Animate Dead question surfaced: `classes.html`'s own Progression blurb promised Haruspex "sacrificial summons...that call lesser mythic horrors," but nothing in the kit ever did that. Summon Fury is a genuine late-game upgrade to the existing companion slot (`HARUSPEX_FURY` prototype, 260 HP - clearly above Summon Lemures' own TIER4 ceiling of 190), reusing the exact same `spawn_personal_npc`/`active_companion`/`release_pet` machinery Summon Lemures already uses. Deliberately NOT tagged "Mythic tier." - Wail of the Damned (level 90) stays Haruspex's sole capstone, the same way Petrify (85) sits under Augur's own 90 without contesting that class's capstone either.
+- [x] Cleaned up every dangling reference: `help_setup.py`'s `"animate dead"` HelpEntry and its `managed_keys` entry removed, `tests_combat.py`'s `TestSpellAnimateDead` replaced with `TestSpellSummonFury`, and `abilities.html`'s row swapped for the new spell at level 85.
 
 ---
 

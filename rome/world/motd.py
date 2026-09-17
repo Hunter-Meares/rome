@@ -35,14 +35,14 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-17"
 
 RECENT_UPDATES_TEXT = (
-    "A class-identity pass on the newest spells: Haruspex's Bone Ward "
-    "and Wraith Veil are gone (a curse-caster leaning on offense and "
-    "drain instead of self-defense turned out to be the right call, "
-    "not a gap), Haste moved to Augur where it actually fits, and "
-    "Medicus's mythic capstone is now Panacea - a full heal to up to "
-    "five allies at once, replacing what used to be a damage spell "
-    "that didn't belong on a healer. Also: chargen now explains what "
-    "Rome expects from a character name - see 'help naming'."
+    "Haruspex's Animate Dead is gone - it only ever really worked "
+    "against a lingering wilderness kill, never a real corpse system. "
+    "In its place: Summon Fury (level 85), a genuine late-game "
+    "upgrade to your companion that calls forth a real mythic horror, "
+    "well beyond what Summon Lemures alone can give you. Also fixed: "
+    "new Augurs no longer start with a full healer's spell they "
+    "shouldn't have, and 'spell'/'spellinfo' no longer crashes for "
+    "anyone who'd learned something since removed from the game."
 )
 
 # The box's own interior width, between its left/right borders and

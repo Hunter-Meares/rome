@@ -292,7 +292,14 @@ CLASSES = {
             "FEMINALIA",
             "SOLEAE",
         ],
-        "starting_spells": ["cure wounds"],
+        # "cure wounds" until this fix - a real, confirmed live gap
+        # found by a direct player report (Silbys). "cure wounds" was
+        # made Medicus-only a while back (see that spell's own comment
+        # in world/combat.py), with "bane" added as Augur's real
+        # level-1 replacement, but chargen was never updated to match
+        # - every new Augur kept starting with a full-strength heal no
+        # other class's role even permits them to keep learning.
+        "starting_spells": ["bane"],
     },
     "medicus": {
         "display": "Medicus (Light - Healer/Support)",

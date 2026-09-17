@@ -80,7 +80,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "animate dead", "beseech", "armor", "naming"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
         + list(RACIAL_ABILITIES.keys())
     )
@@ -1057,46 +1057,6 @@ def create_all_help_entries():
             "Cost scales with how powerful the spell/skill is - a "
             "level 1 pick is cheap, a level 90 one is a real "
             "investment. See 'help gold' for how to earn it."
-        ),
-        db_lock_storage="view:all()",
-    )
-
-    # --- Animate Dead (Haruspex) ---
-    HelpEntry.objects.create(
-        db_key="animate dead",
-        db_help_category="General",
-        db_entrytext=(
-            "|wAnimate Dead|n\n\n"
-            "|xHaruspices read the future in entrails and sky-signs - but "
-            "the most feared of them go further still, claiming not just "
-            "the reading of death but a debt upon it. In the heat of a "
-            "fight, such a Haruspex marks a foe with a silent hex - and "
-            "when the killing blow finally falls, that death becomes a "
-            "due payment. The corpse rises, hollowed of everything it "
-            "once was, and answers to no one else ever again.|n\n\n"
-            "|wUsage:|n cast animate dead = <corpse>\n"
-            "|wLevel:|n 55 | |wCost:|n 12 MP + 10 HP\n\n"
-            "Raises the corpse of an enemy you personally helped kill "
-            "THIS fight as a real companion - the same active_companion "
-            "slot Summon Lemures, Summon Familiar, and Call of the Wild "
-            "all share, so casting this (or any of those) replaces "
-            "whatever you already have out.\n\n"
-            "|wReal requirements, not flavor:|n the target must actually "
-            "be dead, you must have personally dealt it damage this "
-            "fight (a kill you had no hand in won't answer), and it must "
-            "be an ordinary NPC - never a real player's death, and never "
-            "anything story-critical (an Arena Fighter, a Colosseum "
-            "escape trainer, or a quest target).\n\n"
-            "|wHow this differs from Summon Lemures:|n Lemures scales "
-            "with YOUR OWN level - always available, zero risk, a "
-            "reliable baseline. Animate Dead scales with whichever is "
-            "LOWER of the corpse's own level or your level + 10 - so "
-            "beating something at or below your own level is a wash "
-            "against just recasting Lemures (the HP cost makes Lemures "
-            "the smarter routine pick), but deliberately punching up and "
-            "winning lets you convert that kill into a companion "
-            "genuinely stronger than Lemures could ever give you at your "
-            "current level. The HP cost is what that upside costs."
         ),
         db_lock_storage="view:all()",
     )

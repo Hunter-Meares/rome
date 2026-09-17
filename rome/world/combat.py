@@ -377,13 +377,6 @@ TRIPLE_STRIKE_DAMAGE_MULTIPLIER = 0.35
 RIPOSTE_COUNTER_DAMAGE = 20
 NONPROFICIENT_DAMAGE_MULTIPLIER = 0.75  # 25% damage reduction
 
-# Haruspex's Animate Dead - how far above the caster's OWN level a
-# raised minion's effective level can reach (see spell_animate_dead's
-# own docstring for the full "why this differs from Summon Lemures"
-# reasoning). Bounds the upside a single tough kill can grant, the
-# same way every core stat's own lifetime cap bounds a stat point.
-ANIMATE_DEAD_LEVEL_CEILING_BONUS = 10
-
 # Mirrors the weapon penalties above exactly, applied to body armor/shields
 # worn outside CLASS_ARMOR_PROFICIENCIES - too heavy/unfamiliar to move in
 # properly costs you dodge (the same -20 as an off-class weapon's accuracy)
@@ -2987,102 +2980,44 @@ class CombatRules:
                 turnhandler.join_fight(lemures, side=caster.db.combat_side)
             self.spend_action(caster, 1, action_name="cast")
 
-    def spell_animate_dead(self, caster, spell_name, targets, cost, **kwargs):
+    def spell_summon_fury(self, caster, spell_name, targets, cost, **kwargs):
         """
-        Haruspex's Animate Dead - raises the corpse of an enemy the
-        caster personally helped kill THIS fight as a real companion,
-        in the same active_companion slot Summon Lemures/Summon
-        Familiar/Call of the Wild all share (one at a time, recasting
-        - or casting this - replaces whatever's already out).
+        Haruspex's Summon Fury - a genuine late-game upgrade to Summon
+        Lemures, not a second copy of it. Direct response to a real
+        player-facing gap: the class's website blurb promised
+        "sacrificial summons...that call lesser mythic horrors," but
+        the actual kit never had anything past Summon Lemures' own
+        level-scaled tiers. This replaces Animate Dead (cut outright -
+        its corpse-targeting only ever practically worked against a
+        wilderness kill still lingering in the room, since every other
+        NPC type is either respawned-away or deleted before a
+        follow-up cast could ever reach it) rather than trying to
+        patch that targeting problem, since the real ask was "give
+        Haruspex an actual mythic-tier summon," not "fix corpse
+        reachability."
 
-        Direct design response to a real question: how is this
-        mechanically different from just casting Summon Lemures again?
-        Lemures scales with the CASTER's own level - always available,
-        zero risk, a flat and predictable baseline. This scales with
-        whichever is LOWER of the target's own level or (caster's
-        level + ANIMATE_DEAD_LEVEL_CEILING_BONUS) - so fighting and
-        beating something at or below your own level is a pure wash
-        against just recasting Lemures (not worse, but the added HP
-        cost below makes Lemures the smarter routine choice), while
-        deliberately punching up and winning lets this genuinely
-        outscale what Lemures could ever give you at your current
-        level, up to that bonus's cap. The HP cost is what makes that
-        upside cost something real, the same "blood magic" precedent
-        Blood Sacrament already sets, rather than a strictly-better
-        replacement for the caster's existing spell.
-
-        Refuses cleanly (spending nothing) rather than raising a corpse
-        that shouldn't answer: only a genuinely defeated NPC (never a
-        real player's death - that's a much bigger consent question
-        this spell deliberately stays out of), only one the caster's
-        own damage_log shows they actually helped kill (found via the
-        same damage_log every XP/gold split already reads - a bystander
-        can't claim a kill that wasn't theirs), and never anything
-        tagged as unique/story-critical content (an Arena Fighter, a
-        Colosseum escape trainer, or any quest-key/personal-instance
-        NPC) - otherwise a single named boss kill could be farmed into
-        a permanent, always-available top-tier minion forever.
+        Deliberately NOT tagged Mythic tier. in its own desc - Wail of
+        the Damned (level 90) stays the class's sole capstone; this
+        sits below it (level 85) as a strong mid-to-late upgrade to
+        the existing companion slot, same as how Petrify (85) sits
+        under Augur's own 90 without contesting that class's capstone
+        either.
         """
-        hp_cost = kwargs.get("hp_cost", 10)
-
-        if not targets or targets[0] is None:
-            caster.msg("Animate Dead needs a target - the corpse of something you just helped kill.")
-            return
-        target = targets[0]
-
-        if getattr(target, "account", None):
-            caster.msg(
-                "You cannot animate the dead of the living - only a defeated "
-                "NPC's corpse will answer this rite."
-            )
-            return
-        if target.db.hp:
-            caster.msg("%s is not dead." % target.key)
-            return
-        damage_log = target.db.damage_log or {}
-        if damage_log.get(caster, 0) <= 0:
-            caster.msg("You must have a hand in this one's death to claim their corpse.")
-            return
-        if (
-            target.tags.has("arena_fighter", category="npc_role")
-            or target.tags.has("colosseum_trainer", category="npc_role")
-            or target.db.quest_key
-            or target.db.instance_owner
-        ):
-            caster.msg("Something protects this corpse - it will not answer your call.")
-            return
-        if caster.db.hp <= hp_cost:
-            caster.msg("You don't have enough blood left to spare for this rite.")
-            return
-
-        level = min(target.db.level or 1, (caster.db.level or 1) + ANIMATE_DEAD_LEVEL_CEILING_BONUS)
-        if level < 30:
-            prototype = "HARUSPEX_LEMURES_TIER1"
-        elif level < 60:
-            prototype = "HARUSPEX_LEMURES_TIER2"
-        elif level < 90:
-            prototype = "HARUSPEX_LEMURES_TIER3"
-        else:
-            prototype = "HARUSPEX_LEMURES_TIER4"
-
         self.release_pet(caster.db.active_companion, caster, reason="replaced")
 
-        corpse_name = target.db.base_name or target.key
-        minion = self.spawn_personal_npc(kwargs.get("lemures_prototype", prototype), caster)
-        minion.key = "the animated corpse of %s" % corpse_name
-        caster.db.active_companion = minion
+        fury = self.spawn_personal_npc("HARUSPEX_FURY", caster)
+        caster.db.active_companion = fury
 
-        caster.db.hp -= hp_cost
         caster.db.mp -= cost
         caster.location.msg_contents(
-            "%s intones a rite of the underworld over %s - the corpse rises, "
-            "bound to their will!" % (caster, corpse_name)
+            "%s tears open a rift to the underworld, and %s claws its way through!"
+            % (caster, fury)
         )
 
         if self.is_in_combat(caster):
             turnhandler = caster.db.combat_turnhandler
             if turnhandler and turnhandler.pk:
-                turnhandler.join_fight(minion, side=caster.db.combat_side)
+                turnhandler.join_fight(fury, side=caster.db.combat_side)
             self.spend_action(caster, 1, action_name="cast")
 
     # Destinations Gate is allowed to reach - deliberately a small,
@@ -3893,6 +3828,16 @@ def _format_ability_list(caller, data_dict, known_names, header_label, learn_ver
     player_class = caller.db.player_class
     known = set(known_names or [])
 
+    # A known name can outlive its own entry - real, confirmed live
+    # crash: a character who'd learned "bone ward" before it was cut
+    # from the game got a KeyError every time they ran 'spell'/
+    # 'spellinfo' afterward, since every name in `known` was looked up
+    # in data_dict with no existence check first. Drop anything that
+    # no longer has a real definition before it ever reaches that
+    # lookup - the character just stops seeing it listed, the same as
+    # if they'd never learned it, rather than breaking the command.
+    known &= set(data_dict)
+
     available_by_class = {
         name
         for name, data in data_dict.items()
@@ -4084,22 +4029,14 @@ SPELLS = {
         "cost": 10,
         "classes": ["haruspex"],
     },
-    "animate dead": {
-        "spellfunc": COMBAT_RULES.spell_animate_dead,
-        "level_required": 55,
-        "desc": "Raises the corpse of an enemy you personally helped "
-        "kill this fight as a companion - see 'help animate dead' for "
-        "the real requirements and how this differs from Summon "
-        "Lemures.",
-        "target": "otherchar",
-        "cost": 12,
-        "hp_cost": 10,
-        # Deliberately usable OUT of combat too (the default for any
-        # spell here, but worth stating explicitly given the theme) -
-        # a solo kill ends the fight the instant the last enemy dies,
-        # so the corpse this spell needs to target is very often
-        # already lying in a room with no active combat left at all
-        # by the time the caster gets a chance to raise it.
+    "summon fury": {
+        "spellfunc": COMBAT_RULES.spell_summon_fury,
+        "level_required": 85,
+        "desc": "Tears open a rift to the underworld and calls forth a "
+        "vengeful mythic horror to fight at the caster's side - a real "
+        "late-game upgrade to the companion Summon Lemures provides.",
+        "target": "none",
+        "cost": 16,
         "classes": ["haruspex"],
     },
     "necrotic storm": {

@@ -673,6 +673,25 @@ class TestSkillInfoAndSpellInfoListing(CombatCommandTestBase):
         result = self.call(CmdSpellInfo(), "", caller=self.char1)
         self.assertIn("Conjure Torch", result)
 
+    def test_a_known_but_since_removed_spell_does_not_crash_the_listing(self):
+        # Real, confirmed live bug: a character who'd learned "bone
+        # ward" before it was cut from the game entirely got a
+        # KeyError every time they ran 'spell'/'spellinfo' afterward -
+        # the old version looked up every name in spells_known
+        # directly in SPELLS with no existence check first. The stale
+        # name should just quietly stop being listed, not break the
+        # command for everyone who ever learned something later
+        # removed from the game.
+        self.char1.db.spells_known = ["bone ward"]
+        result = self.call(CmdSpellInfo(), "", caller=self.char1)
+        self.assertNotIn("Bone Ward", result)
+
+    def test_a_known_but_since_removed_skill_does_not_crash_the_listing(self):
+        self.char1.db.skills_known = ["hold the line", "some removed skill"]
+        result = self.call(CmdSkillInfo(), "", caller=self.char1)
+        self.assertIn("Hold The Line", result)
+        self.assertNotIn("Some Removed Skill", result)
+
 
 class TestStatsHealthBar(CombatCommandTestBase):
     """

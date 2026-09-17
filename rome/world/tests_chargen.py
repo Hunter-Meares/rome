@@ -186,6 +186,30 @@ class TestRaceClassDataIntegrity(EvenniaTest):
                     % (class_key, spell_name),
                 )
 
+    def test_every_class_starting_spell_is_still_allowed_for_that_class(self):
+        """
+        A real, confirmed live gap this test would have caught
+        immediately: Augur's starting_spells kept listing "cure
+        wounds" long after that spell's own "classes" list was
+        narrowed to Medicus-only elsewhere in the same session -
+        chargen was simply never updated to match, so every new Augur
+        kept starting with (and being able to freely cast forever,
+        since CmdCast never re-checks class eligibility on an already-
+        known spell) a full healer's signature heal. The existence
+        check above wouldn't catch this - "cure wounds" still exists,
+        it just isn't Augur's to have anymore.
+        """
+        for class_key, pclass in CLASSES.items():
+            for spell_name in pclass.get("starting_spells", []):
+                allowed = SPELLS[spell_name].get("classes")
+                if allowed:
+                    self.assertIn(
+                        class_key, allowed,
+                        "Class '%s' starts with '%s', which no longer lists "
+                        "that class among its allowed classes (%s)"
+                        % (class_key, spell_name, allowed),
+                    )
+
     def test_every_class_starting_skill_exists_in_skills_dict(self):
         for class_key, pclass in CLASSES.items():
             for skill_name in pclass.get("starting_skills", []):
@@ -194,6 +218,18 @@ class TestRaceClassDataIntegrity(EvenniaTest):
                     "Class '%s' starting_skills references unknown skill '%s'"
                     % (class_key, skill_name),
                 )
+
+    def test_every_class_starting_skill_is_still_allowed_for_that_class(self):
+        for class_key, pclass in CLASSES.items():
+            for skill_name in pclass.get("starting_skills", []):
+                allowed = SKILLS[skill_name].get("classes")
+                if allowed:
+                    self.assertIn(
+                        class_key, allowed,
+                        "Class '%s' starts with '%s', which no longer lists "
+                        "that class among its allowed classes (%s)"
+                        % (class_key, skill_name, allowed),
+                    )
 
     def test_every_class_starting_gear_prototype_exists(self):
         import world.prototypes as prototypes_module

@@ -1529,6 +1529,22 @@ HARUSPEX_LEMURES_TIER4 = {
     "locks": "puppet:false()",
 }
 
+HARUSPEX_FURY = {
+    "key": "a vengeful Fury of the underworld",
+    "aliases": ["fury", "spirit", "familiar"],
+    "typeclass": "world.combat.SummonedAlly",
+    "pet_line": "haruspex",
+    "desc": (
+        "A genuine mythic horror clawed straight out of the underworld, wings "
+        "of tarnished bronze and a gaze that promises no mortal escapes its "
+        "wrath. Even bound to a summoner's will, something this old barely "
+        "tolerates the leash."
+    ),
+    "hp": 260,
+    "max_hp": 260,
+    "locks": "puppet:false()",
+}
+
 """
 ----------------------------------------------------------------------------
 VENATOR BEAST COMPANION
