@@ -180,6 +180,83 @@ class TestCmdFight(CombatCommandTestBase):
         self.assertNotEqual(self.char1.db.combat_side, self.char2.db.combat_side)
 
 
+class TestPetsJoinFights(CombatCommandTestBase):
+    """
+    Regression coverage for a real player report predating this
+    session's row/pet work: a pet neither followed into a fight nor
+    was protected from its own owner's attacks. Root cause: a normal
+    1-on-1 duel (CmdFight's pending_fighters path) never swept anyone
+    but the two named combatants into db.fighters at all, so a pet
+    standing right there never got a turn and had no combat_side of
+    its own - see CombatTurnHandler._sync_companion_pets.
+    """
+
+    def _make_pet(self, owner):
+        from world.combat import SummonedAlly
+
+        pet = create.create_object(SummonedAlly, key="a loyal pet", location=self.room1)
+        pet.db.hp = 20
+        pet.db.max_hp = 20
+        owner.db.active_companion = pet
+        pet.db.instance_owner = owner
+        return pet
+
+    def test_pet_joins_a_normal_duel(self):
+        pet = self._make_pet(self.char1)
+        handler = self._start_duel()
+        self.assertIn(pet, handler.db.fighters)
+
+    def test_pet_shares_its_owners_combat_side_in_a_duel(self):
+        pet = self._make_pet(self.char1)
+        self._start_duel()
+        self.assertEqual(pet.db.combat_side, self.char1.db.combat_side)
+        self.assertNotEqual(pet.db.combat_side, self.char2.db.combat_side)
+
+    def test_fight_all_puts_the_pet_on_its_owners_side_not_the_mob(self):
+        # 'fight all' already sweeps a pet into db.fighters (it's
+        # sitting in the room with real hp) - but before this fix, the
+        # side-assignment loop had no concept of pet ownership, so a
+        # partyless, account-less pet fell into the same catch-all
+        # "mob" side as the actual hostile.
+        pet = self._make_pet(self.char1)
+        self.call(CmdFight(), "all", caller=self.char1)
+        self.assertEqual(pet.db.combat_side, self.char1.db.combat_side)
+        self.assertNotEqual(pet.db.combat_side, self.char2.db.combat_side)
+
+    def test_personal_challenge_opponent_is_not_pulled_onto_challengers_side(self):
+        # A personal-instance duel opponent (Rutilus, a Deeper Sands
+        # Arena challenge) ALSO gets db.instance_owner set, via the
+        # exact same spawn_personal_npc() a pet uses - that's an
+        # adversary, not a pet, and must stay opposed. Only
+        # active_companion (never pointed at an opponent) may pull a
+        # fighter onto its owner's side.
+        opponent = create.create_object(
+            "typeclasses.characters.Character", key="a personal foe", location=self.room1
+        )
+        opponent.db.hp = 30
+        opponent.db.instance_owner = self.char1
+        self.char1.db.active_companion = None
+
+        self.room1.ndb.pending_fighters = [self.char1, opponent]
+        handler = self.room1.scripts.add(CombatTurnHandler)
+
+        self.assertNotEqual(self.char1.db.combat_side, opponent.db.combat_side)
+
+    def test_join_fight_pulls_in_the_joiners_own_pet_too(self):
+        self._start_duel()
+        ally = create.create_object(
+            "typeclasses.characters.Character", key="Ally", location=self.room1
+        )
+        ally.db.hp = 50
+        pet = self._make_pet(ally)
+
+        handler = self.char1.db.combat_turnhandler
+        handler.join_fight(ally)
+
+        self.assertIn(pet, handler.db.fighters)
+        self.assertEqual(pet.db.combat_side, ally.db.combat_side)
+
+
 class TestCmdAttack(CombatCommandTestBase):
     def test_attack_out_of_combat_is_rejected(self):
         result = self.call(CmdAttack(), "Char2", caller=self.char1)
@@ -241,6 +318,56 @@ class TestCmdAttack(CombatCommandTestBase):
             result = self.call(CmdAttack(), "Char2", caller=self.char1)
         self.assertIn("strikes", result)
 
+    def _make_pet(self, owner):
+        from world.combat import SummonedAlly
+
+        pet = create.create_object(SummonedAlly, key="a loyal pet", location=self.room1)
+        pet.db.hp = 20
+        pet.db.max_hp = 20
+        owner.db.active_companion = pet
+        pet.db.instance_owner = owner
+        return pet
+
+    def test_cannot_attack_own_pet_by_name(self):
+        # Real player report: "you could attack them" (referring to
+        # your own pet). Confirmed live before this fix: resolve_attack
+        # has no ally check at all, and attack <name> searches the
+        # whole room, not just who's actually in the fight.
+        pet = self._make_pet(self.char1)
+        self._start_duel()
+        result = self.call(CmdAttack(), pet.key, caller=self.char1)
+        self.assertIn("own companion", result.lower())
+        self.assertEqual(pet.db.hp, 20)
+
+    def test_bare_attack_never_auto_targets_your_own_pet(self):
+        # Once a pet actually joins a fight (CombatTurnHandler.
+        # _sync_companion_pets), it sits in db.fighters right next to
+        # the real enemy - the no-argument fallback must still pick
+        # the enemy, not treat "more than one other fighter" as
+        # ambiguous or, worse, silently prefer the pet.
+        pet = self._make_pet(self.char1)
+        handler = self._start_duel()
+        self.assertIn(pet, handler.db.fighters)
+        with patch("world.combat.randint", return_value=30):
+            result = self.call(CmdAttack(), "", caller=self.char1)
+        self.assertLess(self.char2.db.hp, 100)
+        self.assertEqual(pet.db.hp, 20)
+
+    def test_killing_the_last_enemy_ends_the_fight_immediately(self):
+        # Regression for the real root cause behind "in a party, when
+        # the enemy died, I started attacking my party mate": at_defeat
+        # used to never proactively re-check victory, so a kill that
+        # didn't happen to land on the currently-acting character's own
+        # turn could leave the fight technically still running for one
+        # more turn. Confirmed here the direct way - a normal kill via
+        # CmdAttack must clear combat_turnhandler immediately.
+        self._start_duel()
+        self.char2.db.hp = 1
+        with patch("world.combat.randint", return_value=100):
+            self.call(CmdAttack(), "Char2", caller=self.char1)
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char2))
+
 
 class TestCmdAutoAttack(CombatCommandTestBase):
     def test_on_by_default_for_a_fresh_character(self):
@@ -289,6 +416,42 @@ class TestCmdAutoAttack(CombatCommandTestBase):
         with patch("world.combat.evennia_utils.delay") as mock_delay:
             self.char1.at_turn_start()
         mock_delay.assert_not_called()
+
+    def test_never_targets_a_party_mate_after_the_only_enemy_dies(self):
+        # Root-cause regression for a real player report: "in a party,
+        # when the enemy died, I started attacking my party mate."
+        # Confirmed live before this fix: try_auto_attack's own
+        # fallback ("if there's exactly one other living fighter left,
+        # attack them") had no concept of sides at all - the moment the
+        # party's only enemy died, the only other living fighter left
+        # in the fight was the player's own ally.
+        ally = create.create_object(
+            "typeclasses.characters.Character", key="Ally", location=self.room1
+        )
+        ally.db.hp = 50
+        ally.db.max_hp = 50
+        self.char1.db.party_leader = self.char1
+        self.char1.db.party_members = [self.char1, ally]
+        ally.db.party_leader = self.char1
+
+        with patch("world.combat.COMBAT_RULES.roll_init") as mock_roll:
+            mock_roll.side_effect = lambda char: 1000 if char == self.char1 else 1
+            self.call(CmdFight(), "all", caller=self.char1)
+
+        handler = self.char1.db.combat_turnhandler
+        self.char1.db.combat_last_target = self.char2
+        self.char2.db.hp = 0  # the enemy just died (e.g. mid-turn, via
+        # a pet's bonus damage or a condition tick - see at_defeat's
+        # own proactive check_for_victory fix for why the fight isn't
+        # necessarily already over at this exact moment)
+
+        # Force deterministic turn state, matching a real fresh turn.
+        handler.db.turn = handler.db.fighters.index(self.char1)
+        self.char1.db.combat_actionsleft = 1
+
+        COMBAT_RULES.try_auto_attack(self.char1)
+
+        self.assertEqual(ally.db.hp, 50)
 
 
 class TestCmdCombatRow(CombatCommandTestBase):
@@ -372,6 +535,18 @@ class TestCmdBuyPet(CombatCommandTestBase):
         self.assertEqual(self.char1.db.gold, 350)
         self.assertEqual(self.char1.db.active_companion.location, self.room1)
         self.assertIn("buys", result.lower())
+
+    def test_successful_purchase_sets_instance_owner(self):
+        # Real, confirmed live gap found while fixing pets not joining
+        # a fight: SummonedAlly.at_turn_start() (which PurchasedPet
+        # inherits) finds who to fight by reading db.instance_owner -
+        # every spell/skill-summoned pet gets this via
+        # spawn_personal_npc, but CmdBuyPet spawned its pet directly
+        # and never set it. Harmless while pets never got a turn at
+        # all; the moment that's fixed, a pet with no instance_owner
+        # would treat its own owner as just another valid target.
+        self.call(CmdBuyPet(), "hound", caller=self.char1)
+        self.assertEqual(self.char1.db.active_companion.db.instance_owner, self.char1)
 
 
 class TestCmdPowerAttack(CombatCommandTestBase):
@@ -580,6 +755,25 @@ class TestCmdGodTeleport(CombatCommandTestBase):
         # Index shifted back by one - still correctly points at char1,
         # not accidentally advanced to third.
         self.assertEqual(handler.db.fighters[handler.db.turn], self.char1)
+
+        third.delete()
+
+    def test_refuses_to_teleport_into_a_character(self):
+        # Real, confirmed live incident: a god's destination search had
+        # no typeclass restriction, so a name matching another
+        # CHARACTER resolved to that character instead of a room -
+        # move_to() then dropped the target INSIDE them. Reproduced
+        # here the direct way: "Char3" matches a real character, not a
+        # room, and must be refused rather than silently succeeding.
+        third = create.create_object(
+            "typeclasses.characters.Character", key="Char3", location=self.room2
+        )
+        original_location = self.char2.location
+
+        result = self.call(CmdGodTeleport(), "Char2 = Char3", caller=self.char1)
+
+        self.assertIn("only teleports to rooms", result.lower())
+        self.assertEqual(self.char2.location, original_location)
 
         third.delete()
 

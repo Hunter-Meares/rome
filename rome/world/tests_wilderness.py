@@ -19,6 +19,7 @@ from world.wilderness_rome import (
     _cleanup_encounter_npc,
     _ENCOUNTER_TAG,
     EnterWildernessExit,
+    FixedWildernessRoom,
 )
 
 
@@ -247,3 +248,49 @@ class TestEnterWildernessExit(EvenniaTest):
     def test_traversing_moves_into_the_wilderness_at_the_origin(self):
         self.entrance.at_traverse(self.char1, None)
         self.assertEqual(getattr(self.char1.location, "coordinates", None), (0, 0))
+
+
+class TestFixedWildernessRoom(EvenniaTest):
+    """
+    Real, confirmed live incident: the wilderness contrib's own
+    WildernessRoom.at_object_receive() takes no **kwargs at all, but
+    Evennia core's move_to() always calls it with move_type=... - a
+    real incompatibility that made move_to() silently fail its
+    at_object_receive step for every wilderness entry (masked for
+    ordinary walking, since move_to() had already updated .location
+    before hitting this - only surfaced loudly via a god's own
+    '@tel/loc <player>' on someone standing in the wilderness, which
+    does check move_to()'s return value). See FixedWildernessRoom's
+    own docstring for the full account.
+    """
+
+    def setUp(self):
+        super().setUp()
+        wilderness.create_wilderness(
+            name="fixed_room_test", mapprovider=RomeWildernessMapProvider()
+        )
+        self.entrance = create.create_object(
+            EnterWildernessExit, key="north", location=self.room1, destination=None
+        )
+        self.char1.location = self.room1
+
+    def test_room_typeclass_is_the_fixed_subclass(self):
+        self.assertEqual(RomeWildernessMapProvider.room_typeclass, FixedWildernessRoom)
+
+    def test_move_to_with_move_type_does_not_fail(self):
+        # The real regression: move_to() ALWAYS passes move_type as a
+        # keyword to at_object_receive - the plain contrib room crashes
+        # on this (TypeError: unexpected keyword argument 'move_type'),
+        # which move_to() itself catches and turns into a False return
+        # value ("Teleportation failed" for any caller that checks it,
+        # like Evennia's stock '@tel'). Moves from a genuinely separate
+        # room into the wilderness room - the real '@tel/loc <player>'
+        # shape, not a same-room no-op (which fails for an unrelated
+        # reason and isn't what this bug is about).
+        self.entrance.at_traverse(self.char1, None)
+        wilderness_room = self.char1.location
+        elsewhere = create.create_object("typeclasses.rooms.Room", key="Elsewhere")
+        self.char1.location = elsewhere
+
+        result = self.char1.move_to(wilderness_room, quiet=True, move_type="teleport")
+        self.assertTrue(result)

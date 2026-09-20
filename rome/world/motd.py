@@ -40,8 +40,10 @@ RECENT_UPDATES_TEXT = (
     "a wine merchant in the Forum, and an adventuring-supplies stall "
     "at the Ludus - all selling real potions, scrolls, and food that "
     "heal or buff you ('shop' to browse, 'use <item>' to drink/eat/"
-    "read it). Also: 80 new social commands ('help socials'), and "
-    "real front/back row positioning ('help row')."
+    "read it). Also: 80 new social commands ('help socials'), real "
+    "front/back row positioning ('help row'), and a fix so your own "
+    "pet or party mate can never end up on the wrong end of your "
+    "attacks."
 )
 
 # The box's own interior width, between its left/right borders and

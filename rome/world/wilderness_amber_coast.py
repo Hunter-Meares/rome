@@ -58,6 +58,8 @@ from evennia import DefaultExit
 from evennia.contrib.grid import wilderness
 from evennia.utils import create
 
+from world.wilderness_rome import FixedWildernessRoom
+
 # --- Map bounds -------------------------------------------------------
 
 # y=0 is the threshold just past "The Contested Ridge" (the Germanic
@@ -349,6 +351,13 @@ class LeaveAmberCoastWildernessExit(DefaultExit):
 
 
 class AmberCoastWildernessMapProvider(wilderness.WildernessMapProvider):
+    # Fixes the same real at_object_receive()/move_type incompatibility
+    # between the wilderness contrib and current Evennia core that
+    # RomeWildernessMapProvider's own FixedWildernessRoom (world/
+    # wilderness_rome.py) fixes for the original road - see that
+    # class's own docstring for the full account.
+    room_typeclass = FixedWildernessRoom
+
     def is_valid_coordinates(self, wildernessscript, coordinates):
         x, y = coordinates
         if y < 0 or y > ROAD_LENGTH:

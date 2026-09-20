@@ -1479,6 +1479,29 @@ class CombatRules:
 
         self._expose_back_row_if_front_row_wiped(defeated)
 
+        # A defeat can come from anywhere - a pet's own bonus signature
+        # -move damage, a Poisoned tick on someone else's turn, a
+        # Double/Triple Strike bonus swing - none of which naturally
+        # trigger the fight's own end-of-turn victory check (that only
+        # ever fires from spend_action -> turn_end_check, tied to
+        # whoever's turn is CURRENTLY ending). Real, confirmed live bug
+        # this closes: a fight technically already over (the losing
+        # side's last member just died here) could still limp along
+        # for one more turn if the kill didn't happen to land on the
+        # currently-acting character's own turn - during that extra
+        # turn, the "only one other living fighter left" auto-target
+        # fallback (CmdAttack, CombatRules.try_auto_attack) had nothing
+        # left to find but a player's own ally, since the actual (dead)
+        # enemy was already filtered out by its own 0 HP. Matches a
+        # real player report: "in a party, when the enemy died, I
+        # started attacking my party mate." CombatRules.force_disengage
+        # already checks proactively for the identical reason (see its
+        # own comment) - do the same here rather than only ever relying
+        # on the next natural turn-boundary to notice.
+        turnhandler = defeated.db.combat_turnhandler
+        if turnhandler and turnhandler.pk:
+            turnhandler.check_for_victory()
+
         # --- Colosseum escape-on-victory ---
         if attacker and defeated.tags.has("colosseum_trainer", category="npc_role"):
             if not attacker.db.colosseum_escaped:
@@ -2333,7 +2356,18 @@ class CombatRules:
             character.db.combat_actionsleft = (character.db.combat_actionsleft or 0) - actions
             if character.db.combat_actionsleft < 0:
                 character.db.combat_actionsleft = 0
-        character.db.combat_turnhandler.turn_end_check(character)
+        # Real regression this guard fixes: at_defeat now proactively
+        # calls check_for_victory() the instant a defeat happens (see
+        # its own comment), rather than only ever at the next natural
+        # turn-boundary - which means the very action that lands a
+        # killing blow can end the fight (stop()+delete() the
+        # turnhandler, clearing every fighter's combat_turnhandler)
+        # BEFORE this same call's own spend_action() ever reaches this
+        # line. Without this guard, a normal killing-blow attack
+        # crashed here with an AttributeError on None instead of
+        # cleanly finishing.
+        if character.db.combat_turnhandler:
+            character.db.combat_turnhandler.turn_end_check(character)
 
     def regen_combat_resources(self, character):
         """
@@ -2391,8 +2425,23 @@ class CombatRules:
             return  # already acted manually this turn
 
         target = character.db.combat_last_target
-        if not target or target not in fighters or not target.db.hp:
-            living_others = [f for f in fighters if f != character and f.db.hp]
+        if (
+            not target or target not in fighters or not target.db.hp
+            or self.is_ally(character, target)
+        ):
+            # Excludes allies the same way CmdAttack's own no-argument
+            # fallback now does (see that command's comment) - the
+            # identical bug lived here too: auto-attack (on by
+            # default) would happily keep swinging at "the only other
+            # living fighter left" the instant a fight's real enemy
+            # died, which in a 2-vs-1 party fight is your own party
+            # mate, and, now that a pet actually joins a fight (see
+            # CombatTurnHandler._sync_companion_pets), could just as
+            # easily be your own pet.
+            living_others = [
+                f for f in fighters
+                if f != character and f.db.hp and not self.is_ally(character, f)
+            ]
             target = living_others[0] if len(living_others) == 1 else None
         if not target:
             return
@@ -7523,6 +7572,8 @@ class CombatTurnHandler(DefaultScript):
                         team_count += 1
                     sides[fighter] = mob_side
 
+        self._sync_companion_pets(sides)
+
         for fighter in self.db.fighters:
             self.initialize_for_combat(fighter, side=sides.get(fighter))
 
@@ -7890,6 +7941,62 @@ class CombatTurnHandler(DefaultScript):
             side = self.infer_join_side(character)
         self.initialize_for_combat(character, side=side)
 
+        # Same real gap _sync_companion_pets fixes for a fight's own
+        # opening moment - a character joining an ALREADY-running fight
+        # (mid-fight 'fight <target>' against an existing brawl) needs
+        # their own pet pulled in too, or it's left standing outside
+        # the fight entirely, just like the duel-creation case.
+        pet = character.db.active_companion
+        if pet and pet.pk and pet.db.hp and pet not in self.db.fighters:
+            self.db.fighters.insert(self.db.turn, pet)
+            self.db.turn += 1
+            self.initialize_for_combat(pet, side=side)
+
+    def _sync_companion_pets(self, sides):
+        """
+        Makes sure every fighter's own active companion pet (a
+        purchased buypet, or a spell/skill-summoned SummonedAlly) is
+        (a) actually IN this fight, on the SAME side as its owner, and
+        (b) never mistaken for a hostile.
+
+        Two real, confirmed gaps this closes together:
+        - A normal 1-on-1 duel (CmdFight's pending_fighters path)
+          never swept anyone but the two named combatants into
+          db.fighters at all - a pet standing right there never got a
+          turn (at_turn_start is only ever called for something
+          actually in db.fighters), and, with no combat_side of its
+          own, was just as attackable as any hostile via a plain
+          'attack <pet>' (is_ally relies on combat_side to know who's
+          on your side in THIS fight). Confirmed live: a player
+          reported their pet neither joining the fight nor being
+          protected from their own attacks.
+        - 'fight all' DOES sweep a pet into db.fighters already (it's
+          sitting in the room with real hp) - but the side-assignment
+          loop above has no concept of pet ownership at all, so a
+          partyless, account-less pet fell into the same catch-all
+          "mob" side as the actual hostiles. The room-sweep path had
+          the opposite problem: the pet correctly joined the fight,
+          but on the wrong side.
+        """
+        for fighter in list(self.db.fighters):
+            owner = fighter.db.instance_owner
+            # The extra owner.db.active_companion check matters: a
+            # personal-instance duel opponent (Rutilus, a Deeper Sands
+            # Arena challenge) ALSO has db.instance_owner set, via the
+            # exact same spawn_personal_npc() - that's an adversary,
+            # not a pet, and must never be pulled onto its own
+            # challenger's side. active_companion is the one link only
+            # ever pointed at a genuine pet, never an opponent.
+            if owner is not None and owner in sides and owner.db.active_companion is fighter:
+                sides[fighter] = sides[owner]
+
+        for owner in list(self.db.fighters):
+            pet = owner.db.active_companion
+            if not pet or not pet.pk or not pet.db.hp or pet in self.db.fighters:
+                continue
+            self.db.fighters.append(pet)
+            sides[pet] = sides.get(owner)
+
 
 """
 ----------------------------------------------------------------------------
@@ -8118,7 +8225,20 @@ class CmdAttack(Command):
         if not self.args:
             turnhandler = attacker.db.combat_turnhandler
             fighters = turnhandler.db.fighters if turnhandler and turnhandler.pk else []
-            other_fighters = [f for f in fighters if f != attacker and f.db.hp]
+            # Excludes allies (same combat_side in THIS fight, via
+            # is_ally) from ever being auto-picked here - a real,
+            # confirmed live bug: without this, the moment a fight's
+            # only hostile died, "the only other living fighter left"
+            # was your own party mate (or, now that pets actually join
+            # a fight - see CombatTurnHandler._sync_companion_pets -
+            # your own pet), so a bare 'attack' silently turned on your
+            # own side. Matches the same is_ally-based exclusion
+            # HostileNPC.at_turn_start() already uses for the identical
+            # reason.
+            other_fighters = [
+                f for f in fighters
+                if f != attacker and f.db.hp and not self.rules.is_ally(attacker, f)
+            ]
             if len(other_fighters) == 1:
                 defender = other_fighters[0]
             elif len(other_fighters) == 0:
@@ -8140,6 +8260,18 @@ class CmdAttack(Command):
             return
         if attacker == defender:
             self.caller.msg("You can't attack yourself!")
+            return
+        if attacker.db.active_companion is defender:
+            # Explicit-name path only (attacker == defender's owner is
+            # unambiguous, unlike a human party member you might
+            # legitimately duel or an oath-partner you can deliberately
+            # betray - see resolve_attack's own oath-break handling -
+            # there's no equivalent legitimate reason to ever attack
+            # your own pet). The no-argument fallback above already
+            # excludes it from ever being auto-picked; this covers
+            # someone typing its name directly, the other real,
+            # confirmed live complaint ("you could attack them").
+            self.caller.msg("You can't attack your own companion!")
             return
 
         self.rules.resolve_attack(attacker, defender)
@@ -8621,6 +8753,19 @@ class CmdGodTeleport(Command):
     then does the actual teleport happen. Their fight (if others
     remain on either side) simply continues without them, exactly as
     if they'd genuinely disengaged.
+
+    The destination must be a real room. A real, confirmed live
+    incident: a god's destination search had no typeclass restriction
+    at all, so a name that happened to match another CHARACTER (a
+    fellow god, a player, an NPC) resolved to that character object
+    instead of a room - move_to() then did exactly what it's always
+    meant to do with a non-room destination, dropping the target
+    INSIDE that other character, the same way any object placed
+    "inside" a container would be. One god accidentally teleported a
+    player inside another god this way. Restricting the search to
+    Room typeclasses only closes this off entirely, rather than
+    relying on every future god to always double-check their target
+    string is unambiguous.
     """
 
     key = "godteleport"
@@ -8642,7 +8787,16 @@ class CmdGodTeleport(Command):
         target = caller.search(lhs.strip(), global_search=True)
         if not target:
             return
-        destination = caller.search(rhs.strip(), global_search=True)
+        destination = caller.search(
+            rhs.strip(),
+            global_search=True,
+            typeclass="typeclasses.rooms.Room",
+            nofound_string=(
+                "Could not find a room named '%s' - godteleport only "
+                "teleports to rooms, never to a character or an object."
+                % rhs.strip()
+            ),
+        )
         if not destination:
             return
 
@@ -10516,6 +10670,17 @@ class CmdBuyPet(Command):
 
         pet = spawn(prototype_key)[0]
         pet.move_to(caller.location, quiet=True)
+        # SummonedAlly.at_turn_start() (which PurchasedPet inherits)
+        # finds who to fight by reading db.instance_owner - every
+        # spell/skill-summoned pet gets this via spawn_personal_npc,
+        # but a bought pet was spawned directly and never got it set
+        # at all. Harmless while pets never actually joined a fight
+        # (the bug _sync_companion_pets above fixes), but the moment
+        # that's fixed, a purchased pet with no instance_owner would
+        # treat its own owner as just another possible target instead
+        # of correctly excluding them - a real, confirmed-live gap
+        # found while fixing that other bug, not yet visible before it.
+        pet.db.instance_owner = caller
         caller.db.gold -= cost
         caller.db.active_companion = pet
         caller.location.msg_contents(

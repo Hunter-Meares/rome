@@ -62,6 +62,41 @@ def at_server_start():
     if amber_script:
         amber_script.at_server_start()
 
+    # Real, confirmed live incident: a CombatTurnHandler's own ticking
+    # (interval=5, persistent=True - the mechanism behind both the
+    # 20-second turn timeout and the NPC turn-pacing delay) can survive
+    # a restart as PERSISTED DATA (db.fighters, db.turn all correct)
+    # while its actual repeating task never resumes - confirmed live by
+    # checking two real, currently-active fights after an earlier
+    # restart: both showed is_active=True but
+    # time_until_next_repeat()=None. Root cause, traced into Evennia
+    # core itself (evennia/scripts/manager.py's
+    # update_scripts_after_server_start()): a script's task is only
+    # ever re-armed via _unpause_task(), which is a no-op unless the
+    # OLD process had already, gracefully PAUSED it first (writing
+    # db._paused_time) as part of a clean shutdown sequence. Any
+    # restart that skips that graceful pause step - a crash, an OOM
+    # kill, or anything else that doesn't go through Evennia's normal
+    # shutdown path, plausibly explaining a real player report
+    # ("the server restart broke this [NPC], I can't do anything until
+    # he ends his turn") - leaves _paused_time unset, so unpause never
+    # fires and the script silently never ticks again. A plain
+    # `evennia reload` issued from an already-healthy running process
+    # pauses correctly and doesn't hit this; this is specifically for
+    # whatever restart DIDN'T get that chance. Rather than trying to
+    # fix Evennia's own pause/unpause machinery, this just
+    # unconditionally re-arms every currently-active CombatTurnHandler
+    # on every boot - script.start() isn't gated on prior pause state
+    # at all, and is a safe, idempotent no-op for a fight whose ticking
+    # was already fine.
+    from evennia.scripts.models import ScriptDB
+    from world.combat import CombatTurnHandler
+
+    for script in ScriptDB.objects.filter(
+        db_typeclass_path__endswith=".CombatTurnHandler", db_is_active=True
+    ):
+        script.start()
+
 
 def at_server_stop():
     """

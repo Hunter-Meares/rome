@@ -396,7 +396,45 @@ class LeaveGermaniaWildernessExit(DefaultExit):
         return True
 
 
+class FixedWildernessRoom(wilderness.WildernessRoom):
+    """
+    The wilderness contrib's own WildernessRoom.at_object_receive()
+    (evennia/contrib/grid/wilderness/wilderness.py) takes no **kwargs
+    at all, but Evennia core's own DefaultObject.move_to() always
+    calls destination.at_object_receive(obj, source_location,
+    move_type=move_type, **kwargs) unconditionally for every move,
+    everywhere - a real, confirmed live incompatibility between this
+    contrib and current Evennia core, not anything specific to Rome's
+    own code.
+
+    move_to() catches the resulting TypeError itself (logging
+    "Couldn't perform move (at_object_receive())...") and returns
+    False - but WITHOUT undoing the already-completed location change
+    (`self.location = destination` happens earlier, in its own
+    separate try/except a few lines up in move_to()). That's exactly
+    why this stayed invisible all session despite the wilderness road
+    being walked constantly: an ordinary exit-traversal into the
+    wilderness "worked" anyway (the character genuinely arrives), it
+    just silently skips at_post_move (the hook that auto-shows the new
+    room - see gotcha #3), so nothing looked broken as long as nobody
+    compared against a command that actually checks move_to()'s return
+    value. Evennia's own stock '@tel' does check it, and surfaced this
+    loudly as a player-facing "Teleportation failed" - confirmed live
+    via a god trying '@tel/loc <player>' on someone standing in the
+    wilderness.
+
+    Fixed by accepting and discarding move_type/**kwargs here before
+    delegating to the contrib's own real logic, which never reads
+    either - nothing about the contrib's actual behavior changes.
+    """
+
+    def at_object_receive(self, moved_obj, source_location, move_type="move", **kwargs):
+        super().at_object_receive(moved_obj, source_location)
+
+
 class RomeWildernessMapProvider(wilderness.WildernessMapProvider):
+    room_typeclass = FixedWildernessRoom
+
     def is_valid_coordinates(self, wildernessscript, coordinates):
         x, y = coordinates
         if y < 0 or y > ROAD_LENGTH:
