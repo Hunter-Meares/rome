@@ -80,7 +80,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming", "trivia"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
         + list(RACIAL_ABILITIES.keys())
     )
@@ -1061,6 +1061,24 @@ def create_all_help_entries():
         db_lock_storage="view:all()",
     )
 
+    # --- Trivia (Hecate's Roman epithet) ---
+    HelpEntry.objects.create(
+        db_key="trivia",
+        db_help_category="General",
+        db_entrytext=(
+            "|wTrivia|n\n\n"
+            "|xThe Romans rarely spoke Hecate's Greek name at a crossroads "
+            "after dark - they called her Trivia instead, \"of the three "
+            "roads,\" where her shrines were traditionally kept.|n\n\n"
+            "Trivia is simply the Roman name for Hecate, goddess of "
+            "magic, crossroads, and the boundary between the living and "
+            "the dead - the same figure behind the Cult of Hecate. See "
+            "'help factions' for how faction membership actually works; "
+            "this topic exists just to answer the name itself."
+        ),
+        db_lock_storage="view:all()",
+    )
+
     # --- Beseech (divine intervention) ---
     HelpEntry.objects.create(
         db_key="beseech",
@@ -1288,6 +1306,10 @@ def create_all_help_entries():
             "  Germanic (level 15) - nobody in Rome teaches it yet; its "
             "trainer lives at the Germanic settlement itself, far to "
             "the north past the Porta Flaminia\n\n"
+            "Each language also has its own display color, so you can tell "
+            "which one you're hearing at a glance even when the words are "
+            "scrambled: |wLatin|n, |cGreek|n, |gCeltic|n, |yEgyptian|n, "
+            "|rGermanic|n.\n\n"
             "|wCommands:|n\n"
             "  speak                  - show what you're currently "
             "speaking, and everything you know\n"

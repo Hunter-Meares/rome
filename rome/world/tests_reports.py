@@ -196,3 +196,142 @@ class TestCmdManageReportsBareFormNoLongerGuesses(EvenniaCommandTest):
             reports.CmdManageReports(), "", cmdstring="manage nonsense", caller=self.account
         )
         self.assertIn("not a valid report category", result)
+
+
+class TestCmdManageReportsTargetsThePuppetedCharacter(EvenniaCommandTest):
+    """
+    Real, confirmed live bug: running EvMenu on the bare account (the
+    stock contrib's own choice - evmenu.EvMenu(self.account, ...))
+    left the puppeted Character's own cmdset completely untouched,
+    since Evennia keeps separate cmdset stacks for an Account and
+    whatever it's puppeting, and EvMenu's "Replace" mergetype only
+    ever replaces siblings on the exact object it's attached to. A
+    room's dynamically-added exit commands live on the CHARACTER's
+    stack - so typing 'n' or 'next' for this menu's own "Next 10"
+    option matched the room's "north" exit instead and just walked
+    the god north. Fixed by targeting whichever object is actually
+    puppeted (falling back to the account only when genuinely OOC).
+    """
+
+    def test_targets_the_puppeted_character_when_one_exists(self):
+        cmd = reports.CmdManageReports()
+        cmd.caller = self.account
+        cmd.account = self.account
+        cmd.cmdstring = "manage bugs"
+        cmd.session = SimpleNamespace(puppet=self.char1)
+        cmd.msg = lambda *a, **kw: None
+
+        with patch("world.reports.evmenu.EvMenu") as mock_evmenu, patch(
+            "world.reports._get_report_hub", return_value=create.create_script(key="bugs_hub")
+        ):
+            cmd.func()
+
+        self.assertEqual(mock_evmenu.call_args[0][0], self.char1)
+
+    def test_falls_back_to_the_account_when_nothing_is_puppeted(self):
+        cmd = reports.CmdManageReports()
+        cmd.caller = self.account
+        cmd.account = self.account
+        cmd.cmdstring = "manage bugs"
+        cmd.session = SimpleNamespace(puppet=None)
+        cmd.msg = lambda *a, **kw: None
+
+        with patch("world.reports.evmenu.EvMenu") as mock_evmenu, patch(
+            "world.reports._get_report_hub", return_value=create.create_script(key="bugs_hub")
+        ):
+            cmd.func()
+
+        self.assertEqual(mock_evmenu.call_args[0][0], self.account)
+
+
+class TestStatusBadgeOnTheMainList(ReportsMenuTestBase):
+    """
+    Direct player-facing (god-facing) request: a report's status used
+    to only ever be visible by opening it individually, making a long
+    triage pass slow. _status_badge gives the main list a colored,
+    at-a-glance summary instead.
+    """
+
+    def test_badge_is_empty_for_an_untagged_report(self):
+        hub = self._make_hub()
+        msg = create.create_message(self.account, "Something's broken.", receivers=hub)
+        self.assertEqual(reports._status_badge(msg), "")
+
+    def test_badge_shows_a_colored_tag_for_in_progress(self):
+        hub = self._make_hub()
+        msg = create.create_message(self.account, "Something's broken.", receivers=hub)
+        msg.tags.add("in progress")
+        badge = reports._status_badge(msg)
+        self.assertIn("IN PROGRESS", badge)
+        self.assertIn("|y", badge)
+
+    def test_badge_shows_multiple_statuses_together(self):
+        hub = self._make_hub()
+        msg = create.create_message(self.account, "Something's broken.", receivers=hub)
+        msg.tags.add("in progress")
+        msg.tags.add("closed")
+        badge = reports._status_badge(msg)
+        self.assertIn("IN PROGRESS", badge)
+        self.assertIn("CLOSED", badge)
+
+    def test_list_reports_shows_the_badge_on_each_row(self):
+        hub = self._make_hub()
+        self._attach_fake_evmenu(self.char1, hub)
+        # menunode_list_reports (unlike menunode_manage_report, used by
+        # this class's other tests) filters by the report's own real
+        # "read" lock (real reports get "read:pperm(Admin)" from the
+        # actual bug/idea/player command) - an explicit open lock here
+        # keeps this test about the badge, not about permissions.
+        create.create_message(
+            self.account, "Something's broken.", receivers=hub, locks="read:all()"
+        ).tags.add("in progress")
+
+        (text, helptext), options = reports.menunode_list_reports(self.char1, "")
+
+        report_rows = [
+            o for o in options
+            if isinstance(o.get("goto"), tuple)
+            and isinstance(o["goto"][1], dict)
+            and "report" in o["goto"][1]
+        ]
+        self.assertTrue(report_rows)
+        self.assertIn("IN PROGRESS", report_rows[0]["desc"])
+
+
+class TestRejectedReportsExcludedFromDefaultList(ReportsMenuTestBase):
+    """
+    Real, confirmed live gap: the stock list only ever excluded the
+    "closed" tag from the default (unfiltered) view - "rejected" is
+    just as much a final disposition, but stayed in the main list
+    forever unless ALSO separately marked closed.
+    """
+
+    def test_a_rejected_report_does_not_appear_in_the_default_list(self):
+        hub = self._make_hub()
+        self._attach_fake_evmenu(self.char1, hub)
+        # explicit open "read" lock, same reasoning as
+        # TestStatusBadgeOnTheMainList.test_list_reports_shows_the_badge_on_each_row
+        create.create_message(self.account, "Still open.", receivers=hub, locks="read:all()")
+        create.create_message(
+            self.account, "Rejected one.", receivers=hub, locks="read:all()"
+        ).tags.add("rejected")
+
+        (text, helptext), options = reports.menunode_list_reports(self.char1, "")
+
+        descs = [o["desc"] for o in options if "desc" in o]
+        self.assertTrue(any("Still open." in d for d in descs))
+        self.assertFalse(any("Rejected one." in d for d in descs))
+
+    def test_an_explicit_rejected_filter_still_shows_it(self):
+        hub = self._make_hub()
+        self._attach_fake_evmenu(self.char1, hub)
+        create.create_message(
+            self.account, "Rejected one.", receivers=hub, locks="read:all()"
+        ).tags.add("rejected")
+
+        (text, helptext), options = reports.menunode_list_reports(
+            self.char1, "", status="rejected"
+        )
+
+        descs = [o["desc"] for o in options if "desc" in o]
+        self.assertTrue(any("Rejected one." in d for d in descs))

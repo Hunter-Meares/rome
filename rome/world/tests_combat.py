@@ -28,6 +28,11 @@ from world.combat import (
     COMBAT_RULES,
     CombatTurnHandler,
     HostileNPC,
+    ACTIONS_PER_TURN,
+    CONDITION_RESIST_BASE,
+    CONDITION_RESIST_STAT_MULTIPLIER,
+    CONDITION_RESIST_MIN,
+    CONDITION_RESIST_MAX,
     ACCURACY_STAT_MULTIPLIER,
     NONPROFICIENT_ACCURACY_PENALTY,
     NONPROFICIENT_DAMAGE_MULTIPLIER,
@@ -2245,17 +2250,19 @@ class TestSkillAndSpellAnnouncementOrdering(CombatTestBase):
     def test_skill_add_condition_announces_before_condition(self):
         captured = self._capture()
         self.char1.db.sp = 10
-        COMBAT_RULES.skill_add_condition(
-            self.char1, "feint", [self.char2], 4, conditions=[("Accuracy Down", 3)]
-        )
+        with patch("world.combat.randint", return_value=100):
+            COMBAT_RULES.skill_add_condition(
+                self.char1, "feint", [self.char2], 4, conditions=[("Accuracy Down", 3)]
+            )
         self._assert_announcement_before_condition(captured, "uses feint!")
 
     def test_spell_add_condition_announces_before_condition(self):
         captured = self._capture()
         self.char1.db.mp = 10
-        COMBAT_RULES.spell_add_condition(
-            self.char1, "auspice", [self.char2], 4, conditions=[("Defense Up", 3)]
-        )
+        with patch("world.combat.randint", return_value=100):
+            COMBAT_RULES.spell_add_condition(
+                self.char1, "auspice", [self.char2], 4, conditions=[("Defense Up", 3)]
+            )
         self._assert_announcement_before_condition(captured, "casts auspice!")
 
     def test_skill_deathmark_announces_before_condition(self):
@@ -2309,28 +2316,39 @@ class TestSpellAddConditionScalesDurationWithIngenium(CombatTestBase):
     also depend on.
     """
 
+    # A hostile target now gets a real (if usually small) chance to
+    # resist entirely - see CONDITION_RESIST_BASE's own comment and
+    # TestConditionResistance below. randint is pinned to a guaranteed-
+    # landing roll (100, always > the 75% resist ceiling) in every test
+    # here that targets char2, so these stay exact duration checks
+    # rather than picking up new, unrelated flakiness from a feature
+    # they aren't the ones testing.
+
     def test_base_ingenium_leaves_duration_unchanged(self):
         self.char1.db.ingenium = 10
         self.char1.db.mp = 10
-        COMBAT_RULES.spell_add_condition(
-            self.char1, "mark of decay", [self.char2], 4, conditions=[("Poisoned", 4)]
-        )
+        with patch("world.combat.randint", return_value=100):
+            COMBAT_RULES.spell_add_condition(
+                self.char1, "mark of decay", [self.char2], 4, conditions=[("Poisoned", 4)]
+            )
         self.assertEqual(self.char2.db.conditions["Poisoned"][0], 4)
 
     def test_higher_ingenium_extends_duration(self):
         self.char1.db.ingenium = 19  # (19-10)//3 = 3 extra turns
         self.char1.db.mp = 10
-        COMBAT_RULES.spell_add_condition(
-            self.char1, "mark of decay", [self.char2], 4, conditions=[("Poisoned", 4)]
-        )
+        with patch("world.combat.randint", return_value=100):
+            COMBAT_RULES.spell_add_condition(
+                self.char1, "mark of decay", [self.char2], 4, conditions=[("Poisoned", 4)]
+            )
         self.assertEqual(self.char2.db.conditions["Poisoned"][0], 7)
 
     def test_below_base_ingenium_never_shortens_duration(self):
         self.char1.db.ingenium = 5
         self.char1.db.mp = 10
-        COMBAT_RULES.spell_add_condition(
-            self.char1, "mark of decay", [self.char2], 4, conditions=[("Poisoned", 4)]
-        )
+        with patch("world.combat.randint", return_value=100):
+            COMBAT_RULES.spell_add_condition(
+                self.char1, "mark of decay", [self.char2], 4, conditions=[("Poisoned", 4)]
+            )
         self.assertEqual(self.char2.db.conditions["Poisoned"][0], 4)
 
     def test_beneficial_conditions_get_the_same_bonus(self):
@@ -2347,10 +2365,11 @@ class TestSpellAddConditionScalesDurationWithIngenium(CombatTestBase):
     def test_multiple_conditions_each_get_the_bonus(self):
         self.char1.db.ingenium = 19
         self.char1.db.mp = 10
-        COMBAT_RULES.spell_add_condition(
-            self.char1, "omen of ruin", [self.char2], 8,
-            conditions=[("Frightened", 3), ("Accuracy Down", 3), ("Damage Down", 3)],
-        )
+        with patch("world.combat.randint", return_value=100):
+            COMBAT_RULES.spell_add_condition(
+                self.char1, "omen of ruin", [self.char2], 8,
+                conditions=[("Frightened", 3), ("Accuracy Down", 3), ("Damage Down", 3)],
+            )
         for condition in ("Frightened", "Accuracy Down", "Damage Down"):
             self.assertEqual(self.char2.db.conditions[condition][0], 6)
 
@@ -2366,22 +2385,29 @@ class TestSkillAddConditionScalesDurationWithAgilitasOrVirtus(CombatTestBase):
     had before its fix - just on the skill side.
     """
 
+    # Same guaranteed-landing patch as spell_add_condition's own tests
+    # above, for the same reason - a hostile target now gets a real
+    # (usually small) resist chance, pinned out here since resistance
+    # isn't what these particular tests are checking.
+
     def test_base_stats_leave_duration_unchanged(self):
         self.char1.db.agilitas = 10
         self.char1.db.virtus = 10
         self.char1.db.sp = 10
-        COMBAT_RULES.skill_add_condition(
-            self.char1, "poisoned blade", [self.char2], 4, conditions=[("Poisoned", 4)]
-        )
+        with patch("world.combat.randint", return_value=100):
+            COMBAT_RULES.skill_add_condition(
+                self.char1, "poisoned blade", [self.char2], 4, conditions=[("Poisoned", 4)]
+            )
         self.assertEqual(self.char2.db.conditions["Poisoned"][0], 4)
 
     def test_higher_agilitas_extends_duration(self):
         self.char1.db.agilitas = 19  # (19-10)//3 = 3 extra turns
         self.char1.db.virtus = 10
         self.char1.db.sp = 10
-        COMBAT_RULES.skill_add_condition(
-            self.char1, "poisoned blade", [self.char2], 4, conditions=[("Poisoned", 4)]
-        )
+        with patch("world.combat.randint", return_value=100):
+            COMBAT_RULES.skill_add_condition(
+                self.char1, "poisoned blade", [self.char2], 4, conditions=[("Poisoned", 4)]
+            )
         self.assertEqual(self.char2.db.conditions["Poisoned"][0], 7)
 
     def test_higher_virtus_also_extends_duration(self):
@@ -2399,18 +2425,20 @@ class TestSkillAddConditionScalesDurationWithAgilitasOrVirtus(CombatTestBase):
         self.char1.db.agilitas = 19  # +3
         self.char1.db.virtus = 22  # +4 - higher, should win alone
         self.char1.db.sp = 10
-        COMBAT_RULES.skill_add_condition(
-            self.char1, "poisoned blade", [self.char2], 4, conditions=[("Poisoned", 4)]
-        )
+        with patch("world.combat.randint", return_value=100):
+            COMBAT_RULES.skill_add_condition(
+                self.char1, "poisoned blade", [self.char2], 4, conditions=[("Poisoned", 4)]
+            )
         self.assertEqual(self.char2.db.conditions["Poisoned"][0], 8)  # 4+4, not 4+3+4
 
     def test_below_base_stats_never_shorten_duration(self):
         self.char1.db.agilitas = 5
         self.char1.db.virtus = 5
         self.char1.db.sp = 10
-        COMBAT_RULES.skill_add_condition(
-            self.char1, "poisoned blade", [self.char2], 4, conditions=[("Poisoned", 4)]
-        )
+        with patch("world.combat.randint", return_value=100):
+            COMBAT_RULES.skill_add_condition(
+                self.char1, "poisoned blade", [self.char2], 4, conditions=[("Poisoned", 4)]
+            )
         self.assertEqual(self.char2.db.conditions["Poisoned"][0], 4)
 
 
@@ -2430,9 +2458,10 @@ class TestHexGrantsFrightenedNotPoisoned(CombatTestBase):
 
     def test_casting_hex_grants_frightened_not_poisoned(self):
         self.char1.db.sp = 10
-        COMBAT_RULES.skill_add_condition(
-            self.char1, "hex", [self.char2], 7, conditions=SKILLS["hex"]["conditions"]
-        )
+        with patch("world.combat.randint", return_value=100):
+            COMBAT_RULES.skill_add_condition(
+                self.char1, "hex", [self.char2], 7, conditions=SKILLS["hex"]["conditions"]
+            )
         self.assertIn("Frightened", self.char2.db.conditions)
         self.assertNotIn("Poisoned", self.char2.db.conditions)
 
@@ -3313,6 +3342,11 @@ class TestHostileNPCDoesNotAttackItsOwnSide(CombatTestBase):
         npc.db.sp = 0
         npc.db.player_class = None
         npc.db.combat_side = side
+        # Real gameplay always sets this via CombatTurnHandler.start_turn
+        # BEFORE calling at_turn_start - these tests call at_turn_start
+        # directly, so it needs setting by hand or every NPC looks
+        # "out of actions" from the very first line of that method.
+        npc.db.combat_actionsleft = ACTIONS_PER_TURN
         return npc
 
     def test_never_targets_a_fellow_npc_on_its_own_side(self):
@@ -3454,6 +3488,11 @@ class TestHostileNPCAppliesPerTurnConditions(CombatTestBase):
         npc.db.mp = 0
         npc.db.sp = 0
         npc.db.player_class = None
+        # Real gameplay always sets this via CombatTurnHandler.start_turn
+        # BEFORE calling at_turn_start - these tests call at_turn_start
+        # directly, so it needs setting by hand or every NPC looks
+        # "out of actions" from the very first line of that method.
+        npc.db.combat_actionsleft = ACTIONS_PER_TURN
         return npc
 
     def test_poisoned_npc_takes_damage_on_its_own_turn(self):
@@ -3506,6 +3545,114 @@ class TestHostileNPCAppliesPerTurnConditions(CombatTestBase):
         mock_attack.assert_called_once_with(npc, self.char1)
 
 
+class TestFrightenedActuallyStopsAnyoneFromActing(CombatTestBase):
+    """
+    Real, confirmed live bug found by a direct player question ("what
+    did hex do? I'm not seeing any effect from frightened"): unlike
+    Paralyzed (handled centrally in apply_turn_conditions, forcing
+    combat_actionsleft to 0 and ending the turn - see the test class
+    just above this one for that same pattern applied to Poisoned),
+    Frightened's actual enforcement lived entirely in individual
+    PLAYER commands (CmdAttack/CmdPowerAttack/CmdCast/CmdUseSkill each
+    separately refuse while it's active). An NPC's own turn never
+    goes through any of those commands (HostileNPC.at_turn_start calls
+    _gather_actions/_use_ability directly), so a Frightened NPC kept
+    attacking every turn completely unaffected the whole time the
+    condition was up - it landed, ticked down, and expired right on
+    schedule with zero real effect. Fixed by handling it in
+    apply_turn_conditions exactly like Paralyzed, so it's a real
+    "can't act this turn" effect for players and NPCs alike.
+    """
+
+    def test_frightened_zeroes_actions_and_ends_the_turn(self):
+        # A real (if minimal) CombatTurnHandler - a plain stand-in
+        # object would need to be a persisted Attribute value here
+        # (character.db.combat_turnhandler), and Evennia's Attribute
+        # storage pickles whatever's assigned to it, which fails
+        # outright for a locally-defined ad hoc class.
+        from evennia.utils import create as ev_create
+
+        room = ev_create.create_object("typeclasses.rooms.Room", key="a testing void 1")
+        dummy = ev_create.create_object(
+            "evennia.objects.objects.DefaultObject", key="a training dummy", location=room
+        )
+        dummy.db.hp = 1
+        handler = ev_create.create_script(CombatTurnHandler, obj=room, autostart=False)
+
+        handler.db.fighters = [self.char1]
+        self.char1.db.combat_turnhandler = handler
+        self.char1.db.combat_actionsleft = 3
+        self.char1.db.combat_side = "team_0"
+        self.char1.db.conditions = {"Frightened": [2, self.char2]}
+        self.char1.location = self.room1
+
+        COMBAT_RULES.apply_turn_conditions(self.char1)
+
+        self.assertEqual(self.char1.db.combat_actionsleft, 0)
+
+    def test_frightened_npc_does_not_attack_on_its_own_turn(self):
+        from evennia.utils import create as ev_create
+
+        room = ev_create.create_object("typeclasses.rooms.Room", key="a testing void 2")
+        dummy = ev_create.create_object(
+            "evennia.objects.objects.DefaultObject", key="a training dummy", location=room
+        )
+        dummy.db.hp = 1
+        handler = ev_create.create_script(CombatTurnHandler, obj=room, autostart=False)
+
+        npc = create.create_object(HostileNPC, key="a frightened wolf", location=self.room1)
+        npc.db.hp = 50
+        npc.db.max_hp = 50
+        npc.db.mp = 0
+        npc.db.sp = 0
+        npc.db.player_class = None
+        npc.db.combat_turnhandler = handler
+        npc.db.combat_side = "team_1"
+        npc.db.combat_actionsleft = ACTIONS_PER_TURN
+        npc.db.conditions = {"Frightened": [2, self.char1]}
+        self.char1.location = self.room1
+        self.char1.db.combat_side = "team_0"
+        self.char1.db.hp = 100
+        handler.db.fighters = [npc, self.char1]
+
+        with patch("world.combat.COMBAT_RULES.resolve_attack") as mock_attack, \
+                patch("world.combat.COMBAT_RULES.spend_action"):
+            npc.at_turn_start()
+
+        mock_attack.assert_not_called()
+
+    def test_not_frightened_npc_still_acts_normally(self):
+        from evennia.utils import create as ev_create
+
+        room = ev_create.create_object("typeclasses.rooms.Room", key="a testing void 3")
+        dummy = ev_create.create_object(
+            "evennia.objects.objects.DefaultObject", key="a training dummy", location=room
+        )
+        dummy.db.hp = 1
+        handler = ev_create.create_script(CombatTurnHandler, obj=room, autostart=False)
+
+        npc = create.create_object(HostileNPC, key="a calm wolf", location=self.room1)
+        npc.db.hp = 50
+        npc.db.max_hp = 50
+        npc.db.mp = 0
+        npc.db.sp = 0
+        npc.db.player_class = None
+        npc.db.combat_turnhandler = handler
+        npc.db.combat_side = "team_1"
+        npc.db.combat_actionsleft = ACTIONS_PER_TURN
+        npc.db.conditions = {}
+        self.char1.location = self.room1
+        self.char1.db.combat_side = "team_0"
+        self.char1.db.hp = 100
+        handler.db.fighters = [npc, self.char1]
+
+        with patch("world.combat.COMBAT_RULES.resolve_attack") as mock_attack, \
+                patch("world.combat.COMBAT_RULES.spend_action"):
+            npc.at_turn_start()
+
+        mock_attack.assert_called_once_with(npc, self.char1)
+
+
 class TestAugurKitNoLongerOverlapsMedicusAndHaruspex(CombatTestBase):
     """
     Real, confirmed live balance fix from a direct player question
@@ -3532,9 +3679,10 @@ class TestAugurKitNoLongerOverlapsMedicusAndHaruspex(CombatTestBase):
 
     def test_bane_applies_accuracy_down(self):
         self.char1.db.mp = 10
-        COMBAT_RULES.spell_add_condition(
-            self.char1, "bane", [self.char2], 3, conditions=[("Accuracy Down", 3)]
-        )
+        with patch("world.combat.randint", return_value=100):
+            COMBAT_RULES.spell_add_condition(
+                self.char1, "bane", [self.char2], 3, conditions=[("Accuracy Down", 3)]
+            )
         self.assertIn("Accuracy Down", self.char2.db.conditions)
 
     def test_wrath_of_olympus_never_out_damages_haruspexs_own_level_90_spell(self):
@@ -3659,9 +3807,10 @@ class TestNewMedicusAndAugurBalanceSpells(CombatTestBase):
         self.assertEqual(SPELLS["petrify"]["classes"], ["augur"])
         self.assertEqual(SPELLS["petrify"]["level_required"], 85)
         self.char1.db.mp = 15
-        COMBAT_RULES.spell_add_condition(
-            self.char1, "petrify", [self.char2], 12, conditions=[("Paralyzed", 1)]
-        )
+        with patch("world.combat.randint", return_value=100):
+            COMBAT_RULES.spell_add_condition(
+                self.char1, "petrify", [self.char2], 12, conditions=[("Paralyzed", 1)]
+            )
         self.assertIn("Paralyzed", self.char2.db.conditions)
 
     def test_haste_moved_to_augur_and_still_grants_haste(self):
@@ -3940,3 +4089,125 @@ class TestApplyDamageStampsLastDamagedAt(CombatTestBase):
         self.char2.db.last_damaged_at = None
         COMBAT_RULES.apply_damage(self.char2, 0, attacker=self.char1)
         self.assertIsNone(self.char2.db.last_damaged_at)
+
+
+class TestConditionResistance(CombatTestBase):
+    """
+    Real, direct player suggestion (Circe) after a confirmed live gap:
+    spell_add_condition/skill_add_condition applied every debuff
+    unconditionally, no roll or resistance of any kind, regardless of
+    either side's stats - "Ingenium should be the stat to resist
+    status effects, checking their Ingenium to the Ingenium of the
+    enemy." See CONDITION_RESIST_BASE's own comment for the full
+    formula reasoning.
+    """
+
+    def test_equal_ingenium_gives_the_base_resist_chance(self):
+        self.char1.db.ingenium = 10
+        self.char2.db.ingenium = 10
+        with patch("world.combat.randint", return_value=CONDITION_RESIST_BASE):
+            self.assertTrue(COMBAT_RULES.resists_condition(self.char1, self.char2))
+        with patch("world.combat.randint", return_value=CONDITION_RESIST_BASE + 1):
+            self.assertFalse(COMBAT_RULES.resists_condition(self.char1, self.char2))
+
+    def test_higher_target_ingenium_raises_resist_chance(self):
+        self.char1.db.ingenium = 10
+        self.char2.db.ingenium = 20  # +10 -> +20 percent over base
+        expected = CONDITION_RESIST_BASE + 10 * CONDITION_RESIST_STAT_MULTIPLIER
+        with patch("world.combat.randint", return_value=expected):
+            self.assertTrue(COMBAT_RULES.resists_condition(self.char1, self.char2))
+        with patch("world.combat.randint", return_value=expected + 1):
+            self.assertFalse(COMBAT_RULES.resists_condition(self.char1, self.char2))
+
+    def test_resist_chance_never_drops_below_the_floor(self):
+        self.char1.db.ingenium = 30
+        self.char2.db.ingenium = 5  # would go deeply negative unclamped
+        with patch("world.combat.randint", return_value=CONDITION_RESIST_MIN):
+            self.assertTrue(COMBAT_RULES.resists_condition(self.char1, self.char2))
+        with patch("world.combat.randint", return_value=CONDITION_RESIST_MIN + 1):
+            self.assertFalse(COMBAT_RULES.resists_condition(self.char1, self.char2))
+
+    def test_resist_chance_never_exceeds_the_ceiling(self):
+        self.char1.db.ingenium = 5
+        self.char2.db.ingenium = 40  # would exceed the cap unclamped
+        with patch("world.combat.randint", return_value=CONDITION_RESIST_MAX):
+            self.assertTrue(COMBAT_RULES.resists_condition(self.char1, self.char2))
+        with patch("world.combat.randint", return_value=CONDITION_RESIST_MAX + 1):
+            self.assertFalse(COMBAT_RULES.resists_condition(self.char1, self.char2))
+
+    def test_spell_add_condition_skips_the_condition_on_a_resisted_roll(self):
+        self.char1.db.mp = 10
+        with patch("world.combat.randint", return_value=1):  # guaranteed resist
+            COMBAT_RULES.spell_add_condition(
+                self.char1, "bane", [self.char2], 3, conditions=[("Accuracy Down", 3)]
+            )
+        self.assertNotIn("Accuracy Down", self.char2.db.conditions)
+
+    def test_skill_add_condition_skips_the_condition_on_a_resisted_roll(self):
+        self.char1.db.sp = 10
+        with patch("world.combat.randint", return_value=1):  # guaranteed resist
+            COMBAT_RULES.skill_add_condition(
+                self.char1, "mark", [self.char2], 4, conditions=[("Accuracy Down", 3)]
+            )
+        self.assertNotIn("Accuracy Down", self.char2.db.conditions)
+
+    def test_self_targeted_buffs_are_never_subject_to_resistance(self):
+        """A caster buffing themselves should never roll to resist their
+        own spell, no matter what randint returns."""
+        self.char1.db.mp = 10
+        self.char1.db.ingenium = 10
+        with patch("world.combat.randint", return_value=1):
+            COMBAT_RULES.spell_add_condition(
+                self.char1, "auspice", [self.char1], 4, conditions=[("Defense Up", 3)]
+            )
+        self.assertIn("Defense Up", self.char1.db.conditions)
+
+    def test_ally_targeted_buffs_are_never_subject_to_resistance(self):
+        self.char1.db.mp = 10
+        self.char1.db.combat_side = "team_0"
+        self.char2.db.combat_side = "team_0"  # same side -> allies
+        with patch("world.combat.randint", return_value=1):
+            COMBAT_RULES.spell_add_condition(
+                self.char1, "auspice", [self.char2], 4, conditions=[("Defense Up", 3)]
+            )
+        self.assertIn("Defense Up", self.char2.db.conditions)
+
+
+class TestProcessLanguageColors(EvenniaTest):
+    """
+    Direct follow-up request: each of the five languages should get
+    its own display color (world/languages.py's LANGUAGE_COLORS),
+    applied by CombatCharacter.process_language to both understood
+    speech and the scrambled fallback a non-speaker hears - a listener
+    can already "tell roughly which language it was" per CmdSpeak's
+    own docstring even when the words are nonsense to them.
+    """
+
+    def test_known_language_is_wrapped_in_its_own_color(self):
+        self.char1.db.speaking = "greek"
+        self.char2.db.known_languages = ["latin", "greek"]
+        heard = self.char2.process_language("hello", self.char1, "greek")
+        self.assertEqual(heard, "|chello|n")
+
+    def test_latin_stays_plain_white(self):
+        self.char2.db.known_languages = ["latin"]
+        heard = self.char2.process_language("hello", self.char1, "latin")
+        self.assertEqual(heard, "|whello|n")
+
+    def test_unknown_language_scrambles_but_keeps_its_own_color(self):
+        self.char2.db.known_languages = ["latin"]
+        heard = self.char2.process_language("hello", self.char1, "germanic")
+        self.assertTrue(heard.startswith("|r(in an unfamiliar tongue) "))
+        self.assertTrue(heard.endswith("|n"))
+
+    def test_gods_understand_and_get_the_real_color_regardless_of_known_languages(self):
+        self.char2.db.level = 101
+        self.char2.db.known_languages = ["latin"]
+        heard = self.char2.process_language("hello", self.char1, "egyptian")
+        self.assertEqual(heard, "|yhello|n")
+
+    def test_falls_back_to_speaker_db_speaking_when_language_arg_is_falsy(self):
+        self.char1.db.speaking = "celtic"
+        self.char2.db.known_languages = ["latin", "celtic"]
+        heard = self.char2.process_language("hello", self.char1, None)
+        self.assertEqual(heard, "|ghello|n")

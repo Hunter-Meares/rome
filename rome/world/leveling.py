@@ -18,9 +18,11 @@ attacker's flat accuracy bonus alone reaching that threshold makes
 every hit guaranteed regardless of the roll - and that threshold is
 only about 1-2 agilitas points above today's ceiling. Virtus, ingenium,
 and vigor use much gentler formulas ((stat-10)//2 for damage,
-(stat-10)//3 for damage reduction, a flat +1 for max_mp/max_hp) and
-have real headroom; agilitas does not. Verified with the real numbers
-before picking a cap, not guessed.
+(stat-10)//3 for damage reduction, +2 max_mp per Ingenium point / +2
+max_hp per Vigor point - CmdStatUp's own core-stat branch, matching
+chargen's identical (stat-10)*2 rate exactly) and have real headroom;
+agilitas does not. Verified with the real numbers before picking a
+cap, not guessed.
 
 Per-race caps for the other three stats are derived directly from
 world.chargen_menu.RACES' existing stat_mods, rather than a separately
@@ -136,7 +138,32 @@ class CmdStatUp(Command):
                 return
             setattr(caller.db, choice, current + 1)
             caller.db.unspent_stat_points = points - 1
-            caller.msg("|gYour %s increases to %d!|n" % (choice.title(), current + 1))
+            msg = "|gYour %s increases to %d!|n" % (choice.title(), current + 1)
+
+            # Real, confirmed live bug found by a direct player report
+            # ("Ingenium doesn't seem to affect Max MP"): chargen
+            # applies (ingenium-10)*2 to max_mp (and the same *2 for
+            # vigor->max_hp) exactly once, at character creation - see
+            # world/chargen_menu.py's _apply_race_and_class - but this
+            # branch never touched either resource pool at all, so any
+            # Ingenium/Vigor gained AFTER chargen via statup silently
+            # did nothing to max_mp/max_hp, contradicting both this
+            # module's own docstring and the chargen-time behavior the
+            # same stat already has. Matches chargen's own *2-per-point
+            # rate exactly (not the "+1" this module's docstring used
+            # to claim, which no code ever actually implemented) - a
+            # character's max_mp should be identical whether their
+            # Ingenium got there via chargen or via leveling up.
+            if choice == "ingenium":
+                caller.db.max_mp = (caller.db.max_mp or 0) + 2
+                caller.db.mp = (caller.db.mp or 0) + 2
+                msg += " |g(+2 Max MP)|n"
+            elif choice == "vigor":
+                caller.db.max_hp = (caller.db.max_hp or 0) + 2
+                caller.db.hp = (caller.db.hp or 0) + 2
+                msg += " |g(+2 Max HP)|n"
+
+            caller.msg(msg)
             return
 
         caller.msg("Usage: statup <virtus|agilitas|ingenium|vigor|hp|mp|sp>")

@@ -18,6 +18,7 @@ from world.loot import (
     roll_arena_loot_drop,
     ARENA_LOOT_DROP_CHANCE,
     ARENA_LOOT_TABLE,
+    roll_germania_loot_drop,
 )
 
 
@@ -204,3 +205,79 @@ class TestRollArenaLootDrop(EvenniaTest):
             )
         }
         self.assertEqual(set(ARENA_LOOT_TABLE.keys()), real_keys)
+
+
+class TestRollGermaniaLootDrop(EvenniaTest):
+    """
+    Direct follow-up request: Germanic Stronghold NPCs should drop
+    level-appropriate gear too, same shared-pool shape as the sewer's
+    own roll_loot_drop (gated on the existing "germania_npc" tag every
+    GERMANIA_* combat prototype already carries), using its own
+    GERMANIA_LOOT_* prototypes - deliberately distinct flavor names
+    from GermanicWeaponsmith's own shop stock (seax/angon/francisca/
+    waraxe/lamellar/mail), so a drop feels like a genuine find.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.npc = create.create_object(
+            "evennia.objects.objects.DefaultObject", key="a test wolf-kin raider",
+            location=self.room1,
+        )
+        self.npc.db.level = 30
+        self.npc.db.xp_reward = 720
+        self.baseline = set(self.room1.contents)
+
+    def _new_drops(self):
+        return [o for o in self.room1.contents if o not in self.baseline]
+
+    def test_untagged_npc_never_drops_loot(self):
+        with patch("world.loot.random.randint", return_value=1):
+            roll_germania_loot_drop(self.npc)
+        self.assertEqual(self._new_drops(), [])
+
+    @patch("world.loot.random.randint")
+    def test_tagged_npc_drops_nothing_above_the_chance_threshold(self, mock_randint):
+        self.npc.tags.add("germania_npc", category="npc_role")
+        mock_randint.return_value = LOOT_DROP_CHANCE + 1
+
+        roll_germania_loot_drop(self.npc)
+
+        self.assertEqual(self._new_drops(), [])
+
+    @patch("world.loot.random.random")
+    @patch("world.loot.random.randint")
+    def test_tagged_npc_drops_a_weapon_on_a_successful_roll(self, mock_randint, mock_random):
+        self.npc.tags.add("germania_npc", category="npc_role")
+        mock_randint.return_value = 1
+        mock_random.return_value = 0.1  # < 0.5 -> weapon branch
+
+        roll_germania_loot_drop(self.npc)
+
+        dropped = self._new_drops()
+        self.assertEqual(len(dropped), 1)
+        self.assertTrue(dropped[0].is_typeclass("world.combat.CombatWeapon", exact=False))
+        self.assertEqual(dropped[0].db.item_level, 30)
+
+    @patch("world.loot.random.random")
+    @patch("world.loot.random.randint")
+    def test_tagged_npc_drops_armor_on_the_other_half_of_the_roll(self, mock_randint, mock_random):
+        self.npc.tags.add("germania_npc", category="npc_role")
+        mock_randint.return_value = 1
+        mock_random.return_value = 0.9  # >= 0.5 -> armor branch
+
+        roll_germania_loot_drop(self.npc)
+
+        dropped = self._new_drops()
+        self.assertEqual(len(dropped), 1)
+        self.assertTrue(dropped[0].is_typeclass("world.combat.CombatArmor", exact=False))
+
+    def test_drops_are_not_the_same_flavor_names_as_the_shop_stock(self):
+        """The whole point of a separate loot table - a find should
+        never read as a copy of something already for sale nearby."""
+        from world.loot import GERMANIA_WEAPON_PROTOTYPES, GERMANIA_ARMOR_PROTOTYPES
+        from world.economy import GERMANIA_WEAPONSMITH_STOCK
+
+        shop_prototype_keys = {name for name, _level in GERMANIA_WEAPONSMITH_STOCK}
+        loot_prototype_keys = set(GERMANIA_WEAPON_PROTOTYPES + GERMANIA_ARMOR_PROTOTYPES)
+        self.assertEqual(shop_prototype_keys & loot_prototype_keys, set())

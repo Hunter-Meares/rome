@@ -39,6 +39,25 @@ KNOWN_LANGUAGES = ["latin", "greek", "celtic", "germanic", "egyptian"]
 
 DEFAULT_LANGUAGE = "latin"
 
+# Per-language display color for anything spoken (say/pose/emote),
+# applied in CombatCharacter.process_language (world/combat.py) to
+# both understood speech and the scrambled fallback a non-speaker
+# hears - a listener can already "tell roughly which language it was"
+# per CmdSpeak's own docstring, so the color carries that same signal
+# visually even when the words themselves are nonsense to them.
+# Picked for a quick, distinct association rather than authenticity:
+# Latin stays the plain white it always was (the setting's own
+# unmarked default); Greek cyan (Aegean/philosophy); Celtic green
+# (Gaulish/British forest); Egyptian yellow (sand and gold); Germanic
+# red (the Rhine frontier's warrior culture).
+LANGUAGE_COLORS = {
+    "latin": "|w",
+    "greek": "|c",
+    "celtic": "|g",
+    "egyptian": "|y",
+    "germanic": "|r",
+}
+
 # Latin needs no trainer or gold - every character already starts
 # knowing it. The other four are gated like any other teachable thing
 # in this game (see world/combat.py's CmdLearn/SpellSkillTrainer,

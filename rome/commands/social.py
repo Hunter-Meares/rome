@@ -435,8 +435,11 @@ class CmdTitle(Command):
             return
 
         title = args
-        if len(title) > 40:
-            caller.msg("Titles must be 40 characters or less.")
+        # Widened from 40 to 60 by direct request - still comfortably
+        # short enough to sit inline next to a name in 'who'/'stats'/
+        # 'look' without wrapping on an ordinary 80-column client.
+        if len(title) > 60:
+            caller.msg("Titles must be 60 characters or less.")
             return
 
         caller.db.custom_title = title

@@ -48,6 +48,10 @@ from world.combat import (
     CmdDismissPet,
     CmdRestore,
     CmdGodLevel,
+    CmdGodSet,
+    CmdGodTeleport,
+    CmdLook,
+    CmdForce,
     SKILLS,
     SPELLS,
     POWERATTACK_SP_COST,
@@ -407,6 +411,93 @@ class TestCmdDisengage(CombatCommandTestBase):
         self.assertTrue(pet.pk)
 
 
+class TestCmdGodTeleport(CombatCommandTestBase):
+    """
+    godteleport - the god-only alternative to '@tel' that actually
+    works on someone mid-fight. The stock teleport command gets
+    refused outright by CombatCharacter.at_pre_move's in-combat block
+    (a plain hook check, not a permission lock - true superuser status
+    doesn't bypass it). This ends the target's combat participation
+    cleanly first (CombatRules.force_disengage), then teleports them.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.level = 106  # the acting god
+
+    def test_refuses_below_god_level(self):
+        self.char1.db.level = 100
+        result = self.call(CmdGodTeleport(), "Char2 = Room2", caller=self.char1)
+        self.assertIn("Only a god", result)
+
+    def test_teleports_a_target_not_in_combat(self):
+        self.call(CmdGodTeleport(), "Char2 = Room2", caller=self.char1)
+        self.assertEqual(self.char2.location, self.room2)
+
+    def test_ends_combat_cleanly_before_teleporting_a_fighting_target(self):
+        self._start_duel()
+        self.assertTrue(COMBAT_RULES.is_in_combat(self.char2))
+
+        self.call(CmdGodTeleport(), "Char2 = Room2", caller=self.char1)
+
+        self.assertEqual(self.char2.location, self.room2)
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char2))
+
+    def test_does_not_cost_the_target_any_xp(self):
+        self._start_duel()
+        self.char2.db.xp = 1000
+        self.call(CmdGodTeleport(), "Char2 = Room2", caller=self.char1)
+        self.assertEqual(self.char2.db.xp, 1000)
+
+    def test_pulling_out_the_non_current_turn_fighter_does_not_skip_the_real_turn(self):
+        # char1 goes first (per _start_duel's own initiative rigging).
+        # Teleporting char2 (NOT the current-turn fighter) away should
+        # remove them cleanly without disturbing whose turn it
+        # actually is - char1 should still be up.
+        handler = self._start_duel()
+        self.assertEqual(handler.db.fighters[handler.db.turn], self.char1)
+
+        self.call(CmdGodTeleport(), "Char2 = Room2", caller=self.char1)
+
+        self.assertEqual(self.char2.location, self.room2)
+        # Only one fighter left (char1) - the fight ends entirely.
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
+
+    def test_removing_a_fighter_before_the_current_turn_index_does_not_shift_whose_turn_it_is(self):
+        # Three fighters, so removing one doesn't just end the fight
+        # outright - this is the real test of the index-shift fix:
+        # char2 sits BEFORE char1 in turn order, so pulling char2 out
+        # mid-fight must shift turnhandler.db.turn back by one to keep
+        # pointing at char1, not silently skip to char3 instead.
+        third = create.create_object(
+            "typeclasses.characters.Character", key="Char3", location=self.room1
+        )
+        third.db.hp = 100
+        third.db.max_hp = 100
+
+        with patch("world.combat.COMBAT_RULES.roll_init") as mock_roll:
+            # Turn order: char2, char1, third.
+            order = {self.char2: 1000, self.char1: 500, third: 1}
+            mock_roll.side_effect = lambda ch: order[ch]
+            self.call(CmdFight(), "all", caller=self.char1)
+
+        handler = self.char1.db.combat_turnhandler
+        self.assertEqual(handler.db.fighters, [self.char2, self.char1, third])
+        # Advance past char2's turn so it's now char1's turn (index 1).
+        handler.db.turn = 1
+        self.assertEqual(handler.db.fighters[handler.db.turn], self.char1)
+
+        self.call(CmdGodTeleport(), "Char2 = Room2", caller=self.char1)
+
+        self.assertEqual(self.char2.location, self.room2)
+        self.assertEqual(handler.db.fighters, [self.char1, third])
+        # Index shifted back by one - still correctly points at char1,
+        # not accidentally advanced to third.
+        self.assertEqual(handler.db.fighters[handler.db.turn], self.char1)
+
+        third.delete()
+
+
 class TestCmdDismissPet(CombatCommandTestBase):
     """
     Regression coverage for the new 'dismiss'/'banish' command - lets
@@ -545,7 +636,12 @@ class TestCmdUseSkillNamedTargeting(CombatCommandTestBase):
         self._start_duel()
         self.char2.db.conditions = {}
 
-        self.call(CmdUseSkill(), "mark = Char2", caller=self.char1)
+        # A hostile target now gets a real (usually small) chance to
+        # resist the debuff entirely (see CONDITION_RESIST_BASE) -
+        # pinned to a guaranteed-landing roll since resistance isn't
+        # what this test is checking.
+        with patch("world.combat.randint", return_value=100):
+            self.call(CmdUseSkill(), "mark = Char2", caller=self.char1)
 
         self.assertIn("Accuracy Down", self.char2.db.conditions)
 
@@ -652,7 +748,8 @@ class TestCmdCastAndCmdUseSkillDefaultToTheCurrentOpponent(CombatCommandTestBase
         third.db.combat_side = "solo_join_%d" % id(third)
         self.char1.db.combat_last_target = self.char2
 
-        self.call(CmdUseSkill(), "mark", caller=self.char1)
+        with patch("world.combat.randint", return_value=100):
+            self.call(CmdUseSkill(), "mark", caller=self.char1)
 
         self.assertIn("Accuracy Down", self.char2.db.conditions)
         self.assertNotIn("Accuracy Down", third.db.conditions)
@@ -1436,6 +1533,105 @@ class TestGodLevelConnectsToDivineChannel(CombatCommandTestBase):
         self.assertIn(self.char2, channel.subscriptions.all())
 
 
+class TestGodLevelGrantsEveryAbilityOnPromotion(CombatCommandTestBase):
+    """
+    Direct request: a god (current or future) should be able to test
+    anything without the same trainer/gold/level grind a mortal player
+    goes through - crossing into godhood now grants every spell,
+    skill, and language in the game, same choke point as the existing
+    faction/religion/divine-channel auto-join just above.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.level = 106  # the acting god
+        self.char2.db.level = 1
+        self.char2.db.spells_known = []
+        self.char2.db.skills_known = []
+        self.char2.db.known_languages = ["latin"]
+
+    def test_promotion_grants_every_spell(self):
+        self.call(CmdGodLevel(), "Char2 = 101", caller=self.char1)
+        real_spells = [name for name, data in SPELLS.items() if isinstance(data, dict)]
+        for name in real_spells:
+            self.assertIn(name, self.char2.db.spells_known)
+
+    def test_promotion_grants_every_skill(self):
+        self.call(CmdGodLevel(), "Char2 = 101", caller=self.char1)
+        real_skills = [name for name, data in SKILLS.items() if isinstance(data, dict)]
+        for name in real_skills:
+            self.assertIn(name, self.char2.db.skills_known)
+
+    def test_promotion_grants_every_language(self):
+        self.call(CmdGodLevel(), "Char2 = 101", caller=self.char1)
+        for language in ("latin", "greek", "celtic", "egyptian", "germanic"):
+            self.assertIn(language, self.char2.db.known_languages)
+
+    def test_a_mortal_promotion_grants_nothing_extra(self):
+        """The grant only fires on the actual 1-100 -> 101+ crossing,
+        not on an ordinary mortal-range level change."""
+        self.call(CmdGodLevel(), "Char2 = 50", caller=self.char1)
+        self.assertEqual(self.char2.db.spells_known, [])
+        self.assertEqual(self.char2.db.skills_known, [])
+
+    def test_demotion_back_to_mortal_does_not_strip_anything(self):
+        """Deliberately one-way - a demoted former god keeping spells
+        they 'shouldn't' have is a far safer failure than silently
+        deleting a real mortal's own legitimately-learned kit."""
+        self.call(CmdGodLevel(), "Char2 = 101", caller=self.char1)
+        known_count = len(self.char2.db.spells_known)
+        self.assertGreater(known_count, 0)
+
+        self.call(CmdGodLevel(), "Char2 = 50", caller=self.char1)
+
+        self.assertEqual(len(self.char2.db.spells_known), known_count)
+
+
+class TestCmdGodSet(CombatCommandTestBase):
+    """
+    'godset' - a direct testing-tool request: set a character's HP/MP/
+    SP or core stats directly, without going through combat/statup.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.level = 102  # the acting god
+        self.char2.db.hp, self.char2.db.max_hp = 50, 100
+        self.char2.db.mp, self.char2.db.max_mp = 10, 20
+        self.char2.db.virtus = 10
+
+    def test_refuses_below_god_level(self):
+        self.char1.db.level = 100
+        result = self.call(CmdGodSet(), "Char2 = hp 500", caller=self.char1)
+        self.assertIn("lack the standing", result)
+
+    def test_sets_hp_within_the_current_max(self):
+        self.call(CmdGodSet(), "Char2 = hp 75", caller=self.char1)
+        self.assertEqual(self.char2.db.hp, 75)
+        self.assertEqual(self.char2.db.max_hp, 100)
+
+    def test_setting_hp_above_max_raises_the_max_to_match(self):
+        self.call(CmdGodSet(), "Char2 = hp 9999", caller=self.char1)
+        self.assertEqual(self.char2.db.hp, 9999)
+        self.assertEqual(self.char2.db.max_hp, 9999)
+
+    def test_sets_a_core_stat(self):
+        self.call(CmdGodSet(), "Char2 = virtus 30", caller=self.char1)
+        self.assertEqual(self.char2.db.virtus, 30)
+
+    def test_rejects_an_unknown_stat(self):
+        result = self.call(CmdGodSet(), "Char2 = wisdom 10", caller=self.char1)
+        self.assertIn("Unknown stat", result)
+
+    def test_rejects_a_non_numeric_value(self):
+        result = self.call(CmdGodSet(), "Char2 = hp banana", caller=self.char1)
+        self.assertIn("whole number", result)
+
+    def test_rejects_a_negative_value(self):
+        result = self.call(CmdGodSet(), "Char2 = hp -5", caller=self.char1)
+        self.assertIn("negative", result)
+
+
 class TestCmdCompare(CombatCommandTestBase):
     """
     'compare' - a direct player request for a way to tell which of two
@@ -1957,3 +2153,80 @@ class TestEvidenceBasedAliases(CombatCommandTestBase):
         used_names = {CmdUseSkill.key, *CmdUseSkill.aliases}
         self.assertNotIn("score", used_names)
         self.assertNotIn("sheath", used_names)
+
+
+class TestCmdLookPrioritizesExitsOverSameLetterItems(CombatCommandTestBase):
+    """
+    Real, confirmed live bug reported directly by a player: "using
+    look s doesnt look south but to your steel dagger". Genuine
+    Evennia/rpsystem search-priority behavior, not specific to this
+    one item - a single-letter direction alias could lose to a same-
+    letter prefix match on anything in the caller's own inventory.
+    Exits are now checked first, by exact key/alias match, before
+    falling through to the stock generic search.
+    """
+
+    def test_single_letter_alias_resolves_to_the_exit_not_a_same_letter_item(self):
+        exit_obj = create.create_object(
+            "typeclasses.exits.Exit",
+            key="south",
+            aliases=["s"],
+            location=self.room1,
+            destination=self.room2,
+        )
+        exit_obj.db.desc = "A quiet path leads south."
+        create.create_object(
+            "typeclasses.objects.Object", key="a steel dagger", location=self.char1
+        )
+
+        result = self.call(CmdLook(), "s", caller=self.char1)
+
+        self.assertIn("south", result.lower())
+        self.assertNotIn("steel dagger", result)
+
+    def test_full_exit_name_still_resolves_to_the_exit(self):
+        create.create_object(
+            "typeclasses.exits.Exit",
+            key="south",
+            aliases=["s"],
+            location=self.room1,
+            destination=self.room2,
+        )
+
+        result = self.call(CmdLook(), "south", caller=self.char1)
+        self.assertIn("south", result.lower())
+
+    def test_ordinary_item_lookup_still_works_when_no_exit_matches(self):
+        create.create_object(
+            "typeclasses.objects.Object", key="a wooden shield", location=self.char1
+        )
+
+        result = self.call(CmdLook(), "wooden", caller=self.char1)
+        self.assertIn("wooden shield", result.lower())
+
+    def test_bare_look_still_shows_the_room(self):
+        result = self.call(CmdLook(), "", caller=self.char1)
+        self.assertIn(self.room1.key, result)
+
+
+class TestCmdForceSearchesGlobally(CombatCommandTestBase):
+    """
+    Real, confirmed live bug reported directly: 'force' only ever
+    worked on someone in the same room as the caller - the stock
+    Evennia command calls self.caller.search(self.lhs) with no
+    global_search flag, defaulting to the caller's own room/inventory
+    only. Fixed to search globally, matching how every other admin
+    targeting command in this game already works (godteleport, snoop,
+    restore, wizinvis).
+    """
+
+    def test_forces_a_command_on_someone_in_a_different_room(self):
+        self.char2.location = self.room2
+
+        result = self.call(CmdForce(), "Char2=say hello", caller=self.char1)
+
+        self.assertIn("forced", result.lower())
+
+    def test_still_refuses_with_no_target_or_command(self):
+        result = self.call(CmdForce(), "", caller=self.char1)
+        self.assertIn("must provide a target", result.lower())

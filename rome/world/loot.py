@@ -145,3 +145,49 @@ def roll_arena_loot_drop(defeated, attacker=None):
     item.db.dropped_at = time.time()  # see roll_loot_drop's own note above
 
     location.msg_contents("|YSomething drops from %s: %s!|n" % (defeated.key, item.key))
+
+
+# Germanic Stronghold - direct follow-up request, same shared-pool
+# shape as the sewer's own roll_loot_drop above (a mixed, interchangeable
+# leveling population, not named individuals like the Arena Fighters),
+# gated on the existing germania_npc tag every GERMANIA_* prototype
+# already carries. Same 20% chance as the sewer, and deliberately its
+# own separate GERMANIA_LOOT_* prototype set (world/prototypes.py) -
+# distinct flavor names from GermanicWeaponsmith's own shop stock
+# (seax/angon/francisca/waraxe/lamellar/mail), so a drop still feels
+# like a genuine find rather than a copy of something already for sale
+# a few rooms away.
+GERMANIA_WEAPON_PROTOTYPES = [
+    "GERMANIA_LOOT_KNIFE", "GERMANIA_LOOT_BOARSPEAR", "GERMANIA_LOOT_BEARDED_AXE",
+]
+GERMANIA_ARMOR_PROTOTYPES = ["GERMANIA_LOOT_HIDE", "GERMANIA_LOOT_BONEPLATE"]
+
+
+def roll_germania_loot_drop(defeated, attacker=None):
+    """
+    Called from CombatRules.at_defeat, alongside the sewer/Arena Fighter
+    loot rolls - same "any NPC with xp_reward" gate, narrowed to the
+    Germanic Stronghold's own population via the existing germania_npc
+    tag.
+    """
+    if not defeated.tags.has("germania_npc", category="npc_role"):
+        return
+    if random.randint(1, 100) > LOOT_DROP_CHANCE:
+        return
+
+    location = defeated.location
+    if not location:
+        return
+
+    level = defeated.db.level or 1
+
+    if random.random() < 0.5:
+        prototype = random.choice(GERMANIA_WEAPON_PROTOTYPES)
+        item = spawn_leveled_weapon(prototype, level, location=location)
+    else:
+        prototype = random.choice(GERMANIA_ARMOR_PROTOTYPES)
+        item = spawn_leveled_armor(prototype, level, location=location)
+
+    item.db.dropped_at = time.time()  # see roll_loot_drop's own note above
+
+    location.msg_contents("|YSomething drops from %s: %s!|n" % (defeated.key, item.key))

@@ -3075,3 +3075,78 @@ GERMANIA_MAIL_CHAMPION = {
     "desc": "Genuinely fine ringmail, real and heavy - the kind only a warband's own best actually wears.",
     "armor_category": "heavy",
 }
+
+"""
+----------------------------------------------------------------------------
+GERMANIA LOOT DROPS
+----------------------------------------------------------------------------
+Deliberately distinct flavor names from GermanicWeaponsmith's own shop
+stock just above (seax/angon/francisca/waraxe/lamellar/mail) - same
+principle world/loot.py's own SEWER_LOOT_* prototypes already
+establish: a drop should feel like a genuine find, not a bare reskin
+of something already purchasable. Reuses the exact same weapon_type_
+name/armor_category balance lookups (world.combat.compute_weapon_
+stats/compute_armor_stats), spawned and leveled by
+world.loot.roll_germania_loot_drop exactly like the sewer's own drops.
+"""
+
+GERMANIA_LOOT_KNIFE = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a bone-hilted raider's knife",
+    "desc": (
+        "Not a smith's work - whittled bone lashed to a blade taken off "
+        "someone who no longer needed it. Whoever carried this made do "
+        "with what a raid actually gave them."
+    ),
+    "weapon_type_name": "dagger",
+    "weapon_category": "light_blade",
+    "two_handed": False,
+}
+
+GERMANIA_LOOT_BOARSPEAR = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a raider's boar-spear",
+    "desc": (
+        "A heavy crossbar set just below the head - meant for a boar "
+        "that won't stop coming even after the point goes in, and just "
+        "as useful against a man who won't either."
+    ),
+    "weapon_type_name": "spear",
+    "weapon_category": "polearm",
+    "two_handed": True,
+}
+
+GERMANIA_LOOT_BEARDED_AXE = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a chieftain's bearded axe",
+    "desc": (
+        "The blade curves back into a real hook, not just a wider "
+        "edge - meant to catch a shield's rim and wrench it aside. "
+        "Nobody hands this down to just anyone."
+    ),
+    "weapon_type_name": "waraxe",
+    "weapon_category": "heavy_weapon",
+    "two_handed": True,
+}
+
+GERMANIA_LOOT_HIDE = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a stitched wolf-hide jerkin",
+    "desc": (
+        "Real wolf hide, cured and stitched close over the chest - "
+        "light enough to move in, and the pelt itself is worth a "
+        "story most people won't ask you to finish."
+    ),
+    "armor_category": "light",
+}
+
+GERMANIA_LOOT_BONEPLATE = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a bone-plated war harness",
+    "desc": (
+        "Overlapping plates of boiled bone and horn, lashed to a "
+        "leather harness - real, deliberate protection, built by "
+        "someone who expected this to matter."
+    ),
+    "armor_category": "medium",
+}

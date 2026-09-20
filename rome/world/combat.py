@@ -42,6 +42,8 @@ from commands.command import build_hpmp_prompt
 from evennia.commands.default.help import CmdHelp
 from evennia.commands.default.cmdset_character import CharacterCmdSet
 from evennia.commands.default.account import CmdQuit as DefaultCmdQuit
+from evennia.commands.default.general import CmdLook as DefaultCmdLook
+from evennia.commands.default.admin import CmdForce as DefaultCmdForce
 from evennia.commands.default.account import CmdOOC as DefaultCmdOOC
 from evennia.prototypes.spawner import spawn
 from evennia.utils.logger import log_trace
@@ -347,6 +349,27 @@ INSTANCE_CLEANUP_TIMEOUT = 600  # 10 minutes, in seconds
 # Rite of the Entrails (Haruspex). A cursed target takes extra damage
 # from all sources for the condition's duration.
 CURSED_DAMAGE_MULTIPLIER = 1.3
+
+# Condition (debuff) resistance - a real, direct player suggestion
+# ("Ingenium should be the stat to resist status effects, checking
+# their Ingenium to the Ingenium of the enemy") after a confirmed live
+# gap: spell_add_condition/skill_add_condition applied every debuff
+# unconditionally, with no roll or resistance check at all, regardless
+# of either side's stats. Ingenium doubles here as "mental fortitude"
+# resisting a hex/trick as well as spell power casting one - deliberate,
+# since a purely physical debuff-user (Speculator's Poisoned Blade,
+# Venator's traps) still needs a real stat on the DEFENDING side to
+# check against, and Ingenium is the one core stat every class already
+# has some baseline investment in, unlike Virtus/Agilitas which a pure
+# caster might genuinely dump. BASE is the resist chance at equal
+# Ingenium, so even a stat-matched target has a real, felt chance to
+# shrug off a debuff rather than it always landing exactly at parity;
+# MIN/MAX bound it so a huge stat gap in either direction never makes
+# a debuff either guaranteed or literally impossible to resist.
+CONDITION_RESIST_BASE = 10  # percent, at equal Ingenium
+CONDITION_RESIST_STAT_MULTIPLIER = 2  # percent per point of the target's Ingenium advantage
+CONDITION_RESIST_MIN = 5
+CONDITION_RESIST_MAX = 75
 
 # Speculator's Ambush (one-time bonus on the next successful
 # attack) and Deathmark (guaranteed hit + bonus damage, mythic
@@ -843,6 +866,24 @@ class CombatRules:
         from world.party import get_party_members
 
         return other in get_party_members(character)
+
+    def resists_condition(self, caster, target):
+        """
+        Rolls whether `target` resists a debuff `caster` is trying to
+        inflict on them - see CONDITION_RESIST_BASE's own comment for
+        the full reasoning. Only ever meant to be checked for a
+        genuinely hostile application (never a buff cast on an ally or
+        yourself) - callers are expected to skip this entirely for
+        self/ally targets, same as they already skip hit-rolls for
+        those cases.
+        """
+        target_ingenium = target.db.ingenium or 10
+        caster_ingenium = caster.db.ingenium or 10
+        chance = CONDITION_RESIST_BASE + (target_ingenium - caster_ingenium) * (
+            CONDITION_RESIST_STAT_MULTIPLIER
+        )
+        chance = max(CONDITION_RESIST_MIN, min(CONDITION_RESIST_MAX, chance))
+        return randint(1, 100) <= chance
 
     def try_break_sanctuary(self, attacker, defender):
         """
@@ -1359,16 +1400,17 @@ class CombatRules:
             elif attacker:
                 self.award_xp(attacker, defeated.db.xp_reward)
 
-        # --- Loot drop (sewer_npc and arena_fighter-tagged NPCs - see
-        # world/loot.py) - same "any NPC with xp_reward" gate as the
-        # XP award just above, since a lootable defeat is always also
-        # an XP-earning one. Each roll self-gates on its own tag and
-        # is a no-op for anything not carrying it, so both can safely
-        # run unconditionally here.
+        # --- Loot drop (sewer_npc, arena_fighter, and germania_npc-
+        # tagged NPCs - see world/loot.py) - same "any NPC with
+        # xp_reward" gate as the XP award just above, since a lootable
+        # defeat is always also an XP-earning one. Each roll self-gates
+        # on its own tag and is a no-op for anything not carrying it,
+        # so all three can safely run unconditionally here.
         if defeated.db.xp_reward:
-            from world.loot import roll_loot_drop, roll_arena_loot_drop
+            from world.loot import roll_loot_drop, roll_arena_loot_drop, roll_germania_loot_drop
             roll_loot_drop(defeated, attacker=attacker)
             roll_arena_loot_drop(defeated, attacker=attacker)
+            roll_germania_loot_drop(defeated, attacker=attacker)
 
         # --- Bounty progress (world/bounties.py) - checks the same
         # damage_log population as the XP/gold split above against
@@ -2033,6 +2075,63 @@ class CombatRules:
     def is_in_combat(self, character):
         return bool(character.db.combat_turnhandler)
 
+    def force_disengage(self, character):
+        """
+        Ends a character's combat participation immediately and
+        unconditionally - no roll, no XP cost. The same fighter-list/
+        pet cleanup CmdDisengage's own successful escape uses,
+        factored out here so a god-authorized relocation
+        (CmdGodTeleport, below) can end a fight cleanly too, without
+        the dice roll or XP cost that make an ordinary player-
+        initiated disengage a real choice with real stakes - this is
+        a system action, not a player one. A direct response to a
+        real gap: teleporting someone out of combat used to just get
+        refused outright (CombatCharacter.at_pre_move blocks any move
+        while is_in_combat is true, superuser or not - that's a hook,
+        not a lock, so superuser status doesn't bypass it) with no
+        clean way for a god to actually pull someone out. Safe to
+        call on someone not currently in combat at all - a no-op.
+
+        Unlike the ordinary command (which only ever removes the
+        CURRENT-turn character, since it's gated on is_turn), this can
+        be called on any fighter regardless of whose turn it is - so,
+        unlike that simpler case, removing someone from the middle of
+        the fighters list needs its own index correction (shifting
+        db.turn back by one if the removed fighter sat before it, not
+        just bounds-checking afterward), and the turn is only actually
+        force-ended (spend_action/turn_end_check, which advances play
+        to whoever's next) if the character being pulled out really
+        was the one currently holding up the turn - forcing that for
+        anyone else would improperly skip past whoever's real turn it
+        actually is.
+        """
+        if not self.is_in_combat(character):
+            return
+        turnhandler = character.db.combat_turnhandler
+        was_current_turn = self.is_turn(character)
+        fight_over = False
+        if turnhandler and turnhandler.pk:
+            fighters = turnhandler.db.fighters or []
+            if character in fighters:
+                removed_index = fighters.index(character)
+                fighters.remove(character)
+                turnhandler.db.fighters = fighters
+                if removed_index < turnhandler.db.turn:
+                    turnhandler.db.turn -= 1
+            if turnhandler.db.turn >= len(fighters):
+                turnhandler.db.turn = 0
+            # Removing a fighter can end the fight outright (e.g. the
+            # only other side just lost its last member) - checked
+            # here directly rather than relying on the turn-advance
+            # below, since that's skipped entirely when the character
+            # being pulled out isn't the one currently holding up the
+            # turn.
+            fight_over = turnhandler.check_for_victory()
+        if was_current_turn and not fight_over:
+            self.spend_action(character, "all", action_name="disengage")
+        self.combat_cleanup(character)
+        self.release_pet(character.db.active_companion, character, reason="owner_fled")
+
     def is_turn(self, character):
         turnhandler = character.db.combat_turnhandler
         if not turnhandler or not turnhandler.db.fighters:
@@ -2298,6 +2397,43 @@ class CombatRules:
             if character.location:
                 character.location.msg_contents(
                     "%s is Paralyzed, and can't act this turn!" % character
+                )
+            character.db.combat_turnhandler.turn_end_check(character)
+
+        # Real, confirmed live gap found by direct player question
+        # ("what did hex do? I'm not seeing any effect from
+        # frightened") - Frightened's actual enforcement lived
+        # entirely in individual PLAYER commands (CmdAttack,
+        # CmdPowerAttack, CmdCast, CmdUseSkill each separately refuse
+        # while it's active), never here alongside Paralyzed's own
+        # identical "can't act this turn" handling. Since an NPC's
+        # turn never goes through any of those commands at all
+        # (HostileNPC.at_turn_start calls _gather_actions/_use_ability
+        # directly), a Frightened NPC kept attacking and casting every
+        # turn completely unaffected - the condition landed, ticked
+        # down, and expired right on schedule with zero actual effect
+        # the whole time it was up. Centralizing it here, exactly like
+        # Paralyzed, makes it a real "can't act this turn" effect for
+        # anyone, not just whichever side happens to route through a
+        # player command. The individual command-level checks stay in
+        # place too - they're still what protects against Frightened
+        # lingering OUTSIDE of combat, where this per-turn processing
+        # never runs at all.
+        # combat_actionsleft is checked (not just is_in_combat) so
+        # this can't double-call turn_end_check on someone who's ALSO
+        # Paralyzed - the block just above already zeroed their
+        # actions and ended their turn in that case, and a second
+        # turn_end_check call here would advance the turnhandler an
+        # extra, incorrect step past whoever's real next turn is.
+        if (
+            self.is_in_combat(character)
+            and character.db.combat_actionsleft
+            and "Frightened" in self.get_conditions(character)
+        ):
+            character.db.combat_actionsleft = 0
+            if character.location:
+                character.location.msg_contents(
+                    "%s is too frightened to act this turn!" % character
                 )
             character.db.combat_turnhandler.turn_end_check(character)
 
@@ -2829,6 +2965,16 @@ class CombatRules:
         caster.location.msg_contents(spell_msg)
 
         for target in targets:
+            # Resistance only ever applies to a genuinely hostile
+            # application - a buff cast on an ally (or yourself) always
+            # lands, same as before. See resists_condition's own
+            # comment for the full reasoning.
+            if target != caster and not self.is_ally(caster, target):
+                if self.resists_condition(caster, target):
+                    caster.location.msg_contents(
+                        "%s resists the effect!" % target
+                    )
+                    continue
             for condition in conditions:
                 self.add_condition(
                     target, caster, condition[0], condition[1] + duration_bonus
@@ -3222,6 +3368,12 @@ class CombatRules:
         user.location.msg_contents(skill_msg)
 
         for target in targets:
+            # See spell_add_condition's identical guard - resistance
+            # only ever applies to a genuinely hostile application.
+            if target != user and not self.is_ally(user, target):
+                if self.resists_condition(user, target):
+                    user.location.msg_contents("%s resists the effect!" % target)
+                    continue
             for condition in conditions:
                 self.add_condition(target, user, condition[0], condition[1] + duration_bonus)
 
@@ -5917,6 +6069,18 @@ class HostileNPC(AutoStatNPC):
             # Killed by its own Poisoned tick just now - nothing left
             # to act with.
             return
+        if not self.db.combat_actionsleft:
+            # Real, confirmed live bug (found while fixing Frightened
+            # for NPCs - see apply_turn_conditions' own comment):
+            # Paralyzed already zeroes combat_actionsleft and ends the
+            # turn via turn_end_check up in apply_turn_conditions, but
+            # nothing here ever actually checked that before - this
+            # function just kept going and picked/executed an action
+            # regardless, so a Paralyzed (or now Frightened) NPC never
+            # actually skipped its turn at all, only ever LOOKED like
+            # it should have. Bailing out here is what actually makes
+            # either condition stop an NPC from acting.
+            return
 
         fighters = turnhandler.db.fighters or []
         # Real, confirmed live bug: this used to just grab the first
@@ -6298,10 +6462,14 @@ class CombatCharacter(ContribRPCharacter):
         """
         effective_language = language or (speaker.db.speaking or "latin")
 
+        from world.languages import LANGUAGE_COLORS
+
+        color = LANGUAGE_COLORS.get(effective_language, "|w")
+
         level = self.db.level or 1
         known = self.db.known_languages or ["latin"]
         if level > 100 or effective_language in known:
-            return "|w%s|n" % text
+            return "%s%s|n" % (color, text)
 
         from evennia.contrib.rpg.rpsystem import rplanguage
 
@@ -6309,7 +6477,7 @@ class CombatCharacter(ContribRPCharacter):
             garbled = rplanguage.obfuscate_language(text, level=1.0, language=effective_language)
         except Exception:
             garbled = text
-        return "|w(in an unfamiliar tongue) %s|n" % garbled
+        return "%s(in an unfamiliar tongue) %s|n" % (color, garbled)
 
     def msg(self, text=None, from_obj=None, session=None, **kwargs):
         """
@@ -7078,23 +7246,32 @@ class CombatTurnHandler(DefaultScript):
         # try_auto_attack() below instead, right when their action
         # actually resolves, which doesn't collide with this.
 
-    def next_turn(self):
-        """Advances to the next character in the turn order."""
-        # Prune any fighter destroyed mid-combat (via @destroy, or
-        # slay's NPC-instance cleanup) before anything else runs.
-        #
-        # Real root cause of a persistent stuck-loop bug, found via
-        # live diagnostics: once a deleted object's reference is
-        # reloaded from a persisted attribute (like this list),
-        # Evennia resolves it to literal None - not a "ghost" object
-        # that merely has pk=None. The original version of this
-        # check, `f.pk` for each f, itself crashed with an
-        # AttributeError the moment it hit that None entry - meaning
-        # the pruning code never even got a chance to run, which is
-        # why the fight stayed stuck forever instead of ending: the
-        # fix meant to catch this exact scenario was crashing on the
-        # very thing it was trying to detect. `f is not None` first,
-        # short-circuiting before ever touching `f.pk`, fixes this.
+    def check_for_victory(self):
+        """
+        Prunes any fighter destroyed mid-combat and checks whether the
+        fight should now end (one living side or fewer remaining) -
+        the front half of next_turn(), factored out so a fighter can
+        be removed from combat (CombatRules.force_disengage, used by
+        a god-authorized CmdGodTeleport) without also being forced
+        through next_turn()'s own turn-ADVANCE step, which would
+        wrongly skip past whoever's real current turn actually is if
+        the removed fighter wasn't the one holding it up. Returns True
+        if the fight just ended (this script has already stopped and
+        deleted itself), False if it's still ongoing.
+
+        Real root cause of a persistent stuck-loop bug, found via live
+        diagnostics: once a deleted object's reference is reloaded
+        from a persisted attribute (like this list), Evennia resolves
+        it to literal None - not a "ghost" object that merely has
+        pk=None. The original version of this pruning check, `f.pk`
+        for each f, itself crashed with an AttributeError the moment
+        it hit that None entry - meaning the pruning code never even
+        got a chance to run, which is why the fight stayed stuck
+        forever instead of ending: the fix meant to catch this exact
+        scenario was crashing on the very thing it was trying to
+        detect. `f is not None` first, short-circuiting before ever
+        touching `f.pk`, fixes this.
+        """
         valid_fighters = [f for f in self.db.fighters if f is not None and f.pk]
         if len(valid_fighters) != len(self.db.fighters):
             if self.db.turn >= len(valid_fighters):
@@ -7103,7 +7280,7 @@ class CombatTurnHandler(DefaultScript):
         if not valid_fighters:
             self.stop()
             self.delete()
-            return
+            return True
         if len(valid_fighters) == 1:
             # Everyone else was pruned (destroyed/deleted mid-combat,
             # e.g. slay or @destroy) - the one fighter left standing
@@ -7111,7 +7288,7 @@ class CombatTurnHandler(DefaultScript):
             self.obj.msg_contents("Only %s remains! Combat is over!" % valid_fighters[0])
             self.stop()
             self.delete()
-            return
+            return True
 
         disengage_check = all(
             fighter.db.combat_lastaction == "disengage" for fighter in self.db.fighters
@@ -7120,7 +7297,7 @@ class CombatTurnHandler(DefaultScript):
             self.obj.msg_contents("All fighters have disengaged! Combat is over!")
             self.stop()
             self.delete()
-            return
+            return True
 
         # Side-aware victory check: counts how many distinct SIDES
         # still have at least one living member, not just how many
@@ -7150,6 +7327,12 @@ class CombatTurnHandler(DefaultScript):
                 self.obj.msg_contents("Combat is over!")
             self.stop()
             self.delete()
+            return True
+        return False
+
+    def next_turn(self):
+        """Advances to the next character in the turn order."""
+        if self.check_for_victory():
             return
 
         currentchar = self.db.fighters[self.db.turn]
@@ -7669,6 +7852,86 @@ class CmdPass(Command):
         self.rules.spend_action(self.caller, "all", action_name="pass")
 
 
+class CmdLook(DefaultCmdLook):
+    """
+    Same as Evennia's own look command in every way, except a
+    single-letter (or full-word) direction always resolves to the
+    matching exit first, before falling through to the stock generic
+    search.
+
+    Real, confirmed live bug found by a direct player report: 'look s'
+    was meant to look south, but if the room's south exit only carries
+    's' as an ALIAS (not its primary key) while something in the
+    caller's own inventory happens to start with 's' too (a real,
+    reported case: "using look s doesnt look south but to your steel
+    dagger"), rpsystem's own sdesc-aware search - which every ordinary
+    caller.search() call is routed through, same as CLAUDE.md's own
+    at_search.py notes already document for a different case - doesn't
+    reliably prioritize an exact alias match over a same-letter prefix
+    match on an unrelated object. This is genuine, general Evennia/
+    rpsystem search-priority behavior, not something specific to any
+    one room or item - any exit whose short alias collides with an
+    inventory item's first letter could hit this. Checking exits
+    directly, by exact key/alias match, before ever reaching the
+    generic search sidesteps the ambiguity entirely rather than trying
+    to fix search priority itself.
+    """
+
+    def func(self):
+        caller = self.caller
+        if self.args:
+            search_term = self.args.strip().lower()
+            target = None
+            if caller.location:
+                for exit_obj in caller.location.exits:
+                    names = {exit_obj.key.lower()}
+                    names.update(a.lower() for a in exit_obj.aliases.all())
+                    if search_term in names:
+                        target = exit_obj
+                        break
+            if target is None:
+                target = caller.search(self.args)
+                if not target:
+                    return
+        else:
+            target = caller.location
+            if not target:
+                caller.msg("You have no location to look at!")
+                return
+        desc = caller.at_look(target)
+        self.msg(text=(desc, {"type": "look"}), options=None)
+
+
+class CmdForce(DefaultCmdForce):
+    """
+    Same as Evennia's own force command in every way, except the
+    target search is global instead of room-scoped.
+
+    Real, confirmed live bug found by a direct report: 'force' only
+    ever worked on someone standing in the same room as the caller -
+    the stock command calls self.caller.search(self.lhs) with no
+    global_search flag, which defaults to searching just the caller's
+    own location and inventory. A god needing to force a command on
+    someone elsewhere in the world (exactly the kind of situation
+    'force' exists for) got a plain "could not find" instead. The
+    permission check itself (targ.access(caller, 'edit')) is
+    untouched - only how the target is found changes.
+    """
+
+    def func(self):
+        if not self.lhs or not self.rhs:
+            self.msg("You must provide a target and a command string to execute.")
+            return
+        targ = self.caller.search(self.lhs, global_search=True)
+        if not targ:
+            return
+        if not targ.access(self.caller, self.perm_used):
+            self.msg("You don't have permission to force %s to execute commands." % targ)
+            return
+        targ.execute_cmd(self.rhs)
+        self.msg("You have forced %s to: %s" % (targ, self.rhs))
+
+
 class CmdQuit(DefaultCmdQuit):
     """
     Same as Evennia's own quit command in every way, except it
@@ -7820,27 +8083,15 @@ class CmdDisengage(Command):
                 caller.db.xp = current_xp - xp_loss
                 caller.msg("|rBreaking away costs you experience - you lose %d XP.|n" % xp_loss)
 
-            # The original version stopped after this message - the
-            # player was told they'd escaped but never actually got
-            # removed from the fight, so they kept getting turns
-            # indefinitely. Fixed: remove from fighters BEFORE
-            # spend_action (which calls turn_end_check based on this
-            # same list - next_turn() re-reads it directly each time,
-            # so this ordering is safe), then combat_cleanup LAST,
-            # since spend_action needs combat_turnhandler to still be
-            # set in order to call turn_end_check on it at all.
-            turnhandler = caller.db.combat_turnhandler
-            if turnhandler and turnhandler.pk:
-                fighters = turnhandler.db.fighters or []
-                if caller in fighters:
-                    fighters.remove(caller)
-                    turnhandler.db.fighters = fighters
-                if turnhandler.db.turn >= len(fighters):
-                    turnhandler.db.turn = 0
-
-            self.rules.spend_action(caller, "all", action_name="disengage")
-            self.rules.combat_cleanup(caller)
-            self.rules.release_pet(caller.db.active_companion, caller, reason="owner_fled")
+            # The original version stopped after the message above -
+            # the player was told they'd escaped but never actually
+            # got removed from the fight, so they kept getting turns
+            # indefinitely. force_disengage handles the real cleanup
+            # (fighter-list removal, turn-index fix, spend_action,
+            # combat_cleanup, pet release) - shared with CmdGodTeleport's
+            # own forced escape, which needs the exact same cleanup
+            # minus the roll and XP cost above.
+            self.rules.force_disengage(caller)
         else:
             self.caller.msg(
                 "|rYou try to break away, but can't shake free - you're still in "
@@ -7851,6 +8102,68 @@ class CmdDisengage(Command):
                 exclude=self.caller,
             )
             self.rules.spend_action(self.caller, "all", action_name="failed_disengage")
+
+
+class CmdGodTeleport(Command):
+    """
+    Teleport a character anywhere, safely - the god-only alternative
+    to Evennia's own '@tel'/'@teleport'.
+
+    Usage:
+      godteleport <character> = <destination>
+
+    The standard '@tel' refuses outright to move anyone currently in
+    combat - CombatCharacter.at_pre_move blocks any move while
+    is_in_combat is true, and that's a plain hook check, not a
+    permission lock, so a true superuser isn't exempt from it either.
+    This command exists specifically to give a god a real way around
+    that: if the target is mid-fight, their combat participation is
+    ended cleanly first (CombatRules.force_disengage - the same
+    fighter-list/turn-index/pet cleanup an ordinary successful
+    'disengage' uses, minus the dice roll and XP cost, since this is
+    a system action on the target, not their own choice), and only
+    then does the actual teleport happen. Their fight (if others
+    remain on either side) simply continues without them, exactly as
+    if they'd genuinely disengaged.
+    """
+
+    key = "godteleport"
+    aliases = ["gtel"]
+    help_category = "admin"
+    rules = COMBAT_RULES
+
+    def func(self):
+        caller = self.caller
+        if (caller.db.level or 0) <= 100:
+            caller.msg("Only a god may use this.")
+            return
+
+        if not self.args or "=" not in self.args:
+            caller.msg("Usage: godteleport <character> = <destination>")
+            return
+
+        lhs, rhs = self.args.split("=", 1)
+        target = caller.search(lhs.strip(), global_search=True)
+        if not target:
+            return
+        destination = caller.search(rhs.strip(), global_search=True)
+        if not destination:
+            return
+
+        if target == destination:
+            caller.msg("You can't teleport something inside of itself!")
+            return
+
+        if self.rules.is_in_combat(target):
+            self.rules.force_disengage(target)
+            target.msg("|mA god's will tears you from the fight!|n")
+
+        if target.location:
+            target.location.msg_contents(
+                "%s vanishes in a flash of divine light!" % target, exclude=target
+            )
+        target.move_to(destination, quiet=False, force_move=True, move_type="teleport")
+        caller.msg("Teleported %s -> %s." % (target, destination))
 
 
 RECALL_COOLDOWN_SECONDS = 600
@@ -8353,6 +8666,38 @@ def _permission_rank(permname):
         return -1
 
 
+def grant_all_abilities_for_testing(character):
+    """
+    Grants every spell, skill, and language in the game to a character
+    - called automatically the moment someone crosses into godhood
+    (CmdGodLevel, right below), and available as a one-time live-data
+    catch-up for any god promoted before this existed (see
+    world/tests_combat.py's own docstring on this function for the
+    exact shell command used to backfill the handful of already-live
+    gods this session).
+
+    Direct request: testing a build shouldn't be gated behind the same
+    trainer/gold/level grind a mortal player has to go through - a god
+    should just be able to try anything. Deliberately one-way only,
+    never strips anything on a later demotion back to mortal - a
+    demoted former god keeping spells they "shouldn't" have anymore is
+    a much smaller, safer failure mode than silently deleting a real
+    mortal character's own legitimately-learned kit the moment their
+    level crosses back below 100 for any reason.
+    """
+    from world.languages import LANGUAGE_LEVEL_REQUIRED, DEFAULT_LANGUAGE
+
+    all_spells = [name for name, data in SPELLS.items() if isinstance(data, dict)]
+    all_skills = [name for name, data in SKILLS.items() if isinstance(data, dict)]
+    all_languages = [DEFAULT_LANGUAGE] + list(LANGUAGE_LEVEL_REQUIRED.keys())
+
+    character.db.spells_known = sorted(set((character.db.spells_known or []) + all_spells))
+    character.db.skills_known = sorted(set((character.db.skills_known or []) + all_skills))
+    character.db.known_languages = sorted(
+        set((character.db.known_languages or []) + all_languages)
+    )
+
+
 class CmdGodLevel(Command):
     """
     Set a character's level directly - the Cursus Divinorum's
@@ -8505,6 +8850,14 @@ class CmdGodLevel(Command):
             from world.religion import connect_god_to_all_religion_channels, connect_god_to_divine_channel
             connect_god_to_all_religion_channels(target)
             connect_god_to_divine_channel(target)
+            # Direct request: a god (current or future) should be able
+            # to test anything without the same trainer/gold/level grind
+            # a mortal player goes through - grant every spell, skill,
+            # and language in the game the moment someone actually
+            # crosses into godhood. One-way only, never strips anything
+            # on a later demotion back to mortal - see the helper's own
+            # docstring for why that asymmetry is deliberate.
+            grant_all_abilities_for_testing(target)
         if new_level > 100:
             target.db.race_display = "Olympian"
             target.db.class_display = "Divine"
@@ -8517,6 +8870,88 @@ class CmdGodLevel(Command):
         title = rank_title(new_level)
         caller.msg("|gSet %s to level %d (%s).|n" % (target.key, new_level, title))
         target.msg("|yYour level has been set to %d (%s).|n" % (new_level, title))
+
+
+class CmdGodSet(Command):
+    """
+    Directly set a character's HP/MP/SP or core stats - a real testing
+    tool, not something with any in-fiction meaning the way statup/
+    leveling already is for a mortal player.
+
+    Usage:
+      godset <character> = <stat> <value>
+
+    <stat> is one of: hp, mp, sp, max_hp, max_mp, max_sp, virtus,
+    agilitas, ingenium, vigor.
+
+    Setting hp/mp/sp above the character's own current max raises the
+    max to match rather than getting silently capped back down -
+    useful for setting up a specific test scenario in one step instead
+    of separately raising the ceiling first. Requires Auspex (level
+    102) or higher, matching this game's other direct-testing admin
+    tools (restore, wizinvis, snoop).
+    """
+
+    key = "godset"
+    locks = "cmd:attr_ge(level, 102)"
+    help_category = "admin"
+
+    VALID_STATS = (
+        "hp", "mp", "sp", "max_hp", "max_mp", "max_sp",
+        "virtus", "agilitas", "ingenium", "vigor",
+    )
+
+    def func(self):
+        caller = self.caller
+        level = caller.db.level or 0
+        is_superuser = bool(caller.account and caller.account.is_superuser)
+        if level < 102 and not is_superuser:
+            caller.msg("You lack the standing to do that.")
+            return
+
+        if not self.args or "=" not in self.args:
+            caller.msg("Usage: godset <character> = <stat> <value>")
+            return
+
+        lhs, rhs = self.args.split("=", 1)
+        target = caller.search(lhs.strip(), global_search=True)
+        if not target:
+            return
+
+        parts = rhs.strip().split()
+        if len(parts) != 2:
+            caller.msg("Usage: godset <character> = <stat> <value>")
+            return
+
+        stat, value_str = parts[0].lower(), parts[1]
+        if stat not in self.VALID_STATS:
+            caller.msg(
+                "Unknown stat '%s'. Choose from: %s" % (stat, ", ".join(self.VALID_STATS))
+            )
+            return
+
+        try:
+            value = int(value_str)
+        except ValueError:
+            caller.msg("Value must be a whole number.")
+            return
+        if value < 0:
+            caller.msg("Value can't be negative.")
+            return
+
+        target.attributes.add(stat, value)
+
+        # A current resource set above its own max raises the max to
+        # match, rather than leaving hp/mp/sp silently inconsistent
+        # with a lower max - the same care CmdRestore already takes.
+        if stat in ("hp", "mp", "sp"):
+            max_attr = "max_" + stat
+            current_max = target.attributes.get(max_attr) or 0
+            if value > current_max:
+                target.attributes.add(max_attr, value)
+
+        caller.msg("|gSet %s's %s to %d.|n" % (target.key, stat, value))
+        target.msg("|yYour %s has been set to %d.|n" % (stat, value))
 
 
 class CmdWizInvis(Command):
@@ -8632,16 +9067,18 @@ class CmdRestore(Command):
 
 class CmdSnoop(Command):
     """
-    Secretly monitor everything a character sees.
+    Secretly monitor everything a character sees and types.
 
     Usage:
       snoop <character>
       snoop off <character>
 
-    Silently relays everything the target receives to you, prefixed
-    so you can tell it apart from your own surroundings. The target is
-    never notified. Shows their output only, not their raw keystrokes.
-    Requires Auspex (level 102) or higher.
+    Silently relays everything the target receives AND everything they
+    type, each prefixed so you can tell it apart from your own
+    surroundings. The target is never notified. Sensitive input
+    (passwords, at login or character creation) is masked the same
+    way the server's own audit log already masks it - see
+    world/sessions.py. Requires Auspex (level 102) or higher.
     """
 
     key = "snoop"
@@ -8688,7 +9125,10 @@ class CmdSnoop(Command):
             return
         snoopers.append(caller)
         target.db.snoopers = snoopers
-        caller.msg("|yYou begin snooping %s. Their output will appear prefixed.|n" % target.key)
+        caller.msg(
+            "|yYou begin snooping %s. Their output and input will appear prefixed.|n"
+            % target.key
+        )
 
 
 class CmdGreet(Command):
@@ -10629,6 +11069,7 @@ class BattleCmdSet(CharacterCmdSet):
         self.add(CmdStand())
         self.add(CmdPass())
         self.add(CmdDisengage())
+        self.add(CmdGodTeleport())
         self.add(CmdRecall())
         self.add(CmdCombatHelp())
         self.add(CmdWield())

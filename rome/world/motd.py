@@ -32,16 +32,16 @@ from evennia import CmdSet
 from commands.command import Command
 from world.box_display import box_border, box_line, box_paragraph, box_blank
 
-RECENT_UPDATES_DATE = "2026-09-17"
+RECENT_UPDATES_DATE = "2026-09-20"
 
 RECENT_UPDATES_TEXT = (
-    "'disengage'/'flee' now costs a bit of XP progress on a "
-    "successful escape - still far lighter than dying, but no longer "
-    "free. Wounded monsters you leave standing also recover HP over "
-    "time now, same rate a resting player does, instead of sitting at "
-    "whatever HP you left them at forever. Also: Haruspex's Animate "
-    "Dead is gone, replaced by Summon Fury (level 85) - a real late-"
-    "game companion upgrade beyond what Summon Lemures gives you."
+    "Debuffs and buffs can now be resisted (a higher Ingenium than "
+    "whoever cast it helps you shrug it off) instead of always "
+    "landing. Custom titles can now run up to 60 characters, 'look "
+    "<direction>' correctly checks real exits first, and each of the "
+    "five languages now shows in its own color when spoken. The "
+    "Germanic Stronghold's warriors now speak in-character and drop "
+    "their own unique gear when defeated."
 )
 
 # The box's own interior width, between its left/right borders and

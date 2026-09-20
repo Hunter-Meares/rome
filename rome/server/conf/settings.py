@@ -166,7 +166,7 @@ SEARCH_AT_RESULT = "server.conf.at_search.at_search_result"
 # the contrib's own docs warn a single broadcast to everyone online
 # becomes one log line *per connected player*, which is a lot of
 # volume for not much investigative value compared to AUDIT_IN.
-SERVER_SESSION_CLASS = "evennia.contrib.utils.auditing.server.AuditedServerSession"
+SERVER_SESSION_CLASS = "world.sessions.RomeServerSession"
 AUDIT_IN = True
 AUDIT_OUT = False
 

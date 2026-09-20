@@ -32,6 +32,7 @@ from world.combat import (
     LEVEL_UP_HP_GAIN,
     LEVEL_UP_MP_GAIN,
     LEVEL_UP_SP_GAIN,
+    ACTIONS_PER_TURN,
 )
 
 
@@ -271,6 +272,18 @@ class TestHostileNPCTurnAI(EvenniaTest):
         handler = create.create_script(CombatTurnHandler, obj=self.room1, autostart=False)
         handler.db.fighters = [npc, self.char1]
         npc.db.combat_turnhandler = handler
+        # Real gameplay always sets this via CombatTurnHandler.start_turn
+        # BEFORE calling at_turn_start - this test calls at_turn_start
+        # directly, so it needs setting by hand or the NPC looks "out
+        # of actions" from the very first line of that method (the
+        # same real gap Frightened's own NPC-enforcement fix found and
+        # fixed for Paralyzed too - see apply_turn_conditions). Set
+        # AFTER creating the handler/assigning combat_turnhandler,
+        # since the handler's own creation-time room sweep calls
+        # initialize_for_combat on any fighter already present - which
+        # resets combat_actionsleft to 0 as its own first step - and
+        # would otherwise silently clobber this right back to 0.
+        npc.db.combat_actionsleft = ACTIONS_PER_TURN
 
         with patch("world.combat.randint", side_effect=_randint_side_effect):
             npc.at_turn_start()

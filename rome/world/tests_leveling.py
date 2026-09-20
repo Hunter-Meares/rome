@@ -128,3 +128,47 @@ class TestCmdStatUp(LevelingTestBase):
 
         self.assertIn("Unspent stat points", result)
         self.assertEqual(self.char1.db.unspent_stat_points, 2)
+
+    def test_spending_on_ingenium_also_raises_max_mp(self):
+        """
+        Real, confirmed live bug found by a direct player report
+        ("Ingenium doesn't seem to affect Max MP"): chargen applies
+        (ingenium-10)*2 to max_mp exactly once, at character creation,
+        but this branch never touched max_mp at all - so any Ingenium
+        gained AFTER chargen via statup silently did nothing to it.
+        Matches chargen's own *2-per-point rate, not the stale "+1"
+        this module's docstring used to claim (no code ever actually
+        implemented that number either).
+        """
+        self.char1.db.unspent_stat_points = 1
+        self.char1.db.max_mp = 50
+        self.char1.db.mp = 50
+
+        self.call(CmdStatUp(), "ingenium", caller=self.char1)
+
+        self.assertEqual(self.char1.db.ingenium, 11)
+        self.assertEqual(self.char1.db.max_mp, 52)
+        self.assertEqual(self.char1.db.mp, 52)
+
+    def test_spending_on_vigor_also_raises_max_hp(self):
+        self.char1.db.unspent_stat_points = 1
+        self.char1.db.max_hp = 100
+        self.char1.db.hp = 100
+
+        self.call(CmdStatUp(), "vigor", caller=self.char1)
+
+        self.assertEqual(self.char1.db.vigor, 11)
+        self.assertEqual(self.char1.db.max_hp, 102)
+        self.assertEqual(self.char1.db.hp, 102)
+
+    def test_spending_on_virtus_does_not_touch_any_resource_pool(self):
+        """Only ingenium/vigor feed a resource pool - virtus and
+        agilitas never did, at chargen or here, and shouldn't start."""
+        self.char1.db.unspent_stat_points = 1
+        self.char1.db.max_hp = 100
+        self.char1.db.max_mp = 50
+
+        self.call(CmdStatUp(), "virtus", caller=self.char1)
+
+        self.assertEqual(self.char1.db.max_hp, 100)
+        self.assertEqual(self.char1.db.max_mp, 50)

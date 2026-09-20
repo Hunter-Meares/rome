@@ -37,6 +37,7 @@ be a (nodetext, helptext) tuple). None of the actual report-browsing
 or status-toggling logic is duplicated here.
 """
 
+from evennia.comms.models import Msg
 from evennia.contrib.base_systems.ingame_reports import menu as _stock_menu
 from evennia.contrib.base_systems.ingame_reports.reports import (
     CmdManageReports as _StockCmdManageReports,
@@ -46,9 +47,69 @@ from evennia.contrib.base_systems.ingame_reports.reports import (
 from evennia.utils import evmenu
 from evennia.utils.utils import crop
 
+# Real, direct player-facing (well, god-facing) request: a status is
+# only ever visible by opening a report individually, making it slow
+# to triage a long list. Colors give each status a real visual
+# identity on the list itself, not just its own report page.
+_STATUS_COLOR = {
+    "in progress": "|y",
+    "rejected": "|r",
+    "closed": "|x",
+}
+
+
+def _status_badge(report):
+    """A short, colored status prefix for one report's list row."""
+    tags = [t for t in report.tags.all() if t in _STATUS_COLOR]
+    if not tags:
+        return ""
+    parts = ["%s%s|n" % (_STATUS_COLOR[t], t.upper()) for t in tags]
+    return "[%s] " % "/".join(parts)
+
 
 def menunode_list_reports(caller, raw_string, **kwargs):
+    # Real, confirmed live gap: the stock list only ever excludes the
+    # "closed" tag from the default (unfiltered) view - a "rejected"
+    # report is just as much a final disposition, but stayed in the
+    # main list forever unless ALSO separately marked closed,
+    # cluttering the default view with reports that already have a
+    # real resolution. Pre-seeding the cached queryset the stock
+    # function reads (and only ever builds once per menu session, via
+    # its own `if not (report_list := getattr(...))` check) with
+    # rejected reports already excluded means the stock function's own
+    # downstream pagination math stays consistent, rather than
+    # filtering the rendered page after the fact and getting the
+    # "Next 10" boundary slightly wrong. Mirrors the stock function's
+    # own queryset construction exactly, plus the one extra exclude -
+    # not a reimplementation of the real listing/pagination logic,
+    # which still happens entirely inside the real call below. Only
+    # applies to the true default view - an explicit status filter
+    # (including filtering by "rejected" itself) should still show
+    # exactly what it says.
+    if not kwargs.get("status") and not getattr(caller.ndb._evmenu, "report_list", None):
+        hub = caller.ndb._evmenu.hub
+        report_list = Msg.objects.search_message(receiver=hub).order_by("db_date_created")
+        report_list = report_list.exclude(db_tags__db_key="rejected")
+        caller.ndb._evmenu.report_list = report_list
+
     text, options = _stock_menu.menunode_list_reports(caller, raw_string, **kwargs)
+
+    # Real, direct request: show each report's current status right on
+    # the main list, instead of requiring a god to open every single
+    # one just to see whether it's already been triaged. Only options
+    # carrying a real "report" kwarg are actual report rows -
+    # navigation options (Filter/Next/Previous) don't, and pass
+    # through untouched.
+    if isinstance(options, list):
+        for option in options:
+            goto = option.get("goto")
+            if isinstance(goto, tuple) and isinstance(goto[1], dict):
+                report = goto[1].get("report")
+                if report is not None:
+                    badge = _status_badge(report)
+                    if badge:
+                        option["desc"] = badge + option["desc"]
+
     helptext = (
         "Type the number next to a report to open it. 'f' filters the "
         "list by status. 'look' shows this list again if it's scrolled "
@@ -167,8 +228,33 @@ class CmdManageReports(_StockCmdManageReports):
         if not hub:
             self.msg("You cannot manage that.")
 
+        # Real, confirmed live bug: running EvMenu on self.account (the
+        # stock contrib's own choice) only ever replaces cmdsets on the
+        # ACCOUNT's own stack - the puppeted Character's cmdset (which
+        # is where a room's dynamically-added exit commands actually
+        # live) is a completely separate stack Evennia merges in
+        # afterward, so it stays fully active the whole time the menu
+        # is open. A god typing 'n' or 'next' for this menu's own
+        # "Next 10" option got matched against the room's "north" exit
+        # alias instead and just walked north. Targeting the puppeted
+        # Character here instead means EvMenu's default "Replace"
+        # mergetype actually replaces the stack exits live on, closing
+        # this off - falling back to the account itself only for the
+        # rare case of managing reports while genuinely OOC (no
+        # character currently puppeted). Also a better fit for this
+        # game's own permission model than the stock behavior: this
+        # project's god-tier system (CmdGodLevel) grants its Evennia
+        # permission strings on the CHARACTER, not the account, so a
+        # non-superuser god checked via the account alone could
+        # actually have FAILED this menu's own read-lock checks -
+        # true superuser status (Jupiter) was never affected either
+        # way, since that bypass already checks the account directly.
+        menu_caller = self.account
+        if self.session and self.session.puppet:
+            menu_caller = self.session.puppet
+
         evmenu.EvMenu(
-            self.account,
+            menu_caller,
             "world.reports",
             startnode="menunode_list_reports",
             hub=hub,

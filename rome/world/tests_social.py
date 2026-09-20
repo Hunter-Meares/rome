@@ -177,10 +177,16 @@ class TestCmdTitle(EvenniaCommandTest):
         result = self.call(CmdTitle(), "", caller=self.char1)
         self.assertIn("don't have a title", result)
 
-    def test_rejects_over_40_characters(self):
+    def test_rejects_over_60_characters(self):
+        # Widened from 40 to 60 by direct request.
         self.char1.db.custom_title = None
-        self.call(CmdTitle(), "x" * 41, caller=self.char1)
+        self.call(CmdTitle(), "x" * 61, caller=self.char1)
         self.assertIsNone(self.char1.db.custom_title)
+
+    def test_accepts_exactly_60_characters(self):
+        self.char1.db.custom_title = None
+        self.call(CmdTitle(), "x" * 60, caller=self.char1)
+        self.assertEqual(self.char1.db.custom_title, "x" * 60)
 
     def test_accepts_exactly_40_characters(self):
         title = "x" * 40

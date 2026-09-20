@@ -158,7 +158,7 @@ room(
 
 room(
     "sewer_confluence_ledge", "The Watching Ledge",
-    """A raised stone ledge runs along one wall here, just high enough above the channel to stay dry - a good vantage point, and evidently a popular one, judging by how worn smooth the stone has become.""",
+    """A raised stone ledge runs along one wall here, just high enough above the channel to stay dry - a good vantage point, and evidently a popular one, judging by how worn smooth the stone has become. There's no way further up from here - just a place to watch the tunnels below.""",
     "sewers",
 )
 
