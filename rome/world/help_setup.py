@@ -80,7 +80,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming", "trivia", "pets", "buypet", "row"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming", "trivia", "pets", "buypet", "row", "socials"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
         + list(RACIAL_ABILITIES.keys())
     )
@@ -580,23 +580,66 @@ def create_all_help_entries():
             "  row\n"
             "  row front\n"
             "  row back\n\n"
-            "Front (the default) means any enemy can freely target you.\n\n"
-            "Back means an enemy can't reach you at all - not with a "
-            "basic attack, a spell, or a skill - as long as at least one "
-            "of your own allies (a party member, or a pet, which always "
-            "starts in the front row) is still standing in the front row "
-            "with you. The moment your last front-row ally falls, you "
-            "become reachable again immediately - and if that ally was a "
-            "pet defending you, you're automatically pulled back to the "
+            "Front (the default) means any enemy can freely target you "
+            "with a basic attack or a physical skill.\n\n"
+            "Back means an enemy's basic attacks and physical skills "
+            "can't reach you at all, as long as at least one of your own "
+            "allies (a party member, or a pet, which always starts in "
+            "the front row) is still standing in the front row with you. "
+            "The moment your last front-row ally falls, you become "
+            "reachable again immediately - and if that ally was a pet "
+            "defending you, you're automatically pulled back to the "
             "front row yourself at that same moment.\n\n"
-            "This is a real, hard restriction in both directions - your "
-            "own attacks, spells, and skills can't reach a protected enemy "
-            "either, unless you're wielding a polearm or a ranged weapon "
-            "(a bow, a javelin, a spear) - those have the reach to strike "
-            "into the back row directly regardless of who's standing in "
-            "front. A dagger or an unarmed attack does not.\n\n"
+            "This is a real, hard restriction in both directions for "
+            "basic attacks and physical skills - your own attacks and "
+            "skills can't reach a protected enemy either, unless you're "
+            "wielding a polearm or a ranged weapon (a bow, a javelin, a "
+            "spear), which have the reach to strike into the back row "
+            "directly. A dagger or an unarmed attack does not.\n\n"
+            "|wSpells are the one exception|n - a spell always reaches "
+            "its target regardless of row, on both sides. Magic isn't "
+            "constrained by who's standing where the way a physical "
+            "attack is, and it's the only way a caster with no reach "
+            "weapon can ever damage a protected target at all. Falling "
+            "back to the back row protects you from being hit by "
+            "weapons and physical skills - it does nothing against an "
+            "enemy spellcaster.\n\n"
             "Can be set any time, not just mid-fight, so you can position "
             "yourself before a fight even starts."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Social commands (emotes) ---
+    HelpEntry.objects.create(
+        db_key="socials",
+        db_help_category="General",
+        db_entrytext=(
+            "|wSocial Commands|n\n\n"
+            "Usage:\n"
+            "  <social>\n"
+            "  <social> <target>\n\n"
+            "A quick, one-word gesture or reaction - a lighter option than "
+            "a full 'emote' when you just want a simple beat. Works with "
+            "or without a target; targeting yourself just shows the plain, "
+            "untargeted version.\n\n"
+            "|wFriendly:|n smile, grin, laugh, chuckle, wave, hug, embrace, "
+            "cuddle, kiss, nuzzle, pat, highfive, handshake, comfort, "
+            "toast, snuggle\n\n"
+            "|wPlayful:|n wink, giggle, snicker, smirk, tease, poke, "
+            "tickle, nudge, flirt, dance, twirl, blush, tongue, purr\n\n"
+            "|wSympathetic:|n sigh, cry, sob, weep, pout, frown, whimper, "
+            "shiver, tremble, mourn, console, grieve\n\n"
+            "|wHostile:|n glare, scowl, sneer, spit, snarl, growl, hiss, "
+            "slap, shove, mock, scoff, snort, eyeroll, point, threaten, "
+            "curse\n\n"
+            "|wGestures:|n nod, headshake, shrug, salute, bow, kneel, "
+            "stretch, yawn, cough, sneeze, faint, stumble, clap, cheer\n\n"
+            "|wRoman-flavored:|n toga, libation, thumbsdown, thumbsup, "
+            "acclaim, wardoff, evileye, auspex\n\n"
+            "A handful of these (stretch, yawn, sneeze, faint, toga, "
+            "wardoff, auspex) don't have a targeted form at all - they're "
+            "solitary by nature."
         ),
         db_lock_storage="view:all()",
     )
@@ -1405,5 +1448,10 @@ def create_all_help_entries():
         db_lock_storage="view:all()",
     )
 
-    total = len(RACES) + len(CLASSES) + len(STAT_HELP) + 11
+    # Real count, not a hand-maintained formula - the old
+    # `len(RACES) + len(CLASSES) + len(STAT_HELP) + 11` had already
+    # drifted stale (dozens of standalone topics added since "+11"
+    # was accurate), silently under-reporting every run without
+    # actually affecting which entries got created.
+    total = HelpEntry.objects.filter(db_key__in=managed_keys).count()
     print("Created %d help entries." % total)

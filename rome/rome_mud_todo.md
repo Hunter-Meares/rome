@@ -8,11 +8,22 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ## ⚔️ Front/back row positioning, weapon reach, and a persistent pet system - ✅ this session
 
-- [x] **Real front-row/back-row combat positioning** (`row front`/`row back`) - a back-row fighter can't be targeted by any attack, spell, or skill as long as an ally is still standing in the front row with them, checked at the shared damage-dealing choke points (`resolve_attack`/`spell_attack`/`skill_attack`) so it can't be bypassed by switching commands. Applies symmetrically - your own attacks are blocked by an enemy's front row too. A fallen front-row protector automatically pulls their back-row ally forward.
-- [x] **Weapon reach** - polearms and ranged weapons (bows, javelins, spears) bypass row protection entirely; daggers and unarmed attacks don't.
+- [x] **Real front-row/back-row combat positioning** (`row front`/`row back`) - a back-row fighter can't be targeted by a basic attack or a physical skill as long as an ally is still standing in the front row with them, checked at the shared damage-dealing choke points (`resolve_attack`/`skill_attack`) so it can't be bypassed by switching commands. Applies symmetrically - your own attacks/skills are blocked by an enemy's front row too. A fallen front-row protector automatically pulls their back-row ally forward.
+- [x] **Weapon reach** - polearms and ranged weapons (bows, javelins, spears) bypass row protection entirely for basic attacks/skills; daggers and unarmed attacks don't.
+- [x] **Spells always bypass row protection entirely**, on both sides - a direct correction after a live design discussion: casters (Augur/Haruspex/Medicus) have no natural path to a reach weapon at all (their proficiency runs through staves, not polearms/bows), so without this exception no caster could ever damage a protected back-row target with their own class's main damage tool. A spell is "aim and cast," not physically melee-constrained the way a basic attack or a physical skill is - only `spell_attack` gets this exception, `skill_attack`/`resolve_attack` stay row-blocked/reach-gated.
 - [x] **A pet shop** (`buypet`, level 10+, a pet trainer in the Ludus Entrance) selling permanent companion pets (a hound, a hawk) - deliberately different lifecycle from a spell-summoned familiar: follows its owner automatically, survives a logout/login cycle, and is only ever actually lost if it's defeated in combat or explicitly dismissed. Fleeing or the owner's own defeat just sends it home, healed.
 - [x] **Summon spells now refuse outright** (rather than silently orphaning it) if a purchased pet is already active - only one companion at a time, enforced in both directions.
 - [x] **No XP or gold from a pet's own kills** - a pet's damage never counts toward the reward split, closing an AFK-pet-farming exploit. Only damage the owner personally deals earns anything.
+
+---
+
+## 💬 80 social commands (emotes) - ✅ this session
+
+- [x] **A full genre-standard socials library** - `smile`, `wave`, `bow`, `kiss`, `glare`, and 75 more, organized by register (friendly, playful, sympathetic, hostile, gestures) plus 8 Roman-flavored bonus socials (`toga`, `libation`, `acclaim`, `auspex`, and others). See `help socials` for the full list.
+- [x] **One data-driven dispatcher** (`world/socials.py`'s `CmdSocial` + `SOCIALS` dict), not 80 hand-written command classes - adding a new social later is a one-line dict entry.
+- [x] **Every social name is a single word**, by direct request - no multi-word command phrases to type exactly.
+- [x] **Checked against every existing command key/alias in the game before finalizing** - two real collisions found and dropped rather than force-renamed: `greet` (already the mask-proof identity-reveal command) and `hold` (already an alias of `pass`/`wait` in combat).
+- [x] Targeting yourself falls back to the plain untargeted message, deliberately, rather than a hand-written reflexive line for all 80 entries - kept simple per direct request.
 
 ---
 

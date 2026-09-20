@@ -3161,21 +3161,23 @@ class CombatRules:
             self.spend_action(caster, 1, action_name="cast")
 
     def spell_attack(self, caster, spell_name, targets, cost, **kwargs):
-        """Spell that deals damage in combat."""
-        spell_msg = "%s casts %s!" % (caster, spell_name)
+        """
+        Spell that deals damage in combat.
 
-        protected = [t for t in targets if self.is_row_protected(t, attacker=caster)]
-        targets = [t for t in targets if t not in protected]
-        for target in protected:
-            spell_msg += " %s can't reach %s - someone else is still standing in the way!" % (
-                caster, target,
-            )
-        if not targets:
-            caster.db.mp -= cost
-            caster.location.msg_contents(spell_msg)
-            if self.is_in_combat(caster):
-                self.spend_action(caster, 1, action_name="cast")
-            return
+        Deliberately NEVER blocked by front-row/back-row protection
+        (world.combat.CombatRules.is_row_protected), unlike a basic
+        attack or a skill - by direct request/design discussion: a
+        spell is "aim and cast," not physically melee-constrained the
+        way a weapon swing is, and casters (Augur/Haruspex/Medicus)
+        have no natural path to a reach weapon at all (their
+        proficiency runs through staves, not polearms/bows), so
+        without this exception no caster could ever damage a
+        protected back-row target with their own class's main damage
+        tool. A basic attack (resolve_attack) and a physical skill
+        (skill_attack) stay row-blocked/reach-gated - only a genuine
+        spell bypasses it, unconditionally, every time.
+        """
+        spell_msg = "%s casts %s!" % (caster, spell_name)
 
         atkname_single, atkname_plural = kwargs.get("attack_name", ("The spell", "spells"))
         min_damage, max_damage = kwargs.get("damage_range", (10, 20))

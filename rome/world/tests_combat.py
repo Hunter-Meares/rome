@@ -4630,14 +4630,24 @@ class TestCombatRowProtection(CombatTestBase):
         COMBAT_RULES.resolve_attack(self.char1, self.char2)
         self.assertEqual(self.char1.db.combat_last_target, self.char2)
 
-    def test_spell_attack_skips_a_protected_target_but_still_costs_mp(self):
+    def test_spell_attack_always_bypasses_row_protection(self):
+        # Direct design change: a spell is "aim and cast," not
+        # physically melee-constrained - unlike a basic attack or a
+        # skill, it ALWAYS reaches a protected back-row target,
+        # regardless of the caster's own weapon. This is what actually
+        # lets a caster (Augur/Haruspex/Medicus) damage a protected
+        # target at all, since none of them have a natural path to a
+        # reach weapon (their proficiency runs through staves, not
+        # polearms/bows).
         self._setup_two_v_two()
         self.char1.db.mp = 20
+        self.char1.db.wielded_weapon = None  # no reach weapon at all
         self.char2.db.hp = 50
-        COMBAT_RULES.spell_attack(
-            self.char1, "test bolt", [self.char2], 10, damage_range=(999, 999)
-        )
-        self.assertEqual(self.char2.db.hp, 50)
+        with patch("world.combat.randint", return_value=1):  # guaranteed hit
+            COMBAT_RULES.spell_attack(
+                self.char1, "test bolt", [self.char2], 10, damage_range=(20, 20), accuracy=999
+            )
+        self.assertLess(self.char2.db.hp, 50)
         self.assertEqual(self.char1.db.mp, 10)
 
     def test_skill_attack_skips_a_protected_target_but_still_costs_sp(self):

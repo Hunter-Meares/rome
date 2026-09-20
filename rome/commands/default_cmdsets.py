@@ -35,6 +35,7 @@ from world import religion
 from world import titles
 from world import tutorial
 from world import reports
+from world import socials
 from evennia.contrib.utils.debugpy import CmdDebugPy
 from evennia.contrib.grid.ingame_map_display import MapDisplayCmdSet
 from evennia.contrib.grid.ingame_map_display.ingame_map_display import CmdMap
@@ -146,6 +147,8 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(BarterCmdTrade())
         self.add(CmdAchieve)
         self.add(RPSystemCmdSet())
+        for social_cmd in socials.make_social_commands():
+            self.add(social_cmd)
         self.add(combat.CmdGreet())
         self.add(combat.CmdLook())
         self.add(combat.CmdForce())
