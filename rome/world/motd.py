@@ -35,14 +35,12 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-20"
 
 RECENT_UPDATES_TEXT = (
-    "The Amber Coast is open - a coastal Germanic trading town far "
-    "north of the Stronghold, reached by a long wilderness road full "
-    "of real danger. A real harbor, four distinct warbands, a "
-    "matriarchal war-leader, a tidal Sacred Isle, and two new shops "
-    "await - every enemy there carries real weapons and armor, so "
-    "come prepared. Also: debuffs/buffs can now be resisted, titles "
-    "run up to 60 characters, and each language shows in its own "
-    "color when spoken."
+    "Real front/back row positioning has arrived - 'help row' - and "
+    "you can now buy a permanent companion pet (level 10+, 'buypet') "
+    "from a trainer in the Ludus Entrance. The Amber Coast is also "
+    "open - a coastal Germanic trading town far north of the "
+    "Stronghold, reached by a long wilderness road full of real "
+    "danger, where every enemy carries real weapons and armor."
 )
 
 # The box's own interior width, between its left/right borders and

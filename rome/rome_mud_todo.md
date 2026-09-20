@@ -6,6 +6,16 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## ⚔️ Front/back row positioning, weapon reach, and a persistent pet system - ✅ this session
+
+- [x] **Real front-row/back-row combat positioning** (`row front`/`row back`) - a back-row fighter can't be targeted by any attack, spell, or skill as long as an ally is still standing in the front row with them, checked at the shared damage-dealing choke points (`resolve_attack`/`spell_attack`/`skill_attack`) so it can't be bypassed by switching commands. Applies symmetrically - your own attacks are blocked by an enemy's front row too. A fallen front-row protector automatically pulls their back-row ally forward.
+- [x] **Weapon reach** - polearms and ranged weapons (bows, javelins, spears) bypass row protection entirely; daggers and unarmed attacks don't.
+- [x] **A pet shop** (`buypet`, level 10+, a pet trainer in the Ludus Entrance) selling permanent companion pets (a hound, a hawk) - deliberately different lifecycle from a spell-summoned familiar: follows its owner automatically, survives a logout/login cycle, and is only ever actually lost if it's defeated in combat or explicitly dismissed. Fleeing or the owner's own defeat just sends it home, healed.
+- [x] **Summon spells now refuse outright** (rather than silently orphaning it) if a purchased pet is already active - only one companion at a time, enforced in both directions.
+- [x] **No XP or gold from a pet's own kills** - a pet's damage never counts toward the reward split, closing an AFK-pet-farming exploit. Only damage the owner personally deals earns anything.
+
+---
+
 ## 🏴‍☠️ The Amber Coast is built - a coastal Germanic trading town, 144 rooms - ✅ this session
 
 - [x] **Full 144-room location built from the user's own detailed design document**: a coastal Germanic trading town far north of the Germanic Stronghold, at a river delta facing the Danish straits. Coastal Road (10), Outer Palisade & Harbor Approach (10), the Harbor District (14), the Sea-Nix's Hall (10), the Trading Quarter with two real shops (12), the Four Warbands (36), Terp Mound Quarter (12), Shipyard & Drydock (8), Fishing & Salt Flats (10), Nerthus's Sacred Isle (10), and the Deeper Coastal Wilds capstone (12) - `world/batch_amber_coast_data.py` + Part 2/Part 3, `world/setup_amber_coast_live.py`.
