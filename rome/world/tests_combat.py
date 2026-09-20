@@ -1551,6 +1551,258 @@ class TestAwardXp(CombatTestBase):
         self.assertEqual(self.char1.db.xp, 0)
 
 
+class TestPetDamageExcludedFromRewards(CombatTestBase):
+    """
+    Direct request: "I dont think players should get XP from pets
+    killing NPCs because that would mean it would be exploited where
+    players would never do anything and the pet could do all the
+    killing." A pet's damage (spell-summoned or purchased - anything
+    typed as SummonedAlly) never gets logged to damage_log at all
+    (apply_damage's own new guard), and the killing-blow fallback
+    (used when damage_log ends up empty) explicitly refuses to pay a
+    pet either - so a fight the owner never personally swung in earns
+    nothing, closing the AFK-pet-farming path outright.
+    """
+
+    def _make_pet(self, owner):
+        from evennia.utils import create
+        from world.combat import SummonedAlly
+
+        pet = create.create_object(SummonedAlly, key="a test pet", location=self.room1)
+        pet.db.instance_owner = owner
+        return pet
+
+    def test_pet_damage_is_never_logged(self):
+        pet = self._make_pet(self.char1)
+        self.char2.db.hp = 100
+        self.char2.db.damage_log = {}
+
+        COMBAT_RULES.apply_damage(self.char2, 30, attacker=pet)
+
+        self.assertEqual(self.char2.db.damage_log, {})
+        self.assertEqual(self.char2.db.hp, 70)  # damage still lands
+
+    def test_owner_damage_is_still_logged_alongside_a_pet_in_the_same_fight(self):
+        pet = self._make_pet(self.char1)
+        self.char2.db.hp = 100
+        self.char2.db.damage_log = {}
+
+        COMBAT_RULES.apply_damage(self.char2, 30, attacker=pet)
+        COMBAT_RULES.apply_damage(self.char2, 10, attacker=self.char1)
+
+        self.assertEqual(self.char2.db.damage_log, {self.char1: 10})
+
+    def test_a_pet_solo_kill_awards_no_xp_or_gold_to_anyone(self):
+        pet = self._make_pet(self.char1)
+        self.char1.db.level = 50
+        self.char1.db.xp = 0
+        self.char1.db.gold = 0
+        self.char2.db.xp_reward = 100
+        self.char2.db.level = 50
+        self.char2.db.hp = 0
+        self.char2.db.damage_log = {}  # the pet's own damage was never logged
+
+        # Matches how the pet's own signature move actually calls
+        # this - itself as the attacker of record for the killing blow.
+        COMBAT_RULES.at_defeat(self.char2, attacker=pet)
+
+        self.assertEqual(self.char1.db.xp, 0)
+        self.assertEqual(self.char1.db.gold, 0)
+        self.assertEqual(pet.db.xp, None)
+
+    def test_owner_landing_the_killing_blow_still_earns_xp_normally(self):
+        self.char1.db.level = 50
+        self.char1.db.xp = 0
+        self.char2.db.xp_reward = 100
+        self.char2.db.level = 50
+        self.char2.db.hp = 0
+        self.char2.db.damage_log = {self.char1: 40}
+
+        COMBAT_RULES.at_defeat(self.char2, attacker=self.char1)
+
+        self.assertEqual(self.char1.db.xp, 100)
+
+
+class TestPurchasedPetLifecycle(CombatTestBase):
+    """
+    A PurchasedPet's whole point is a different lifecycle from a
+    spell-summoned pet: it only ever actually goes away if it's
+    dismissed OR defeated in combat (0 HP) - by direct request.
+    Everything else (the owner fleeing, the owner themselves being
+    defeated while the pet still stands) just sends it home, healed,
+    instead. Covers that split, following its owner automatically,
+    and surviving a logout/login cycle.
+    """
+
+    def _make_pet(self, owner):
+        from evennia.prototypes.spawner import spawn
+
+        pet = spawn("PET_HOUND")[0]
+        pet.move_to(self.room1, quiet=True)
+        owner.db.active_companion = pet
+        return pet
+
+    def test_purchased_pet_defaults_to_front_row(self):
+        pet = self._make_pet(self.char1)
+        self.assertEqual(pet.db.combat_row, "front")
+
+    def test_fleeing_does_not_delete_a_purchased_pet(self):
+        pet = self._make_pet(self.char1)
+        COMBAT_RULES.release_pet(pet, self.char1, reason="owner_fled")
+        self.assertTrue(pet.pk)
+        self.assertEqual(self.char1.db.active_companion, pet)
+
+    def test_owner_defeat_does_not_delete_a_purchased_pet(self):
+        pet = self._make_pet(self.char1)
+        COMBAT_RULES.release_pet(pet, self.char1, reason="owner_defeated")
+        self.assertTrue(pet.pk)
+        self.assertEqual(self.char1.db.active_companion, pet)
+
+    def test_pet_being_defeated_permanently_deletes_it(self):
+        # Direct requirement: "the pet should only go away if it dies
+        # (defeated in combat) or it's dismissed" - unlike fleeing or
+        # the owner's own defeat, the pet's OWN defeat is a real,
+        # permanent loss, same as an explicit dismiss.
+        pet = self._make_pet(self.char1)
+        pet.db.hp = 0
+        COMBAT_RULES.release_pet(pet, self.char1, reason="pet_defeated")
+        self.assertFalse(pet.pk)
+        self.assertIsNone(self.char1.db.active_companion)
+
+    def test_explicit_dismiss_does_delete_a_purchased_pet(self):
+        pet = self._make_pet(self.char1)
+        COMBAT_RULES.release_pet(pet, self.char1, reason="dismissed")
+        self.assertFalse(pet.pk)
+        self.assertIsNone(self.char1.db.active_companion)
+
+    def test_spell_pet_is_still_deleted_on_flee_unlike_a_purchased_one(self):
+        from evennia.utils import create
+        from world.combat import SummonedAlly
+
+        spell_pet = create.create_object(SummonedAlly, key="a familiar", location=self.room1)
+        self.char1.db.active_companion = spell_pet
+        COMBAT_RULES.release_pet(spell_pet, self.char1, reason="owner_fled")
+        self.assertFalse(spell_pet.pk)
+        self.assertIsNone(self.char1.db.active_companion)
+
+    def test_at_defeat_on_a_downed_pet_permanently_removes_it(self):
+        pet = self._make_pet(self.char1)
+        self.char1.location = self.room1
+        pet.db.hp = 0
+        COMBAT_RULES.at_defeat(pet)
+        self.assertFalse(pet.pk)
+        self.assertIsNone(self.char1.db.active_companion)
+
+    def test_pet_follows_owner_on_ordinary_movement(self):
+        pet = self._make_pet(self.char1)
+        self.char1.location = self.room1
+        self.char1.db.combat_turnhandler = None
+
+        self.char1.move_to(self.room2, quiet=True)
+
+        self.assertEqual(pet.location, self.room2)
+
+    def test_pet_does_not_follow_while_owner_is_in_combat(self):
+        pet = self._make_pet(self.char1)
+        self.char1.location = self.room1
+        self.char1.db.combat_turnhandler = True  # is_in_combat only checks truthiness
+
+        self.char1.move_to(self.room2, quiet=True)
+
+        self.assertEqual(pet.location, self.room1)
+
+    def test_pet_vanishes_on_logout_and_returns_on_login(self):
+        pet = self._make_pet(self.char1)
+        self.char1.location = self.room2
+
+        self.char1.at_post_unpuppet()
+        self.assertIsNone(pet.location)
+
+        self.char1.at_post_puppet()
+        self.assertEqual(pet.location, self.room2)
+
+
+class TestSummonSpellsRefuseToReplaceAPurchasedPet(CombatTestBase):
+    """
+    A real, confirmed gap found while answering a direct question
+    ("is it possible to have both a store-bought pet and a summoned
+    pet?"): every summon spell/skill used to call release_pet(...,
+    reason="replaced") unconditionally before spawning its own pet -
+    harmless for replacing another SPELL-summoned pet (the intended,
+    already-correct behavior), but for a PurchasedPet, "replaced"
+    doesn't delete it (only "dismissed"/"pet_defeated" do) - it just
+    got silently detached from db.active_companion and left behind as
+    a still-alive, un-trackable orphan with no command left able to
+    find or dismiss it. Every summon function now refuses outright
+    instead, matching CmdBuyPet's own existing one-companion-at-a-time
+    rule from the other direction.
+    """
+
+    def _give_purchased_pet(self, owner):
+        from evennia.prototypes.spawner import spawn
+
+        pet = spawn("PET_HOUND")[0]
+        pet.move_to(self.room1, quiet=True)
+        owner.db.active_companion = pet
+        return pet
+
+    def test_summon_familiar_refuses_and_does_not_spend_mp(self):
+        pet = self._give_purchased_pet(self.char1)
+        self.char1.db.level = 10
+        self.char1.db.mp = 20
+
+        COMBAT_RULES.spell_summon_familiar(self.char1, "summon familiar", [], 10)
+
+        self.assertEqual(self.char1.db.active_companion, pet)
+        self.assertEqual(self.char1.db.mp, 20)
+
+    def test_summon_lemures_refuses_and_does_not_spend_mp(self):
+        pet = self._give_purchased_pet(self.char1)
+        self.char1.db.level = 10
+        self.char1.db.mp = 20
+
+        COMBAT_RULES.spell_summon_lemures(self.char1, "summon lemures", [], 10)
+
+        self.assertEqual(self.char1.db.active_companion, pet)
+        self.assertEqual(self.char1.db.mp, 20)
+
+    def test_summon_fury_refuses_and_does_not_spend_mp(self):
+        pet = self._give_purchased_pet(self.char1)
+        self.char1.db.level = 90
+        self.char1.db.mp = 20
+
+        COMBAT_RULES.spell_summon_fury(self.char1, "summon fury", [], 10)
+
+        self.assertEqual(self.char1.db.active_companion, pet)
+        self.assertEqual(self.char1.db.mp, 20)
+
+    def test_call_of_the_wild_refuses_and_does_not_spend_sp(self):
+        pet = self._give_purchased_pet(self.char1)
+        self.char1.db.level = 10
+        self.char1.db.sp = 20
+
+        COMBAT_RULES.skill_call_of_the_wild(self.char1, "call of the wild", [], 10)
+
+        self.assertEqual(self.char1.db.active_companion, pet)
+        self.assertEqual(self.char1.db.sp, 20)
+
+    def test_recasting_over_an_existing_spell_pet_still_works_normally(self):
+        # Confirms the fix is scoped to PurchasedPet specifically - the
+        # existing, correct "recast cleanly replaces" behavior for two
+        # spell-summoned pets in a row must still work exactly as before.
+        self.char1.db.level = 10
+        self.char1.db.mp = 20
+
+        COMBAT_RULES.spell_summon_familiar(self.char1, "summon familiar", [], 10)
+        first_familiar = self.char1.db.active_companion
+        self.assertIsNotNone(first_familiar)
+
+        COMBAT_RULES.spell_summon_familiar(self.char1, "summon familiar", [], 10)
+
+        self.assertNotEqual(self.char1.db.active_companion, first_familiar)
+        self.assertFalse(first_familiar.pk)  # the old one was cleanly deleted
+
+
 class TestNextTurnFighterPruning(CombatTestBase):
     """
     Direct regression coverage for gotcha #2: a deleted object's
@@ -4290,3 +4542,242 @@ class TestProcessLanguageColors(EvenniaTest):
         self.char2.db.known_languages = ["latin", "celtic"]
         heard = self.char2.process_language("hello", self.char1, None)
         self.assertEqual(heard, "|ghello|n")
+
+
+class TestCombatRowProtection(CombatTestBase):
+    """
+    The front-row/back-row system: a fighter in the back row can't be
+    targeted by anyone's attack/spell/skill as long as at least one
+    of their own allies is still standing in the front row with them
+    - and the same restriction applies symmetrically to their own
+    outgoing attacks/spells/skills against a protected enemy.
+    """
+
+    def _make_handler(self):
+        from evennia.utils import create
+
+        return create.create_script(CombatTurnHandler, obj=self.room1, autostart=False)
+
+    def _setup_two_v_two(self, defender_row="back", ally_row="front"):
+        """char1 (attacker) vs. char2 (protected defender) + an ally
+        of char2's own side, plus a shared handler/fighters list."""
+        from evennia.utils import create
+
+        ally = create.create_object(
+            "typeclasses.characters.Character", key="a defending ally", location=self.room1
+        )
+        ally.db.hp = 50
+        handler = self._make_handler()
+        handler.db.fighters = [self.char1, self.char2, ally]
+
+        self.char1.db.combat_side = "team_0"
+        self.char2.db.combat_side = "team_1"
+        ally.db.combat_side = "team_1"
+
+        for fighter in (self.char1, self.char2, ally):
+            fighter.db.combat_turnhandler = handler
+
+        self.char2.db.combat_row = defender_row
+        ally.db.combat_row = ally_row
+        return ally
+
+    def test_back_row_defender_is_protected_while_a_front_row_ally_stands(self):
+        ally = self._setup_two_v_two()
+        self.assertTrue(COMBAT_RULES.is_row_protected(self.char2))
+
+    def test_front_row_defender_is_never_protected(self):
+        self._setup_two_v_two(defender_row="front")
+        self.assertFalse(COMBAT_RULES.is_row_protected(self.char2))
+
+    def test_back_row_defender_is_reachable_once_the_front_row_ally_falls(self):
+        ally = self._setup_two_v_two()
+        ally.db.hp = 0
+        self.assertFalse(COMBAT_RULES.is_row_protected(self.char2))
+
+    def test_back_row_defender_with_no_allies_at_all_is_not_protected(self):
+        handler = self._make_handler()
+        handler.db.fighters = [self.char1, self.char2]
+        self.char1.db.combat_side = "team_0"
+        self.char2.db.combat_side = "team_1"
+        self.char1.db.combat_turnhandler = handler
+        self.char2.db.combat_turnhandler = handler
+        self.char2.db.combat_row = "back"
+
+        self.assertFalse(COMBAT_RULES.is_row_protected(self.char2))
+
+    def test_outside_combat_is_never_protected(self):
+        self.char2.db.combat_row = "back"
+        self.char2.db.combat_turnhandler = None
+        self.assertFalse(COMBAT_RULES.is_row_protected(self.char2))
+
+    def test_resolve_attack_no_ops_against_a_protected_defender(self):
+        self._setup_two_v_two()
+        self.char2.db.hp = 50
+        COMBAT_RULES.resolve_attack(self.char1, self.char2)
+        self.assertEqual(self.char2.db.hp, 50)
+
+    def test_resolve_attack_still_works_against_an_unprotected_defender(self):
+        # Deliberately doesn't mock randint to force a guaranteed hit -
+        # doing that here would also inflate get_damage's own randint
+        # roll to the mocked value, dealing wildly unrealistic damage
+        # and triggering the game's real (unrelated) low-level safe-
+        # respawn defeat handling as a side effect. Instead, just
+        # confirms resolve_attack actually PROCEEDED past the
+        # protection check - it only ever sets combat_last_target
+        # once past it (see resolve_attack's own code, right after
+        # the is_row_protected early-return).
+        self._setup_two_v_two(defender_row="front")
+        COMBAT_RULES.resolve_attack(self.char1, self.char2)
+        self.assertEqual(self.char1.db.combat_last_target, self.char2)
+
+    def test_spell_attack_skips_a_protected_target_but_still_costs_mp(self):
+        self._setup_two_v_two()
+        self.char1.db.mp = 20
+        self.char2.db.hp = 50
+        COMBAT_RULES.spell_attack(
+            self.char1, "test bolt", [self.char2], 10, damage_range=(999, 999)
+        )
+        self.assertEqual(self.char2.db.hp, 50)
+        self.assertEqual(self.char1.db.mp, 10)
+
+    def test_skill_attack_skips_a_protected_target_but_still_costs_sp(self):
+        self._setup_two_v_two()
+        self.char1.db.sp = 20
+        self.char2.db.hp = 50
+        COMBAT_RULES.skill_attack(
+            self.char1, "test strike", [self.char2], 10, damage_range=(999, 999)
+        )
+        self.assertEqual(self.char2.db.hp, 50)
+        self.assertEqual(self.char1.db.sp, 10)
+
+    def test_hostile_npc_prefers_a_front_row_opponent_over_a_protected_one(self):
+        from evennia.utils import create
+
+        npc = create.create_object(
+            "world.combat.HostileNPC", key="a test npc", location=self.room1,
+            attributes=[("race", "human"), ("player_class", "gladiator"), ("level", 5)],
+        )
+        npc.db.hp = 50
+        front_target = create.create_object(
+            "typeclasses.characters.Character", key="a front-row target", location=self.room1
+        )
+        front_target.db.hp = 50
+
+        handler = self._make_handler()
+        handler.db.fighters = [npc, self.char2, front_target]
+        for fighter in (npc, self.char2, front_target):
+            fighter.db.combat_turnhandler = handler
+        # Must be set AFTER combat_turnhandler is assigned - the
+        # handler's own creation-time room sweep calls
+        # initialize_for_combat() on any fighter already present,
+        # which resets combat_actionsleft = 0 as its own first step
+        # (see world/tests_npcs.py's identical fix for the same trap).
+        npc.db.combat_actionsleft = ACTIONS_PER_TURN
+        npc.db.combat_side = "team_0"
+        self.char2.db.combat_side = "team_1"
+        front_target.db.combat_side = "team_1"
+        self.char2.db.combat_row = "back"
+        front_target.db.combat_row = "front"
+
+        # Forces the action choice to "attack" without touching
+        # randint at all (unlike mocking randint directly, which would
+        # also inflate get_damage's own roll to an unrealistic value
+        # and trigger an unrelated real defeat/safe-respawn cascade -
+        # see test_resolve_attack_still_works_against_an_unprotected_
+        # defender's own note on this exact trap). combat_last_target
+        # is set unconditionally the moment resolve_attack proceeds
+        # past the protection check, regardless of hit or miss, so a
+        # real, unmocked hit roll is enough to prove which target the
+        # NPC actually chose.
+        with patch.object(npc, "_gather_actions", return_value=[("attack", None, False)]):
+            npc.at_turn_start()
+
+        self.assertEqual(npc.db.combat_last_target, front_target)
+
+    def test_summoned_ally_defaults_to_front_row_on_creation(self):
+        from evennia.prototypes.spawner import spawn
+
+        pet = spawn("AUGUR_FAMILIAR_TIER1")[0]
+        self.assertEqual(pet.db.combat_row, "front")
+
+    def test_back_row_ally_is_pulled_to_front_when_the_last_front_row_ally_falls(self):
+        ally = self._setup_two_v_two(defender_row="back", ally_row="front")
+        ally.db.hp = 1
+        COMBAT_RULES.at_defeat(ally)
+        self.assertEqual(self.char2.db.combat_row, "front")
+
+    def test_back_row_ally_stays_back_if_another_front_row_ally_survives(self):
+        from evennia.utils import create
+
+        ally = self._setup_two_v_two(defender_row="back", ally_row="front")
+        second_ally = create.create_object(
+            "typeclasses.characters.Character", key="a second defending ally", location=self.room1
+        )
+        second_ally.db.hp = 50
+        second_ally.db.combat_side = "team_1"
+        second_ally.db.combat_row = "front"
+        handler = ally.db.combat_turnhandler
+        handler.db.fighters.append(second_ally)
+        second_ally.db.combat_turnhandler = handler
+
+        ally.db.hp = 1
+        COMBAT_RULES.at_defeat(ally)
+
+        self.assertEqual(self.char2.db.combat_row, "back")
+
+    def test_polearm_wielder_has_reach_and_bypasses_row_protection(self):
+        from evennia.utils import create
+
+        self._setup_two_v_two()
+        weapon = create.create_object(
+            "world.combat.CombatWeapon", key="a test spear", location=self.char1
+        )
+        weapon.db.weapon_category = "polearm"
+        self.char1.db.wielded_weapon = weapon
+
+        self.assertFalse(COMBAT_RULES.is_row_protected(self.char2, attacker=self.char1))
+
+    def test_ranged_wielder_has_reach_and_bypasses_row_protection(self):
+        from evennia.utils import create
+
+        self._setup_two_v_two()
+        weapon = create.create_object(
+            "world.combat.CombatWeapon", key="a test bow", location=self.char1
+        )
+        weapon.db.weapon_category = "ranged"
+        self.char1.db.wielded_weapon = weapon
+
+        self.assertFalse(COMBAT_RULES.is_row_protected(self.char2, attacker=self.char1))
+
+    def test_dagger_wielder_has_no_reach_and_is_still_blocked(self):
+        from evennia.utils import create
+
+        self._setup_two_v_two()
+        weapon = create.create_object(
+            "world.combat.CombatWeapon", key="a test dagger", location=self.char1
+        )
+        weapon.db.weapon_category = "light_blade"
+        self.char1.db.wielded_weapon = weapon
+
+        self.assertTrue(COMBAT_RULES.is_row_protected(self.char2, attacker=self.char1))
+
+    def test_unarmed_attacker_has_no_reach(self):
+        self._setup_two_v_two()
+        self.char1.db.wielded_weapon = None
+
+        self.assertTrue(COMBAT_RULES.is_row_protected(self.char2, attacker=self.char1))
+
+    def test_resolve_attack_with_a_polearm_reaches_a_protected_defender(self):
+        from evennia.utils import create
+
+        self._setup_two_v_two()
+        weapon = create.create_object(
+            "world.combat.CombatWeapon", key="a test spear", location=self.char1
+        )
+        weapon.db.weapon_category = "polearm"
+        weapon.db.damage_range = (0, 0)
+        self.char1.db.wielded_weapon = weapon
+
+        COMBAT_RULES.resolve_attack(self.char1, self.char2)
+
+        self.assertEqual(self.char1.db.combat_last_target, self.char2)

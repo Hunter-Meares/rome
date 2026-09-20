@@ -27,6 +27,9 @@ from world.combat import (
     CmdFight,
     CmdAttack,
     CmdAutoAttack,
+    CmdCombatRow,
+    CmdBuyPet,
+    PetVendor,
     CmdPowerAttack,
     CmdPass,
     CmdDisengage,
@@ -286,6 +289,89 @@ class TestCmdAutoAttack(CombatCommandTestBase):
         with patch("world.combat.evennia_utils.delay") as mock_delay:
             self.char1.at_turn_start()
         mock_delay.assert_not_called()
+
+
+class TestCmdCombatRow(CombatCommandTestBase):
+    def test_no_argument_shows_current_row_without_changing_it(self):
+        self.char1.db.combat_row = None
+        result = self.call(CmdCombatRow(), "", caller=self.char1)
+        self.assertIn("front", result.lower())
+        self.assertIsNone(self.char1.db.combat_row)  # unchanged, just shown
+
+    def test_back_sets_the_back_row(self):
+        result = self.call(CmdCombatRow(), "back", caller=self.char1)
+        self.assertEqual(self.char1.db.combat_row, "back")
+        self.assertIn("back", result.lower())
+
+    def test_front_sets_the_front_row(self):
+        self.char1.db.combat_row = "back"
+        result = self.call(CmdCombatRow(), "front", caller=self.char1)
+        self.assertEqual(self.char1.db.combat_row, "front")
+        self.assertIn("front", result.lower())
+
+    def test_garbage_argument_shows_usage_and_does_not_change_state(self):
+        self.char1.db.combat_row = "front"
+        result = self.call(CmdCombatRow(), "sideways", caller=self.char1)
+        self.assertIn("Usage:", result)
+        self.assertEqual(self.char1.db.combat_row, "front")
+
+    def test_can_be_set_outside_combat(self):
+        self.char1.db.combat_turnhandler = None
+        result = self.call(CmdCombatRow(), "back", caller=self.char1)
+        self.assertEqual(self.char1.db.combat_row, "back")
+
+
+class TestCmdBuyPet(CombatCommandTestBase):
+    def setUp(self):
+        super().setUp()
+        from evennia.utils import create
+
+        self.vendor = create.create_object(PetVendor, key="a pet vendor", location=self.room1)
+        self.char1.db.level = 10
+        self.char1.db.gold = 500
+        self.char1.db.active_companion = None
+
+    def test_no_vendor_in_room_refuses(self):
+        self.vendor.location = self.room2
+        result = self.call(CmdBuyPet(), "hound", caller=self.char1)
+        self.assertIn("no pet vendor", result.lower())
+
+    def test_no_argument_lists_stock(self):
+        result = self.call(CmdBuyPet(), "", caller=self.char1)
+        self.assertIn("hound", result.lower())
+        self.assertIn("hawk", result.lower())
+
+    def test_unknown_pet_name_refuses(self):
+        result = self.call(CmdBuyPet(), "dragon", caller=self.char1)
+        self.assertIn("doesn't sell", result.lower())
+
+    def test_below_level_requirement_refuses(self):
+        self.char1.db.level = 9
+        result = self.call(CmdBuyPet(), "hound", caller=self.char1)
+        self.assertIn("level", result.lower())
+        self.assertIsNone(self.char1.db.active_companion)
+
+    def test_not_enough_gold_refuses(self):
+        self.char1.db.gold = 10
+        result = self.call(CmdBuyPet(), "hound", caller=self.char1)
+        self.assertIn("enough gold", result.lower())
+        self.assertIsNone(self.char1.db.active_companion)
+
+    def test_already_having_a_pet_refuses(self):
+        from evennia.utils import create
+        from world.combat import SummonedAlly
+
+        self.char1.db.active_companion = create.create_object(SummonedAlly, key="existing pet")
+        result = self.call(CmdBuyPet(), "hound", caller=self.char1)
+        self.assertIn("already have", result.lower())
+
+    def test_successful_purchase_spawns_a_real_pet_and_charges_gold(self):
+        result = self.call(CmdBuyPet(), "hound", caller=self.char1)
+        self.assertIsNotNone(self.char1.db.active_companion)
+        self.assertTrue(self.char1.db.active_companion.pk)
+        self.assertEqual(self.char1.db.gold, 350)
+        self.assertEqual(self.char1.db.active_companion.location, self.room1)
+        self.assertIn("buys", result.lower())
 
 
 class TestCmdPowerAttack(CombatCommandTestBase):

@@ -4201,3 +4201,45 @@ AMBER_SALTFLAT_SCAVENGER = {
     "tags": [("amber_coast_npc", "npc_role")],
     "locks": "puppet:false()",
 }
+
+# ----------------------------------------------------------------------------
+# Purchasable pets (world/economy.py's PetVendor, world/combat.py's
+# CmdBuyPet) - level 10+, gold-bought companions with a genuinely
+# different lifecycle from a spell-summoned pet (world.combat.
+# PurchasedPet's own docstring has the full reasoning): they persist
+# across fights, follow their owner automatically, and survive a
+# logout/login cycle, only actually gone once explicitly dismissed.
+# Deliberately modest stats, below even Augur's own entry-level
+# Summon Familiar tier - this is a starter utility pet available
+# well before any class's own summon spell unlocks, not a
+# replacement for one.
+# ----------------------------------------------------------------------------
+
+PET_HOUND = {
+    "key": "a loyal hunting hound",
+    "aliases": ["hound", "dog"],
+    "typeclass": "world.combat.PurchasedPet",
+    "pet_line": "purchased",
+    "desc": (
+        "A real, scarred veteran of the hunt, utterly devoted to "
+        "whoever feeds it. It stays close, ears up, always watching "
+        "for the next real threat."
+    ),
+    "hp": 35,
+    "max_hp": 35,
+    "locks": "puppet:false()",
+}
+
+PET_HAWK = {
+    "key": "a trained messenger hawk",
+    "aliases": ["hawk"],
+    "typeclass": "world.combat.PurchasedPet",
+    "pet_line": "purchased",
+    "desc": (
+        "A real, hooded hunting hawk, calm on the wrist and genuinely "
+        "fierce the moment it's actually needed."
+    ),
+    "hp": 35,
+    "max_hp": 35,
+    "locks": "puppet:false()",
+}

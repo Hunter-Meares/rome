@@ -371,6 +371,10 @@ CONDITION_RESIST_STAT_MULTIPLIER = 2  # percent per point of the target's Ingeni
 CONDITION_RESIST_MIN = 5
 CONDITION_RESIST_MAX = 75
 
+# Weapon categories long/far enough to strike into the back row
+# directly, bypassing row protection - see CombatRules.has_reach.
+REACH_WEAPON_CATEGORIES = {"polearm", "ranged"}
+
 # Speculator's Ambush (one-time bonus on the next successful
 # attack) and Deathmark (guaranteed hit + bonus damage, mythic
 # tier). Both consumed the moment they trigger, not normal multi-turn
@@ -867,6 +871,131 @@ class CombatRules:
 
         return other in get_party_members(character)
 
+    def has_active_purchased_pet(self, caster):
+        """
+        True if `caster` currently has a live PurchasedPet as their
+        active companion. Checked before every summon spell/skill -
+        a purchased pet is meant to only ever be lost to its own
+        defeat or an explicit 'dismiss' (see PurchasedPet's own
+        docstring), so casting a summon spell must refuse outright
+        rather than silently replacing it the way re-casting a summon
+        spell over an EXISTING spell-summoned pet already correctly
+        does - without this check, release_pet's own "replaced" reason
+        would send the purchased pet home but clear it from
+        db.active_companion, orphaning a still-alive pet with no
+        command left able to find or dismiss it.
+        """
+        pet = caster.db.active_companion
+        return bool(pet and pet.pk and pet.db.is_purchased_pet)
+
+    def has_reach(self, attacker):
+        """
+        True if `attacker` is currently wielding a weapon long enough
+        to strike into the back row directly - a polearm (a spear's
+        whole point, literally) or a ranged weapon (a bow/javelin has
+        no reason to care who's standing in front of its target
+        either). A dagger, gladius, or anything else short-ranged does
+        not get this - by direct request ("a dagger should not").
+        Unarmed never has reach either.
+        """
+        weapon = attacker.db.wielded_weapon
+        if not weapon:
+            return False
+        return weapon.db.weapon_category in REACH_WEAPON_CATEGORIES
+
+    def is_row_protected(self, defender, attacker=None):
+        """
+        True if `defender` is standing in the back row (db.combat_row
+        == "back") AND at least one other living ally of theirs is
+        still standing in the front row - meaning no offensive
+        attack/spell/skill can reach them yet. A fighter with no
+        combat_row set at all defaults to "front" (never protected),
+        so this is a pure opt-in: nothing about existing combat
+        behavior changes unless someone deliberately falls back.
+
+        If `attacker` is given and has_reach(attacker) is True (a
+        polearm or ranged weapon), this always returns False - reach
+        bypasses row protection entirely, regardless of who else is
+        standing in front. Omit `attacker` (or pass one with no reach)
+        for the normal, protected check.
+
+        Only meaningful while actually in combat (needs a real
+        fighters list to check who else is still standing) - returns
+        False outside combat, same as every other combat-only check
+        in this file.
+
+        Deliberately checked inside the shared damage-dealing
+        functions themselves (resolve_attack, spell_attack,
+        skill_attack) rather than in each command's own target
+        resolution - those three are the only places a genuinely
+        offensive target ever reaches, so this can't accidentally
+        block a heal or a buff cast on an ally.
+        """
+        if attacker and self.has_reach(attacker):
+            return False
+        if (defender.db.combat_row or "front") != "back":
+            return False
+        turnhandler = defender.db.combat_turnhandler
+        if not turnhandler or not turnhandler.pk:
+            return False
+        fighters = turnhandler.db.fighters or []
+        for fighter in fighters:
+            if fighter is None or fighter is defender or not fighter.pk or not fighter.db.hp:
+                continue
+            if self.is_ally(defender, fighter) and (fighter.db.combat_row or "front") == "front":
+                return True
+        return False
+
+    def _expose_back_row_if_front_row_wiped(self, defeated):
+        """
+        Called from at_defeat, right after the "has been defeated!"
+        announcement, for EVERY defeat regardless of what fell - a
+        pet, a player, or an NPC. If the side `defeated` belonged to
+        has no other living front-row member left, every back-row
+        member of that same side is switched to "front" and told so
+        directly - by direct request ("if a pet in front row dies...
+        the player automatically gets moved to front row").
+
+        Deliberately checks this generally (any front-row fall, not
+        just a pet specifically) rather than special-casing
+        SummonedAlly - the underlying rule is the same either way, and
+        a human tank falling should expose their back-row ally just as
+        surely as a pet does. Purely a bookkeeping/clarity update:
+        is_row_protected already re-checks live HP on every call, so
+        the mechanical protection lapses the instant the front row
+        falls regardless of this - this just keeps db.combat_row
+        honest so 'row' shows a player's real, current exposure
+        instead of a stale "back" that no longer means anything.
+
+        No-ops outside combat (nothing to check) or if `defeated`
+        wasn't in the front row to begin with (nobody's protection
+        depended on them).
+        """
+        if (defeated.db.combat_row or "front") != "front":
+            return
+        turnhandler = defeated.db.combat_turnhandler
+        if not turnhandler or not turnhandler.pk:
+            return
+        fighters = turnhandler.db.fighters or []
+
+        still_has_front_row = any(
+            fighter is not None and fighter.pk and fighter is not defeated
+            and fighter.db.hp and self.is_ally(defeated, fighter)
+            and (fighter.db.combat_row or "front") == "front"
+            for fighter in fighters
+        )
+        if still_has_front_row:
+            return
+
+        for fighter in fighters:
+            if fighter is None or not fighter.pk or fighter is defeated or not fighter.db.hp:
+                continue
+            if self.is_ally(defeated, fighter) and fighter.db.combat_row == "back":
+                fighter.db.combat_row = "front"
+                fighter.msg(
+                    "|rWith no one left to shield you, you're pulled into the front row!|n"
+                )
+
     def resists_condition(self, caster, target):
         """
         Rolls whether `target` resists a debuff `caster` is trying to
@@ -1254,7 +1383,18 @@ class CombatRules:
         if damage > 0 and defender.db.respawns:
             defender.db.last_damaged_at = time.time()
 
-        if attacker and damage > 0:
+        # A pet's own damage (spell-summoned or purchased) deliberately
+        # never counts toward the XP/gold split, by direct request - a
+        # player parking themselves AFK while their pet solos an NPC
+        # would otherwise earn a full, unearned share just for owning
+        # a pet. The pet's damage still lands and still helps win the
+        # fight (apply_damage/HP reduction above is untouched) - it
+        # simply isn't a valid *contributor* for reward purposes.
+        # Checked by typeclass (SummonedAlly, exact=False) rather than
+        # a db flag, so this covers every pet line - Augur's familiar,
+        # Haruspex's lemures, Venator's beast, and a PurchasedPet -
+        # with one check instead of one per pet type.
+        if attacker and damage > 0 and not attacker.is_typeclass(SummonedAlly, exact=False):
             damage_log = defender.db.damage_log or {}
             damage_log[attacker] = damage_log.get(attacker, 0) + damage
             defender.db.damage_log = damage_log
@@ -1337,6 +1477,8 @@ class CombatRules:
             defeated.location.msg_contents("%s has been defeated!" % display_name)
             self.spectator_react(defeated.location, SPECTATOR_KILL_LINES)
 
+        self._expose_back_row_if_front_row_wiped(defeated)
+
         # --- Colosseum escape-on-victory ---
         if attacker and defeated.tags.has("colosseum_trainer", category="npc_role"):
             if not attacker.db.colosseum_escaped:
@@ -1397,7 +1539,16 @@ class CombatRules:
                     share = int(round(xp_pool * (dealt / total_damage)))
                     if share > 0:
                         self.award_xp(contributor, share)
-            elif attacker:
+            elif attacker and not attacker.is_typeclass(SummonedAlly, exact=False):
+                # A pet can reach this branch as the recorded killing
+                # blow (its own signature move calls at_defeat with
+                # itself as attacker) precisely because its damage is
+                # never logged (see apply_damage's own note) - if this
+                # guard weren't here, a player who never personally
+                # attacked would still collect full XP from a pet
+                # solo-kill, exactly the exploit path this is meant to
+                # close. No one earns XP in that specific case, rather
+                # than guessing an alternate recipient.
                 self.award_xp(attacker, defeated.db.xp_reward)
 
         # --- Loot drop (sewer_npc, arena_fighter, and germania_npc-
@@ -1511,7 +1662,8 @@ class CombatRules:
                     if share > 0:
                         contributor.db.gold = (contributor.db.gold or 0) + share
                         contributor.msg("|Y+%d gold.|n" % share)
-            elif attacker:
+            elif attacker and not attacker.is_typeclass(SummonedAlly, exact=False):
+                # Same pet-exclusion reasoning as the XP award above.
                 attacker.db.gold = (attacker.db.gold or 0) + gold_pool
                 attacker.msg("|Y+%d gold.|n" % gold_pool)
 
@@ -1527,6 +1679,19 @@ class CombatRules:
         if defeated.db.instance_owner:
             defeated.delete()
             return  # nothing left to do - the object no longer exists
+
+        # --- A defeated pet (PurchasedPet or any other active
+        # companion) - neither respawns, instance-owned, nor has an
+        # account, so none of the branches above ever touched it,
+        # leaving it sitting in the fighters list at 0 HP forever. A
+        # PurchasedPet survives this via release_pet's own persists
+        # branch (healed and sent home, never deleted); anything else
+        # tracked the same way falls back to that function's normal
+        # delete-on-release behavior.
+        for character in defeated.location.contents if defeated.location else []:
+            if character.db.active_companion is defeated:
+                self.release_pet(defeated, character, reason="pet_defeated")
+                return
 
         # --- Player death/respawn (skip for NPCs/objects with no account) ---
         if getattr(defeated, "account", None):
@@ -1876,6 +2041,14 @@ class CombatRules:
         """
         if inflict_condition is None:
             inflict_condition = []
+
+        if self.is_row_protected(defender, attacker=attacker):
+            if attacker.location:
+                attacker.location.msg_contents(
+                    "%s can't reach %s - someone else is still standing in the way!"
+                    % (attacker, defender)
+                )
+            return
 
         # Tracks who this attacker most recently went after. Used by
         # summoned allies (Augur's familiar, Haruspex's Lemures,
@@ -2991,6 +3164,19 @@ class CombatRules:
         """Spell that deals damage in combat."""
         spell_msg = "%s casts %s!" % (caster, spell_name)
 
+        protected = [t for t in targets if self.is_row_protected(t, attacker=caster)]
+        targets = [t for t in targets if t not in protected]
+        for target in protected:
+            spell_msg += " %s can't reach %s - someone else is still standing in the way!" % (
+                caster, target,
+            )
+        if not targets:
+            caster.db.mp -= cost
+            caster.location.msg_contents(spell_msg)
+            if self.is_in_combat(caster):
+                self.spend_action(caster, 1, action_name="cast")
+            return
+
         atkname_single, atkname_plural = kwargs.get("attack_name", ("The spell", "spells"))
         min_damage, max_damage = kwargs.get("damage_range", (10, 20))
         accuracy = kwargs.get("accuracy", 0)
@@ -3140,6 +3326,12 @@ class CombatRules:
         whatever's already active first, before spawning the new one,
         means a recast always cleanly replaces rather than duplicates.
         """
+        if self.has_active_purchased_pet(caster):
+            caster.msg(
+                "You already have a companion pet - 'dismiss' it first "
+                "if you want to summon %s instead." % spell_name
+            )
+            return
         self.release_pet(caster.db.active_companion, caster, reason="replaced")
 
         level = caster.db.level or 1
@@ -3184,6 +3376,12 @@ class CombatRules:
         (including its note on why this releases any already-active
         companion first, rather than silently orphaning it).
         """
+        if self.has_active_purchased_pet(caster):
+            caster.msg(
+                "You already have a companion pet - 'dismiss' it first "
+                "if you want to summon %s instead." % spell_name
+            )
+            return
         self.release_pet(caster.db.active_companion, caster, reason="replaced")
 
         level = caster.db.level or 1
@@ -3235,6 +3433,12 @@ class CombatRules:
         under Augur's own 90 without contesting that class's capstone
         either.
         """
+        if self.has_active_purchased_pet(caster):
+            caster.msg(
+                "You already have a companion pet - 'dismiss' it first "
+                "if you want to summon %s instead." % spell_name
+            )
+            return
         self.release_pet(caster.db.active_companion, caster, reason="replaced")
 
         fury = self.spawn_personal_npc("HARUSPEX_FURY", caster)
@@ -3572,6 +3776,11 @@ class CombatRules:
         total_damage = 0
         defeated_targets = []
         for target in targets:
+            if self.is_row_protected(target, attacker=user):
+                skill_msg += " %s can't reach %s - someone else is still standing in the way!" % (
+                    user, target,
+                )
+                continue
             attack_value = randint(1, 100) + accuracy + agilitas_accuracy
             defense_value = self.get_defense(user, target)
             if attack_value < defense_value:
@@ -3665,6 +3874,12 @@ class CombatRules:
         shares that function's fix for the same orphaned-pet bug on a
         recast - see spell_summon_familiar's docstring.
         """
+        if self.has_active_purchased_pet(user):
+            user.msg(
+                "You already have a companion pet - 'dismiss' it first "
+                "if you want to summon %s instead." % skill_name
+            )
+            return
         self.release_pet(user.db.active_companion, user, reason="replaced")
 
         level = user.db.level or 1
@@ -3991,12 +4206,27 @@ class CombatRules:
         "attack anyone present who isn't itself or its owner" the
         moment the owner's own combat_last_target disappears).
 
+        A PurchasedPet (world.combat.PurchasedPet, bought from a pet
+        shop) only ever actually goes away for one of two reasons, by
+        direct request - "the pet should only go away if it dies
+        (defeated in combat) or it's dismissed":
+          - reason="dismissed" (the owner's own deliberate choice), or
+          - reason="pet_defeated" (the pet itself was reduced to 0 HP -
+            a real, permanent loss, same as any other combat defeat).
+        Every OTHER reason (the owner fleeing, or the owner themselves
+        being defeated while the pet is still standing) just pulls it
+        out of that one fight and sends it home to the owner's side,
+        fully healed - the pet didn't die, so it isn't lost.
+
         Safe to call with pet=None (owner simply has no active pet
         right now) - a no-op past clearing the owner's own reference,
         so callers don't need their own "do they even have one" guard
         first.
         """
-        if owner:
+        is_purchased = bool(pet and pet.db.is_purchased_pet)
+        persists = is_purchased and reason not in ("dismissed", "pet_defeated")
+
+        if owner and not persists:
             owner.db.active_companion = None
 
         if not pet or not pet.pk:
@@ -4010,11 +4240,22 @@ class CombatRules:
                 turnhandler.db.fighters = fighters
                 if turnhandler.db.turn >= len(fighters):
                     turnhandler.db.turn = 0
+        pet.db.combat_turnhandler = None
+
+        if persists:
+            pet.db.hp = pet.db.max_hp or pet.db.hp
+            if owner and owner.location and pet.location != owner.location:
+                pet.location.msg_contents("%s slips away." % pet) if pet.location else None
+                pet.move_to(owner.location, quiet=True, move_type="teleport")
+            if owner and owner.location:
+                owner.location.msg_contents("%s stays close to %s's side." % (pet, owner))
+            return
 
         messages = {
             "dismissed": "%s dismisses %s." % (owner, pet) if owner else "%s fades away." % pet,
             "owner_fled": "%s fades away as its summoner flees." % pet,
             "owner_defeated": "%s fades away, its summoner fallen." % pet,
+            "pet_defeated": "%s has been defeated, and is gone for good." % pet,
             "replaced": "%s fades away, replaced by a new summoning." % pet,
         }
         if pet.location:
@@ -6107,7 +6348,14 @@ class HostileNPC(AutoStatNPC):
         ]
         if not possible_targets:
             return
-        opponent = possible_targets[0]
+        # Prefer the front row - a fighter standing in the back
+        # (db.combat_row == "back") is only reachable once every
+        # front-row ally of theirs is down. Falls back to the full,
+        # unfiltered list if everyone left standing happens to be in
+        # the back row already (front row wiped) - see
+        # CombatRules.is_row_protected for the full reasoning.
+        front_row = [f for f in possible_targets if (f.db.combat_row or "front") == "front"]
+        opponent = (front_row or possible_targets)[0]
 
         actions = self._gather_actions()
         kind, name, target_is_self = actions[randint(0, len(actions) - 1)]
@@ -6396,6 +6644,15 @@ class SummonedAlly(DefaultCharacter):
 
     PET_PROC_CHANCE = 25  # percent, checked once per landed hit
 
+    def at_object_post_creation(self):
+        super().at_object_post_creation()
+        # A pet's whole point in the front row/back row system is to
+        # stand between its owner and the enemy - defaults every fresh
+        # summon to "front" so a caster who then falls back
+        # (world.combat.CmdCombatRow) is actually protected by it from
+        # the moment it's summoned, with no extra setup needed.
+        self.db.combat_row = "front"
+
     def at_turn_start(self):
         turnhandler = self.db.combat_turnhandler
         if not turnhandler or not turnhandler.pk:
@@ -6405,10 +6662,17 @@ class SummonedAlly(DefaultCharacter):
         owner = self.db.instance_owner
         target = owner.db.combat_last_target if owner else None
 
-        if not target or target not in fighters or not target.db.hp:
+        if (
+            not target or target not in fighters or not target.db.hp
+            or COMBAT_RULES.is_row_protected(target, attacker=self)
+        ):
             possible_targets = [
                 f for f in fighters if f != self and f != owner and f.db.hp
             ]
+            front_row = [
+                f for f in possible_targets if (f.db.combat_row or "front") == "front"
+            ]
+            possible_targets = front_row or possible_targets
             target = possible_targets[0] if possible_targets else None
 
         if not target:
@@ -6461,6 +6725,52 @@ class SummonedAlly(DefaultCharacter):
             # target permanently zombied exactly like those other cases.
             if target.db.hp <= 0:
                 COMBAT_RULES.at_defeat(target, attacker=self)
+        elif pet_line == "purchased":
+            # A purchased pet's own signature move - a flat bonus hit,
+            # same shape as Venator's beast (simplest to balance, no
+            # condition-resist interaction to worry about), reflecting
+            # that this is a starter utility pet with no class
+            # identity of its own to draw a flavor from.
+            bonus = randint(3, 8)
+            COMBAT_RULES.apply_damage(target, bonus, attacker=self)
+            if self.location:
+                self.location.msg_contents(
+                    "|r%s gets in a scrappy extra hit for %i damage!|n" % (self, bonus)
+                )
+            if target.db.hp <= 0:
+                COMBAT_RULES.at_defeat(target, attacker=self)
+
+
+class PurchasedPet(SummonedAlly):
+    """
+    A pet bought from a pet shop (see this module's own PetVendor/
+    CmdBuyPet), not summoned by a spell. Fights exactly like any other
+    SummonedAlly (same at_turn_start/signature-move behavior), but
+    with a deliberately different lifecycle, by direct request: it
+    only ever actually goes away if it's dismissed OR defeated in
+    combat (0 HP) - nothing else about a normal fight, a flee, or the
+    owner's own defeat costs it its existence.
+
+    Three concrete differences from a spell-summoned pet, all driven
+    by db.is_purchased_pet:
+      - CombatRules.release_pet only ever actually deletes one for
+        reason="dismissed" or reason="pet_defeated" - the owner
+        fleeing or being defeated (while the pet itself is still
+        standing) just sends it home, fully healed, instead (see
+        release_pet's own docstring for the full reasoning).
+      - It follows its owner automatically between rooms outside
+        combat (CombatCharacter.at_post_move, right in this same
+        file, checks db.active_companion directly).
+      - It's pulled out of play (not deleted) when its owner
+        disconnects, and moved back to wherever they are the moment
+        they reconnect (CombatCharacter.at_post_unpuppet/
+        at_post_puppet, also right in this file).
+    """
+
+    def at_object_post_creation(self):
+        super().at_object_post_creation()
+        self.db.is_purchased_pet = True
+        self.db.combat_row = "front"
 
 
 class CombatCharacter(ContribRPCharacter):
@@ -6908,6 +7218,19 @@ class CombatCharacter(ContribRPCharacter):
             from world.quests import check_quest_visit
             check_quest_visit(self)
 
+        pet = self.db.active_companion
+        if pet and pet.pk and pet.db.is_purchased_pet and pet.location:
+            # A PurchasedPet "automatically follows the player," by
+            # direct request - unlike a spell-summoned pet, which only
+            # ever exists for the duration of one fight and has no
+            # reason to tag along outside it. Skipped entirely while
+            # either one is mid-combat (COMBAT_RULES.is_in_combat) -
+            # movement is already blocked for a character in combat
+            # (CombatCharacter.at_pre_move), so this only ever
+            # actually fires on ordinary, out-of-combat movement.
+            if not COMBAT_RULES.is_in_combat(self) and pet.location != self.location:
+                pet.move_to(self.location, quiet=True, move_type="teleport")
+
     def at_post_puppet(self, **kwargs):
         """
         Called right after an account starts puppeting this
@@ -6923,6 +7246,14 @@ class CombatCharacter(ContribRPCharacter):
         if self.has_account:
             from world.analytics import start_session
             start_session(self, self.account)
+
+        pet = self.db.active_companion
+        if pet and pet.pk and pet.db.is_purchased_pet and pet.location is None:
+            # Reappears at the owner's own current location the
+            # moment they log back in - see at_post_unpuppet's own
+            # note for why it disappeared in the first place.
+            pet.move_to(self.location, quiet=True, move_type="teleport")
+            self.msg("|g%s is happy to see you again.|n" % pet)
 
     def at_post_unpuppet(self, account=None, session=None, **kwargs):
         """
@@ -6940,6 +7271,16 @@ class CombatCharacter(ContribRPCharacter):
         if account:
             from world.analytics import end_session
             end_session(self, account)
+
+        pet = self.db.active_companion
+        if pet and pet.pk and pet.db.is_purchased_pet and pet.location:
+            # Disappears the moment its owner logs off - "they should
+            # disappear when the player logs off but reappear...when
+            # they log back into the game," by direct request. Uses
+            # the same move_to(None, to_none=True) technique
+            # RespawningNPC's own schedule_respawn already relies on
+            # to pull an object out of play without deleting it.
+            pet.move_to(None, quiet=True, to_none=True)
 
     def at_turn_start(self):
         """
@@ -7852,6 +8193,64 @@ class CmdAutoAttack(Command):
             return
 
         caller.msg("Auto-attack is now |g%s|n." % ("ON" if caller.db.auto_attack else "OFF"))
+
+
+class CmdCombatRow(Command):
+    """
+    Show or set which row you're standing in during a fight.
+
+    Usage:
+      row
+      row front
+      row back
+
+    Front (the default) means any enemy can freely target you.
+
+    Back means an enemy can't reach you at all as long as at least
+    one of your own allies - a party member, or a summoned pet, which
+    always starts in the front row - is still standing in the front
+    row with you. The moment your last front-row ally falls, you
+    become reachable again.
+
+    This is a real, hard restriction in both directions - your own
+    attacks, spells, and skills can't reach an enemy who's protected
+    the same way either, so a fight with real tanks on both sides
+    means clearing the front line first.
+
+    Can be set any time, not just mid-fight, so you can position
+    yourself before a fight even starts.
+    """
+
+    key = "row"
+    aliases = ["position"]
+    help_category = "combat"
+
+    def func(self):
+        caller = self.caller
+        arg = self.args.strip().lower() if self.args else ""
+
+        if not arg:
+            current = caller.db.combat_row or "front"
+            caller.msg(
+                "You're currently in the |g%s|n row. Use 'row front' or "
+                "'row back' to change it." % current
+            )
+            return
+
+        if arg in ("front", "forward"):
+            caller.db.combat_row = "front"
+        elif arg in ("back", "backward", "rear"):
+            caller.db.combat_row = "back"
+        else:
+            caller.msg("Usage: row, row front, row back")
+            return
+
+        caller.msg("You move to the |g%s|n row." % caller.db.combat_row)
+        if caller.location:
+            caller.location.msg_contents(
+                "%s moves to the %s row." % (caller, caller.db.combat_row),
+                exclude=[caller],
+            )
 
 
 class CmdPowerAttack(Command):
@@ -10022,11 +10421,15 @@ class CmdDismissPet(Command):
     Usage:
       dismiss
 
-    Sends away your active familiar, spirit, or beast companion for
-    good - whichever one you've currently got, since only one can be
-    active at a time. Works anywhere, in or out of combat; pets don't
-    follow you around between fights, so this doesn't require you to
-    be standing next to it.
+    Sends away your active familiar, spirit, beast companion, or
+    purchased pet for good - whichever one you've currently got, since
+    only one can be active at a time. Works anywhere, in or out of
+    combat, and never requires you to be standing next to it - a
+    spell-summoned pet doesn't exist between fights anyway, and a
+    purchased one already follows you automatically. Along with being
+    defeated in combat, this is the only way a purchased pet is ever
+    actually lost - it otherwise stays with you through fleeing,
+    logging off, and everything else short of those two.
     """
 
     key = "dismiss"
@@ -10042,6 +10445,80 @@ class CmdDismissPet(Command):
             caller.db.active_companion = None
             return
         self.rules.release_pet(pet, caller, reason="dismissed")
+
+
+class CmdBuyPet(Command):
+    """
+    Buy a companion pet from a pet vendor.
+
+    Usage:
+      buypet
+      buypet <name>
+
+    Requires level 10 and a pet vendor in the same room. With no
+    argument, lists what's for sale. Unlike a spell-summoned familiar,
+    a purchased pet stays with you once bought - it follows you
+    automatically and survives you logging off and back in. It's only
+    ever actually gone if you 'dismiss' it yourself, or if it's
+    defeated in combat (0 HP) - that's a real, permanent loss, not
+    something that heals back on its own.
+
+    You can only have one active companion at a time (of any kind) -
+    dismiss your current one first if you want to switch.
+    """
+
+    key = "buypet"
+    help_category = "combat"
+    rules = COMBAT_RULES
+
+    def func(self):
+        caller = self.caller
+        vendor = find_pet_vendor(caller.location)
+        if not vendor:
+            caller.msg("There's no pet vendor here.")
+            return
+
+        if not self.args:
+            lines = ["%s sells:" % vendor.key]
+            for name, prototype_key, cost in PET_SHOP_STOCK:
+                lines.append("  %s - %d gold" % (name, cost))
+            caller.msg("\n".join(lines))
+            return
+
+        name = self.args.strip().lower()
+        match = next((entry for entry in PET_SHOP_STOCK if entry[0] == name), None)
+        if not match:
+            caller.msg("%s doesn't sell a pet called that." % vendor.key)
+            return
+        _, prototype_key, cost = match
+
+        if (caller.db.level or 1) < PET_SHOP_LEVEL_REQUIRED:
+            caller.msg(
+                "You aren't experienced enough yet - a companion pet "
+                "takes level %d (you are level %d)." % (PET_SHOP_LEVEL_REQUIRED, caller.db.level or 1)
+            )
+            return
+
+        if caller.db.active_companion and caller.db.active_companion.pk:
+            caller.msg(
+                "You already have an active pet - 'dismiss' it first if "
+                "you want to buy a new one."
+            )
+            return
+
+        if (caller.db.gold or 0) < cost:
+            caller.msg("You don't have enough gold - it costs %d." % cost)
+            return
+
+        from evennia.prototypes.spawner import spawn
+
+        pet = spawn(prototype_key)[0]
+        pet.move_to(caller.location, quiet=True)
+        caller.db.gold -= cost
+        caller.db.active_companion = pet
+        caller.location.msg_contents(
+            "%s buys %s from %s." % (caller, pet.key, vendor.key)
+        )
 
 
 class CmdInventory(Command):
@@ -10178,6 +10655,44 @@ def find_trainer(location, teaches):
         return None
     for obj in location.contents:
         if obj.is_typeclass(SpellSkillTrainer, exact=False) and obj.db.teaches == teaches:
+            return obj
+    return None
+
+
+class PetVendor(DefaultCharacter):
+    """
+    Sells PurchasedPets (world.combat.CmdBuyPet) - same "plain
+    DefaultCharacter, no reason to fight" pattern as SpellSkillTrainer/
+    NPCMerchant. Not an NPCMerchant itself - a pet isn't a physical
+    item that gets handed over and carried, it's a live companion, so
+    it needs its own dedicated command rather than the generic shop
+    buy-menu flow (see CmdBuyPet's own docstring for the full
+    reasoning).
+    """
+
+    def at_object_creation(self):
+        self.locks.add("puppet:false()")
+
+
+# (display name, prototype key, gold cost) - deliberately small (two
+# flavor options) and deliberately modest in level/cost, matching a
+# starter-utility pet available well before any class's own summon
+# spell unlocks, not a replacement for one. See world.prototypes'
+# PET_HOUND/PET_HAWK for their own stat comment.
+PET_SHOP_STOCK = [
+    ("hound", "PET_HOUND", 150),
+    ("hawk", "PET_HAWK", 150),
+]
+
+PET_SHOP_LEVEL_REQUIRED = 10
+
+
+def find_pet_vendor(location):
+    """Returns the first PetVendor in location, or None."""
+    if not location:
+        return None
+    for obj in location.contents:
+        if obj.is_typeclass(PetVendor, exact=False):
             return obj
     return None
 
@@ -11159,6 +11674,7 @@ class BattleCmdSet(CharacterCmdSet):
         self.add(CmdFight())
         self.add(CmdAttack())
         self.add(CmdAutoAttack())
+        self.add(CmdCombatRow())
         self.add(CmdPowerAttack())
         self.add(CmdRest())
         self.add(CmdStand())
@@ -11174,6 +11690,7 @@ class BattleCmdSet(CharacterCmdSet):
         self.add(CmdCompare())
         self.add(CmdInspect())
         self.add(CmdDismissPet())
+        self.add(CmdBuyPet())
         self.add(CmdInventory())
         self.add(CmdUse())
         self.add(CmdLearn())

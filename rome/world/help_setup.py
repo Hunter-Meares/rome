@@ -80,7 +80,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming", "trivia"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming", "trivia", "pets", "buypet", "row"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
         + list(RACIAL_ABILITIES.keys())
     )
@@ -494,7 +494,57 @@ def create_all_help_entries():
     )
     description_entry.aliases.add("desc")
 
-    # --- Dismissing a summoned pet ---
+    # --- Pets (summoned and purchased) ---
+    HelpEntry.objects.create(
+        db_key="pets",
+        db_help_category="General",
+        db_entrytext=(
+            "|wPets|n\n\n"
+            "Two different ways to get a companion, with two different "
+            "lifetimes:\n\n"
+            "|wSummoned|n - Augur's Summon Familiar, Haruspex's Summon "
+            "Lemures/Summon Fury, or Venator's Call of the Wild. Only lasts "
+            "as long as the fight it was cast in - it's gone the moment you "
+            "flee, are defeated, or the fight ends.\n\n"
+            "|wPurchased|n - buy one outright from a pet vendor (see 'help "
+            "buypet'), level 10+. A purchased pet stays with you "
+            "permanently: it follows you automatically between rooms, "
+            "survives you logging off and back in, and fights at your side "
+            "in every fight from then on. It's only ever actually gone if "
+            "it's defeated in combat (0 HP - a real, permanent loss, not "
+            "something that heals back on its own) or if you 'dismiss' it "
+            "yourself.\n\n"
+            "You can only have one active companion at a time, of either "
+            "kind - buying or summoning a new one while you already have "
+            "one active is refused, not silently swapped, so a purchased "
+            "pet can never be lost by accident. 'dismiss' it first if you "
+            "want to switch.\n\n"
+            "A pet doesn't earn you any XP or gold on its own - only "
+            "damage you personally deal counts toward a kill's reward, so "
+            "you'll always want to be an active part of the fight "
+            "yourself, not just along for the ride.\n\n"
+            "See 'help row' for how a pet standing in the front row can "
+            "protect you if you fall back to the back row."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    HelpEntry.objects.create(
+        db_key="buypet",
+        db_help_category="General",
+        db_entrytext=(
+            "|wBuying a Pet|n\n\n"
+            "Usage:\n"
+            "  buypet\n"
+            "  buypet <name>\n\n"
+            "Buys a permanent companion pet from a pet vendor standing in "
+            "the same room as you - requires level 10. With no argument, "
+            "lists what that vendor currently has for sale. See 'help "
+            "pets' for how a purchased pet's lifetime actually works."
+        ),
+        db_lock_storage="view:all()",
+    )
+
     HelpEntry.objects.create(
         db_key="dismiss",
         db_help_category="General",
@@ -503,21 +553,50 @@ def create_all_help_entries():
             "Usage:\n"
             "  dismiss\n"
             "  banish\n\n"
-            "If you've summoned a familiar, spirit, or beast companion "
-            "(via spells or skills like Summon Familiar, Summon Lemures, "
-            "or Call of the Wild), this sends it away for good. You only "
-            "ever have one active pet at a time, so there's nothing to "
-            "target - it just dismisses whichever one you've currently "
-            "got.\n\n"
-            "Works anywhere, whether you're standing next to your pet or "
-            "not, and whether you're in combat or out of it. Pets don't "
-            "follow you between rooms on their own, so this is also the "
-            "only way to get rid of one you've left behind somewhere.\n\n"
-            "|wWhat happens automatically:|n a pet is also released on its "
-            "own if you flee/disengage from a fight or if you're defeated "
-            "- it won't be left behind to keep fighting by itself. "
-            "'dismiss' is for when you simply don't want it around anymore "
-            "outside of either of those situations."
+            "Sends away your active pet for good - whichever one you've "
+            "currently got, summoned or purchased, since only one can be "
+            "active at a time. Works anywhere, whether you're standing "
+            "next to your pet or not, and whether you're in combat or out "
+            "of it.\n\n"
+            "|wWhat happens automatically:|n a summoned pet is also "
+            "released on its own if you flee/disengage from a fight, if "
+            "you're defeated, or once the fight ends - it never outlives "
+            "the fight it was cast for. A purchased pet is different: "
+            "fleeing or being defeated yourself just sends it home to your "
+            "side, fully healed, not away for good - 'dismiss' (or the "
+            "pet's own defeat in combat) is the only thing that actually "
+            "gets rid of one. See 'help pets' for the full picture."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Front row / back row positioning ---
+    HelpEntry.objects.create(
+        db_key="row",
+        db_help_category="General",
+        db_entrytext=(
+            "|wFront Row / Back Row|n\n\n"
+            "Usage:\n"
+            "  row\n"
+            "  row front\n"
+            "  row back\n\n"
+            "Front (the default) means any enemy can freely target you.\n\n"
+            "Back means an enemy can't reach you at all - not with a "
+            "basic attack, a spell, or a skill - as long as at least one "
+            "of your own allies (a party member, or a pet, which always "
+            "starts in the front row) is still standing in the front row "
+            "with you. The moment your last front-row ally falls, you "
+            "become reachable again immediately - and if that ally was a "
+            "pet defending you, you're automatically pulled back to the "
+            "front row yourself at that same moment.\n\n"
+            "This is a real, hard restriction in both directions - your "
+            "own attacks, spells, and skills can't reach a protected enemy "
+            "either, unless you're wielding a polearm or a ranged weapon "
+            "(a bow, a javelin, a spear) - those have the reach to strike "
+            "into the back row directly regardless of who's standing in "
+            "front. A dagger or an unarmed attack does not.\n\n"
+            "Can be set any time, not just mid-fight, so you can position "
+            "yourself before a fight even starts."
         ),
         db_lock_storage="view:all()",
     )
