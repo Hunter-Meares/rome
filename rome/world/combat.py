@@ -1407,10 +1407,14 @@ class CombatRules:
         # on its own tag and is a no-op for anything not carrying it,
         # so all three can safely run unconditionally here.
         if defeated.db.xp_reward:
-            from world.loot import roll_loot_drop, roll_arena_loot_drop, roll_germania_loot_drop
+            from world.loot import (
+                roll_loot_drop, roll_arena_loot_drop, roll_germania_loot_drop,
+                roll_amber_coast_loot_drop,
+            )
             roll_loot_drop(defeated, attacker=attacker)
             roll_arena_loot_drop(defeated, attacker=attacker)
             roll_germania_loot_drop(defeated, attacker=attacker)
+            roll_amber_coast_loot_drop(defeated, attacker=attacker)
 
         # --- Bounty progress (world/bounties.py) - checks the same
         # damage_log population as the XP/gold split above against
@@ -6246,6 +6250,96 @@ def equip_arena_fighter(npc):
         npc.db.worn_shield = shield
 
 
+AMBER_COAST_GEAR = {
+    # Wave-Riders
+    "a Wave-Rider deckhand": ("DAGGER", "LEATHERARMOR", None),
+    "a Wave-Rider oarsman": ("WARAXE", "LEATHERARMOR", None),
+    "a Wave-Rider harpooner": ("SPEAR", "LEATHERARMOR", None),
+    "a boasting champion": ("BROADSWORD", "SCALEMAIL", None),
+    "the Wave-Riders' armorer": ("WARAXE", "SCALEMAIL", None),
+    "a starving drifter": ("DAGGER", "LEATHERARMOR", None),
+    "Skalla Half-Drowned": ("BROADSWORD", "SCALEMAIL", "PARMA"),
+    # Iron Tide - a shield-wall garrison, shields prominent by design.
+    "an Iron Tide shield-bearer": ("GLADIUS", "SCALEMAIL", "PARMA"),
+    "an Iron Tide recruit": ("GLADIUS", "LEATHERARMOR", "PARMA"),
+    "an Iron Tide sentry": ("SPEAR", "SCALEMAIL", "PARMA"),
+    "an Iron Tide veteran": ("WARAXE", "PLATEMAIL", None),
+    "an Iron Tide enforcer": ("WARAXE", "PLATEMAIL", None),
+    "an Iron Tide drillmaster": ("GLADIUS", "SCALEMAIL", "CLIPEUS"),
+    "Berhtwin Oakenshield": ("WARAXE", "PLATEMAIL", "SCUTUM"),
+    # The Drowned Oath - spears and votive-marked blades per its own
+    # flavor; Wulfhild is the one caster-flavored leader among all
+    # eight, so she carries a staff instead of a melee weapon.
+    "a Drowned Oath votary": ("SPEAR", "LEATHERARMOR", None),
+    "a Drowned Oath adherent": ("SPEAR", "SCALEMAIL", None),
+    "the shunned warrior": ("DAGGER", "LEATHERARMOR", None),
+    "a Drowned Oath armorer": ("SPEAR", "LEATHERARMOR", None),
+    "a Drowned Oath causeway-guard": ("SPEAR", "SCALEMAIL", None),
+    "Wulfhild the Sworn": ("RITUAL_STAFF", "SCALEMAIL", None),
+    # Amber Guard - the best-geared of the four camps, per its own
+    # bureaucratic-elite identity.
+    "an Amber Guard escort": ("GLADIUS", "SCALEMAIL", "PARMA"),
+    "an Amber Guard sentinel": ("GLADIUS", "PLATEMAIL", "CLIPEUS"),
+    "an Amber Guard veteran": ("WARAXE", "PLATEMAIL", None),
+    "an Amber Guard quartermaster": ("GLADIUS", "SCALEMAIL", "PARMA"),
+    "an Amber Guard outrider": ("JAVELIN", "SCALEMAIL", None),
+    "Ingvar Coin-Ward": ("BROADSWORD", "PLATEMAIL", "SCUTUM"),
+    # Town-level authority and the Sacred Isle.
+    "Hertha Sea-Nix": ("BROADSWORD", "PLATEMAIL", "SCUTUM"),
+    "a bog-wight": ("DAGGER", "LEATHERARMOR", None),
+    "an elder bog-wight": ("SPEAR", "SCALEMAIL", None),
+    "the Veiled Wagon's guardian": ("RITUAL_STAFF", "SCALEMAIL", None),
+    # Deeper Coastal Wilds capstone.
+    "a cliff raider": ("SPEAR", "LEATHERARMOR", None),
+    "a wreck-scavenger": ("DAGGER", "LEATHERARMOR", None),
+    "a cave-dweller": ("WARAXE", "SCALEMAIL", None),
+    "an outcast": ("JAVELIN", "LEATHERARMOR", None),
+    "a deep-cave lurker": ("WARAXE", "PLATEMAIL", None),
+    "Ormstooth, the Unclaimed": ("BROADSWORD", "PLATEMAIL", "SCUTUM"),
+    # The lighter, connective-zone population.
+    "a coastal bandit": ("DAGGER", "LEATHERARMOR", None),
+    "a gate warden": ("SPEAR", "SCALEMAIL", "PARMA"),
+    "a harbor tough": ("DAGGER", "LEATHERARMOR", None),
+    "a smuggler": ("DAGGER", "LEATHERARMOR", None),
+    "a hearth-companion guard": ("GLADIUS", "SCALEMAIL", "PARMA"),
+    "a petty thief": ("DAGGER", "LEATHERARMOR", None),
+    "a dispute enforcer": ("GLADIUS", "SCALEMAIL", None),
+    "a shipyard guard": ("SPEAR", "SCALEMAIL", None),
+    "a tideflat scavenger": ("DAGGER", "LEATHERARMOR", None),
+}
+
+
+def equip_amber_coast_npc(npc):
+    """
+    Gives every Amber Coast NPC real, mechanically-active gear - by
+    direct request ("all NPCs must have armor and weapons on them
+    during the fight... I want there to be a real risk of death"), a
+    deliberate departure from every other Germanic population in the
+    game (the interior Stronghold's warbands remain flavor-only, like
+    almost every NPC in the game - see this module's own docstring
+    note on that). Identical mechanism to equip_arena_fighter right
+    above: leveled via spawn_leveled_weapon/spawn_leveled_armor (a
+    level 60 Amber Guard veteran wields what a level 60 PLAYER could
+    also wield), shields spawned plain (positive defense_modifier,
+    the opposite sign convention from body armor - see
+    equip_arena_fighter's own docstring for why running a shield
+    through the leveled-armor formula would be wrong).
+    """
+    gear = AMBER_COAST_GEAR.get(npc.key)
+    if not gear:
+        return
+
+    weapon_proto, armor_proto, shield_proto = gear
+    level = npc.db.level or 1
+
+    npc.db.wielded_weapon = spawn_leveled_weapon(weapon_proto, level, location=npc)
+    npc.db.worn_armor = spawn_leveled_armor(armor_proto, level, location=npc)
+    if shield_proto:
+        shield = spawn(shield_proto)[0]
+        shield.move_to(npc, quiet=True)
+        npc.db.worn_shield = shield
+
+
 class RespawningNPC(HostileNPC):
     """
     A persistent NPC that respawns after being defeated, instead of
@@ -6266,6 +6360,7 @@ class RespawningNPC(HostileNPC):
         self.db.respawns = True
         self.db.respawn_home = self.location
         equip_arena_fighter(self)
+        equip_amber_coast_npc(self)
 
 
 class SummonedAlly(DefaultCharacter):

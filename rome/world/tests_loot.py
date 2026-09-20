@@ -19,6 +19,7 @@ from world.loot import (
     ARENA_LOOT_DROP_CHANCE,
     ARENA_LOOT_TABLE,
     roll_germania_loot_drop,
+    roll_amber_coast_loot_drop,
 )
 
 
@@ -281,3 +282,81 @@ class TestRollGermaniaLootDrop(EvenniaTest):
         shop_prototype_keys = {name for name, _level in GERMANIA_WEAPONSMITH_STOCK}
         loot_prototype_keys = set(GERMANIA_WEAPON_PROTOTYPES + GERMANIA_ARMOR_PROTOTYPES)
         self.assertEqual(shop_prototype_keys & loot_prototype_keys, set())
+
+
+class TestRollAmberCoastLootDrop(EvenniaTest):
+    """
+    Direct follow-up request: the Amber Coast's own NPCs should drop
+    loot too, using its own AMBER_LOOT_* prototypes - deliberately its
+    own flavor set, not shared with the Germanic Stronghold's own loot
+    tables (see world/loot.py's own comment for why: two "Germanic"
+    zones dropping identically-flavored gear would read as repetitive).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.npc = create.create_object(
+            "evennia.objects.objects.DefaultObject", key="a test Wave-Rider",
+            location=self.room1,
+        )
+        self.npc.db.level = 55
+        self.npc.db.xp_reward = 2431
+        self.baseline = set(self.room1.contents)
+
+    def _new_drops(self):
+        return [o for o in self.room1.contents if o not in self.baseline]
+
+    def test_untagged_npc_never_drops_loot(self):
+        with patch("world.loot.random.randint", return_value=1):
+            roll_amber_coast_loot_drop(self.npc)
+        self.assertEqual(self._new_drops(), [])
+
+    @patch("world.loot.random.randint")
+    def test_tagged_npc_drops_nothing_above_the_chance_threshold(self, mock_randint):
+        self.npc.tags.add("amber_coast_npc", category="npc_role")
+        mock_randint.return_value = LOOT_DROP_CHANCE + 1
+
+        roll_amber_coast_loot_drop(self.npc)
+
+        self.assertEqual(self._new_drops(), [])
+
+    @patch("world.loot.random.random")
+    @patch("world.loot.random.randint")
+    def test_tagged_npc_drops_a_weapon_on_a_successful_roll(self, mock_randint, mock_random):
+        self.npc.tags.add("amber_coast_npc", category="npc_role")
+        mock_randint.return_value = 1
+        mock_random.return_value = 0.1
+
+        roll_amber_coast_loot_drop(self.npc)
+
+        dropped = self._new_drops()
+        self.assertEqual(len(dropped), 1)
+        self.assertTrue(dropped[0].is_typeclass("world.combat.CombatWeapon", exact=False))
+        self.assertEqual(dropped[0].db.item_level, 55)
+
+    @patch("world.loot.random.random")
+    @patch("world.loot.random.randint")
+    def test_tagged_npc_drops_armor_on_the_other_half_of_the_roll(self, mock_randint, mock_random):
+        self.npc.tags.add("amber_coast_npc", category="npc_role")
+        mock_randint.return_value = 1
+        mock_random.return_value = 0.9
+
+        roll_amber_coast_loot_drop(self.npc)
+
+        dropped = self._new_drops()
+        self.assertEqual(len(dropped), 1)
+        self.assertTrue(dropped[0].is_typeclass("world.combat.CombatArmor", exact=False))
+
+    def test_drops_are_not_shared_with_the_germania_or_shop_prototypes(self):
+        from world.loot import (
+            AMBER_COAST_WEAPON_PROTOTYPES, AMBER_COAST_ARMOR_PROTOTYPES,
+            GERMANIA_WEAPON_PROTOTYPES, GERMANIA_ARMOR_PROTOTYPES,
+        )
+        from world.economy import AMBER_COAST_ARMORY_STOCK
+
+        loot_keys = set(AMBER_COAST_WEAPON_PROTOTYPES + AMBER_COAST_ARMOR_PROTOTYPES)
+        germania_keys = set(GERMANIA_WEAPON_PROTOTYPES + GERMANIA_ARMOR_PROTOTYPES)
+        shop_keys = {name for name, _level in AMBER_COAST_ARMORY_STOCK}
+
+        self.assertEqual(loot_keys & germania_keys, set())
+        self.assertEqual(loot_keys & shop_keys, set())

@@ -191,3 +191,45 @@ def roll_germania_loot_drop(defeated, attacker=None):
     item.db.dropped_at = time.time()  # see roll_loot_drop's own note above
 
     location.msg_contents("|YSomething drops from %s: %s!|n" % (defeated.key, item.key))
+
+
+# The Amber Coast - a deliberately separate loot table from every other
+# "Germanic" population in the game (GERMANIA_WEAPON_PROTOTYPES/
+# GERMANIA_ARMOR_PROTOTYPES above), by direct request: two Germanic
+# leveling zones dropping identical-flavored gear would read as
+# repetitive. Gated on its own "amber_coast_npc" tag
+# (world/prototypes.py's AMBER_* combat prototypes), same 20% shared
+# chance as every other rank-and-file population.
+AMBER_COAST_WEAPON_PROTOTYPES = [
+    "AMBER_LOOT_SEAX", "AMBER_LOOT_HARPOON_SPEAR", "AMBER_LOOT_STORM_AXE",
+]
+AMBER_COAST_ARMOR_PROTOTYPES = ["AMBER_LOOT_TIDE_HIDE", "AMBER_LOOT_AMBER_MAIL"]
+
+
+def roll_amber_coast_loot_drop(defeated, attacker=None):
+    """
+    Called from CombatRules.at_defeat, alongside every other zone's
+    loot roll - same "any NPC with xp_reward" gate, narrowed to the
+    Amber Coast's own population via the amber_coast_npc tag.
+    """
+    if not defeated.tags.has("amber_coast_npc", category="npc_role"):
+        return
+    if random.randint(1, 100) > LOOT_DROP_CHANCE:
+        return
+
+    location = defeated.location
+    if not location:
+        return
+
+    level = defeated.db.level or 1
+
+    if random.random() < 0.5:
+        prototype = random.choice(AMBER_COAST_WEAPON_PROTOTYPES)
+        item = spawn_leveled_weapon(prototype, level, location=location)
+    else:
+        prototype = random.choice(AMBER_COAST_ARMOR_PROTOTYPES)
+        item = spawn_leveled_armor(prototype, level, location=location)
+
+    item.db.dropped_at = time.time()  # see roll_loot_drop's own note above
+
+    location.msg_contents("|YSomething drops from %s: %s!|n" % (defeated.key, item.key))

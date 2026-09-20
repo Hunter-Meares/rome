@@ -48,6 +48,8 @@ from world.combat import (
     wizinvis_hides_from,
     ARENA_FIGHTER_GEAR,
     equip_arena_fighter,
+    AMBER_COAST_GEAR,
+    equip_amber_coast_npc,
     InstanceCleanupTimer,
     find_combat_target,
     SPELLS,
@@ -2632,6 +2634,83 @@ class TestArenaFighterEquipment(EvenniaTest):
             "typeclasses.characters.Character", key="a passerby", location=self.room1
         )
         equip_arena_fighter(npc)  # should be a silent no-op
+        self.assertIsNone(npc.db.wielded_weapon)
+
+
+class TestAmberCoastEquipment(EvenniaTest):
+    """
+    Direct follow-up request: every Amber Coast NPC must have real,
+    mechanically-active weapons and armor (not the flavor-only default
+    every other NPC in the game uses, including the interior Germanic
+    Stronghold's own warbands) - "a real risk of death." Mirrors
+    TestArenaFighterEquipment's own testing approach exactly.
+    """
+
+    def test_every_amber_coast_combat_prototype_has_a_gear_entry(self):
+        import world.prototypes as protos
+
+        amber_proto_names = [
+            n for n in dir(protos)
+            if n.startswith("AMBER_") and isinstance(getattr(protos, n), dict)
+        ]
+        real_keys = {
+            getattr(protos, n)["key"] for n in amber_proto_names
+            if getattr(protos, n).get("typeclass") == "world.combat.RespawningNPC"
+        }
+        self.assertEqual(set(AMBER_COAST_GEAR.keys()), real_keys)
+
+    def test_rank_and_file_spawns_with_a_real_weapon_and_armor(self):
+        from evennia.prototypes.spawner import spawn
+
+        npc = spawn("AMBER_WAVERIDER_DECKHAND")[0]
+        self.assertIsNotNone(npc.db.wielded_weapon)
+        self.assertEqual(npc.db.wielded_weapon.db.weapon_type_name, "dagger")
+        self.assertIsNotNone(npc.db.worn_armor)
+        self.assertIsNone(npc.db.worn_shield)
+
+    def test_gear_is_leveled_to_the_npc_own_level(self):
+        from evennia.prototypes.spawner import spawn
+        from world.combat import compute_weapon_stats
+
+        npc = spawn("AMBER_WAVERIDER_DECKHAND")[0]
+        expected_range, expected_accuracy, _ = compute_weapon_stats("dagger", 51)
+        self.assertEqual(npc.db.wielded_weapon.db.damage_range, expected_range)
+        self.assertEqual(npc.db.wielded_weapon.db.accuracy_bonus, expected_accuracy)
+
+    def test_shield_wall_leader_gets_a_real_shield(self):
+        from evennia.prototypes.spawner import spawn
+
+        npc = spawn("AMBER_BOSS_BERHTWIN_OAKENSHIELD")[0]
+        self.assertIsNotNone(npc.db.worn_shield)
+        self.assertEqual(npc.db.worn_shield.db.defense_modifier, 12)
+
+    def test_caster_leader_carries_a_staff_not_a_melee_weapon(self):
+        from evennia.prototypes.spawner import spawn
+
+        npc = spawn("AMBER_BOSS_WULFHILD_THE_SWORN")[0]
+        self.assertEqual(npc.db.wielded_weapon.db.weapon_type_name, "ritual staff")
+
+    def test_no_amber_coast_npc_is_left_unarmed_or_unarmored(self):
+        from evennia.prototypes.spawner import spawn
+        import world.prototypes as protos
+
+        amber_proto_names = [
+            n for n in dir(protos)
+            if n.startswith("AMBER_") and isinstance(getattr(protos, n), dict)
+            and getattr(protos, n).get("typeclass") == "world.combat.RespawningNPC"
+        ]
+        for name in amber_proto_names:
+            npc = spawn(name)[0]
+            self.assertIsNotNone(npc.db.wielded_weapon, "%s has no weapon" % name)
+            self.assertIsNotNone(npc.db.worn_armor, "%s has no armor" % name)
+
+    def test_unrelated_npc_is_left_alone(self):
+        from evennia.utils import create
+
+        npc = create.create_object(
+            "typeclasses.characters.Character", key="a passerby", location=self.room1
+        )
+        equip_amber_coast_npc(npc)  # should be a silent no-op
         self.assertIsNone(npc.db.wielded_weapon)
 
 

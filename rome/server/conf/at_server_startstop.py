@@ -55,6 +55,13 @@ def at_server_start():
     if script:
         script.at_server_start()
 
+    # Same restoration gap, same fix, for the second wilderness stretch
+    # (world/wilderness_amber_coast.py) - see that hook's own docstring
+    # above for why this has to be called by hand.
+    amber_script = getattr(evennia.GLOBAL_SCRIPTS, "amber_coast_road", None)
+    if amber_script:
+        amber_script.at_server_start()
+
 
 def at_server_stop():
     """

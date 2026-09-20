@@ -35,13 +35,14 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-20"
 
 RECENT_UPDATES_TEXT = (
-    "Debuffs and buffs can now be resisted (a higher Ingenium than "
-    "whoever cast it helps you shrug it off) instead of always "
-    "landing. Custom titles can now run up to 60 characters, 'look "
-    "<direction>' correctly checks real exits first, and each of the "
-    "five languages now shows in its own color when spoken. The "
-    "Germanic Stronghold's warriors now speak in-character and drop "
-    "their own unique gear when defeated."
+    "The Amber Coast is open - a coastal Germanic trading town far "
+    "north of the Stronghold, reached by a long wilderness road full "
+    "of real danger. A real harbor, four distinct warbands, a "
+    "matriarchal war-leader, a tidal Sacred Isle, and two new shops "
+    "await - every enemy there carries real weapons and armor, so "
+    "come prepared. Also: debuffs/buffs can now be resisted, titles "
+    "run up to 60 characters, and each language shows in its own "
+    "color when spoken."
 )
 
 # The box's own interior width, between its left/right borders and

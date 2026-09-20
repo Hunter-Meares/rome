@@ -204,6 +204,95 @@ class GermanicWeaponsmith(NPCMerchant):
             obj.move_to(self, quiet=True)
 
 
+# The Amber Coast's own Smith's Quarter Armory stock - three tiers
+# (46/58/70) across three weapon types and three armor categories,
+# genuinely distinct flavor from the Germanic Stronghold's own
+# weaponsmith (see world/prototypes.py's AC_SMITH_* comment for why a
+# second "Germanic" vendor selling identical-flavored gear would read
+# as repetitive).
+AMBER_COAST_ARMORY_STOCK = [
+    ("AC_SMITH_DIRK_NOVICE", 46),
+    ("AC_SMITH_DIRK_VETERAN", 58),
+    ("AC_SMITH_DIRK_CHAMPION", 70),
+    ("AC_SMITH_GAFFSPEAR_NOVICE", 46),
+    ("AC_SMITH_GAFFSPEAR_VETERAN", 58),
+    ("AC_SMITH_GAFFSPEAR_CHAMPION", 70),
+    ("AC_SMITH_TIDEAXE_NOVICE", 46),
+    ("AC_SMITH_TIDEAXE_VETERAN", 58),
+    ("AC_SMITH_TIDEAXE_CHAMPION", 70),
+    ("AC_SMITH_SEALSKIN_NOVICE", 46),
+    ("AC_SMITH_SEALSKIN_VETERAN", 58),
+    ("AC_SMITH_SEALSKIN_CHAMPION", 70),
+    ("AC_SMITH_FISHMAIL_NOVICE", 46),
+    ("AC_SMITH_FISHMAIL_VETERAN", 58),
+    ("AC_SMITH_FISHMAIL_CHAMPION", 70),
+    ("AC_SMITH_WHALEBONE_NOVICE", 46),
+    ("AC_SMITH_WHALEBONE_VETERAN", 58),
+    ("AC_SMITH_WHALEBONE_CHAMPION", 70),
+]
+
+
+class AmberCoastArmorer(NPCMerchant):
+    """
+    The Amber Coast's Smith's Quarter Armory - same self-stocking
+    pattern as GermanicWeaponsmith/LudusWeaponsmith above (same
+    level-scaled formula, same automatic price/power consistency),
+    with the Trading Quarter's own coastal/amber flavor instead of
+    the interior Stronghold's plain forged-iron gear.
+    """
+
+    def at_object_creation(self):
+        super().at_object_creation()
+        self.db.shopname = "the Smith's Quarter Armory"
+
+        from world.combat import compute_weapon_stats, compute_armor_stats
+
+        for prototype_key, level in AMBER_COAST_ARMORY_STOCK:
+            obj = spawn(prototype_key)[0]
+            if obj.is_typeclass("world.combat.CombatWeapon", exact=True):
+                damage_range, accuracy_bonus, price = compute_weapon_stats(
+                    obj.db.weapon_type_name, level
+                )
+                obj.db.damage_range = damage_range
+                obj.db.accuracy_bonus = accuracy_bonus
+                obj.db.price = price
+                obj.db.item_level = level
+            elif obj.is_typeclass("world.combat.CombatArmor", exact=True):
+                reduction, defense_modifier, price = compute_armor_stats(
+                    obj.db.armor_category, level
+                )
+                obj.db.damage_reduction = reduction
+                obj.db.defense_modifier = defense_modifier
+                obj.db.price = price
+                obj.db.item_level = level
+            obj.move_to(self, quiet=True)
+
+
+# The Amber Trader's stock - a pure flavor-goods vendor (no weapon/
+# armor mechanics), same shape as the Forum's goldsmith/perfumer.
+AMBER_TRADER_STOCK = [
+    "AC_AMBER_PENDANT", "AC_AMBER_BEAD_BRACELET",
+    "AC_AMBER_CARVED_FIGURE", "AC_AMBER_RAW_CHUNK",
+]
+
+
+class AmberTrader(NPCMerchant):
+    """
+    The Amber Coast's Amber Trader - a pure flavor-goods vendor
+    (amber jewelry and curios), same shape as the Forum's goldsmith/
+    perfumer rather than GermanicWeaponsmith's level-scaled pattern -
+    these wares have a flat price, no weapon/armor stats to compute.
+    """
+
+    def at_object_creation(self):
+        super().at_object_creation()
+        self.db.shopname = "the Amber Trader's stall"
+
+        for prototype_key in AMBER_TRADER_STOCK:
+            obj = spawn(prototype_key)[0]
+            obj.move_to(self, quiet=True)
+
+
 def _sellable_wares(merchant):
     """Every item in the merchant's inventory with a price set."""
     return [obj for obj in merchant.contents if obj.db.price]

@@ -186,4 +186,12 @@ GLOBAL_SCRIPTS = {
         "typeclass": "world.wilderness_rome.GermaniaWildernessScript",
         "desc": "The wilderness surrounding Rome, on the road to Germania",
     },
+    "amber_coast_road": {
+        "typeclass": "world.wilderness_amber_coast.AmberCoastWildernessScript",
+        "desc": "The wilderness north of the Germanic Stronghold, on the road to the Amber Coast",
+    },
+    "npc_home_reset": {
+        "typeclass": "world.npc_reset.NPCHomeResetScript",
+        "desc": "Periodically returns any displaced RespawningNPC to its own home room",
+    },
 }

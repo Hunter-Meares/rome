@@ -3150,3 +3150,1054 @@ GERMANIA_LOOT_BONEPLATE = {
     ),
     "armor_category": "medium",
 }
+
+# ----------------------------------------------------------------------------
+# THE AMBER COAST - a coastal Germanic trading town north of the
+# Germanic Stronghold (world/batch_amber_coast_data.py and its Part
+# 2/3 files, world/wilderness_amber_coast.py). Deliberately its own
+# "amber_coast_npc" tag, NOT "germania_npc" - a separate population
+# with its own loot table (world/loot.py's roll_amber_coast_loot_drop)
+# so drops don't feel identical to the interior Stronghold's.
+#
+# Levels are the design document's own numbers +21 across the board -
+# see world/wilderness_amber_coast.py's module docstring for exactly
+# why (the doc assumed the interior Stronghold was levels 1-25; the
+# real live Stronghold is 27-46, so this whole location bridges from
+# that real cap instead of restarting below it).
+#
+# Racial casting is deliberately NOT a repeat of the Stronghold's own
+# even Minotaur/Cyclops/Centaur/Harpy mix, by direct request (the
+# concern: two "Germanic leveling areas" feeling repetitive) - each
+# camp's race choices are tied to its actual job rather than being
+# another generic fantasy-race shuffle: Wave-Riders lean human (a ship
+# crew) with one Harpy mini-boss (a sea-survivor, not a repeat of the
+# Stronghold's own scout-Harpy use); Iron Tide concentrates Minotaur/
+# Cyclops muscle (a wall garrison has a real reason to want it); the
+# Drowned Oath introduces Nymph - a playable race the Stronghold never
+# uses at all - including a spellcasting Haruspex mini-boss (Wulfhild),
+# the only non-melee warband leader among all eight combined; Amber
+# Guard stays mostly human with one Centaur outrider for the caravan-
+# escort role specifically.
+# ----------------------------------------------------------------------------
+
+# --- Wave-Riders (levels 51-55) ---
+
+AMBER_WAVERIDER_DECKHAND = {
+    "key": "a Wave-Rider deckhand",
+    "aliases": ["deckhand"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Barefoot on packed sand as easily as a deck, this young "
+        "raider clearly spends more time on the water than off it."
+    ),
+    "race": "human",
+    "player_class": "venator",
+    "level": 51,
+    "xp_reward": 2106,
+    "respawn_delay": 617,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_WAVERIDER_OARSMAN = {
+    "key": "a Wave-Rider oarsman",
+    "aliases": ["oarsman"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Real, hard muscle earned at an oar rather than a training "
+        "yard - a very different kind of strength than the interior "
+        "warbands build."
+    ),
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 52,
+    "xp_reward": 2185,
+    "respawn_delay": 630,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_WAVERIDER_HARPOONER = {
+    "key": "a Wave-Rider harpooner",
+    "aliases": ["harpooner"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "A long iron harpoon rests easy in her hands - real, "
+        "practiced skill at hitting something that's actively trying "
+        "not to be hit."
+    ),
+    "race": "human",
+    "player_class": "venator",
+    "level": 52,
+    "xp_reward": 2185,
+    "respawn_delay": 630,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_WAVERIDER_CHAMPION = {
+    "key": "a boasting champion",
+    "aliases": ["champion"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Undefeated on the Boasting Stone for longer than most of "
+        "this camp's own memory - real, earned standing, settled by "
+        "real wrestling rather than any quieter hierarchy."
+    ),
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 53,
+    "xp_reward": 2266,
+    "respawn_delay": 642,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_WAVERIDER_ARMORER = {
+    "key": "the Wave-Riders' armorer",
+    "aliases": ["armorer"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Salt has already started working at every blade he tends, "
+        "despite real, constant oiling - a losing fight he clearly "
+        "intends to keep having anyway."
+    ),
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 53,
+    "xp_reward": 2266,
+    "respawn_delay": 642,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_WAVERIDER_SCAVENGER = {
+    "key": "a starving drifter",
+    "aliases": ["drifter"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Drawn in by the smell of drying fish and desperate enough "
+        "not to care whose catch it actually is."
+    ),
+    "race": "human",
+    "player_class": "venator",
+    "level": 54,
+    "xp_reward": 2348,
+    "respawn_delay": 654,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_BOSS_SKALLA_HALF_DROWNED = {
+    "key": "Skalla Half-Drowned",
+    "aliases": ["skalla"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Survived a real wreck that should have killed her, and has "
+        "led the Wave-Riders like she's daring the sea to try again. "
+        "Real sea-glass and bone charms cover every seam of what "
+        "she wears."
+    ),
+    "race": "harpy",
+    "player_class": "venator",
+    "level": 55,
+    "xp_reward": 2431,
+    "respawn_delay": 900,
+    "tags": [("amber_coast_npc", "npc_role"), ("amber_coast_leader", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+# --- Iron Tide (levels 54-58) ---
+
+AMBER_IRONTIDE_SHIELDBEARER = {
+    "key": "an Iron Tide shield-bearer",
+    "aliases": ["shieldbearer"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Real, disciplined stillness in the shield-wall line - this "
+        "one has clearly drilled this exact stance more times than "
+        "he could count."
+    ),
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 54,
+    "xp_reward": 2348,
+    "respawn_delay": 654,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_IRONTIDE_RECRUIT = {
+    "key": "an Iron Tide recruit",
+    "aliases": ["recruit"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Mid-drill and visibly still learning the shield-wall's real "
+        "rhythm, sweat and real effort obvious even at a distance."
+    ),
+    "race": "human",
+    "player_class": "barbarian",
+    "level": 55,
+    "xp_reward": 2431,
+    "respawn_delay": 667,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_IRONTIDE_SENTRY = {
+    "key": "an Iron Tide sentry",
+    "aliases": ["sentry"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Watches the wall-watch logboard as closely as the wall "
+        "itself - real, careful attention to a job that's genuinely "
+        "this camp's whole reason for being."
+    ),
+    "race": "human",
+    "player_class": "barbarian",
+    "level": 55,
+    "xp_reward": 2431,
+    "respawn_delay": 667,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_IRONTIDE_VETERAN = {
+    "key": "an Iron Tide veteran",
+    "aliases": ["veteran"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Real, raw Minotaur strength backing up the shield-wall's "
+        "own discipline - exactly the kind of muscle this camp was "
+        "built to field."
+    ),
+    "race": "minotaur",
+    "player_class": "barbarian",
+    "level": 56,
+    "xp_reward": 2516,
+    "respawn_delay": 680,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_IRONTIDE_ENFORCER = {
+    "key": "an Iron Tide enforcer",
+    "aliases": ["enforcer"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Stands by the Punishment Post without ever quite relaxing - "
+        "real, genuine size doing most of the actual talking here."
+    ),
+    "race": "cyclops",
+    "player_class": "barbarian",
+    "level": 56,
+    "xp_reward": 2516,
+    "respawn_delay": 680,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_IRONTIDE_DRILLMASTER = {
+    "key": "an Iron Tide drillmaster",
+    "aliases": ["drillmaster"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Runs this camp's real, repeated drills with a discipline "
+        "that makes the interior warbands look genuinely loose by "
+        "comparison."
+    ),
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 57,
+    "xp_reward": 2602,
+    "respawn_delay": 692,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_BOSS_BERHTWIN_OAKENSHIELD = {
+    "key": "Berhtwin Oakenshield",
+    "aliases": ["berhtwin"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Real, immovable Minotaur presence at his own command post - "
+        "Berhtwin doesn't need to seek out a fight. Whatever comes at "
+        "this wall meets him first, every time."
+    ),
+    "race": "minotaur",
+    "player_class": "barbarian",
+    "level": 58,
+    "xp_reward": 2689,
+    "respawn_delay": 900,
+    "tags": [("amber_coast_npc", "npc_role"), ("amber_coast_leader", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+# --- The Drowned Oath (levels 57-61) ---
+
+AMBER_DROWNEDOATH_VOTARY = {
+    "key": "a Drowned Oath votary",
+    "aliases": ["votary"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Real, quiet devotion visible in every movement - this "
+        "warband fights for an oath first and a warlord second."
+    ),
+    "race": "human",
+    "player_class": "venator",
+    "level": 57,
+    "xp_reward": 2602,
+    "respawn_delay": 692,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_DROWNEDOATH_ADHERENT = {
+    "key": "a Drowned Oath adherent",
+    "aliases": ["adherent"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Ritual scars mark real, deliberate vows kept over real "
+        "years - this warband's own steel serves the oath before "
+        "anything else."
+    ),
+    "race": "human",
+    "player_class": "barbarian",
+    "level": 58,
+    "xp_reward": 2689,
+    "respawn_delay": 704,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_DROWNEDOATH_SHUNNED = {
+    "key": "the shunned warrior",
+    "aliases": ["shunned"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Held apart from the rest of the camp for an oath broken - "
+        "real, genuine anger at being cast out has nowhere left to "
+        "go but outward."
+    ),
+    "race": "human",
+    "player_class": "barbarian",
+    "level": 59,
+    "xp_reward": 2778,
+    "respawn_delay": 717,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_DROWNEDOATH_ARMORER = {
+    "key": "a Drowned Oath armorer",
+    "aliases": ["armorer"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Scores a small ritual notch into every blade before it "
+        "ever leaves her hands - even this camp's steel answers to "
+        "the oath first."
+    ),
+    "race": "nymph",
+    "player_class": "venator",
+    "level": 59,
+    "xp_reward": 2778,
+    "respawn_delay": 717,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_DROWNEDOATH_GUARD = {
+    "key": "a Drowned Oath causeway-guard",
+    "aliases": ["causeway-guard", "guard"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Watches the causeway to Nerthus's own isle without ever "
+        "quite calling it guard duty - real, genuine reverence "
+        "dressed up as a simple watch."
+    ),
+    "race": "human",
+    "player_class": "barbarian",
+    "level": 61,
+    "xp_reward": 2960,
+    "respawn_delay": 742,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_BOSS_WULFHILD_THE_SWORN = {
+    "key": "Wulfhild the Sworn",
+    "aliases": ["wulfhild"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Ritual marks cover nearly every visible inch of her, far "
+        "more than any other warband leader on this coast carries. "
+        "Real power moves through her that has nothing to do with "
+        "steel at all."
+    ),
+    "race": "nymph",
+    "player_class": "haruspex",
+    "level": 60,
+    "xp_reward": 2868,
+    "respawn_delay": 900,
+    "tags": [("amber_coast_npc", "npc_role"), ("amber_coast_leader", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+# --- The Amber Guard (levels 59-63) ---
+
+AMBER_AMBERGUARD_ESCORT = {
+    "key": "an Amber Guard escort",
+    "aliases": ["escort"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Real, professional bearing that has nothing to do with "
+        "warband pride and everything to do with protecting what "
+        "she's actually paid to protect."
+    ),
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 59,
+    "xp_reward": 2778,
+    "respawn_delay": 717,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_AMBERGUARD_SENTINEL = {
+    "key": "an Amber Guard sentinel",
+    "aliases": ["sentinel"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Stands by the strongbox vault without ever quite relaxing - "
+        "real wealth demands real, constant attention."
+    ),
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 61,
+    "xp_reward": 2960,
+    "respawn_delay": 742,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_AMBERGUARD_VETERAN = {
+    "key": "an Amber Guard veteran",
+    "aliases": ["veteran"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "The best-kept gear of any warband on this coast, worn by "
+        "someone who's clearly earned the right to it."
+    ),
+    "race": "human",
+    "player_class": "barbarian",
+    "level": 61,
+    "xp_reward": 2960,
+    "respawn_delay": 742,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_AMBERGUARD_QUARTERMASTER = {
+    "key": "an Amber Guard quartermaster",
+    "aliases": ["quartermaster"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Keeps real, exact count of every weapon issued and returned "
+        "- this camp's own discipline runs through ledgers as much "
+        "as through steel."
+    ),
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 62,
+    "xp_reward": 3052,
+    "respawn_delay": 754,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_AMBERGUARD_OUTRIDER = {
+    "key": "an Amber Guard outrider",
+    "aliases": ["outrider"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Real, genuine speed built for one job - getting a caravan "
+        "somewhere safely, and getting back just as fast if it isn't."
+    ),
+    "race": "centaur",
+    "player_class": "venator",
+    "level": 62,
+    "xp_reward": 3052,
+    "respawn_delay": 754,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_BOSS_INGVAR_COINWARD = {
+    "key": "Ingvar Coin-Ward",
+    "aliases": ["ingvar"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Real, careful authority in how he carries himself - Ingvar "
+        "protects Hertha's own wealth like it's genuinely his to "
+        "answer for, because in every way that matters, it is."
+    ),
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 63,
+    "xp_reward": 3147,
+    "respawn_delay": 900,
+    "tags": [("amber_coast_npc", "npc_role"), ("amber_coast_leader", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+# --- Town-level authority (the Great Hall) ---
+
+AMBER_BOSS_HERTHA_SEA_NIX = {
+    "key": "Hertha Sea-Nix",
+    "aliases": ["hertha"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Real, absolute authority over this entire coast, worn as "
+        "easily as the amber set into her own hall's roof-beams. "
+        "Every scar she carries is visible, none of them hidden."
+    ),
+    "race": "human",
+    "player_class": "barbarian",
+    "level": 68,
+    "xp_reward": 3638,
+    "respawn_delay": 1200,
+    "tags": [("amber_coast_npc", "npc_role"), ("amber_coast_boss", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+# --- Nerthus's Sacred Isle (levels 58-63, deliberately sparse) ---
+
+AMBER_SACREDISLE_BOGWIGHT = {
+    "key": "a bog-wight",
+    "aliases": ["bogwight"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Something that used to be a person, kept moving by whatever "
+        "the bog-pool actually took from it in exchange."
+    ),
+    "race": "human",
+    "player_class": "haruspex",
+    "level": 58,
+    "xp_reward": 2689,
+    "respawn_delay": 704,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_SACREDISLE_BOGWIGHT_ELDER = {
+    "key": "an elder bog-wight",
+    "aliases": ["elder bogwight"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Older, stiller, and far more purposeful than the younger "
+        "things sharing this bog - whatever it once was, it's been "
+        "down here a genuinely long time."
+    ),
+    "race": "human",
+    "player_class": "haruspex",
+    "level": 61,
+    "xp_reward": 2960,
+    "respawn_delay": 742,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_GUARDIAN_VEILED_WAGON = {
+    "key": "the Veiled Wagon's guardian",
+    "aliases": ["guardian"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Bars the way to the Veiled Wagon without ever needing to "
+        "say why - real, genuine authority that has nothing to do "
+        "with Hertha's hall and everything to do with what's under "
+        "that covering."
+    ),
+    "race": "nymph",
+    "player_class": "haruspex",
+    "level": 63,
+    "xp_reward": 3147,
+    "respawn_delay": 1200,
+    "tags": [("amber_coast_npc", "npc_role"), ("amber_coast_boss", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+# --- Deeper Coastal Wilds capstone (levels 62-71) ---
+
+AMBER_WILDS_CLIFFRAIDER = {
+    "key": "a cliff raider",
+    "aliases": ["raider"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Belongs to no warband on this coast - real, contested, "
+        "uncontrolled ground draws exactly this kind of survivor."
+    ),
+    "race": "human",
+    "player_class": "venator",
+    "level": 62,
+    "xp_reward": 3052,
+    "respawn_delay": 754,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_WILDS_WRECKSCAVENGER = {
+    "key": "a wreck-scavenger",
+    "aliases": ["scavenger"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Picks over the old wreck-site with real, practiced care - "
+        "whatever's worth taking here has clearly been fought over "
+        "before."
+    ),
+    "race": "human",
+    "player_class": "venator",
+    "level": 64,
+    "xp_reward": 3242,
+    "respawn_delay": 780,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_WILDS_CAVEDWELLER = {
+    "key": "a cave-dweller",
+    "aliases": ["dweller"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Genuinely feral by now, real Cyclops strength the only "
+        "thing that's kept it alive this far out."
+    ),
+    "race": "cyclops",
+    "player_class": "barbarian",
+    "level": 66,
+    "xp_reward": 3438,
+    "respawn_delay": 804,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_WILDS_OUTCAST = {
+    "key": "an outcast",
+    "aliases": ["outcast"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Fast, wary, and clearly used to real, sustained solitude - "
+        "whatever put her out here, she hasn't gone back."
+    ),
+    "race": "centaur",
+    "player_class": "venator",
+    "level": 67,
+    "xp_reward": 3537,
+    "respawn_delay": 817,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_WILDS_DEEPCAVE_LURKER = {
+    "key": "a deep-cave lurker",
+    "aliases": ["lurker"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "Real, genuine size fills the cave passage almost entirely - "
+        "whatever it's waiting for, it's clearly patient about it."
+    ),
+    "race": "minotaur",
+    "player_class": "barbarian",
+    "level": 69,
+    "xp_reward": 3741,
+    "respawn_delay": 842,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_BOSS_ORMSTOOTH = {
+    "key": "Ormstooth, the Unclaimed",
+    "aliases": ["ormstooth"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": (
+        "No warband, Roman patrol, or trade caravan has ever pushed "
+        "this far north and come back to say much about it - and "
+        "Ormstooth is the entire, real reason why."
+    ),
+    "race": "cyclops",
+    "player_class": "barbarian",
+    "level": 71,
+    "xp_reward": 3949,
+    "respawn_delay": 1800,
+    "tags": [("amber_coast_npc", "npc_role"), ("amber_coast_boss", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+# ----------------------------------------------------------------------------
+# The Amber Coast's own loot prototypes (world/loot.py's
+# roll_amber_coast_loot_drop) - deliberately its own flavor set, not
+# shared with the Germanic Stronghold's SEWER_LOOT_*/GERMANIA_LOOT_*
+# tables, so a drop here doesn't feel like the same find repeated in
+# a second "Germanic" zone. Amber-and-sea themed rather than the
+# Stronghold's plain forged-iron flavor.
+# ----------------------------------------------------------------------------
+
+AMBER_LOOT_SEAX = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a sea-forged seax",
+    "desc": (
+        "A real, single-edged blade, its hilt wrapped in salt-"
+        "stiffened cord - forged somewhere that clearly smelled of "
+        "brine the whole time."
+    ),
+    "weapon_type_name": "dagger",
+    "weapon_category": "light_blade",
+}
+
+AMBER_LOOT_HARPOON_SPEAR = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a barbed harpoon-spear",
+    "desc": (
+        "A real fishing harpoon, reworked with a second barb for "
+        "something that fights back on two legs instead of fins."
+    ),
+    "weapon_type_name": "spear",
+    "weapon_category": "polearm",
+}
+
+AMBER_LOOT_STORM_AXE = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a storm-worked waraxe",
+    "desc": (
+        "Real amber inlay runs the length of the haft, pale gold "
+        "against dark, weather-blackened iron."
+    ),
+    "weapon_type_name": "waraxe",
+    "weapon_category": "heavy_weapon",
+}
+
+AMBER_LOOT_TIDE_HIDE = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a tide-cured hide vest",
+    "desc": (
+        "Real sealskin, cured against salt water in a way land-bound "
+        "leather never has to be."
+    ),
+    "armor_category": "light",
+}
+
+AMBER_LOOT_AMBER_MAIL = {
+    "prototype_parent": "BASEARMOR",
+    "key": "an amber-set mail shirt",
+    "desc": (
+        "Real iron rings, a scattering of small amber beads worked "
+        "into the collar - protection that's also, unmistakably, a "
+        "real display of wealth."
+    ),
+    "armor_category": "medium",
+}
+# ----------------------------------------------------------------------------
+# The Amber Coast's own Smith's Quarter Armory stock (world/economy.py's
+# AmberCoastArmorer) - genuinely distinct flavor names from the
+# Germanic Stronghold's own weaponsmith (seax/angon/francisca/waraxe/
+# lamellar/mail), same reasoning as every other loot/shop table in
+# this project: two "Germanic" vendors selling identically-flavored
+# gear would read as repetitive. Three tiers (46/58/70) spanning this
+# recalibrated zone's own 45-71 range, mirroring the Stronghold
+# weaponsmith's own three-tier shape.
+# ----------------------------------------------------------------------------
+
+AC_SMITH_DIRK_NOVICE = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a whale-bone dirk",
+    "desc": "A short blade with a real, carved whale-bone hilt - practical, not ceremonial.",
+    "weapon_type_name": "dagger",
+    "weapon_category": "light_blade",
+    "two_handed": False,
+}
+AC_SMITH_DIRK_VETERAN = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a well-worn whale-bone dirk",
+    "desc": "The hilt's carving has worn smooth with real, honest use.",
+    "weapon_type_name": "dagger",
+    "weapon_category": "light_blade",
+    "two_handed": False,
+}
+AC_SMITH_DIRK_CHAMPION = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a fine whale-bone dirk",
+    "desc": "Real amber chips are set into the hilt's own carving - a blade meant to be seen as well as used.",
+    "weapon_type_name": "dagger",
+    "weapon_category": "light_blade",
+    "two_handed": False,
+}
+
+AC_SMITH_GAFFSPEAR_NOVICE = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a plain gaff-spear",
+    "desc": "A real fishing gaff reworked with a proper spearhead - practical dual heritage.",
+    "weapon_type_name": "spear",
+    "weapon_category": "polearm",
+    "two_handed": True,
+}
+AC_SMITH_GAFFSPEAR_VETERAN = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a sturdy gaff-spear",
+    "desc": "Real, reinforced binding at the haft's own weak point - built to actually last.",
+    "weapon_type_name": "spear",
+    "weapon_category": "polearm",
+    "two_handed": True,
+}
+AC_SMITH_GAFFSPEAR_CHAMPION = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a masterwork gaff-spear",
+    "desc": "Real, expert balance from tip to butt-end - the work of someone who's made hundreds of these.",
+    "weapon_type_name": "spear",
+    "weapon_category": "polearm",
+    "two_handed": True,
+}
+
+AC_SMITH_TIDEAXE_NOVICE = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a tide-tempered waraxe",
+    "desc": "Quenched in real seawater during its own forging - a harder edge, the smith swears.",
+    "weapon_type_name": "waraxe",
+    "weapon_category": "heavy_weapon",
+    "two_handed": True,
+}
+AC_SMITH_TIDEAXE_VETERAN = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a well-forged tide-tempered waraxe",
+    "desc": "Real, visible skill in the blade's own even temper line.",
+    "weapon_type_name": "waraxe",
+    "weapon_category": "heavy_weapon",
+    "two_handed": True,
+}
+AC_SMITH_TIDEAXE_CHAMPION = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a masterwork tide-tempered waraxe",
+    "desc": "Real amber inlay traces the full length of the haft - this smith's own finest work.",
+    "weapon_type_name": "waraxe",
+    "weapon_category": "heavy_weapon",
+    "two_handed": True,
+}
+
+AC_SMITH_SEALSKIN_NOVICE = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a sealskin jerkin",
+    "desc": "Real sealskin, cured against salt water in a way land-bound leather never has to be.",
+    "armor_category": "light",
+}
+AC_SMITH_SEALSKIN_VETERAN = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a reinforced sealskin jerkin",
+    "desc": "Real, doubled stitching at every real stress point.",
+    "armor_category": "light",
+}
+AC_SMITH_SEALSKIN_CHAMPION = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a fine sealskin jerkin",
+    "desc": "Real amber studs mark the collar - light protection that's also a real display of means.",
+    "armor_category": "light",
+}
+
+AC_SMITH_FISHMAIL_NOVICE = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a scaled fish-mail hauberk",
+    "desc": "Real, overlapping metal scales, laced in a pattern borrowed from a fish's own hide.",
+    "armor_category": "medium",
+}
+AC_SMITH_FISHMAIL_VETERAN = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a well-kept fish-mail hauberk",
+    "desc": "Real, careful maintenance keeps every scale bright despite the salt air.",
+    "armor_category": "medium",
+}
+AC_SMITH_FISHMAIL_CHAMPION = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a masterwork fish-mail hauberk",
+    "desc": "Real silver-washed scales catch the light - protection built to also be seen.",
+    "armor_category": "medium",
+}
+
+AC_SMITH_WHALEBONE_NOVICE = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a whalebone-plated cuirass",
+    "desc": "Real, overlapping whalebone plates lashed to a heavy leather harness.",
+    "armor_category": "heavy",
+}
+AC_SMITH_WHALEBONE_VETERAN = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a reinforced whalebone-plated cuirass",
+    "desc": "Real, doubled plating over the chest and shoulders both.",
+    "armor_category": "heavy",
+}
+AC_SMITH_WHALEBONE_CHAMPION = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a masterwork whalebone-plated cuirass",
+    "desc": "Real amber-set rivets hold every plate - genuinely the finest heavy armor this coast produces.",
+    "armor_category": "heavy",
+}
+
+# ----------------------------------------------------------------------------
+# The Amber Trader's stock (world/economy.py's AmberTrader) - a pure
+# flavor-goods vendor, same shape as the Colosseum vendor/Forum
+# goldsmith/perfumer (no weapon/armor mechanics, just a real price on
+# a real curio) - amber jewelry and curios specifically, tying
+# directly into the whole location's own premise.
+# ----------------------------------------------------------------------------
+
+AC_AMBER_PENDANT = {
+    "key": "a polished amber pendant",
+    "desc": "Real amber, warm gold against its own leather cord - simple, and genuinely lovely for it.",
+    "price": 40,
+}
+AC_AMBER_BEAD_BRACELET = {
+    "key": "an amber bead bracelet",
+    "desc": "A real string of small, matched amber beads - not fine work, but honest work.",
+    "price": 25,
+}
+AC_AMBER_CARVED_FIGURE = {
+    "key": "a carved amber figure",
+    "desc": "A small, real animal shape worked into a single piece of amber - real, patient craft.",
+    "price": 65,
+}
+AC_AMBER_RAW_CHUNK = {
+    "key": "a raw amber chunk",
+    "desc": "Unworked, real amber straight from the trade - a real investment for anyone who works stone or wood themselves.",
+    "price": 90,
+}
+
+# ----------------------------------------------------------------------------
+# The Amber Coast's lighter, connective-zone population (Coastal Road,
+# Outer Palisade, Harbor District, Sea-Nix's Hall barracks, Terp Mound
+# Quarter, Trading Quarter, Shipyard, Fishing & Salt Flats) - real but
+# deliberately lower-density than the Four Warbands, matching the
+# design document's own framing of these as transition/civilian zones
+# rather than the primary leveling backbone.
+# ----------------------------------------------------------------------------
+
+AMBER_ROAD_BANDIT = {
+    "key": "a coastal bandit",
+    "aliases": ["bandit"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": "Preys on traders working the delta road - real, opportunistic danger, not an organized warband.",
+    "race": "human",
+    "player_class": "venator",
+    "level": 47,
+    "xp_reward": 1803,
+    "respawn_delay": 567,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_PALISADE_WARDEN = {
+    "key": "a gate warden",
+    "aliases": ["warden"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": "Watches the outer gate with real, unhurried attention - trade demands letting strangers in, not trusting them blindly.",
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 48,
+    "xp_reward": 1877,
+    "respawn_delay": 580,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_HARBOR_TOUGH = {
+    "key": "a harbor tough",
+    "aliases": ["tough"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": "Real, casual menace at the edge of the harbor's own crowd - the kind of trouble a busy dock always seems to attract.",
+    "race": "human",
+    "player_class": "venator",
+    "level": 50,
+    "xp_reward": 2028,
+    "respawn_delay": 604,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_HARBOR_SMUGGLER = {
+    "key": "a smuggler",
+    "aliases": ["smuggler"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": "Nervous, quick, and genuinely dangerous if actually cornered - whatever's in those crates isn't meant to be found.",
+    "race": "human",
+    "player_class": "venator",
+    "level": 51,
+    "xp_reward": 2106,
+    "respawn_delay": 617,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_HALL_GUARD = {
+    "key": "a hearth-companion guard",
+    "aliases": ["guard"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": "One of Hertha's own real, trusted hearth-companions - visible discipline in every stance.",
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 54,
+    "xp_reward": 2348,
+    "respawn_delay": 654,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_TERPMOUND_THIEF = {
+    "key": "a petty thief",
+    "aliases": ["thief"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": "Real, opportunistic trouble in an otherwise quiet residential quarter - quick hands, quicker feet.",
+    "race": "human",
+    "player_class": "venator",
+    "level": 49,
+    "xp_reward": 1952,
+    "respawn_delay": 592,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_TRADE_ENFORCER = {
+    "key": "a dispute enforcer",
+    "aliases": ["enforcer"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": "Hertha's own real authority made visible right at the barter square's edge - commercial disputes rarely escalate twice.",
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 52,
+    "xp_reward": 2185,
+    "respawn_delay": 630,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_SHIPYARD_GUARD = {
+    "key": "a shipyard guard",
+    "aliases": ["guard"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": "Watches over real, valuable timber and pitch stores - a working yard is also a real theft target.",
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 53,
+    "xp_reward": 2266,
+    "respawn_delay": 642,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
+
+AMBER_SALTFLAT_SCAVENGER = {
+    "key": "a tideflat scavenger",
+    "aliases": ["scavenger"],
+    "typeclass": "world.combat.RespawningNPC",
+    "desc": "Works the salt flats' own edges for whatever the tide leaves behind, and isn't always particular about whose catch it is.",
+    "race": "human",
+    "player_class": "venator",
+    "level": 50,
+    "xp_reward": 2028,
+    "respawn_delay": 604,
+    "tags": [("amber_coast_npc", "npc_role")],
+    "locks": "puppet:false()",
+}
