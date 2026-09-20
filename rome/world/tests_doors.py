@@ -10,6 +10,8 @@ typeclasses/exits.py's Exit entirely (SimpleDoor extends DefaultExit
 directly, not this project's own Exit class).
 """
 
+from unittest.mock import patch
+
 from evennia.utils.test_resources import EvenniaTest
 from evennia.utils import create
 
@@ -40,11 +42,23 @@ class TestDescriptiveDoorChargesMovementSP(EvenniaTest):
         self.assertEqual(self.char1.location, self.room2)
 
     def test_walk_message_sent_on_successful_traversal(self):
+        # Real, confirmed pre-existing test bug found while bisecting a
+        # --parallel crash: CombatCharacter.at_pre_move (world/
+        # combat.py) gates the "You walk <exit>." message on
+        # self.has_account, which is Evennia's own has_account property
+        # (self.sessions.count()) - genuinely true for a real connected
+        # player, but always False for a bare test fixture, since
+        # EvenniaTest never attaches a real telnet/websocket session.
+        # Without this patch the message never fires and this test
+        # fails deterministically, in isolation, every time - not a
+        # flake, a real gap in test setup rather than in the feature
+        # itself (which live playtesting already confirmed works).
         self.char1.db.sp = 10
         self.char1.location = self.room1
         captured = []
         self.char1.msg = lambda text="", **kwargs: captured.append(text)
-        self.door.at_traverse(self.char1, self.room2)
+        with patch("evennia.objects.objects.DefaultObject.has_account", new=True):
+            self.door.at_traverse(self.char1, self.room2)
         # Substring search, not exact list membership - the real
         # message has a deliberate trailing blank-line separator (see
         # world/combat.py).
