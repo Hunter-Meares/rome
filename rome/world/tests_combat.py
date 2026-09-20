@@ -1712,13 +1712,36 @@ class TestPurchasedPetLifecycle(CombatTestBase):
         self.assertEqual(pet.location, self.room1)
 
     def test_pet_vanishes_on_logout_and_returns_on_login(self):
+        # Real, confirmed pre-existing flake, unrelated to pets: calling
+        # these hooks directly (with no real session/account ever
+        # attached, as EvenniaTest's plain fixtures don't set one up)
+        # triggers Evennia's own real core behavior, not a bug -
+        # DefaultCharacter.at_post_unpuppet() correctly clears
+        # self.location to None when no session remains ("stoving away"
+        # a logged-out character), and DefaultCharacter.at_post_puppet()
+        # then calls self.at_look(self.location), which crashes on a
+        # None target. In an actual login this never happens - the real
+        # puppet flow restores db.prelogout_location before
+        # at_post_puppet ever runs. Mocking out the base-class hooks
+        # isolates exactly what CombatCharacter's own overrides add (the
+        # pet vanish/reappear logic this test is actually about),
+        # matching how this file already mocks other core-Evennia
+        # scheduling machinery (see TestCmdAutoAttack's
+        # evennia_utils.delay patches) instead of depending on a full,
+        # real session/login flow this test was never set up for.
         pet = self._make_pet(self.char1)
         self.char1.location = self.room2
 
-        self.char1.at_post_unpuppet()
+        with patch("evennia.objects.objects.DefaultCharacter.at_post_unpuppet"):
+            self.char1.at_post_unpuppet()
         self.assertIsNone(pet.location)
 
-        self.char1.at_post_puppet()
+        # A real login restores the character's location (from
+        # db.prelogout_location) before at_post_puppet ever runs -
+        # simulated here directly since the base hook is mocked out.
+        self.char1.location = self.room2
+        with patch("evennia.objects.objects.DefaultCharacter.at_post_puppet"):
+            self.char1.at_post_puppet()
         self.assertEqual(pet.location, self.room2)
 
 

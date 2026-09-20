@@ -8739,6 +8739,7 @@ class CmdGodTeleport(Command):
 
     Usage:
       godteleport <character> = <destination>
+      gtel <character> = <destination>
 
     The standard '@tel' refuses outright to move anyone currently in
     combat - CombatCharacter.at_pre_move blocks any move while
@@ -8754,18 +8755,25 @@ class CmdGodTeleport(Command):
     remain on either side) simply continues without them, exactly as
     if they'd genuinely disengaged.
 
-    The destination must be a real room. A real, confirmed live
-    incident: a god's destination search had no typeclass restriction
-    at all, so a name that happened to match another CHARACTER (a
-    fellow god, a player, an NPC) resolved to that character object
-    instead of a room - move_to() then did exactly what it's always
-    meant to do with a non-room destination, dropping the target
-    INSIDE that other character, the same way any object placed
-    "inside" a container would be. One god accidentally teleported a
-    player inside another god this way. Restricting the search to
-    Room typeclasses only closes this off entirely, rather than
-    relying on every future god to always double-check their target
-    string is unambiguous.
+    The destination is always resolved to a real room in the end,
+    never a character or an object directly. A real, confirmed live
+    incident: a god's destination search once had no typeclass
+    restriction at all, so a name that happened to match another
+    CHARACTER (a fellow god, a player, an NPC) resolved to that
+    character object instead of a room - move_to() then did exactly
+    what it's always meant to do with a non-room destination, dropping
+    the target INSIDE that other character, the same way any object
+    placed "inside" a container would be. One god accidentally
+    teleported a player inside another god this way.
+
+    Naming a room directly still works exactly as before. But naming
+    something/someone else instead - an NPC, another player, an object
+    - no longer refuses outright: it redirects to wherever THAT thing
+    currently is and teleports there instead, since a god naming
+    "Countdown" or "the Minotaur outrider" as a destination almost
+    always means "take me to where they are," not "put them inside
+    it." Only refuses if nothing at all is found, or if whatever was
+    found has no location of its own to go to.
     """
 
     key = "godteleport"
@@ -8787,18 +8795,26 @@ class CmdGodTeleport(Command):
         target = caller.search(lhs.strip(), global_search=True)
         if not target:
             return
+
         destination = caller.search(
-            rhs.strip(),
-            global_search=True,
-            typeclass="typeclasses.rooms.Room",
-            nofound_string=(
-                "Could not find a room named '%s' - godteleport only "
-                "teleports to rooms, never to a character or an object."
-                % rhs.strip()
-            ),
+            rhs.strip(), global_search=True, typeclass="typeclasses.rooms.Room", quiet=True,
         )
+        if isinstance(destination, list):
+            destination = destination[0] if destination else None
+
         if not destination:
-            return
+            # Not a room by that name - try anything at all instead,
+            # and if it's somewhere real, go THERE (see this class's
+            # own docstring for why this beats refusing outright).
+            found = caller.search(rhs.strip(), global_search=True, quiet=True)
+            if isinstance(found, list):
+                found = found[0] if found else None
+            if found and found.location:
+                destination = found.location
+                caller.msg("|x(%s is in %s - teleporting there instead.)|n" % (found, destination))
+            else:
+                caller.msg("Could not find anywhere named '%s' to teleport to." % rhs.strip())
+                return
 
         if target == destination:
             caller.msg("You can't teleport something inside of itself!")

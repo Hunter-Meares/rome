@@ -758,24 +758,32 @@ class TestCmdGodTeleport(CombatCommandTestBase):
 
         third.delete()
 
-    def test_refuses_to_teleport_into_a_character(self):
+    def test_naming_a_character_as_destination_redirects_to_their_room(self):
         # Real, confirmed live incident: a god's destination search had
         # no typeclass restriction, so a name matching another
         # CHARACTER resolved to that character instead of a room -
-        # move_to() then dropped the target INSIDE them. Reproduced
-        # here the direct way: "Char3" matches a real character, not a
-        # room, and must be refused rather than silently succeeding.
+        # move_to() then dropped the target INSIDE them. Fixed not by
+        # refusing outright, but by redirecting to wherever that
+        # character actually is - a god naming "Char3" as a destination
+        # almost always means "take me to them," not "put them inside
+        # Char3." "Char3" matches a real character standing in room2,
+        # not a room itself.
         third = create.create_object(
             "typeclasses.characters.Character", key="Char3", location=self.room2
         )
-        original_location = self.char2.location
 
-        result = self.call(CmdGodTeleport(), "Char2 = Char3", caller=self.char1)
+        result = self.call(CmdGodTeleport(), "Char = Char3", caller=self.char1)
 
-        self.assertIn("only teleports to rooms", result.lower())
-        self.assertEqual(self.char2.location, original_location)
+        self.assertEqual(self.char1.location, self.room2)
+        self.assertIn("teleporting there instead", result.lower())
 
         third.delete()
+
+    def test_refuses_when_nothing_at_all_is_found(self):
+        result = self.call(CmdGodTeleport(), "Char2 = Nonexistentia", caller=self.char1)
+
+        self.assertIn("could not find anywhere named", result.lower())
+        self.assertEqual(self.char2.location, self.room1)
 
 
 class TestCmdDismissPet(CombatCommandTestBase):
