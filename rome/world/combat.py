@@ -8824,10 +8824,18 @@ class CmdGodTeleport(Command):
             self.rules.force_disengage(target)
             target.msg("|mA god's will tears you from the fight!|n")
 
-        if target.location:
-            target.location.msg_contents(
-                "%s vanishes in a flash of divine light!" % target, exclude=target
-            )
+        # No hardcoded "vanishes in a flash of divine light" message
+        # here on purpose (a real, confirmed redundancy this removes):
+        # move_to(..., move_type="teleport") below already triggers
+        # Character.announce_move_from/announce_move_to
+        # (typeclasses/characters.py), which gives a god with
+        # db.divine_presence set their own signature lore-matched
+        # entrance/exit (Jupiter's thunder and lightning, Juno's
+        # golden light, etc.) - a plain generic line here was firing
+        # right alongside that dramatic flavor every time, saying the
+        # same thing twice. A target with no divine_presence set still
+        # gets a real message - Evennia's own default move
+        # announcement - so nothing goes silent either way.
         target.move_to(destination, quiet=False, force_move=True, move_type="teleport")
         caller.msg("Teleported %s -> %s." % (target, destination))
 
