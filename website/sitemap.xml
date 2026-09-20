@@ -37,6 +37,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://rome.vineyard.haus/news.html</loc>
+    <lastmod>2026-09-20</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://rome.vineyard.haus/gods.html</loc>
     <lastmod>2026-09-14</lastmod>
     <changefreq>monthly</changefreq>

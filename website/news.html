@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>News &amp; Updates — Rome</title>
+  <meta name="description" content="A running log of what's changed in Rome: The Eternal City - new zones, systems, and bugfixes, updated as we ship them.">
+  <meta property="og:title" content="News &amp; Updates — Rome: The Eternal City">
+  <meta property="og:description" content="A running log of what's changed in Rome, updated as we ship it.">
+  <meta property="og:image" content="https://rome.vineyard.haus/assets/hero-bg.jpg">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://rome.vineyard.haus/news.html">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="assets/favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="assets/favicon-180.png">
+  <style>
+    .update-list { display:flex; flex-direction:column; gap:0; margin-top:32px; }
+    .update-entry { display:grid; grid-template-columns:150px 1fr; gap:24px; padding:22px 0; border-bottom:1px solid rgba(255,255,255,0.08); }
+    .update-entry:last-child { border-bottom:none; }
+    .update-date { color:var(--accent); font-weight:700; white-space:nowrap; font-size:0.95rem; letter-spacing:0.02em; }
+    .update-body h3 { margin:0 0 6px; font-size:1.1rem; }
+    .update-body p { margin:0; color:var(--muted); }
+    @media (max-width:640px) {
+      .update-entry { grid-template-columns:1fr; gap:6px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- header -->
+  <header id="site-header" class="site-header">
+    <div class="nav-inner">
+      <a class="brand" href="index.html"><img src="assets/rome-wordmark.png" alt="Rome logo" id="logo"></a>
+      <nav class="main-nav">
+        <a href="about.html">About</a>
+        <a href="features.html">Features</a>
+        <a href="gods.html">Gods</a>
+        <a href="mythology.html">Mythology</a>
+        <a href="races.html">Races</a>
+        <a href="classes.html">Classes</a>
+        <a href="abilities.html">Abilities</a>
+        <a href="factions.html">Factions</a>
+        <a href="rules.html">Rules</a>
+        <a href="faq.html">FAQ</a>
+        <a href="news.html">News</a>
+        <a href="community.html">Community</a>
+        <a href="contact.html">Contact</a>
+        <a href="play.html" class="nav-cta">Play Now</a>
+      </nav>
+      <button id="mobile-toggle" class="mobile-toggle" aria-label="Open menu">☰</button>
+    </div>
+  </header>
+
+  <main style="margin-top:64px">
+    <section class="section centered">
+      <div class="container">
+        <h1>News &amp; Updates</h1>
+        <p class="lede">Rome is under active, ongoing development - here's a running log of what's actually shipped, most recent first. The same highlights show up in-game too: type <strong>motd</strong> or <strong>news</strong> once you're playing for the current headline.</p>
+      </div>
+    </section>
+
+    <section class="section dark">
+      <div class="container" style="max-width:820px">
+        <div class="update-list">
+
+          <div class="update-entry">
+            <div class="update-date">Sep 20, 2026</div>
+            <div class="update-body">
+              <h3>Resistance, colored languages, and a Germanic gear drop</h3>
+              <p>Debuffs and buffs can now be resisted - a higher Ingenium than whoever cast it helps you shrug it off, instead of every hex and hex-like effect landing automatically. Custom titles can run up to 60 characters, <code>look &lt;direction&gt;</code> correctly checks real exits first, and each of the five learnable languages now shows in its own color when spoken. The Germanic Stronghold's warriors now speak in-character and drop their own unique gear when defeated.</p>
+            </div>
+          </div>
+
+          <div class="update-entry">
+            <div class="update-date">Sep 17, 2026</div>
+            <div class="update-body">
+              <h3>Closed the disengage/rest loop, retired Animate Dead</h3>
+              <p>Wounded enemies you leave standing now heal back up over time instead of sitting at whatever HP you left them at forever, and a successful <code>disengage</code>/<code>flee</code> now costs a bit of XP progress - still far lighter than dying, but no longer free. Haruspex's Animate Dead is gone, replaced by Summon Fury: a real late-game companion upgrade.</p>
+            </div>
+          </div>
+
+          <div class="update-entry">
+            <div class="update-date">Sep 16, 2026</div>
+            <div class="update-body">
+              <h3>Class rebalance pass, racial abilities, and a new <code>compare</code> command</h3>
+              <p>A full role-audit across Augur, Medicus, and Haruspex to make sure each class's kit actually matches its own identity, plus several new spells and skills. Five races now have a real, usable signature ability (<code>racial</code>). Added <code>compare</code> for checking gear side by side, and fixed several sewer creatures that had somehow shipped with no real stats at all.</p>
+            </div>
+          </div>
+
+          <div class="update-entry">
+            <div class="update-date">Sep 14, 2026</div>
+            <div class="update-body">
+              <h3>Live bugfix batch, Discord is open</h3>
+              <p>Fixed five real combat bugs surfaced by player reports. Our Discord server is now live and linked in-game and across the site - come talk to the dev team directly.</p>
+            </div>
+          </div>
+
+          <div class="update-entry">
+            <div class="update-date">Sep 13, 2026</div>
+            <div class="update-body">
+              <h3>Player Testing phase begins</h3>
+              <p>Rome opened its doors for real player testing. Added roleplay/description help topics and real pet-lifecycle management for anyone running a summoned companion.</p>
+            </div>
+          </div>
+
+          <div class="update-entry">
+            <div class="update-date">Sep 12, 2026</div>
+            <div class="update-body">
+              <h3>Equipping gear, simplified</h3>
+              <p>Unified weapon and armor equipping into one consistent <code>equip</code>/<code>unequip</code> pair instead of separate commands per slot.</p>
+            </div>
+          </div>
+
+          <div class="update-entry">
+            <div class="update-date">Sep 6, 2026</div>
+            <div class="update-body">
+              <h3>Arena Fighters get real gear, chargen gets a real ceremony</h3>
+              <p>The Deeper Sands' Arena Fighters now wield real, mechanically-active weapons and armor, and drop real loot when defeated. Combat now shows clear wound-status feedback as a fight goes on. Character creation got a full aesthetic pass - in-world framing, Roman numerals, per-race and per-class colors, and a proper ceremonial ending.</p>
+            </div>
+          </div>
+
+          <div class="update-entry">
+            <div class="update-date">Sep 5, 2026</div>
+            <div class="update-body">
+              <h3>Deeper Sands rebalanced to true endgame</h3>
+              <p>The Deeper Sands is now real level 75+ endgame content, no longer competing with the sewers as "where to go next" right out of the Ludus. Added working doors, statues of the gods, a real map of Rome (ask the Forum bookseller), and a cleaner boxed stats display.</p>
+            </div>
+          </div>
+
+          <div class="update-entry">
+            <div class="update-date">Sep 4, 2026</div>
+            <div class="update-body">
+              <h3>Beyond the walls: the road to Germania</h3>
+              <p>Built Rome's first real city gate, the Porta Flaminia, and the wilderness road beyond it - the game's first stretch of real travel outside the city, with roaming danger along the way. At the road's end: the Germanic Stronghold, a full leveling zone. Also added a new-player tutorial and the <code>recall</code> command.</p>
+            </div>
+          </div>
+
+          <div class="update-entry">
+            <div class="update-date">Sep 2, 2026</div>
+            <div class="update-body">
+              <h3>Religion &amp; the quest framework</h3>
+              <p>Mortal characters can now devote themselves to one of the pantheon's fourteen gods for real, ongoing benefits. Also shipped the full quest framework - one-time, narrative objectives from named NPCs, distinct from the bounty board's repeatable kills.</p>
+            </div>
+          </div>
+
+          <div class="update-entry">
+            <div class="update-date">Sep 1, 2026</div>
+            <div class="update-body">
+              <h3>A major expansion of Rome itself</h3>
+              <p>Opened the Aventine Hill, the Domus Aurea, the Library of Rome, and Campus Martius, plus a proper road out to the Pantheon. Built the bounty board. Movement now costs real stamina over distance, and death carries real weight - your resources fully empty until you're resurrected.</p>
+            </div>
+          </div>
+
+          <div class="update-entry">
+            <div class="update-date">Aug 27, 2026</div>
+            <div class="update-body">
+              <h3>The Ludus weaponsmith opens</h3>
+              <p>The game's first shop selling real combat gear - three tiers of weapons and armor, priced and balanced for a fresh Colosseum escapee.</p>
+            </div>
+          </div>
+
+          <div class="update-entry">
+            <div class="update-date">Aug 24–26, 2026</div>
+            <div class="update-body">
+              <h3>Real gear finally has somewhere to go</h3>
+              <p>Weapons and armor now scale properly with level, every class starts with real, fitting armor instead of just a weapon, and dropped items now decay on their own so the world doesn't fill up with clutter.</p>
+            </div>
+          </div>
+
+          <div class="update-entry">
+            <div class="update-date">Aug 23, 2026</div>
+            <div class="update-body">
+              <h3>The Capitoline Hill and the Forum Romanum open</h3>
+              <p>Rome proper opened for the first time beyond the Colosseum - the Capitoline's temples and Senate, and the full Forum Romanum. Also shipped the Cursus Divinorum god-tier system and the game's five learnable languages, each with its own real trainer.</p>
+            </div>
+          </div>
+
+        </div>
+
+        <p style="margin-top:32px; color:var(--muted); font-size:0.9rem;">This log starts with our push into Player Testing - Rome's been in active development for a good while before that, and every future update will keep landing here as we ship it.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-left">
+        <img src="assets/rome-mark.png" alt="rome mark" class="footer-mark">
+        <small>© 2026 Rome: The Eternal City</small>
+      </div>
+      <div class="footer-right">
+        <nav class="foot-nav">
+          <a href="about.html">About</a><a href="rules.html">Rules</a><a href="news.html">News</a><a href="community.html">Community</a><a href="contact.html">Contact</a>
+        </nav>
+      </div>
+    </div>
+  </footer>
+<script src="script.js"></script>
+</body>
+</html>
