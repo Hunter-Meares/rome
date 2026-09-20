@@ -240,3 +240,102 @@ class TestLudusWeaponsmith(EvenniaTest):
         self.assertEqual(len(weapons), 18)  # 6 weapons x 3 tiers (staff added)
         self.assertEqual(len(shields), 9)  # 3 shield categories x 3 tiers
         self.assertEqual(len(body_armor), 9)  # 3 armor categories x 3 tiers
+
+
+class TestRomeShopsStockThemselves(EvenniaTest):
+    """
+    The six Rome-proper shops (apothecary, provisioner, baths vendor,
+    scribe, wine merchant, Ludus outfitter) all use the same flat-price
+    self-stocking pattern as AmberTrader - no weapon/armor stats to
+    compute, so these checks are simpler than TestLudusWeaponsmith's:
+    every shop stocks exactly its own stock list, and - the actual
+    point of this whole build - every single item sold anywhere in
+    this batch has a real item_func wired up, not just a price. A shop
+    selling something with no item_func would silently violate the
+    entire premise this feature was built for ("items sold in the
+    shops actually do something and not just favor").
+    """
+
+    def setUp(self):
+        super().setUp()
+        from world.economy import (
+            SuburaApothecary, APOTHECARY_STOCK,
+            SuburaProvisioner, PROVISIONER_STOCK,
+            BathsOilVendor, BATHS_VENDOR_STOCK,
+            ForumScribe, SCRIBE_STOCK,
+            ForumWineMerchant, WINE_MERCHANT_STOCK,
+            LudusOutfitter, OUTFITTER_STOCK,
+        )
+
+        self.shops = [
+            (SuburaApothecary, APOTHECARY_STOCK, "the herbalist's stall"),
+            (SuburaProvisioner, PROVISIONER_STOCK, "the baker's stall"),
+            (BathsOilVendor, BATHS_VENDOR_STOCK, "the oil-and-soap vendor's table"),
+            (ForumScribe, SCRIBE_STOCK, "the scribe's writing desk"),
+            (ForumWineMerchant, WINE_MERCHANT_STOCK, "the wine merchant's stall"),
+            (LudusOutfitter, OUTFITTER_STOCK, "the adventuring-supplies stall"),
+        ]
+
+    def test_each_shop_stocks_exactly_its_own_stock_list(self):
+        for typeclass, stock_list, _ in self.shops:
+            merchant = create.create_object(typeclass, key="Vendor", location=self.room1)
+            self.assertEqual(
+                len(merchant.contents), len(stock_list),
+                "%s stocked %d items, expected %d" % (
+                    typeclass.__name__, len(merchant.contents), len(stock_list)
+                ),
+            )
+
+    def test_shopnames_are_set_correctly(self):
+        for typeclass, _, expected_name in self.shops:
+            merchant = create.create_object(typeclass, key="Vendor", location=self.room1)
+            self.assertEqual(merchant.db.shopname, expected_name)
+
+    def test_every_stocked_item_has_a_positive_price(self):
+        for typeclass, _, _ in self.shops:
+            merchant = create.create_object(typeclass, key="Vendor", location=self.room1)
+            for item in merchant.contents:
+                self.assertTrue(
+                    item.db.price and item.db.price > 0,
+                    "%s (%s) has no price" % (item.key, typeclass.__name__),
+                )
+
+    def test_every_stocked_item_has_a_real_item_func(self):
+        """
+        The whole point of this batch, made concrete: every item any of
+        these six shops sells must actually do something when used, not
+        just be a sellable trinket. Also confirms the item_func string
+        on each new prototype is a real key in ITEMFUNCS - a typo here
+        would silently make CmdUse's own error message the only sign
+        anything was wrong.
+        """
+        from world.combat import ITEMFUNCS
+
+        for typeclass, _, _ in self.shops:
+            merchant = create.create_object(typeclass, key="Vendor", location=self.room1)
+            for item in merchant.contents:
+                self.assertTrue(
+                    item.db.item_func,
+                    "%s (%s) has no item_func - sells for gold but does nothing" % (
+                        item.key, typeclass.__name__
+                    ),
+                )
+                self.assertIn(
+                    item.db.item_func, ITEMFUNCS,
+                    "%s's item_func %r isn't a real ITEMFUNCS key" % (
+                        item.key, item.db.item_func
+                    ),
+                )
+
+    def test_ludus_outfitter_reuses_the_generic_consumables_not_new_ones(self):
+        # A deliberate design choice, not an oversight - see the
+        # OUTFITTER_STOCK comment in world/economy.py.
+        from world.economy import OUTFITTER_STOCK
+
+        self.assertEqual(
+            set(OUTFITTER_STOCK),
+            {
+                "MEDKIT", "HEALTH_POTION", "REGEN_POTION", "HASTE_POTION",
+                "BOMB", "POISON_DART", "ANTIDOTE_POTION",
+            },
+        )

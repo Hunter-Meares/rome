@@ -6,6 +6,16 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## 🏪 Six real Rome-proper shops, closing the item-system gap - ✅ this session
+
+- [x] **The item-use system (`CmdUse`, `ITEMFUNCS`, and the MEDKIT/HEALTH_POTION/REGEN_POTION/HASTE_POTION/BOMB/POISON_DART/ANTIDOTE_POTION prototypes) was already fully built with real mechanical effects, but nothing anywhere sold or dropped any of it** - a real, confirmed gap (grepped the whole codebase - zero references outside `world/prototypes.py`). Closed by giving those seven prototypes a real `price` and stocking them all at a new **Ludus Outfitter** stall (Ludus Entrance) - a genuine "general adventuring-supplies stall," reusing the existing items rather than inventing reskins.
+- [x] **Five more shops, each with its own genuinely distinct new items** (not reskins of the outfitter's potions) so every location feels like its own place: **the Herbalist** (Market Row - Back Stalls, the Subura - cheap cures and small heals), **the Baker/Provisioner** (Market Row - The Stalls, the Subura - food as a real, modest buff or heal), **the Oil-and-Soap Vendor** (the Baths' Apodyterium - cleansing/refreshing, soap cures a curse), **the Scribe** (Scribes and Notaries for Hire, the Forum - ink/scrolls/tonics as buffs and a cure for Silenced; that room's own description already implied scribes worked there with no NPC ever actually placed), and **the Wine Merchant** (the Merchants' Fountain Plaza, the Forum - wine as warmth, courage, and aggression).
+- [x] **Every single item across all six shops has a real `item_func`** - heal, add_condition (a real buff), or cure_condition (a real debuff cure) - confirmed by a dedicated regression test (`world/tests_economy.py`'s `TestRomeShopsStockThemselves`) that checks every stocked item's `item_func` string is a genuine `ITEMFUNCS` key, not just present. No flavor-only trinkets in this batch.
+- [x] **`use <item> = <target>`** already worked for all of this - no new command needed, just real wares finally sitting in a real shop.
+- [x] Placed live via `world/setup_rome_shops_live.py`, same idempotent pattern as `world/setup_factions_live.py`.
+
+---
+
 ## ⚔️ Front/back row positioning, weapon reach, and a persistent pet system - ✅ this session
 
 - [x] **Real front-row/back-row combat positioning** (`row front`/`row back`) - a back-row fighter can't be targeted by a basic attack or a physical skill as long as an ally is still standing in the front row with them, checked at the shared damage-dealing choke points (`resolve_attack`/`skill_attack`) so it can't be bypassed by switching commands. Applies symmetrically - your own attacks/skills are blocked by an enemy's front row too. A fallen front-row protector automatically pulls their back-row ally forward.

@@ -35,12 +35,13 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-20"
 
 RECENT_UPDATES_TEXT = (
-    "80 new social commands have arrived - 'help socials' for the "
-    "full list (smile, wave, bow, and many more). Also: real front/"
-    "back row positioning ('help row' - spells always reach regardless "
-    "of row, physical attacks don't unless you're wielding a polearm "
-    "or ranged weapon), and a permanent companion pet you can buy "
-    "(level 10+, 'buypet') from a trainer in the Ludus Entrance."
+    "Six new shops are open around the city - a herbalist and a baker "
+    "in the Subura, an oil-and-soap vendor at the Baths, a scribe and "
+    "a wine merchant in the Forum, and an adventuring-supplies stall "
+    "at the Ludus - all selling real potions, scrolls, and food that "
+    "heal or buff you ('shop' to browse, 'use <item>' to drink/eat/"
+    "read it). Also: 80 new social commands ('help socials'), and "
+    "real front/back row positioning ('help row')."
 )
 
 # The box's own interior width, between its left/right borders and

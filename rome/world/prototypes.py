@@ -607,6 +607,13 @@ STORM_TREADS_OF_JUPITER = {
     "locks": "get:false()",
 }
 
+# These seven (through ANTIDOTE_POTION below) were built with a full,
+# real item_func already wired up, but nothing ever sold or dropped
+# any of them - a real, confirmed gap (grepped the whole codebase:
+# zero references outside this file before the adventuring-supplies
+# stall below). Added "price" here specifically so LudusOutfitter can
+# stock them as-is - no new prototypes needed, this was the actual
+# missing piece.
 MEDKIT = {
     "key": "a medical kit",
     "aliases": ["medkit"],
@@ -615,6 +622,7 @@ MEDKIT = {
     "item_uses": 3,
     "item_consumable": True,
     "item_kwargs": {"healing_range": (15, 25)},
+    "price": 40,
 }
 
 GLASS_BOTTLE = {
@@ -634,6 +642,7 @@ HEALTH_POTION = {
     "item_uses": 1,
     "item_consumable": "GLASS_BOTTLE",
     "item_kwargs": {"healing_range": (35, 50)},
+    "price": 25,
 }
 
 REGEN_POTION = {
@@ -643,6 +652,7 @@ REGEN_POTION = {
     "item_uses": 1,
     "item_consumable": "GLASS_BOTTLE",
     "item_kwargs": {"conditions": [("Regeneration", 10)]},
+    "price": 30,
 }
 
 HASTE_POTION = {
@@ -652,6 +662,7 @@ HASTE_POTION = {
     "item_uses": 1,
     "item_consumable": "GLASS_BOTTLE",
     "item_kwargs": {"conditions": [("Haste", 10)]},
+    "price": 35,
 }
 
 BOMB = {
@@ -661,6 +672,7 @@ BOMB = {
     "item_uses": 1,
     "item_consumable": True,
     "item_kwargs": {"damage_range": (25, 40), "accuracy": 25},
+    "price": 20,
 }
 
 POISON_DART = {
@@ -674,6 +686,7 @@ POISON_DART = {
         "accuracy": 25,
         "inflict_condition": [("Poisoned", 10)],
     },
+    "price": 15,
 }
 
 ANTIDOTE_POTION = {
@@ -683,6 +696,7 @@ ANTIDOTE_POTION = {
     "item_uses": 1,
     "item_consumable": "GLASS_BOTTLE",
     "item_kwargs": {"to_cure": ["Poisoned"]},
+    "price": 15,
 }
 
 """
@@ -4242,4 +4256,231 @@ PET_HAWK = {
     "hp": 35,
     "max_hp": 35,
     "locks": "puppet:false()",
+}
+
+"""
+----------------------------------------------------------------------------
+ROME-PROPER SHOPS - five thematically distinct consumable vendors, each
+with its own real mechanical effect via the existing item_func system
+(world/combat.py's ITEMFUNCS) - not flavor-only goods. A sixth shop, the
+Ludus Entrance's adventuring-supplies stall (world/economy.py's
+LudusOutfitter), deliberately reuses the seven generic MEDKIT/HEALTH_
+POTION/etc. prototypes above rather than inventing new ones - those
+already had a complete item_func wired up with nothing ever selling or
+dropping them, the actual gap this whole shop project set out to close.
+These five instead get genuinely distinct new items so each shop feels
+like its own place rather than five reskins of the same potions.
+"""
+
+# Apothecary/herbalist - Market Row - Back Stalls (the Subura). Cheap,
+# working-class herbal remedies - cures and small heals, not the
+# stronger alchemical potions the Ludus outfitter stocks.
+HERB_FEVERFEW_BUNDLE = {
+    "key": "a bundle of feverfew",
+    "desc": "A handful of dried feverfew, tied with plain string - a common remedy against poison.",
+    "item_func": "cure_condition",
+    "item_uses": 1,
+    "item_consumable": True,
+    "item_kwargs": {"to_cure": ["Poisoned"]},
+    "price": 12,
+}
+
+HERB_COMFREY_POULTICE = {
+    "key": "a comfrey poultice",
+    "desc": "A damp wrap of crushed comfrey leaf, bound in cloth. Eases wounds when pressed against them.",
+    "item_func": "heal",
+    "item_uses": 2,
+    "item_consumable": True,
+    "item_kwargs": {"healing_range": (15, 25)},
+    "price": 25,
+}
+
+HERB_WILLOWBARK_TINCTURE = {
+    "key": "a vial of willowbark tincture",
+    "desc": "A bitter, dark tincture - strips away the ache and sluggishness of a bad debuff.",
+    "item_func": "cure_condition",
+    "item_uses": 1,
+    "item_consumable": "GLASS_BOTTLE",
+    "item_kwargs": {"to_cure": ["Accuracy Down", "Defense Down", "Damage Down"]},
+    "price": 22,
+}
+
+HERB_YARROW_SPRIG = {
+    "key": "a sprig of dried yarrow",
+    "desc": "A sprig of yarrow, chewed or steeped - said to knit flesh back together slowly, over time.",
+    "item_func": "add_condition",
+    "item_uses": 1,
+    "item_consumable": True,
+    "item_kwargs": {"conditions": [("Regeneration", 6)]},
+    "price": 22,
+}
+
+# Bakery/general provisioner - Market Row - The Stalls (the Subura). A
+# good meal as a real, if modest, buff - not just flavor bread.
+BAKERY_BREAD_LOAF = {
+    "key": "a warm loaf of bread",
+    "desc": "A round loaf, still warm from the oven. Simple, filling, and cheap.",
+    "item_func": "heal",
+    "item_uses": 1,
+    "item_consumable": True,
+    "item_kwargs": {"healing_range": (10, 20)},
+    "price": 10,
+}
+
+BAKERY_HARD_CHEESE = {
+    "key": "a wheel of hard cheese",
+    "desc": "A dense wheel of aged cheese - the kind of heavy, sustaining food that sticks to your ribs.",
+    "item_func": "add_condition",
+    "item_uses": 1,
+    "item_consumable": True,
+    "item_kwargs": {"conditions": [("Defense Up", 5)]},
+    "price": 18,
+}
+
+BAKERY_SPICED_NUTS = {
+    "key": "a handful of spiced nuts",
+    "desc": "Roasted nuts, dusted with pepper and salt - the kind of thing you eat right before a fight.",
+    "item_func": "add_condition",
+    "item_uses": 1,
+    "item_consumable": True,
+    "item_kwargs": {"conditions": [("Accuracy Up", 5)]},
+    "price": 18,
+}
+
+BAKERY_MEAT_PIE = {
+    "key": "a hearty meat pie",
+    "desc": "A thick-crusted pie, heavy with meat and gravy - a real meal, not a snack.",
+    "item_func": "heal",
+    "item_uses": 1,
+    "item_consumable": True,
+    "item_kwargs": {"healing_range": (30, 45)},
+    "price": 30,
+}
+
+# Oil-and-soap vendor - The Baths - Apodyterium. Bathing goods with a
+# real cleansing/refreshing theme - soap washes off a curse, oil and
+# balm leave you loose and quick.
+BATHS_SCENTED_OIL = {
+    "key": "a flask of scented bathing oil",
+    "desc": "A small flask of oil, scented with something floral - worked into sore muscle before or after a bath.",
+    "item_func": "add_condition",
+    "item_uses": 1,
+    "item_consumable": "GLASS_BOTTLE",
+    "item_kwargs": {"conditions": [("Regeneration", 6)]},
+    "price": 24,
+}
+
+BATHS_BAIAE_SOAP = {
+    "key": "a bar of Baiae soap",
+    "desc": "A hard, pale bar of imported soap - scrubs away grime, and, some swear, worse things too.",
+    "item_func": "cure_condition",
+    "item_uses": 1,
+    "item_consumable": True,
+    "item_kwargs": {"to_cure": ["Cursed", "Poisoned"]},
+    "price": 28,
+}
+
+BATHS_BRONZE_STRIGIL = {
+    "key": "a polished bronze strigil",
+    "desc": "A curved bronze scraper for working oil and grime off the skin - a real bathhouse staple, good for several uses.",
+    "item_func": "heal",
+    "item_uses": 3,
+    "item_consumable": True,
+    "item_kwargs": {"healing_range": (10, 15)},
+    "price": 35,
+}
+
+BATHS_ROSE_BALM = {
+    "key": "a jar of rose-perfumed balm",
+    "desc": "A small jar of pale balm, rose-scented - leaves the skin cool and the body feeling lighter.",
+    "item_func": "add_condition",
+    "item_uses": 1,
+    "item_consumable": True,
+    "item_kwargs": {"conditions": [("Haste", 6)]},
+    "price": 26,
+}
+
+# Scribe's stall - Scribes and Notaries for Hire (the Forum). Ink,
+# scrolls, and tonics - a scholar's steady hand and a magistrate's
+# writ of protection, mechanically real rather than pure flavor.
+SCRIBE_INK_VIAL = {
+    "key": "a vial of scholar's ink",
+    "desc": "A small vial of fine black ink - the same steady hand that draws a straight line holds a weapon steady too.",
+    "item_func": "add_condition",
+    "item_uses": 1,
+    "item_consumable": "GLASS_BOTTLE",
+    "item_kwargs": {"conditions": [("Accuracy Up", 5)]},
+    "price": 20,
+}
+
+SCRIBE_PROTECTION_SCROLL = {
+    "key": "a wax-sealed scroll of protection",
+    "desc": "A scroll bearing a magistrate's formal seal, invoking the law's protection over its bearer.",
+    "item_func": "add_condition",
+    "item_uses": 1,
+    "item_consumable": True,
+    "item_kwargs": {"conditions": [("Defense Up", 5)]},
+    "price": 25,
+}
+
+SCRIBE_SWIFT_SCROLL = {
+    "key": "a scroll of swift correspondence",
+    "desc": "A scroll written in a hurried, practiced shorthand - reading it seems to quicken the reader too.",
+    "item_func": "add_condition",
+    "item_uses": 1,
+    "item_consumable": True,
+    "item_kwargs": {"conditions": [("Haste", 6)]},
+    "price": 28,
+}
+
+SCRIBE_MEMORY_TONIC = {
+    "key": "a bottle of memory tonic",
+    "desc": "A tonic scribes keep on hand to loosen a stiff tongue before a long dictation.",
+    "item_func": "cure_condition",
+    "item_uses": 1,
+    "item_consumable": "GLASS_BOTTLE",
+    "item_kwargs": {"to_cure": ["Silenced"]},
+    "price": 22,
+}
+
+# Wine merchant - The Merchants' Fountain Plaza (the Forum). Wine as
+# warmth, courage, and a bit of aggression - not just a drink.
+WINE_SPICED_CUP = {
+    "key": "a cup of spiced wine",
+    "desc": "A cup of wine, warmed and spiced - takes the edge off, and puts a different edge back.",
+    "item_func": "heal",
+    "item_uses": 1,
+    "item_consumable": True,
+    "item_kwargs": {"healing_range": (15, 25)},
+    "price": 15,
+}
+
+WINE_FALERNIAN = {
+    "key": "a skein of Falernian wine",
+    "desc": "A real Falernian vintage, strong and well-regarded - the kind of wine that puts fight into a man.",
+    "item_func": "add_condition",
+    "item_uses": 1,
+    "item_consumable": True,
+    "item_kwargs": {"conditions": [("Damage Up", 5)]},
+    "price": 30,
+}
+
+WINE_WATERED_AMPHORA = {
+    "key": "an amphora of watered wine",
+    "desc": "A modest amphora of wine cut with water, the everyday drink of ordinary Romans - good for several cups.",
+    "item_func": "heal",
+    "item_uses": 3,
+    "item_consumable": True,
+    "item_kwargs": {"healing_range": (10, 15)},
+    "price": 32,
+}
+
+WINE_FORTIFIED_FLASK = {
+    "key": "a flask of fortified wine",
+    "desc": "A strong, fortified wine - the kind soldiers drink to steady their nerve before a fight, not to enjoy.",
+    "item_func": "cure_condition",
+    "item_uses": 1,
+    "item_consumable": "GLASS_BOTTLE",
+    "item_kwargs": {"to_cure": ["Frightened"]},
+    "price": 22,
 }

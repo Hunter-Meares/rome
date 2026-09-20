@@ -293,6 +293,155 @@ class AmberTrader(NPCMerchant):
             obj.move_to(self, quiet=True)
 
 
+# ----------------------------------------------------------------------------
+# ROME-PROPER SHOPS - six real merchants, each stocked with items that
+# have a genuine mechanical effect via item_func (world/combat.py's
+# ITEMFUNCS) rather than being flavor-only, closing a real gap: the
+# item-use system (CmdUse, ITEMFUNCS, the MEDKIT/HEALTH_POTION/etc.
+# prototypes) was already fully built with nothing anywhere selling or
+# dropping any of it. All six use the same flat-price stocking pattern
+# as AmberTrader above (no weapon/armor stats to compute) - just spawn
+# each prototype and move it into the merchant's own inventory.
+# ----------------------------------------------------------------------------
+
+APOTHECARY_STOCK = [
+    "HERB_FEVERFEW_BUNDLE", "HERB_COMFREY_POULTICE",
+    "HERB_WILLOWBARK_TINCTURE", "HERB_YARROW_SPRIG",
+]
+
+
+class SuburaApothecary(NPCMerchant):
+    """
+    A working-class herbalist's stall at Market Row - Back Stalls (the
+    Subura) - cheap cures and small heals, deliberately more modest
+    than the Ludus outfitter's stronger alchemical potions.
+    """
+
+    def at_object_creation(self):
+        super().at_object_creation()
+        self.db.shopname = "the herbalist's stall"
+
+        for prototype_key in APOTHECARY_STOCK:
+            obj = spawn(prototype_key)[0]
+            obj.move_to(self, quiet=True)
+
+
+PROVISIONER_STOCK = [
+    "BAKERY_BREAD_LOAF", "BAKERY_HARD_CHEESE",
+    "BAKERY_SPICED_NUTS", "BAKERY_MEAT_PIE",
+]
+
+
+class SuburaProvisioner(NPCMerchant):
+    """
+    A baker/general provisioner's stall at Market Row - The Stalls (the
+    Subura) - real food with a real, modest buff or heal, not flavor
+    bread.
+    """
+
+    def at_object_creation(self):
+        super().at_object_creation()
+        self.db.shopname = "the baker's stall"
+
+        for prototype_key in PROVISIONER_STOCK:
+            obj = spawn(prototype_key)[0]
+            obj.move_to(self, quiet=True)
+
+
+BATHS_VENDOR_STOCK = [
+    "BATHS_SCENTED_OIL", "BATHS_BAIAE_SOAP",
+    "BATHS_BRONZE_STRIGIL", "BATHS_ROSE_BALM",
+]
+
+
+class BathsOilVendor(NPCMerchant):
+    """
+    An oil-and-soap vendor at the Baths' Apodyterium - bathing goods
+    with a real cleansing/refreshing theme (soap cures a curse, oil and
+    balm leave you quicker or steadily mending).
+    """
+
+    def at_object_creation(self):
+        super().at_object_creation()
+        self.db.shopname = "the oil-and-soap vendor's table"
+
+        for prototype_key in BATHS_VENDOR_STOCK:
+            obj = spawn(prototype_key)[0]
+            obj.move_to(self, quiet=True)
+
+
+SCRIBE_STOCK = [
+    "SCRIBE_INK_VIAL", "SCRIBE_PROTECTION_SCROLL",
+    "SCRIBE_SWIFT_SCROLL", "SCRIBE_MEMORY_TONIC",
+]
+
+
+class ForumScribe(NPCMerchant):
+    """
+    A hired scribe at "Scribes and Notaries for Hire" (the Forum) -
+    that room's own description already implied scribes working there
+    with no NPC actually present; this fills that gap. Ink, scrolls,
+    and tonics, each with a real buff or cure.
+    """
+
+    def at_object_creation(self):
+        super().at_object_creation()
+        self.db.shopname = "the scribe's writing desk"
+
+        for prototype_key in SCRIBE_STOCK:
+            obj = spawn(prototype_key)[0]
+            obj.move_to(self, quiet=True)
+
+
+WINE_MERCHANT_STOCK = [
+    "WINE_SPICED_CUP", "WINE_FALERNIAN",
+    "WINE_WATERED_AMPHORA", "WINE_FORTIFIED_FLASK",
+]
+
+
+class ForumWineMerchant(NPCMerchant):
+    """
+    A wine merchant at the Merchants' Fountain Plaza (the Forum) - wine
+    as warmth, courage, and a bit of aggression, each with a real heal,
+    buff, or cure rather than being purely a drink.
+    """
+
+    def at_object_creation(self):
+        super().at_object_creation()
+        self.db.shopname = "the wine merchant's stall"
+
+        for prototype_key in WINE_MERCHANT_STOCK:
+            obj = spawn(prototype_key)[0]
+            obj.move_to(self, quiet=True)
+
+
+# Reuses the pre-existing MEDKIT/HEALTH_POTION/REGEN_POTION/HASTE_
+# POTION/BOMB/POISON_DART/ANTIDOTE_POTION prototypes as-is (see their
+# own comment in world/prototypes.py) rather than inventing new items -
+# these already had a complete item_func wired up, just no price and
+# nowhere selling them.
+OUTFITTER_STOCK = [
+    "MEDKIT", "HEALTH_POTION", "REGEN_POTION", "HASTE_POTION",
+    "BOMB", "POISON_DART", "ANTIDOTE_POTION",
+]
+
+
+class LudusOutfitter(NPCMerchant):
+    """
+    A general adventuring-supplies stall at the Ludus Entrance -
+    everything a fresh Colosseum escapee needs before heading out:
+    healing, a couple of buffs, a cure, and two combat-use throwables.
+    """
+
+    def at_object_creation(self):
+        super().at_object_creation()
+        self.db.shopname = "the adventuring-supplies stall"
+
+        for prototype_key in OUTFITTER_STOCK:
+            obj = spawn(prototype_key)[0]
+            obj.move_to(self, quiet=True)
+
+
 def _sellable_wares(merchant):
     """Every item in the merchant's inventory with a price set."""
     return [obj for obj in merchant.contents if obj.db.price]
