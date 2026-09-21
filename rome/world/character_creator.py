@@ -194,6 +194,19 @@ class ContribCmdCharCreate(MuxAccountCommand):
                 account.execute_cmd("look", session=session)
             else:
                 # this means character creation was completed - start playing!
+                # A one-time, in-character welcome letter from Jupiter
+                # himself, waiting the moment they can check mail -
+                # sent here rather than earlier, since a WIP character
+                # that never finishes chargen shouldn't get one. Never
+                # allowed to block or crash real character creation -
+                # a missing welcome letter is a minor gap, a crashed
+                # chargen completion would not be.
+                try:
+                    from world.welcome_mail import send_welcome_mail
+                    send_welcome_mail(char)
+                except Exception:
+                    from evennia.utils import logger
+                    logger.log_trace("Failed to send welcome mail to new character %s" % char)
                 # execute the ic command to start puppeting the character
                 account.execute_cmd("ic {}".format(char.key), session=session)
 

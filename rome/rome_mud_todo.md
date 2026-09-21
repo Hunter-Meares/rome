@@ -6,6 +6,14 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## 📬 An automatic welcome letter from Jupiter - ✅ this session
+
+- [x] **Every new character now receives a one-time, in-character `@mail` from Jupiter himself** the moment chargen completes - `world/welcome_mail.py`, hooked into `world/character_creator.py`'s `finish_char_callback` (the exact moment a WIP character becomes a real, played one; an abandoned mid-chargen character never gets one). Real, since Rome's mail system is character-to-character only (no OOC/account-level half) - not a flavor-only sender, so a reply lands in a genuinely monitored inbox, matching the MOTD's own `zeus@rome.vineyard.haus` admin-contact convention.
+- [x] **Deliberately short and pointer-based, not a manual** - names the setting/genre in two sentences, then points at `help newbie`/`whatnow` (the already-built tutorial system) rather than re-explaining commands inline, avoiding the exact kind of stale-content drift this project has already been burned by once (`help_setup.py`'s own stale entry-count bug).
+- [x] **Never allowed to block or crash character creation** - wrapped in a try/except at the call site, and `send_welcome_mail` itself is a silent no-op if Jupiter's character can't be found for any reason (a future rename, etc.) - a missing welcome letter is a minor gap; a crashed chargen completion would not be.
+
+---
+
 ## 🏛️ The Triumphal Procession - a recurring ambient world event - ✅ this session
 
 - [x] **A scripted, recurring "world event"** - every 3 hours (real time, ± 10 minutes of jitter so the exact timing can't be learned and timed around), a captured enemy leader is paraded through Rome. Pure ambient texture, not a quest or encounter - no killable captive, no lootable object, nothing lost if a player misses it. `world/triumph_event.py`.
