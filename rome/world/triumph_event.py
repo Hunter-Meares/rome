@@ -177,14 +177,14 @@ class TriumphEventScript(DefaultScript):
         first_room = ObjectDB.objects.filter(id=PROCESSION_ROUTE[0]).first()
         if first_room:
             first_room.msg_contents(
-                "|xWord spreads that a triumph is approaching the city - "
+                "|mWord spreads that a triumph is approaching the city - "
                 "somewhere beyond, trumpets are beginning to sound.|n"
             )
             for exi in first_room.exits:
                 neighbor = exi.destination
                 if neighbor and neighbor.pk and neighbor.id not in PROCESSION_ROUTE:
                     neighbor.msg_contents(
-                        "|xWord spreads that a triumph is approaching the "
+                        "|mWord spreads that a triumph is approaching the "
                         "city, somewhere nearby.|n"
                     )
 
@@ -230,7 +230,7 @@ class TriumphEventScript(DefaultScript):
             neighbor = exi.destination
             if neighbor and neighbor.pk and neighbor.id not in PROCESSION_ROUTE:
                 neighbor.msg_contents(
-                    "|xA roar goes up somewhere nearby - trumpets, and the "
+                    "|cA roar goes up somewhere nearby - trumpets, and the "
                     "sound of a crowd several streets over. Someone shouts "
                     "that they can see the standards from here. A triumph "
                     "is passing through the city.|n"
@@ -240,7 +240,7 @@ class TriumphEventScript(DefaultScript):
             previous_room = ObjectDB.objects.filter(id=previous_id).first()
             if previous_room:
                 previous_room.msg_contents(
-                    "|xThe sound of trumpets and a cheering crowd fades away, "
+                    "|cThe sound of trumpets and a cheering crowd fades away, "
                     "moving on through the city.|n"
                 )
 
