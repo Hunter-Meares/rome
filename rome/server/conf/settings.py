@@ -194,4 +194,8 @@ GLOBAL_SCRIPTS = {
         "typeclass": "world.npc_reset.NPCHomeResetScript",
         "desc": "Periodically returns any displaced RespawningNPC to its own home room",
     },
+    "triumph_event": {
+        "typeclass": "world.triumph_event.TriumphEventScript",
+        "desc": "A recurring triumphal procession through Rome",
+    },
 }

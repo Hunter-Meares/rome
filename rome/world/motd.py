@@ -32,18 +32,18 @@ from evennia import CmdSet
 from commands.command import Command
 from world.box_display import box_border, box_line, box_paragraph, box_blank
 
-RECENT_UPDATES_DATE = "2026-09-20"
+RECENT_UPDATES_DATE = "2026-09-21"
 
 RECENT_UPDATES_TEXT = (
-    "Six new shops are open around the city - a herbalist and a baker "
-    "in the Subura, an oil-and-soap vendor at the Baths, a scribe and "
-    "a wine merchant in the Forum, and an adventuring-supplies stall "
-    "at the Ludus - all selling real potions, scrolls, and food that "
-    "heal or buff you ('shop' to browse, 'use <item>' to drink/eat/"
-    "read it). Also: 80 new social commands ('help socials'), real "
-    "front/back row positioning ('help row'), and a fix so your own "
-    "pet or party mate can never end up on the wrong end of your "
-    "attacks."
+    "Rome now has its own rhythm - every few hours, a triumphal "
+    "procession winds through the Forum and up to the Temple of "
+    "Jupiter, parading a captured enemy leader before the crowd. "
+    "Purely ambient (nothing to fight, nothing to lose by missing "
+    "it), but listen for distant trumpets - you'll hear it building "
+    "before you see it. Also this week: six new shops, 80 social "
+    "commands ('help socials'), real front/back row positioning "
+    "('help row'), and a fix so your own pet or party mate can never "
+    "end up on the wrong end of your attacks."
 )
 
 # The box's own interior width, between its left/right borders and

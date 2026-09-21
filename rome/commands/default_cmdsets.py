@@ -36,6 +36,7 @@ from world import titles
 from world import tutorial
 from world import reports
 from world import socials
+from world import triumph_event
 from evennia.contrib.utils.debugpy import CmdDebugPy
 from evennia.contrib.grid.ingame_map_display import MapDisplayCmdSet
 from evennia.contrib.grid.ingame_map_display.ingame_map_display import CmdMap
@@ -157,6 +158,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(combat.CmdCleanupItems())
         self.add(combat.CmdGodLevel())
         self.add(combat.CmdGodSet())
+        self.add(triumph_event.CmdTriumphNow())
         self.add(combat.CmdWizInvis())
         self.add(combat.CmdRestore())
         self.add(combat.CmdSnoop())
