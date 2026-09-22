@@ -32,18 +32,17 @@ from evennia import CmdSet
 from commands.command import Command
 from world.box_display import box_border, box_line, box_paragraph, box_blank
 
-RECENT_UPDATES_DATE = "2026-09-21"
+RECENT_UPDATES_DATE = "2026-09-22"
 
 RECENT_UPDATES_TEXT = (
-    "Rome now has its own rhythm - every few hours, a triumphal "
-    "procession winds through the Forum and up to the Temple of "
-    "Jupiter, parading a captured enemy leader before the crowd. "
-    "Purely ambient (nothing to fight, nothing to lose by missing "
-    "it), but listen for distant trumpets - you'll hear it building "
-    "before you see it. Also this week: six new shops, 80 social "
-    "commands ('help socials'), real front/back row positioning "
-    "('help row'), and a fix so your own pet or party mate can never "
-    "end up on the wrong end of your attacks."
+    "Nine new quests now wait around the city - from a herbalist's "
+    "errand in the Subura to a tomb-robber in the Mausoleum of "
+    "Augustus. Find a quest-giver and type 'quest' (some take special "
+    "notice of your class). Also new: a triumphal procession that "
+    "winds through the Forum every few hours (listen for distant "
+    "trumpets), a welcome letter from Jupiter in every new "
+    "character's mail, six new shops, and 80 social commands "
+    "('help socials')."
 )
 
 # The box's own interior width, between its left/right borders and

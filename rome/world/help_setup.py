@@ -724,7 +724,14 @@ def create_all_help_entries():
             "actually finished it pays out your reward. Nothing here "
             "auto-completes just because you happened to finish the "
             "objective somewhere else - you still have to go report "
-            "back in person."
+            "back in person.\n\n"
+            "|wClass bonuses:|n Every quest is open to everyone - but "
+            "some quest-givers take particular notice of a certain "
+            "class. If yours is the one they're looking for, you'll "
+            "hear an extra line or two from them, and a little extra "
+            "gold and experience when you turn it in (your reward "
+            "message says so). There's never anything you can't do "
+            "because of your class."
         ),
         db_lock_storage="view:all()",
     )

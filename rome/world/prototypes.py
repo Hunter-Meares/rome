@@ -937,6 +937,80 @@ QUEST_CORRUPT_SCRIBE = {
     "locks": "puppet:false()",
 }
 
+# The other four kill-quest targets (world/quests.py). All plain
+# HostileNPC personal-instance spawns, deliberately NOT RespawningNPC -
+# see that module's own docstring for why (a RespawningNPC would come
+# back to life instead of staying dead, since at_defeat sends it
+# through the respawn branch before ever reaching the instance-delete
+# branch). Levels track each quest's own level_required; xp_reward is
+# kept small since the quest's own reward is the real payout.
+QUEST_GRAIN_SKIMMER = {
+    "key": "a grain-skimming factor",
+    "aliases": ["factor", "skimmer"],
+    "typeclass": "world.combat.HostileNPC",
+    "desc": (
+        "A soft-handed warehouse factor, ink on his cuffs and flour on his "
+        "boots, who has been quietly turning the city's grain dole into "
+        "his own private profit. He was not built for a fight, and the "
+        "way he keeps glancing at the door says he knows it."
+    ),
+    "race": "human",
+    "player_class": "speculator",
+    "level": 3,
+    "xp_reward": 25,
+    "locks": "puppet:false()",
+}
+
+QUEST_LOAN_ENFORCER = {
+    "key": "a loan-shark's enforcer",
+    "aliases": ["enforcer", "thug"],
+    "typeclass": "world.combat.HostileNPC",
+    "desc": (
+        "A thick-necked man with knuckles that have clearly been used for "
+        "exactly this: standing in a dead-end alley and making other "
+        "people's debts his own business."
+    ),
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 4,
+    "xp_reward": 35,
+    "locks": "puppet:false()",
+}
+
+QUEST_VIGILES_DESERTER = {
+    "key": "a Vigiles deserter",
+    "aliases": ["deserter", "fugitive"],
+    "typeclass": "world.combat.HostileNPC",
+    "desc": (
+        "Still wearing the scraps of a fire-brigade's uniform, and still "
+        "carrying himself like a man trained to hold a line. He took the "
+        "payroll and ran, and he's spent every day since deciding what "
+        "he'll do if someone comes for it."
+    ),
+    "race": "human",
+    "player_class": "legionary",
+    "level": 6,
+    "xp_reward": 60,
+    "locks": "puppet:false()",
+}
+
+QUEST_TOMB_ROBBER = {
+    "key": "a tomb-robber",
+    "aliases": ["robber", "thief"],
+    "typeclass": "world.combat.HostileNPC",
+    "desc": (
+        "Dust-caked and quick-fingered, with a pry-bar in one hand and a "
+        "sack already half full of things that were never meant to leave "
+        "a dead emperor's chamber. He'd rather not fight in a tomb - but "
+        "he's plainly prepared to."
+    ),
+    "race": "human",
+    "player_class": "speculator",
+    "level": 12,
+    "xp_reward": 140,
+    "locks": "puppet:false()",
+}
+
 ARENA_TRAINER = {
     "key": "Rutilus the Trainer",
     "aliases": ["trainer", "rutilus"],
