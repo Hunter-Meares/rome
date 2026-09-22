@@ -43,6 +43,7 @@ QUEST_TITLES = {
     "corrupt_official": "the Incorruptible",
     "tomb_robber": "the Tomb-Warden",
     "unquiet_shade": "the Shade-Comforter",
+    "vestals_flame": "the Flame-Keeper",
 }
 
 # Only the top ("Beloved") tier grants a title - meant to be rare and

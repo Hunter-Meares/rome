@@ -1011,6 +1011,39 @@ QUEST_TOMB_ROBBER = {
     "locks": "puppet:false()",
 }
 
+QUEST_QUAESTOR_FIXER = {
+    "key": "a hired fixer",
+    "aliases": ["fixer"],
+    "typeclass": "world.combat.HostileNPC",
+    "desc": (
+        "A quiet, well-dressed man with the calm of someone paid to make "
+        "problems disappear - now mud to the knees, cornered in a drain, "
+        "and quite out of ways to talk his way clear."
+    ),
+    "race": "human",
+    "player_class": "gladiator",
+    "level": 8,
+    "xp_reward": 90,
+    "locks": "puppet:false()",
+}
+
+QUEST_FLAME_SABOTEUR = {
+    "key": "a hired saboteur",
+    "aliases": ["saboteur"],
+    "typeclass": "world.combat.HostileNPC",
+    "desc": (
+        "Wiry, watchful, and dressed to be forgotten - a man who was paid "
+        "to put out a fire that has burned since before the Republic, and "
+        "who has not slept properly since. He is very sure you are here "
+        "for him."
+    ),
+    "race": "human",
+    "player_class": "speculator",
+    "level": 15,
+    "xp_reward": 200,
+    "locks": "puppet:false()",
+}
+
 ARENA_TRAINER = {
     "key": "Rutilus the Trainer",
     "aliases": ["trainer", "rutilus"],

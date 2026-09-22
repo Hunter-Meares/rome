@@ -8,17 +8,16 @@ Design, matching what was agreed before any of this was built:
     {quest_key: state} dict) rather than a bespoke attribute per
     quest, unlike the earlier one-off scripted Colosseum escape
     sequence - reusable for any future quest with zero new attributes.
-  - Step types restricted to "kill" and "visit" for v1 - no fetch/
-    deliver items, same simplicity call already made for bounties.
-    Both starter quests below are single-objective (accept -> do the
-    one thing -> report back), so quest state is just a 3-value
-    string ("in_progress" / "ready" / "completed") rather than a
-    step-index counter - the QUESTS dict's own shape (one step's
-    worth of fields directly on the quest, not a "steps" list) is
-    honest about that rather than pretending to support multi-step
-    chains this doesn't actually implement yet. A real multi-step
-    quest, if ever wanted, is a genuine extension of this shape, not
-    a rewrite of it.
+  - Step types: "kill", "visit", and (added later) "talk" - no
+    fetch/deliver items, same simplicity call already made for
+    bounties. A quest is one or more steps worked through in order. The
+    original two starter quests are single-objective (accept -> do the
+    one thing -> report back) and are still written the flat original
+    way; a quest with several steps carries an explicit "steps" list
+    instead. Coarse state stays the plain 3-value string in
+    db.quest_log ("in_progress" / "ready" / "completed") either way,
+    with which step an in-progress quest is on kept separately in
+    db.quest_steps - see the STEPS block below.
   - Starting/checking/turning in all happen through ONE command
     ('quest', no argument in the common case) used near a quest-giver
     - the same implicit-room-target convention CmdChallenge already
@@ -53,11 +52,11 @@ existed before this file did:
     the (now-renamed) key, so that rename doesn't affect matching at
     all.
 
-Nine more quests were added on top of those two, all still within this
-same single-objective shape (one giver, one kill-or-visit objective,
-gold + XP + an optional title) - deliberately, since that's all the
-engine actually supports. Two constraints worth knowing before adding
-another:
+Nine more quests were added on top of those two, in the same flat
+single-step shape (one giver, one kill-or-visit objective, gold + XP +
+an optional title). Two multi-step investigations ("missing_quaestor",
+"vestals_flame") followed once steps existed. Constraints worth knowing
+before adding another:
 
   - One giver can only ever offer ONE quest. CmdQuest matches a giver
     by exact key in the caller's room and always offers the first
@@ -97,6 +96,7 @@ QUESTS = {
         "giver_key": "the old man who remembers",
         "level_required": 1,
         "step_type": "visit",
+        "objective": "Go and read the Secession Stone on the Aventine, then report back to the old man who remembers.",
         "target_room": "The Secession Stone",
         "reward_gold": 30,
         "reward_xp": 40,
@@ -121,6 +121,7 @@ QUESTS = {
         "giver_key": "an election official",
         "level_required": 1,
         "step_type": "kill",
+        "objective": "Find the corrupt scribe hiding in the Saepta Julia's Shopping Gallery and deal with him.",
         "npc_prototype": "QUEST_CORRUPT_SCRIBE",
         "spawn_room": "Saepta Julia - Shopping Gallery",
         "reward_gold": 50,
@@ -154,6 +155,7 @@ QUESTS = {
         "giver_key": "a priest of Ceres",
         "level_required": 2,
         "step_type": "visit",
+        "objective": "Visit the herbalist's stall at Market Row - Back Stalls, in the Subura.",
         "target_room": "Market Row - Back Stalls",
         "reward_gold": 30,
         "reward_xp": 50,
@@ -197,6 +199,7 @@ QUESTS = {
         "giver_key": "a grain-dole administrator",
         "level_required": 3,
         "step_type": "kill",
+        "objective": "Find the grain-skimming factor at An Emporium Warehouse and stop him.",
         "npc_prototype": "QUEST_GRAIN_SKIMMER",
         "spawn_room": "An Emporium Warehouse",
         "reward_gold": 45,
@@ -241,6 +244,7 @@ QUESTS = {
         "giver_key": "a moneylender",
         "level_required": 4,
         "step_type": "kill",
+        "objective": "Deal with the loan-shark's enforcer in A Dead-End Alley, in the Subura.",
         "npc_prototype": "QUEST_LOAN_ENFORCER",
         "spawn_room": "A Dead-End Alley",
         "reward_gold": 55,
@@ -284,6 +288,7 @@ QUESTS = {
         "giver_key": "a somber historian",
         "level_required": 5,
         "step_type": "visit",
+        "objective": "Visit the Outer Altar at the Temple of Julius Caesar and see what mourners leave there.",
         "target_room": "Temple of Julius Caesar - the Outer Altar",
         "reward_gold": 40,
         "reward_xp": 110,
@@ -311,6 +316,7 @@ QUESTS = {
         "giver_key": "Watch-Captain Rufio",
         "level_required": 6,
         "step_type": "kill",
+        "objective": "Bring down the Vigiles deserter hiding in A Hidden Alcove, deep in the Cloaca Maxima.",
         "npc_prototype": "QUEST_VIGILES_DESERTER",
         "spawn_room": "A Hidden Alcove",
         "reward_gold": 90,
@@ -351,6 +357,7 @@ QUESTS = {
         "giver_key": "a shade at the water's edge",
         "level_required": 6,
         "step_type": "visit",
+        "objective": "Find the Grove of Champions, beyond the gates of Elysium.",
         "target_room": "Grove of Champions",
         "reward_gold": 70,
         "reward_xp": 200,
@@ -392,6 +399,7 @@ QUESTS = {
         "giver_key": "a watchful augur",
         "level_required": 8,
         "step_type": "visit",
+        "objective": "Find out what day it is at the Regia's Calendar Archive.",
         "target_room": "The Regia - Calendar Archive",
         "reward_gold": 60,
         "reward_xp": 250,
@@ -431,6 +439,7 @@ QUESTS = {
         "giver_key": "the site caretaker",
         "level_required": 10,
         "step_type": "visit",
+        "objective": "Look in on A Half-Buried Chamber beneath the Domus Aurea.",
         "target_room": "A Half-Buried Chamber",
         "reward_gold": 80,
         "reward_xp": 320,
@@ -470,6 +479,7 @@ QUESTS = {
         "giver_key": "the tomb's caretaker",
         "level_required": 12,
         "step_type": "kill",
+        "objective": "Deal with the tomb-robber in the Chamber of Urns, inside the Mausoleum of Augustus.",
         "npc_prototype": "QUEST_TOMB_ROBBER",
         "spawn_room": "The Chamber of Urns",
         "reward_gold": 120,
@@ -507,6 +517,174 @@ QUESTS = {
             ),
         },
     },
+    # ------------------------------------------------------------------
+    # Multi-step quests: an explicit "steps" list instead of the flat
+    # single-step fields (see the STEPS block further down). Both are
+    # investigations, and both use every step type between them.
+    # ------------------------------------------------------------------
+    "missing_quaestor": {
+        "name": "The Missing Quaestor",
+        "giver_key": "a treasury clerk",
+        "level_required": 8,
+        "reward_gold": 110,
+        "reward_xp": 350,
+        "intro": (
+            "|wThe treasury clerk keeps glancing at the vault door.|n \"A "
+            "junior quaestor was auditing the Aerarium's ledgers three "
+            "nights ago. He didn't come in the next morning - and neither "
+            "did the ledgers he was working from. The guard on the vault "
+            "was on watch that night; start with him. And be quiet about "
+            "it. Whoever's behind this has friends in this building.\""
+        ),
+        "reminder": (
+            "\"Any word yet? The longer he's missing, the fewer answers "
+            "we'll have.\""
+        ),
+        "complete": (
+            "|wThe clerk exhales, long and unsteady.|n \"So he wasn't the "
+            "thief - he was the man who caught the thief. I'll see the "
+            "Treasury's books corrected and his name cleared. Thank you - "
+            "and thank the gods someone in this city still checks a "
+            "ledger.\""
+        ),
+        "steps": [
+            {
+                "type": "talk",
+                "npc_key": "a treasury guard",
+                "objective": "Ask the treasury guard in the Temple of Saturn's Treasury Vault what he saw that night.",
+                "reminder": "\"The guard down in the vault was on watch that night. Ask him - he may not volunteer it.\"",
+                "advance": (
+                    "|wThe treasury guard shifts uneasily.|n \"I saw him go, "
+                    "aye. The quaestor slipped out by the Basilica Julia's "
+                    "rear passage near midnight, a satchel under his arm. He "
+                    "wasn't alone - two men followed him, and he didn't look "
+                    "like a man leaving by choice. The rear grate down to the "
+                    "sewers was hanging open by morning.\""
+                ),
+            },
+            {
+                "type": "visit",
+                "target_room": "Beneath the Basilica Grate",
+                "objective": "Go down to the sewer grate beneath the Basilica Julia - the room called Beneath the Basilica Grate.",
+                "reminder": "\"The guard says he vanished through the grate under the Basilica Julia. Go and look.\"",
+                "advance": (
+                    "|wThe grate's bars are bent outward, and the stone around "
+                    "it is scuffed with fresh boot-scrapes - several sets. "
+                    "Whatever happened here, it wasn't quiet.|n"
+                ),
+            },
+            {
+                "type": "visit",
+                "target_room": "The Records Drop",
+                "objective": "Follow the drains to The Records Drop and search for the quaestor's ledgers.",
+                "reminder": "\"Follow the drains from that grate. A satchel doesn't just vanish - somewhere down there it ended up.\"",
+                "advance": (
+                    "|wHalf-buried in the muck: a leather satchel, split open, "
+                    "and torn ledger pages swollen with damp. The figures on "
+                    "them don't match the Treasury's own books - not by a "
+                    "wide margin. Someone was skimming, and the quaestor had "
+                    "found out. Beside the satchel, a boot-print that isn't "
+                    "his, heading deeper in.|n"
+                ),
+            },
+            {
+                "type": "kill",
+                "npc_prototype": "QUEST_QUAESTOR_FIXER",
+                "spawn_room": "The Last Dressed Stones",
+                "objective": "Find the man who followed the quaestor down - he's gone to ground near The Last Dressed Stones.",
+                "reminder": "\"Whoever followed him down there is still in the Cloaca, near the last of the dressed stones. Finish it.\"",
+            },
+        ],
+        "class_bonus": {
+            "classes": ["speculator"],
+            "bonus_gold": 28,
+            "bonus_xp": 88,
+            "intro": (
+                "|x\"You've the eye for figures that don't add up. This is "
+                "exactly the kind of thing you were made for.\"|n"
+            ),
+            "complete": (
+                "|x\"You followed the money the way it ought to be "
+                "followed. A little extra for the trouble.\"|n"
+            ),
+        },
+    },
+    "vestals_flame": {
+        "name": "The Vestal's Flame",
+        "giver_key": "the Pontifex's attendant",
+        "level_required": 15,
+        "reward_gold": 350,
+        "reward_xp": 750,
+        "intro": (
+            "|wThe Pontifex's attendant speaks barely above a whisper.|n "
+            "\"The Sacred Fire of Vesta has gone out. It has burned "
+            "unbroken for longer than Rome has had emperors - and if it "
+            "isn't found to be sabotage, the Vestals will be blamed, and "
+            "you know what that means for them. The Pontifex wants this "
+            "looked into quietly. Begin at the hearth itself.\""
+        ),
+        "reminder": (
+            "\"The Pontifex grows impatient. Every hour the fire stays "
+            "dark, the city's luck runs thinner. Please - hurry.\""
+        ),
+        "complete": (
+            "|wThe attendant closes his eyes for a long moment.|n \"The "
+            "fire will be relit at dawn, and the Vestals will keep their "
+            "place. The Pontifex will hear who kept the flame this night - "
+            "and Rome will never know how close it came.\""
+        ),
+        "steps": [
+            {
+                "type": "visit",
+                "target_room": "Temple of Vesta - the Sacred Fire",
+                "objective": "Examine the Sacred Fire in the Temple of Vesta.",
+                "reminder": "\"Begin at the hearth itself - the Temple of Vesta. See what the fire left behind.\"",
+                "advance": (
+                    "|wThe hearth is cold - and it should never be, not ever. "
+                    "Around the hearth-stone the marble is scored with fresh "
+                    "pry-marks, and caught on a splinter is a shred of coarse "
+                    "cloth no Vestal would ever wear. The fire didn't fail. "
+                    "Someone put it out.|n"
+                ),
+            },
+            {
+                "type": "talk",
+                "npc_key": "a calendar priest",
+                "objective": "Ask the calendar priest in the Regia's Calendar Archive about the fire-watch roster.",
+                "reminder": "\"The calendar priest at the Regia keeps the fire-watch rosters. Something about them troubled me - ask him.\"",
+                "advance": (
+                    "|wThe calendar priest goes very still.|n \"The duty "
+                    "roster for the fire-watch was altered three nights ago. "
+                    "The hand is a copyist's - careful, practiced - but the "
+                    "payment came from the Subura, from a man who hires out "
+                    "for this kind of work. You'll find him in a "
+                    "doubling-back alley off the market row, if you know "
+                    "where to look.\""
+                ),
+            },
+            {
+                "type": "kill",
+                "npc_prototype": "QUEST_FLAME_SABOTEUR",
+                "spawn_room": "A Doubling-Back Alley",
+                "objective": "Find the saboteur hiding in A Doubling-Back Alley, in the Subura.",
+                "reminder": "\"The priest says the man who did it is in a doubling-back alley in the Subura. End this.\"",
+            },
+        ],
+        "class_bonus": {
+            "classes": ["augur"],
+            "bonus_gold": 85,
+            "bonus_xp": 190,
+            "intro": (
+                "|x\"An augur. The Pontifex will be relieved - a dead flame "
+                "is the gravest omen there is, and you'll know how to read "
+                "it.\"|n"
+            ),
+            "complete": (
+                "|x\"You understood the omen as well as the crime. The "
+                "College will hear of it. Take a little more.\"|n"
+            ),
+        },
+    },
 }
 
 
@@ -527,27 +705,218 @@ def class_bonus_for(character, quest):
     return None
 
 
+# ----------------------------------------------------------------------------
+# STEPS
+# ----------------------------------------------------------------------------
+# A quest is a list of one or more steps, worked through in order. Most
+# quests here are still a single step, written the original flat way
+# (step_type/target_room/etc. directly on the quest) - get_steps()
+# normalizes that into a one-item list, so nothing about an existing quest
+# or an existing player's quest_log had to change. A multi-step quest
+# instead carries an explicit "steps" list (see e.g. "missing_quaestor").
+#
+# Progress lives in TWO places, deliberately kept apart so the original
+# 3-value quest_log ("in_progress"/"ready"/"completed") means exactly what
+# it always did: quest_log stays the coarse state, and a separate
+# db.quest_steps {quest_key: step_index} records which step an in_progress
+# quest is currently on (absent = step 0, which is also what every quest
+# already in progress before this existed reads as).
+#
+# Step types:
+#   "visit" - arrive in target_room.
+#   "kill"  - defeat a personal-instance NPC (npc_prototype) that is
+#             spawned when the step begins and placed in spawn_room.
+#   "talk"  - use 'quest' while standing with the NPC named npc_key
+#             (anyone, not only the giver). This is what lets an
+#             investigation send you to a witness.
+# Every step needs an "objective" (what the player is told to do, and what
+# the quest log shows). A step may also carry "advance" (story text shown
+# the moment the step is completed - the witness's answer, what you find at
+# the scene) and "reminder" (the giver's words if you ask them mid-step;
+# falls back to the quest's own "reminder").
+
+STEP_TYPES = ("kill", "visit", "talk")
+
+
+def get_steps(quest):
+    """A quest's steps as a list of step dicts (see the block above)."""
+    if "steps" in quest:
+        return quest["steps"]
+    step = {"type": quest["step_type"]}
+    for field in ("target_room", "npc_prototype", "spawn_room", "objective", "reminder", "advance"):
+        if field in quest:
+            step[field] = quest[field]
+    return [step]
+
+
+def get_step_index(character, quest_key):
+    """Which step (0-based) an in-progress quest is on. Clamped to a real
+    step, so a stale or corrupt value can never index off the end."""
+    idx = (character.db.quest_steps or {}).get(quest_key, 0)
+    steps = get_steps(QUESTS[quest_key])
+    return max(0, min(idx, len(steps) - 1))
+
+
+def current_step(character, quest_key):
+    idx = get_step_index(character, quest_key)
+    return idx, get_steps(QUESTS[quest_key])[idx]
+
+
+def objective_text(step):
+    """What the player is told to do for this step. Every real quest
+    defines one explicitly (tests_quests.py enforces it); the fallback is
+    only so a half-written step can't crash the log."""
+    if step.get("objective"):
+        return step["objective"]
+    if step["type"] == "visit":
+        return "Go to %s." % step.get("target_room", "the place you were sent")
+    if step["type"] == "kill":
+        return "Find and defeat your target in %s." % step.get("spawn_room", "the place you were sent")
+    return "Speak with %s." % step.get("npc_key", "the person you were sent to")
+
+
+def _set_step_index(character, quest_key, idx):
+    steps = dict(character.db.quest_steps or {})
+    steps[quest_key] = idx
+    character.db.quest_steps = steps
+
+
+def _clear_progress(character, quest_key):
+    """Drops the step/target bookkeeping once a quest is turned in."""
+    for attr in ("quest_steps", "quest_targets"):
+        data = dict(character.attributes.get(attr) or {})
+        if quest_key in data:
+            del data[quest_key]
+            character.attributes.add(attr, data)
+
+
+def _spawn_kill_target(character, quest_key, idx, step):
+    """
+    Spawns this step's personal-instance target and remembers it on the
+    character (db.quest_targets) so ensure_kill_target() can tell later
+    whether it still exists. Stamped with the step index too, so a target
+    left over from an EARLIER step can never be credited toward a later
+    one.
+    """
+    from evennia.utils import search
+    from world.combat import COMBAT_RULES
+
+    npc = COMBAT_RULES.spawn_personal_npc(step["npc_prototype"], character)
+    npc.db.quest_key = quest_key
+    npc.db.quest_step = idx
+
+    targets = dict(character.db.quest_targets or {})
+    targets[quest_key] = npc
+    character.db.quest_targets = targets
+
+    destinations = search.search_object(step["spawn_room"], typeclass="typeclasses.rooms.Room")
+    if destinations:
+        npc.move_to(destinations[0], quiet=True)
+    return npc
+
+
+def begin_step(character, quest_key, idx):
+    """Makes `idx` the current step, spawning its target if it's a kill."""
+    _set_step_index(character, quest_key, idx)
+    step = get_steps(QUESTS[quest_key])[idx]
+    if step["type"] == "kill":
+        _spawn_kill_target(character, quest_key, idx, step)
+
+
 def start_quest(character, quest_key):
     """
-    Marks the quest in_progress and, for a "kill" quest, spawns its
-    personal-instance target NPC. Called from CmdQuest the first time
-    a character interacts with a given giver.
+    Marks the quest in_progress and begins its first step (for a "kill"
+    step, spawning its personal-instance target NPC). Called from
+    CmdQuest the first time a character interacts with a given giver.
     """
-    quest = QUESTS[quest_key]
     log = character.db.quest_log or {}
     log[quest_key] = "in_progress"
     character.db.quest_log = log
+    begin_step(character, quest_key, 0)
 
-    if quest["step_type"] == "kill":
-        from evennia.utils import search
-        from world.combat import COMBAT_RULES
 
-        npc = COMBAT_RULES.spawn_personal_npc(quest["npc_prototype"], character)
-        npc.db.quest_key = quest_key
+def advance_quest(character, quest_key):
+    """
+    The current step's objective has just been met. Moves to the next
+    step (telling the player what it is), or - if that was the last step
+    - marks the quest ready to turn in.
+    """
+    quest = QUESTS[quest_key]
+    steps = get_steps(quest)
+    idx = get_step_index(character, quest_key)
+    step = steps[idx]
 
-        destinations = search.search_object(quest["spawn_room"], typeclass="typeclasses.rooms.Room")
-        if destinations:
-            npc.move_to(destinations[0], quiet=True)
+    if idx + 1 < len(steps):
+        character.msg("|YObjective complete: %s|n" % objective_text(step))
+        if step.get("advance"):
+            character.msg(step["advance"])
+        begin_step(character, quest_key, idx + 1)
+        character.msg("|wNext objective:|n %s" % objective_text(steps[idx + 1]))
+        return
+
+    if step.get("advance"):
+        character.msg(step["advance"])
+    log = character.db.quest_log or {}
+    log[quest_key] = "ready"
+    character.db.quest_log = log
+    character.msg(
+        "|YQuest objective complete: %s. Return to report back.|n" % quest["name"]
+    )
+
+
+def quest_target_is_live(npc):
+    """
+    True if `npc` is a quest target its owner still needs - the quest is
+    in progress and on the very step this NPC was spawned for. Used by
+    InstanceCleanupTimer and `cleanupnpcs` to leave it alone.
+
+    Real, confirmed gap this closes: InstanceCleanupTimer deletes ANY
+    personal-instance NPC that isn't mid-fight after 10 minutes, with no
+    exemption for quest targets - so a player who accepted a kill quest
+    and then took longer than that to reach the target (a walk to the
+    sewers, a logout) found it gone, and the quest could never be
+    finished. That affected the original "corrupt_official" quest as
+    well as the newer ones. (ensure_kill_target below is the second line
+    of defence for when a target goes missing anyway.)
+    """
+    quest_key = npc.db.quest_key
+    owner = npc.db.instance_owner
+    if not quest_key or quest_key not in QUESTS or not owner or not owner.pk:
+        return False
+    if (owner.db.quest_log or {}).get(quest_key) != "in_progress":
+        return False
+    idx, step = current_step(owner, quest_key)
+    return step["type"] == "kill" and idx == (npc.db.quest_step or 0)
+
+
+def ensure_kill_target(character, quest_key):
+    """
+    If the quest's current step is a kill and its target no longer
+    exists, spawns a fresh one. Returns True only if it had to respawn.
+
+    A target already alive is left alone, including one spawned before
+    this bookkeeping existed (no db.quest_targets entry): those are
+    found by owner + quest_key and adopted rather than duplicated.
+    """
+    idx, step = current_step(character, quest_key)
+    if step["type"] != "kill":
+        return False
+
+    target = (character.db.quest_targets or {}).get(quest_key)
+    if target is not None and target.pk:
+        return False
+
+    from world.combat import HostileNPC
+
+    for npc in HostileNPC.objects.filter(db_attributes__db_key="quest_key"):
+        if npc.pk and npc.db.quest_key == quest_key and npc.db.instance_owner == character:
+            targets = dict(character.db.quest_targets or {})
+            targets[quest_key] = npc
+            character.db.quest_targets = targets
+            return False
+
+    _spawn_kill_target(character, quest_key, idx, step)
+    return True
 
 
 def credit_quest_kill(defeated):
@@ -560,6 +929,10 @@ def credit_quest_kill(defeated):
     bounties.py's credit_bounty_progress shares with the ordinary XP/
     gold/loot hooks - a quest NPC's identity shouldn't depend on
     whether it happens to carry an xp_reward at all.
+
+    Only counts toward a character whose quest is on the very step this
+    NPC was spawned for (db.quest_step, absent = 0), so killing a target
+    from an earlier step can't skip anyone ahead.
     """
     from world.combat import iter_damage_contributors
 
@@ -572,41 +945,105 @@ def credit_quest_kill(defeated):
         log = contributor.db.quest_log or {}
         if log.get(quest_key) != "in_progress":
             continue
-        log[quest_key] = "ready"
-        contributor.db.quest_log = log
-        contributor.msg(
-            "|YQuest objective complete: %s. Return to report back.|n"
-            % QUESTS[quest_key]["name"]
-        )
+        idx, step = current_step(contributor, quest_key)
+        if step["type"] != "kill" or idx != (defeated.db.quest_step or 0):
+            continue
+        advance_quest(contributor, quest_key)
 
 
 def check_quest_visit(character):
     """
-    Called from CombatCharacter.at_post_move - checks every
-    in-progress "visit"-type quest the character has against their
-    new location.
+    Called from CombatCharacter.at_post_move. For every in-progress quest:
+    completes a "visit" step if the character just arrived at its target
+    room, and - as a second line of defence - quietly respawns a "kill"
+    step's target if the character has just walked into the room it
+    belongs in and it has gone missing.
     """
     location = character.location
     if not location:
         return
 
     log = character.db.quest_log or {}
-    changed = False
-    for quest_key, state in log.items():
+    for quest_key, state in list(log.items()):
         if state != "in_progress":
             continue
-        quest = QUESTS.get(quest_key)
-        if not quest or quest["step_type"] != "visit":
+        if quest_key not in QUESTS:
             continue
-        if location.key == quest["target_room"]:
-            log[quest_key] = "ready"
-            changed = True
+        idx, step = current_step(character, quest_key)
+        if step["type"] == "visit" and location.key == step["target_room"]:
+            advance_quest(character, quest_key)
+        elif step["type"] == "kill" and location.key == step["spawn_room"]:
+            ensure_kill_target(character, quest_key)
+
+
+def quest_entry_hint(character):
+    """
+    Called from CombatCharacter.at_post_move for real players. A
+    one-line nudge, shown after the room description, if someone here
+    has a quest the character is eligible to start, or is waiting to
+    hear the result of one they've finished.
+
+    Real, confirmed gap this closes: nothing anywhere told a player a
+    quest-giver had anything to offer - a giver is just an NPC standing
+    in a room, and starting a quest needed the player to already know to
+    type 'quest' next to them. Shown on every entry until the quest is
+    started (rather than once) since it's a single short line for
+    someone who is, by definition, standing exactly where the quest is,
+    and a missed one-time hint would mean never finding it. There's
+    deliberately no accept/decline prompt: a quest costs nothing to
+    start, can't be failed, and never expires, so a confirmation would
+    just be friction.
+    """
+    location = character.location
+    if not location:
+        return
+    log = character.db.quest_log or {}
+    for quest_key, quest in QUESTS.items():
+        giver = next((obj for obj in location.contents if obj.key == quest["giver_key"]), None)
+        if not giver:
+            continue
+        name = giver.key[0].upper() + giver.key[1:]
+        state = log.get(quest_key)
+        if state == "ready":
             character.msg(
-                "|YQuest objective complete: %s. Return to report back.|n"
-                % quest["name"]
+                "|y%s is waiting to hear how it went. (Type |wquest|y to report back.)|n" % name
             )
-    if changed:
-        character.db.quest_log = log
+        elif state is None and (character.db.level or 1) >= quest["level_required"]:
+            character.msg(
+                "|y%s looks like they have something for you. (Type |wquest|y to hear what.)|n" % name
+            )
+
+
+def build_quest_log(character):
+    """
+    The player-facing quest log text, or None if they've never started
+    one. In-progress quests first (with which step they're on and what
+    to do next), then ready-to-turn-in (and who to report to), then
+    completed.
+    """
+    log = character.db.quest_log or {}
+    entries = [(key, state) for key, state in log.items() if key in QUESTS]
+    if not entries:
+        return None
+
+    order = {"in_progress": 0, "ready": 1, "completed": 2}
+    entries.sort(key=lambda entry: order.get(entry[1], 3))
+    labels = {"in_progress": "in progress", "ready": "ready to turn in", "completed": "completed"}
+
+    lines = ["|wYour Quests:|n"]
+    for quest_key, state in entries:
+        quest = QUESTS[quest_key]
+        steps = get_steps(quest)
+        label = labels.get(state, state)
+        if state == "in_progress" and len(steps) > 1:
+            label += " (step %d of %d)" % (get_step_index(character, quest_key) + 1, len(steps))
+        lines.append("  %s - %s" % (quest["name"], label))
+        if state == "in_progress":
+            _idx, step = current_step(character, quest_key)
+            lines.append("      |x%s|n" % objective_text(step))
+        elif state == "ready":
+            lines.append("      |xReturn to %s to report back.|n" % quest["giver_key"])
+    return "\n".join(lines)
 
 
 def list_all_quest_activity():
@@ -640,7 +1077,7 @@ def list_all_quest_activity():
 
 def quest_catalog():
     """
-    God-only oversight (`quest list`): every quest that exists,
+    God-only oversight (`quest catalog`): every quest that exists,
     reading QUESTS directly so a future quest added there shows up
     automatically with no changes needed here. The giver's location is
     looked up live off the real NPC object rather than hardcoded, so
@@ -654,11 +1091,16 @@ def quest_catalog():
     for quest_key, quest in QUESTS.items():
         givers = search.search_object(quest["giver_key"])
         location = givers[0].location.key if givers and givers[0].location else "not currently placed"
+        steps = get_steps(quest)
+        if len(steps) == 1:
+            kind = steps[0]["type"]
+        else:
+            kind = "%d steps: %s" % (len(steps), " > ".join(step["type"] for step in steps))
         entry = (
             "|w%s|n\n  giver: %s (%s)\n  type: %s  reward: %dg/%dxp"
             % (
                 quest["name"], quest["giver_key"], location,
-                quest["step_type"], quest["reward_gold"], quest["reward_xp"],
+                kind, quest["reward_gold"], quest["reward_xp"],
             )
         )
         bonus = quest.get("class_bonus")
@@ -677,7 +1119,9 @@ class CmdQuest(Command):
 
     Usage:
       quest
+      quest log
       quest <npc>
+      quests
 
     Use this near a real quest-giver to start a quest they offer (if
     you haven't already), see a reminder of what they're waiting on
@@ -685,9 +1129,16 @@ class CmdQuest(Command):
     (once you've actually finished it). A completed quest is done for
     good - most won't repeat.
 
-    With no quest-giver in the room, 'quest' instead shows your own
-    quest log - everything you've started, finished, or still have
-    outstanding.
+    Some quests take several steps - visiting a place, questioning
+    someone, dealing with a target - worked through in order. You're
+    told each time a step is done and what comes next. To question
+    someone as part of a quest, stand with them and use 'quest'.
+
+    'quest log' (or just 'quests') always shows your own quest log -
+    everything you've started, finished, or still have outstanding,
+    including what you need to do next - even standing right next to
+    a quest-giver. With no quest-giver or quest contact in the room,
+    plain 'quest' shows it too.
     """
 
     key = "quest"
@@ -715,6 +1166,18 @@ class CmdQuest(Command):
                 caller.msg(quest_catalog())
             return
 
+        # The log, on request - checked before the giver lookup so it
+        # works next to a quest-giver too (plain 'quest' there interacts
+        # with the giver instead, which used to make the log unreachable
+        # anywhere near one).
+        if arg == "log" or self.cmdstring == "quests":
+            self._show_log(caller)
+            return
+
+        # A "talk" step: stand with the person the quest sent you to.
+        if self._try_talk_step(caller):
+            return
+
         givers = {}
         for quest_key, quest in QUESTS.items():
             matches = [obj for obj in caller.location.contents if obj.key == quest["giver_key"]]
@@ -739,8 +1202,16 @@ class CmdQuest(Command):
             bonus = class_bonus_for(caller, quest)
             if bonus:
                 caller.msg(bonus["intro"])
+            caller.msg("|wObjective:|n %s" % objective_text(get_steps(quest)[0]))
         elif state == "in_progress":
-            caller.msg(quest["reminder"])
+            _idx, step = current_step(caller, quest_key)
+            caller.msg(step.get("reminder") or quest["reminder"])
+            if ensure_kill_target(caller, quest_key):
+                caller.msg(
+                    "|x(Whoever you were after has gone to ground again - "
+                    "you'll find them back where they were hiding.)|n"
+                )
+            caller.msg("|wObjective:|n %s" % objective_text(step))
         elif state == "ready":
             bonus = class_bonus_for(caller, quest)
             gold = quest["reward_gold"] + (bonus["bonus_gold"] if bonus else 0)
@@ -750,6 +1221,7 @@ class CmdQuest(Command):
             COMBAT_RULES.award_xp(caller, xp)
             log[quest_key] = "completed"
             caller.db.quest_log = log
+            _clear_progress(caller, quest_key)
             caller.msg(quest["complete"])
             if bonus:
                 caller.msg(bonus["complete"])
@@ -764,17 +1236,32 @@ class CmdQuest(Command):
         elif state == "completed":
             caller.msg("%s has nothing more for you." % giver.key)
 
-    def _show_log(self, caller):
+    def _try_talk_step(self, caller):
+        """
+        If any of the caller's in-progress quests is currently waiting
+        on a "talk" step with someone standing in this room, completes
+        it and returns True. Anyone can be a contact, not just the
+        quest's own giver, and it only triggers for a quest actually
+        on that step - so standing near the same NPC for an unrelated
+        reason does nothing.
+        """
+        if not caller.location:
+            return False
         log = caller.db.quest_log or {}
-        if not log:
+        for quest_key, state in list(log.items()):
+            if state != "in_progress" or quest_key not in QUESTS:
+                continue
+            _idx, step = current_step(caller, quest_key)
+            if step["type"] != "talk":
+                continue
+            if any(obj.key == step["npc_key"] for obj in caller.location.contents):
+                advance_quest(caller, quest_key)
+                return True
+        return False
+
+    def _show_log(self, caller):
+        text = build_quest_log(caller)
+        if text is None:
             caller.msg("You have no quests. Find a quest-giver and use 'quest' near them.")
             return
-
-        labels = {"in_progress": "in progress", "ready": "ready to turn in", "completed": "completed"}
-        lines = ["|wYour Quests:|n"]
-        for quest_key, state in log.items():
-            quest = QUESTS.get(quest_key)
-            if not quest:
-                continue
-            lines.append("  %s - %s" % (quest["name"], labels.get(state, state)))
-        caller.msg("\n".join(lines))
+        caller.msg(text)

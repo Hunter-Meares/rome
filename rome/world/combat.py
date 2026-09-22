@@ -7268,6 +7268,15 @@ class CombatCharacter(ContribRPCharacter):
         if self.db.quest_log:
             from world.quests import check_quest_visit
             check_quest_visit(self)
+        # A one-line nudge if someone here has a quest to offer (or is
+        # waiting on a report) - real players only, so an NPC wandering
+        # through a room never generates it. Deliberately outside the
+        # quest_log gate above: the whole point is a brand-new player
+        # who has never started a quest and wouldn't otherwise know
+        # there was one to find.
+        if self.has_account:
+            from world.quests import quest_entry_hint
+            quest_entry_hint(self)
 
         pet = self.db.active_companion
         if pet and pet.pk and pet.db.is_purchased_pet and pet.location:
@@ -7480,6 +7489,16 @@ class InstanceCleanupTimer(DefaultScript):
             # Still genuinely fighting - leave it alone and check
             # again next interval, rather than cutting a real fight
             # short for no reason.
+            return
+
+        from world.quests import quest_target_is_live
+        if quest_target_is_live(npc):
+            # A quest target its owner still needs - not an abandoned
+            # fight at all. Deleting it after 10 minutes stranded any
+            # kill quest whose target the player hadn't reached yet
+            # (see quest_target_is_live's own docstring). Checked again
+            # next interval; once the quest moves on it's cleaned up
+            # like anything else.
             return
 
         npc.delete()
@@ -9195,6 +9214,10 @@ class CmdCleanupNPCs(Command):
             turnhandler = npc.db.combat_turnhandler
             if turnhandler and turnhandler.pk:
                 # Still genuinely in an active fight - leave it alone.
+                continue
+            from world.quests import quest_target_is_live
+            if quest_target_is_live(npc):
+                # A quest target its owner still needs, not an orphan.
                 continue
             orphaned.append(npc)
 

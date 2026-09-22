@@ -6,6 +6,14 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## 🧭 Multi-step quests, a real quest log, and quest discoverability - ✅ this session
+
+- [x] **Multi-step quest engine** (`world/quests.py`): `steps` list of `kill`/`visit`/`talk` steps with per-step `objective`/`advance`/`reminder`; flat quests still work unchanged; step index in `db.quest_steps`. Two multi-step quests: *The Missing Quaestor* (L8 - talk to a guard, two visit steps, then a hired fixer) and *The Vestal's Flame* (L15, title `the Flame-Keeper` - sacred fire, calendar priest, saboteur).
+- [x] **`quest log` / `quests`** always show the journal (step N of M, current objective, active before completed), even next to a giver.
+- [x] **`quest_entry_hint`**: entering a giver's room now prints a one-line nudge (previously nothing signalled that a quest existed anywhere). Still no accept/decline prompt, by design.
+- [x] **Fixed a shipped bug**: `InstanceCleanupTimer` deleted quest kill targets after 10 minutes; live targets are now exempt and missing ones respawn.
+- [ ] Still open: one-giver-one-quest limit (a giver can't offer a second quest); Amber Coast Priestess's Dwelling / Bog-Pool / Ledger Room are empty rooms that could host givers.
+
 ## 📜 Nine new quests, and a class-flavored (not class-locked) bonus - ✅ this session
 
 - [x] **Nine new quests**, each pulling a new player toward a corner of a zone that otherwise had nothing to DO in it, all within the engine's existing single-objective shape (one giver, one kill-or-visit step, gold + XP + optional title): *Ceres Asks a Favor* (L2, visit - Aviola's herbal stall; doubles as shop discovery), *The Grain Doesn't Add Up* (L3, kill - Trajan's Market to the Emporium), *Debts in the Dead-End Alley* (L4, kill - Subura), *What Mourners Leave* (L5, visit - Caesar's altar), *The Watch Wants a Name* (L6, kill - a Vigiles deserter in the sewers, an early bridge into the Cloaca), *The Unquiet Shade* (L6, visit - Underworld, reachable only after dying, so death now has content), *The Boundary Stone's Question* (L8, visit - the Regia's calendar archive), *The Silent Chamber* (L10, visit - Domus Aurea), *The Tomb-Robber* (L12, kill - the Mausoleum of Augustus). Two of them carry an earned title (`the Tomb-Warden`, `the Shade-Comforter`).

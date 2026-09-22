@@ -35,10 +35,11 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-22"
 
 RECENT_UPDATES_TEXT = (
-    "Nine new quests now wait around the city - from a herbalist's "
+    "Eleven new quests now wait around the city - from a herbalist's "
     "errand in the Subura to a tomb-robber in the Mausoleum of "
-    "Augustus. Find a quest-giver and type 'quest' (some take special "
-    "notice of your class). Also new: a triumphal procession that "
+    "Augustus, including two multi-step ones. A line appears when a "
+    "quest-giver has something for you; type 'quest' to hear it and "
+    "'quest log' to track your progress. Also new: a triumphal procession that "
     "winds through the Forum every few hours (listen for distant "
     "trumpets), a welcome letter from Jupiter in every new "
     "character's mail, six new shops, and 80 social commands "
