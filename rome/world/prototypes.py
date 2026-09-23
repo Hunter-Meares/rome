@@ -469,6 +469,52 @@ CALIGAE_FERRATAE = {
 }
 
 # ----------------------------------------------------------------------------
+# GATHERING & CRAFTING - raw materials (world/gathering.py) and their finished
+# goods (world/recipes.py). Raw materials are plain typeclasses.objects.Object,
+# each tagged for the crafting contrib to recognize as an ingredient
+# (category="crafting_material", matching evennia.contrib.game_systems.
+# crafting's own default tag_category) - see that module's README for why a
+# tag, not a typeclass or a db flag, is what the contrib actually keys on.
+# Both carry a real db.price so they're sellable through the ordinary shop
+# 'sell' flow (world/economy.py) with no new vendor system needed - raw
+# materials pay in gold only; a crafted good additionally carries db.craft_xp,
+# baked in by the recipe that makes it, awarded on sale (see economy.py's
+# node_confirm_sell) rather than on gathering or crafting itself.
+# ----------------------------------------------------------------------------
+
+RAW_TIMBER = {
+    "typeclass": "typeclasses.objects.Object",
+    "key": "a bundle of timber",
+    "desc": "Rough-cut lengths of wood, still smelling of sap - good for a tool handle or a grip, not much else on its own.",
+    "price": 4,
+    "tags": [("timber", "crafting_material")],
+}
+
+RAW_IRON_ORE = {
+    "typeclass": "typeclasses.objects.Object",
+    "key": "a chunk of iron ore",
+    "desc": "Heavy, rust-streaked rock, veined with real iron beneath the surface grime. Worth nothing to anyone without a forge.",
+    "price": 15,
+    "tags": [("iron_ore", "crafting_material")],
+}
+
+# Baseline stats/price/craft_xp are computed live at craft time from
+# world.combat's own compute_weapon_stats/xp_for_level formulas
+# (world/recipes.py's IronShortswordRecipe), the same way a merchant's
+# stock already prices itself - so a "level 8" iron shortsword stays
+# consistent with whatever those formulas say a level 8 weapon is
+# worth, rather than a hand-typed number that could quietly drift out
+# of sync. This prototype only supplies the parts that never change.
+CRAFTED_IRON_SHORTSWORD = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a hand-forged iron shortsword",
+    "desc": "A plain, honest blade, hammered out by hand rather than bought off a rack - a little uneven where the smith was still learning, but it holds an edge.",
+    "weapon_type_name": "gladius",
+    "weapon_category": "light_blade",
+    "two_handed": False,
+}
+
+# ----------------------------------------------------------------------------
 # UNIQUE / DIVINE ITEMS - one-of-a-kind gear for specific god characters, not
 # meant to be sold, found, or spawned in numbers. Deliberately break the
 # usual armor tradeoff every mortal-tier armor above follows (heavier

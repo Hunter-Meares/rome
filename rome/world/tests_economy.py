@@ -161,6 +161,60 @@ class TestSelling(EconomyTestBase):
         self.assertNotIn("plain rock", descs)
 
 
+class TestDistanceBonusAndCraftXp(EconomyTestBase):
+    """
+    world/gathering.py + world/recipes.py's crafting economy - no new
+    vendor system needed, just db.price/db.craft_xp on the item and
+    db.distance_bonus on the merchant, both read by the existing sell
+    flow.
+    """
+
+    def test_an_ordinary_merchant_has_no_distance_bonus(self):
+        self.assertEqual(self.merchant.db.distance_bonus, 1.0)
+
+    def test_distance_bonus_multiplies_the_sell_price(self):
+        self.merchant.db.distance_bonus = 1.5
+        item = self._spawn_ware(proto_key="DAGGER", price=40, location=self.char1)
+        self.char1.db.gold = 0
+
+        text, options = node_confirm_sell(self.char1, item=item)
+        options[0]["goto"](self.char1)  # "Yes"
+
+        self.assertEqual(self.char1.db.gold, int(40 * SELL_BACK_RATE * 1.5))
+
+    def test_node_sell_shows_the_bonus_when_one_applies(self):
+        self.merchant.db.distance_bonus = 1.3
+        self._spawn_ware(proto_key="DAGGER", price=40, location=self.char1)
+        text, options = node_sell(self.char1)
+        self.assertIn("bonus", text.lower())
+
+    def test_node_sell_says_nothing_extra_at_the_baseline(self):
+        item = self._spawn_ware(proto_key="DAGGER", price=40, location=self.char1)
+        text, options = node_sell(self.char1)
+        self.assertNotIn("bonus", text.lower())
+
+    def test_selling_a_crafted_good_awards_its_craft_xp(self):
+        item = self._spawn_ware(proto_key="DAGGER", price=40, location=self.char1)
+        item.db.craft_xp = 50
+        self.char1.db.level = 50  # high enough this can't trigger a level-up
+        self.char1.db.xp = 0
+
+        text, options = node_confirm_sell(self.char1, item=item)
+        options[0]["goto"](self.char1)
+
+        self.assertEqual(self.char1.db.xp, 50)
+
+    def test_selling_an_ordinary_bought_item_awards_no_xp(self):
+        item = self._spawn_ware(proto_key="DAGGER", price=40, location=self.char1)
+        self.char1.db.level = 50
+        self.char1.db.xp = 0
+
+        text, options = node_confirm_sell(self.char1, item=item)
+        options[0]["goto"](self.char1)
+
+        self.assertEqual(self.char1.db.xp, 0)
+
+
 class TestCmdShop(EvenniaCommandTest):
     def test_no_merchant_here_rejects(self):
         result = self.call(CmdShop(), "", caller=self.char1)

@@ -80,7 +80,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "pacifism", "godpacifism", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming", "trivia", "pets", "buypet", "row", "socials"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "pacifism", "godpacifism", "gathering", "crafting", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming", "trivia", "pets", "buypet", "row", "socials"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
         + list(RACIAL_ABILITIES.keys())
     )
@@ -886,7 +886,10 @@ def create_all_help_entries():
             "down. Six real depth tiers, roughly levels 5 through 25.\n\n"
             "|w4. There's more to Rome than fighting.|n 'achievements', "
             "'bounty', and 'quest' all give you real, structured things to "
-            "chase. Walk the city itself, too - the Forum, the Capitoline, "
+            "chase. 'help gathering' and 'help crafting' are a real, "
+            "repeatable way to earn gold and experience without any "
+            "combat at all, if that's more your speed. Walk the city "
+            "itself, too - the Forum, the Capitoline, "
             "the Aventine, Campus Martius are all real, explorable places "
             "with their own history. Keep your eyes open as you go - Rome "
             "has genuine depth (real factions, real devotion to the gods) "
@@ -1018,7 +1021,10 @@ def create_all_help_entries():
             "exactly the same either way. Escaping the Colosseum's "
             "holding cells is itself entirely non-combat already - "
             "'sneak' past the guard, then 'solve' the riddle you find - "
-            "so you never have to fight your way free either.\n\n"
+            "so you never have to fight your way free either. 'help "
+            "gathering' and 'help crafting' are your real, repeatable "
+            "way to earn gold and experience without ever fighting - "
+            "not just a handful of one-time quests.\n\n"
             "|wStats and leveling work exactly the same for you|n - the "
             "same stat point every 3 levels, spent with 'statup' "
             "exactly as anyone else's would be. Virtus, Agilitas, "
@@ -1044,6 +1050,64 @@ def create_all_help_entries():
             "undo themselves. Does not return any gear that was "
             "destroyed on the way in; that loss was explicit and final "
             "at the time."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Gathering & crafting ---
+    HelpEntry.objects.create(
+        db_key="gathering",
+        db_help_category="General",
+        db_entrytext=(
+            "|wGathering|n\n\n"
+            "A real, repeatable, entirely non-combat way to earn "
+            "materials and level - see 'help crafting' for what to do "
+            "with what you gather.\n\n"
+            "|wUsage:|n\n"
+            "  gather   (also 'forage', 'mine' - all the same command)\n\n"
+            "Some places have a real material waiting: wooded stretches "
+            "of the wilderness road north of Rome yield timber, and the "
+            "Ore Vein Shaft (off the Germanic Stronghold's Smithy) "
+            "yields iron ore. There's nothing to fight and no risk - a "
+            "pacifist ('help pacifism') can do this exactly as freely "
+            "as anyone else.\n\n"
+            "|wCommon vs. rare:|n timber is common and refreshes for you "
+            "in a few minutes; iron ore is rare and refreshes for you "
+            "roughly once a day - worth the trip, not something to farm "
+            "repeatedly in one sitting. Either way, you personally can "
+            "gather that same kind of material again once its own time "
+            "has passed - nobody else's gathering affects your own."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    HelpEntry.objects.create(
+        db_key="crafting",
+        db_help_category="General",
+        db_entrytext=(
+            "|wCrafting|n\n\n"
+            "Turn gathered materials into something worth real gold and "
+            "experience - a genuine, repeatable non-combat path to "
+            "leveling, not just a one-time quest. See 'help gathering' "
+            "for where materials come from.\n\n"
+            "|wUsage:|n\n"
+            "  craft <recipe> from <ingredient>, <ingredient>, ...\n\n"
+            "|wCurrently available:|n\n"
+            "  craft iron shortsword from iron ore, iron ore, timber\n"
+            "  (2 iron ore and 1 timber, gathered or otherwise in your "
+            "inventory)\n\n"
+            "|wSkill:|n each craft attempt is checked against your own "
+            "skill in that profession, which starts at 0 and rises with "
+            "practice - a failed attempt keeps your materials and still "
+            "counts toward getting better, so there's never nothing to "
+            "show for trying.\n\n"
+            "|wSelling:|n a crafted item, or a raw material you'd rather "
+            "not use yourself, is sold through the ordinary 'shop' menu "
+            "at any merchant - crafted goods pay both gold and "
+            "experience on sale, raw materials pay gold only. Selling "
+            "further from Rome pays a real bonus, so it's a genuine "
+            "choice whether to carry your work home or sell where you "
+            "made it."
         ),
         db_lock_storage="view:all()",
     )

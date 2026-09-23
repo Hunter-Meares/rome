@@ -60,16 +60,12 @@ member. This is meant to be a real, weighty choice, not something
 flipped on a whim to dodge one specific dangerous stretch of content.
 
 Grants the "The Peaceable" achievement (world/achievements.py) the
-moment someone becomes a pacifist - deliberately the only pacifism-
-specific achievement for now. A matching leveling-milestone
-achievement was considered and rejected as premature: today's
-non-combat content (a handful of one-time visit/talk quests, several
-gated behind levels a pure pacifist has no way to reach) can't
-sustain leveling past roughly level 2-3 on its own, so a "reach level
-N as a pacifist" achievement would be either unachievable or a
-rounding-margin fluke - see world/achievements.py's own comment.
-Add it once the crafting/economy system gives non-combat play a real
-repeatable XP source.
+moment someone becomes a pacifist. A second, "Iron Will" (reach level
+10 as a pacifist), is granted from world/combat.py's own level-up
+hook once world/gathering.py + world/recipes.py shipped a real
+repeatable non-combat XP loop later the same session - see world/
+achievements.py's own comment for why that one specifically waited
+until it was honestly achievable rather than a rounding-margin fluke.
 
 Stats and statup are deliberately NOT special-cased for a pacifist -
 same leveling curve, same stat point every 3 levels, same `statup`

@@ -101,24 +101,29 @@ FIRST_PURCHASE = {
     "tracking": "any",
 }
 
-# The first entry for a non-combat playstyle (world/pacifism.py).
-# Deliberately just this one for now, not a matching level-milestone
-# achievement alongside it - real math check before adding one:
-# xp_for_level's cumulative cost to reach level 3 alone (95 XP) is
-# already MORE than every currently-reachable pure non-combat quest
-# a fresh pacifist could complete put together (secession_memory +
-# ceres_favor = 90 XP, and the rest are gated behind levels a pure
-# pacifist has no way to reach yet). There is no real repeatable
-# non-combat XP loop until the crafting/economy system (rome_mud_
-# todo.md) actually ships - a "reach level N as a pacifist"
-# achievement would be either unachievable or a rounding-margin
-# fluke today, exactly the kind of achievement this file's own
-# docstring says not to define. Add the leveling-milestone one
-# alongside that build instead, once it's honestly reachable.
+# Two entries for a non-combat playstyle (world/pacifism.py). A
+# leveling-milestone achievement was deliberately withheld at first -
+# real math showed quests alone can't sustain leveling past level 2-3
+# for a pure pacifist (secession_memory + ceres_favor = 90 XP, short
+# of even the 95 XP xp_for_level() needs to reach level 3, with the
+# rest of the game's quests gated behind levels a pacifist had no way
+# to reach). IRON_WILL below was added once world/gathering.py +
+# world/recipes.py shipped a real repeatable non-combat XP loop in
+# the same session, making level 10 honestly achievable (~30 craft-
+# and-sell cycles of the one recipe that exists so far) rather than
+# unachievable or a rounding-margin fluke.
 THE_PEACEABLE = {
     "key": "the_peaceable",
     "name": "The Peaceable",
     "desc": "Lay down your arms for good and become a pacifist.",
     "category": "pacifism",
     "tracking": "became",
+}
+
+IRON_WILL = {
+    "key": "iron_will",
+    "name": "Iron Will",
+    "desc": "Reach level 10 as a pacifist, without ever raising a hand in combat.",
+    "category": "level",
+    "tracking": "pacifist_ten",
 }

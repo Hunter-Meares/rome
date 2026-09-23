@@ -4222,6 +4222,16 @@ class CombatRules:
                 completed = track_achievements(character, category="level", tracking="hundred")
                 announce_achievements(character, completed)
 
+            # A separate, self-contained `if` rather than an `elif`
+            # chained to the one above - see CLAUDE.md gotcha #14 on
+            # why a bare elif this far from its own `if` is a real
+            # liability in a block that keeps growing new hooks.
+            if character.db.level == 10 and character.db.pacifist and character.has_account:
+                from evennia.contrib.game_systems.achievements import track_achievements
+                from world.achievements import announce_achievements
+                completed = track_achievements(character, category="level", tracking="pacifist_ten")
+                announce_achievements(character, completed)
+
     # Tunable: how much XP a single cast awards per point of MP/SP
     # spent. Applies to EVERY successful spell or skill use, not just
     # damage - a Medicus healing a badly-hurt ally, or a caster

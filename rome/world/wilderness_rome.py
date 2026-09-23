@@ -470,6 +470,20 @@ class RomeWildernessMapProvider(wilderness.WildernessMapProvider):
         else:
             room.ndb.active_desc = random.choice(_OFFROAD_DESCS[band])
 
+        # Timber gathering (world/gathering.py) - common, fast-respawn
+        # material, deliberately placed off-road in the two genuinely
+        # wooded bands rather than everywhere, so it means something
+        # to actually be standing among trees. Always explicitly
+        # (re-)set, including to None - this same room OBJECT gets
+        # reused for a different coordinate once vacated (see the
+        # wilderness contrib's own room-recycling), so a stale value
+        # from whatever this room represented last time must never
+        # survive into a fresh coordinate that isn't wooded off-road.
+        if x != 0 and band in ("forest_edge", "deep_woods"):
+            room.ndb.gather_resource = "timber"
+        else:
+            room.ndb.gather_resource = None
+
         # A pacifist (world/pacifism.py) can't be attacked by any NPC,
         # full stop - the road itself is genuinely safe for one, not
         # just "you'll survive it," so no encounter spawns for them

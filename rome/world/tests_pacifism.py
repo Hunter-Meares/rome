@@ -145,6 +145,44 @@ class TestPacifismAchievement(EvenniaTest):
         progress = get_achievement_progress(self.char1, "the_peaceable")
         self.assertTrue(progress.get("completed"))
 
+    def test_reaching_level_ten_as_a_pacifist_grants_iron_will(self):
+        from evennia.contrib.game_systems.achievements import get_achievement_progress
+
+        self.char1.db.pacifist = True
+        self.char1.db.level = 9
+        self.char1.db.xp = 0
+        self.char1.db.max_hp = 100
+        self.char1.db.max_mp = 20
+        self.char1.db.max_sp = 30
+
+        # has_account (evennia.objects.objects.DefaultObject) means "has
+        # an active session right now" - always False for a bare
+        # EvenniaTest fixture even though .account is set. See CLAUDE.md
+        # gotcha #18.
+        with patch("evennia.objects.objects.DefaultObject.has_account", new=True):
+            COMBAT_RULES.award_xp(self.char1, COMBAT_RULES.xp_for_level(9))
+
+        self.assertEqual(self.char1.db.level, 10)
+        progress = get_achievement_progress(self.char1, "iron_will")
+        self.assertTrue(progress.get("completed"))
+
+    def test_reaching_level_ten_as_a_combatant_does_not_grant_iron_will(self):
+        from evennia.contrib.game_systems.achievements import get_achievement_progress
+
+        self.char1.db.pacifist = False
+        self.char1.db.level = 9
+        self.char1.db.xp = 0
+        self.char1.db.max_hp = 100
+        self.char1.db.max_mp = 20
+        self.char1.db.max_sp = 30
+
+        with patch("evennia.objects.objects.DefaultObject.has_account", new=True):
+            COMBAT_RULES.award_xp(self.char1, COMBAT_RULES.xp_for_level(9))
+
+        self.assertEqual(self.char1.db.level, 10)
+        progress = get_achievement_progress(self.char1, "iron_will")
+        self.assertFalse(progress.get("completed"))
+
 
 class TestRestoreCombatant(EvenniaTest):
     def test_clears_the_flag(self):

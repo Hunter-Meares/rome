@@ -52,6 +52,14 @@ class NPCMerchant(DefaultCharacter):
     def at_object_creation(self):
         self.db.shopname = self.db.shopname or "the shop"
         self.locks.add("puppet:false()")
+        # A generic-goods sell-back bonus for how far this merchant is
+        # from Rome (world/gathering.py's crafting/gathering economy -
+        # a player can carry a gathered/crafted good home and sell for
+        # the baseline, or sell it further out for more, a real
+        # tradeoff rather than a flat rate everywhere). Defaults to
+        # 1.0 (no bonus) for every ordinary Rome merchant; only
+        # overridden by subclasses genuinely far from the city.
+        self.db.distance_bonus = self.db.distance_bonus or 1.0
 
 
 # Three tiers (prototype_key, level) per weapon/armor/shield the Ludus
@@ -180,6 +188,9 @@ class GermanicWeaponsmith(NPCMerchant):
     def at_object_creation(self):
         super().at_object_creation()
         self.db.shopname = "the Germanic weaponsmith's stall"
+        # Genuinely far from Rome - a real reason to sell a gathered/
+        # crafted good here rather than lugging it all the way home.
+        self.db.distance_bonus = 1.3
 
         from world.combat import compute_weapon_stats, compute_armor_stats
 
@@ -244,6 +255,8 @@ class AmberCoastArmorer(NPCMerchant):
     def at_object_creation(self):
         super().at_object_creation()
         self.db.shopname = "the Smith's Quarter Armory"
+        # Further still than the Germanic Stronghold.
+        self.db.distance_bonus = 1.6
 
         from world.combat import compute_weapon_stats, compute_armor_stats
 
@@ -287,6 +300,7 @@ class AmberTrader(NPCMerchant):
     def at_object_creation(self):
         super().at_object_creation()
         self.db.shopname = "the Amber Trader's stall"
+        self.db.distance_bonus = 1.6
 
         for prototype_key in AMBER_TRADER_STOCK:
             obj = spawn(prototype_key)[0]
@@ -564,12 +578,15 @@ def node_sell(caller, raw_string="", **kwargs):
         options = [{"key": ("Back", "_default"), "goto": "node_shopfront"}]
         return text, options
 
+    distance_bonus = merchant.db.distance_bonus or 1.0
     text = "|wWhat would you like to sell?|n\n(Merchants pay %d%% of an item's value - used goods, not new.)" % int(
         SELL_BACK_RATE * 100
     )
+    if distance_bonus > 1.0:
+        text += " |y(A %d%% bonus here, this far from Rome.)|n" % round((distance_bonus - 1.0) * 100)
     options = []
     for item in items:
-        sell_price = int(item.db.price * SELL_BACK_RATE)
+        sell_price = int(item.db.price * SELL_BACK_RATE * distance_bonus)
         options.append(
             {
                 "desc": "%s (%d gold)" % (item.key, sell_price),
@@ -588,12 +605,22 @@ def node_confirm_sell(caller, raw_string="", **kwargs):
         return "node_shopfront"
 
     merchant = caller.ndb.shop_merchant
-    sell_price = int(item.db.price * SELL_BACK_RATE)
+    distance_bonus = merchant.db.distance_bonus or 1.0
+    sell_price = int(item.db.price * SELL_BACK_RATE * distance_bonus)
 
     def _sell(caller, raw_string="", **kwargs):
         if not item.pk or item.location != caller:
             caller.msg("You don't have that anymore.")
             return "node_shopfront"
+        # A gathered/crafted good (world/gathering.py, world/recipes.py)
+        # carries its own db.craft_xp, baked in at spawn time - an
+        # ordinary shop-bought item never has this set, so reselling
+        # something you just bought can never farm XP this way. Paid
+        # here rather than on gathering/crafting itself, matching the
+        # design's own "the reward is at the sell step" shape.
+        if item.db.craft_xp:
+            from world.combat import COMBAT_RULES
+            COMBAT_RULES.award_xp(caller, item.db.craft_xp)
         # Deleted rather than moved into the merchant's own inventory -
         # since stock is now effectively infinite (see _buy above),
         # there's no need to physically store sold-back items, and

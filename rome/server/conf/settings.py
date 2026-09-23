@@ -126,6 +126,13 @@ PROTOTYPE_MODULES = ["world.prototypes"]
 # Players check their own progress in-game with the 'achievements' command.
 ACHIEVEMENT_CONTRIB_MODULES = ["world.achievements"]
 
+# Crafting contrib (evennia.contrib.game_systems.crafting) - points to
+# the module(s) containing recipe class definitions (world/recipes.py).
+# Ingredients/tools are matched by Tags (world/gathering.py's raw
+# materials, world/prototypes.py's tag entries), not this setting -
+# this just tells the contrib's 'craft' command where to find recipes.
+CRAFT_RECIPE_MODULES = ["world.recipes"]
+
 # world/help_entries.py originally held only Evennia's own stock
 # scaffolding "evennia" help topic (never customized for Rome, deleted
 # per request), leaving the file genuinely empty. An empty
