@@ -80,7 +80,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming", "trivia", "pets", "buypet", "row", "socials"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "pacifism", "godpacifism", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming", "trivia", "pets", "buypet", "row", "socials"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
         + list(RACIAL_ABILITIES.keys())
     )
@@ -867,6 +867,10 @@ def create_all_help_entries():
             "real help topic with the actual details. If you'd rather get "
             "one quick suggestion instead of re-reading this, try 'journey' "
             "any time.\n\n"
+            "|w0. Not interested in fighting at all?|n You can request "
+            "that right now, before doing anything else - 'help pacifism' "
+            "explains what it means and what it costs. It's a real, "
+            "permanent choice, so read it before you decide.\n\n"
             "|w1. Get out.|n You're a captive underneath the Colosseum. "
             "'fight' your way out the direct way, or go quiet - 'sneak' "
             "past the guards, then 'solve' the riddle you find. Either way "
@@ -977,6 +981,69 @@ def create_all_help_entries():
             "  titles clear       - show no earned title\n\n"
             "Earning a second (or third) title never overrides an "
             "already-active one - use 'titles set' to switch."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- Pacifism ---
+    HelpEntry.objects.create(
+        db_key="pacifism",
+        db_help_category="General",
+        db_entrytext=(
+            "|wPacifism|n\n\n"
+            "A real, permanent opt-out of combat entirely - not just "
+            "PvP. A pacifist can never attack, and can never be "
+            "attacked by, another player or any creature, anywhere in "
+            "the game: the wilderness roads, a duel, a kill quest, all "
+            "of it. You can request this the moment you start playing, "
+            "before you've done anything else.\n\n"
+            "|wUsage:|n\n"
+            "  pacifism          - see what it costs and what it means\n"
+            "  pacifism confirm  - actually do it\n\n"
+            "This is a weighty, one-way choice, the same way joining a "
+            "faction is - only a god can restore your right to fight "
+            "afterward, and you can't undo it yourself. You also can't "
+            "switch at all if you've ever killed another player (no "
+            "exceptions - that door closes for good the moment it "
+            "happens), while you're actively in a fight, or for a "
+            "while after your last real combat action.\n\n"
+            "|wYou give up your gear to do this.|n Every weapon and "
+            "piece of armor you're wearing comes off the moment you "
+            "confirm - ordinary gear is just set aside, but anything "
+            "one of a kind is lost for good, not merely dropped.\n\n"
+            "|wWhat's left to do?|n Everything that isn't a fight: "
+            "explore the whole city, chase any quest whose steps are "
+            "'visit' or 'talk' (a kill quest simply won't be offered to "
+            "you), and every social/roleplay system in the game works "
+            "exactly the same either way. Escaping the Colosseum's "
+            "holding cells is itself entirely non-combat already - "
+            "'sneak' past the guard, then 'solve' the riddle you find - "
+            "so you never have to fight your way free either.\n\n"
+            "|wStats and leveling work exactly the same for you|n - the "
+            "same stat point every 3 levels, spent with 'statup' "
+            "exactly as anyone else's would be. Virtus, Agilitas, "
+            "Ingenium, and Vigor genuinely do nothing for someone who "
+            "never fights, though, so the flat HP/MP/SP option 'statup' "
+            "already offers is usually the more useful pick for you - "
+            "especially SP, since ordinary movement still costs it "
+            "('help sp') and that's the one resource that actually "
+            "matters day to day for getting around."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    HelpEntry.objects.create(
+        db_key="godpacifism",
+        db_help_category="God Commands",
+        db_entrytext=(
+            "|wgodpacifism|n (god-only)\n\n"
+            "Usage:\n"
+            "  godpacifism <character>\n\n"
+            "Restores a pacifist's right to fight - see 'help pacifism' "
+            "for why this is deliberately not something a player can "
+            "undo themselves. Does not return any gear that was "
+            "destroyed on the way in; that loss was explicit and final "
+            "at the time."
         ),
         db_lock_storage="view:all()",
     )

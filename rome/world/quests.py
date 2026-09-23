@@ -1008,7 +1008,11 @@ def quest_entry_hint(character):
             character.msg(
                 "|y%s is waiting to hear how it went. (Type |wquest|y to report back.)|n" % name
             )
-        elif state is None and (character.db.level or 1) >= quest["level_required"]:
+        elif (
+            state is None
+            and (character.db.level or 1) >= quest["level_required"]
+            and not (character.db.pacifist and any(step["type"] == "kill" for step in get_steps(quest)))
+        ):
             character.msg(
                 "|y%s looks like they have something for you. (Type |wquest|y to hear what.)|n" % name
             )
@@ -1196,6 +1200,12 @@ class CmdQuest(Command):
         if state is None:
             if (caller.db.level or 1) < quest["level_required"]:
                 caller.msg("%s doesn't think you're ready for this yet." % giver.key)
+                return
+            if caller.db.pacifist and any(step["type"] == "kill" for step in get_steps(quest)):
+                caller.msg(
+                    "%s takes one look at you and thinks better of it - this "
+                    "isn't a task for someone who's laid down arms." % giver.key
+                )
                 return
             start_quest(caller, quest_key)
             caller.msg(quest["intro"])

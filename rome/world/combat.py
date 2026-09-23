@@ -1329,6 +1329,15 @@ class CombatRules:
         if defender.db.invincible:
             return
 
+        # A pacifist (world/pacifism.py) can never be attacked, full
+        # stop - every real entry point into combat already refuses
+        # to ever put one in a fight, but this is the same
+        # belt-and-suspenders no-op db.invincible gets right above,
+        # so a pacifist genuinely cannot take damage no matter what
+        # edge case might otherwise slip past one of those guards.
+        if defender.db.pacifist:
+            return
+
         # Rite of the Entrails' whole promise is "extra damage from
         # ALL sources" - but this used to live as a special case
         # inside get_damage() alone, which only the basic 'attack'
@@ -1382,6 +1391,22 @@ class CombatRules:
         # pattern world/loot.py already uses for dropped_at.
         if damage > 0 and defender.db.respawns:
             defender.db.last_damaged_at = time.time()
+
+        # Stamped on both sides of a real hit between two actual
+        # accounts - world/pacifism.py's PACIFISM_COMBAT_COOLDOWN
+        # reads this back to refuse switching to pacifist for a while
+        # after your last real combat action, so fleeing a losing
+        # fight by flipping mid-crisis isn't a thing. Deliberately
+        # continuous (refreshed on every hit, not just fight-start),
+        # so a long fight keeps the cooldown running the whole time
+        # it's active - is_in_combat() already blocks switching WHILE
+        # a fight is ongoing regardless of this timestamp.
+        if damage > 0:
+            now = time.time()
+            if getattr(defender, "account", None):
+                defender.db.last_combat_activity = now
+            if attacker and getattr(attacker, "account", None):
+                attacker.db.last_combat_activity = now
 
         # A pet's own damage (spell-summoned or purchased) deliberately
         # never counts toward the XP/gold split, by direct request - a
@@ -1658,12 +1683,23 @@ class CombatRules:
                 if c is not None and c.pk and getattr(c, "account", None)
             }
             total_damage = sum(player_damage.values())
+            # Every real player who contributed here has just killed
+            # another real player - a permanent, unconditional mark
+            # (world/pacifism.py's db.has_ever_killed_player) with no
+            # path back, checked before anyone can ever switch to
+            # pacifist. Set on every contributor, not just whoever
+            # dealt the killing blow - proportional-damage credit
+            # already treats them all as real participants in this
+            # kill for XP/gold, so pacifism eligibility follows suit.
+            for contributor in player_damage:
+                contributor.db.has_ever_killed_player = True
             if total_damage > 0:
                 for contributor, dealt in player_damage.items():
                     share = int(round(pvp_pool * (dealt / total_damage)))
                     if share > 0:
                         self.award_xp(contributor, share)
             elif attacker and getattr(attacker, "account", None):
+                attacker.db.has_ever_killed_player = True
                 self.award_xp(attacker, pvp_pool)
 
         # --- Gold reward, derived from xp_reward rather than a
@@ -3698,6 +3734,12 @@ class CombatRules:
             return
         if target == user:
             user.msg("You can't ambush yourself.")
+            return
+        if user.db.pacifist:
+            user.msg("You've laid down arms for good - you can't ambush anyone.")
+            return
+        if target.db.pacifist:
+            user.msg("%s has laid down arms for good - there's no fighting them." % target.key)
             return
         if not self.try_break_sanctuary(user, target):
             return
@@ -7534,7 +7576,7 @@ class CombatTurnHandler(DefaultScript):
         else:
             self.db.fighters = []
             for thing in self.obj.contents:
-                if thing.db.hp:
+                if thing.db.hp and not thing.db.pacifist:
                     self.db.fighters.append(thing)
             # 'fight all' - group fighters by party membership, so a
             # group of allies correctly counts as one side rather
@@ -7954,6 +7996,12 @@ class CombatTurnHandler(DefaultScript):
         return "solo_join_%d" % id(character)
 
     def join_fight(self, character, side=None):
+        # Defense-in-depth, matching apply_damage's own no-op above -
+        # every real call site (CmdFight, skill_ambush) already
+        # refuses to send a pacifist here at all, but a pacifist must
+        # never end up in db.fighters no matter what calls this.
+        if character.db.pacifist:
+            return
         self.db.fighters.insert(self.db.turn, character)
         self.db.turn += 1
         if side is None:
@@ -8063,6 +8111,9 @@ class CmdFight(Command):
         if target == caller:
             caller.msg("You can't fight yourself.")
             return
+        if target.db.pacifist:
+            caller.msg("%s has laid down arms for good - there's no fighting them." % target.key)
+            return
         if not self.rules.try_break_sanctuary(caller, target):
             return
 
@@ -8082,6 +8133,9 @@ class CmdFight(Command):
         if caller.db.is_dead:
             caller.msg("You are dead. The living's quarrels are no longer yours.")
             return
+        if caller.db.pacifist:
+            caller.msg("You've laid down arms for good - you can't start a fight.")
+            return
         if not caller.db.hp:
             caller.msg("You can't start a fight if you've been defeated!")
             return
@@ -8100,7 +8154,7 @@ class CmdFight(Command):
         if arg == "all":
             fighters = []
             for thing in here.contents:
-                if thing.db.hp:
+                if thing.db.hp and not thing.db.pacifist:
                     if thing != caller and not self.rules.try_break_sanctuary(caller, thing):
                         continue
                     fighters.append(thing)
@@ -9011,6 +9065,9 @@ class CmdChallenge(Command):
         caller = self.caller
         proto = caller.location.db.trainer_prototype
 
+        if caller.db.pacifist:
+            caller.msg("You've laid down arms for good - you can't challenge anyone.")
+            return
         if not proto:
             caller.msg("There's no one here to challenge.")
             return

@@ -37,6 +37,7 @@ from world import tutorial
 from world import reports
 from world import socials
 from world import triumph_event
+from world import pacifism
 from evennia.contrib.utils.debugpy import CmdDebugPy
 from evennia.contrib.grid.ingame_map_display import MapDisplayCmdSet
 from evennia.contrib.grid.ingame_map_display.ingame_map_display import CmdMap
@@ -194,6 +195,8 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(religion.CmdReligion())
         self.add(religion.CmdBeseech())
         self.add(titles.CmdTitles())
+        self.add(pacifism.CmdPacifism())
+        self.add(pacifism.CmdGodPacifism())
         self.add(tutorial.CmdJourney())
         self.add(CmdNoInput())
 

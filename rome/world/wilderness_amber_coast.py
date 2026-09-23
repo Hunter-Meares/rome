@@ -393,7 +393,12 @@ class AmberCoastWildernessMapProvider(wilderness.WildernessMapProvider):
         else:
             room.ndb.active_desc = random.choice(_OFFROAD_DESCS[band])
 
-        if caller and random.random() < ENCOUNTER_CHANCE:
+        # See world/wilderness_rome.py's identical comment - a
+        # pacifist (world/pacifism.py) can't be attacked by any NPC,
+        # so no encounter spawns for them here either.
+        if caller and caller.db.pacifist:
+            pass
+        elif caller and random.random() < ENCOUNTER_CHANCE:
             low, high = _ENCOUNTER_LEVELS[band]
             level = random.randint(low, high)
             name, race, player_class = random.choice(_ENCOUNTER_NAMES[band])

@@ -32,18 +32,18 @@ from evennia import CmdSet
 from commands.command import Command
 from world.box_display import box_border, box_line, box_paragraph, box_blank
 
-RECENT_UPDATES_DATE = "2026-09-22"
+RECENT_UPDATES_DATE = "2026-09-23"
 
 RECENT_UPDATES_TEXT = (
-    "Eleven new quests now wait around the city - from a herbalist's "
-    "errand in the Subura to a tomb-robber in the Mausoleum of "
-    "Augustus, including two multi-step ones. A line appears when a "
-    "quest-giver has something for you; type 'quest' to hear it and "
-    "'quest log' to track your progress. Also new: a triumphal procession that "
-    "winds through the Forum every few hours (listen for distant "
-    "trumpets), a welcome letter from Jupiter in every new "
-    "character's mail, six new shops, and 80 social commands "
-    "('help socials')."
+    "Not here to fight? 'help pacifism' explains a real, permanent way "
+    "to opt out of combat entirely - you can never attack or be "
+    "attacked, by a player or any creature, and you can request it "
+    "the moment you start playing. Also new: thirteen quests now wait "
+    "around the city, two of them multi-step - a line appears when a "
+    "quest-giver has something for you, and 'quest log' tracks your "
+    "progress. Also recent: a triumphal procession through the Forum, "
+    "a welcome letter from Jupiter for every new character, six new "
+    "shops, and 80 social commands ('help socials')."
 )
 
 # The box's own interior width, between its left/right borders and

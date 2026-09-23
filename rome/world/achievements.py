@@ -100,3 +100,25 @@ FIRST_PURCHASE = {
     "category": "buy",
     "tracking": "any",
 }
+
+# The first entry for a non-combat playstyle (world/pacifism.py).
+# Deliberately just this one for now, not a matching level-milestone
+# achievement alongside it - real math check before adding one:
+# xp_for_level's cumulative cost to reach level 3 alone (95 XP) is
+# already MORE than every currently-reachable pure non-combat quest
+# a fresh pacifist could complete put together (secession_memory +
+# ceres_favor = 90 XP, and the rest are gated behind levels a pure
+# pacifist has no way to reach yet). There is no real repeatable
+# non-combat XP loop until the crafting/economy system (rome_mud_
+# todo.md) actually ships - a "reach level N as a pacifist"
+# achievement would be either unachievable or a rounding-margin
+# fluke today, exactly the kind of achievement this file's own
+# docstring says not to define. Add the leveling-milestone one
+# alongside that build instead, once it's honestly reachable.
+THE_PEACEABLE = {
+    "key": "the_peaceable",
+    "name": "The Peaceable",
+    "desc": "Lay down your arms for good and become a pacifist.",
+    "category": "pacifism",
+    "tracking": "became",
+}
