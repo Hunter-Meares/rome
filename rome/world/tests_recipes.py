@@ -130,17 +130,24 @@ class TestSkilledCraftingRecipe(EvenniaTest):
 
 
 class TestIronShortswordRecipe(EvenniaCommandTest):
+    """
+    Deliberately just 1 ore + 1 timber, not 2 ore - see
+    IronShortswordRecipe's own comment for the two real reasons found
+    live (a ~24h-cooldown material can't reasonably require 2 of
+    itself, and two objects sharing an identical display key aren't
+    reliably both addressable in one 'craft ... from x, x' command).
+    """
+
     def setUp(self):
         super().setUp()
         self.char1.db.craft_skill = {}
-        self.ore1 = spawn("RAW_IRON_ORE")[0]
-        self.ore2 = spawn("RAW_IRON_ORE")[0]
+        self.ore = spawn("RAW_IRON_ORE")[0]
         self.timber = spawn("RAW_TIMBER")[0]
-        for obj in (self.ore1, self.ore2, self.timber):
+        for obj in (self.ore, self.timber):
             obj.move_to(self.char1, quiet=True)
 
     def test_a_successful_craft_produces_a_priced_weapon(self):
-        recipe = IronShortswordRecipe(self.char1, self.ore1, self.ore2, self.timber)
+        recipe = IronShortswordRecipe(self.char1, self.ore, self.timber)
         with mock.patch("world.recipes.randint", return_value=1):
             result = recipe.craft()
 
@@ -157,30 +164,49 @@ class TestIronShortswordRecipe(EvenniaCommandTest):
         self.assertEqual(sword.db.price, expected_price)
 
     def test_a_successful_craft_consumes_the_materials(self):
-        recipe = IronShortswordRecipe(self.char1, self.ore1, self.ore2, self.timber)
+        recipe = IronShortswordRecipe(self.char1, self.ore, self.timber)
         with mock.patch("world.recipes.randint", return_value=1):
             recipe.craft()
 
-        self.assertFalse(self.ore1.pk)
-        self.assertFalse(self.ore2.pk)
+        self.assertFalse(self.ore.pk)
         self.assertFalse(self.timber.pk)
 
     def test_a_failed_craft_keeps_the_materials(self):
-        recipe = IronShortswordRecipe(self.char1, self.ore1, self.ore2, self.timber)
+        recipe = IronShortswordRecipe(self.char1, self.ore, self.timber)
         with mock.patch("world.recipes.randint", return_value=100):
             result = recipe.craft()
 
         self.assertFalse(result)
-        self.assertTrue(self.ore1.pk)
-        self.assertTrue(self.ore2.pk)
+        self.assertTrue(self.ore.pk)
         self.assertTrue(self.timber.pk)
 
     def test_missing_a_material_is_refused(self):
-        recipe = IronShortswordRecipe(self.char1, self.ore1, self.timber)  # only 1 ore
+        recipe = IronShortswordRecipe(self.char1, self.timber)  # no ore
         with mock.patch("world.recipes.randint", return_value=1):
             result = recipe.craft()
         self.assertFalse(result)
-        self.assertTrue(self.ore1.pk)
+        self.assertTrue(self.timber.pk)
+
+    def test_the_real_craft_command_delivers_a_sellable_item_to_inventory(self):
+        # Real, confirmed gap found during live post-deploy
+        # verification: the contrib's own craft() access function does
+        # NOT move its result into the crafter's inventory - only
+        # CmdCraft.func() does that ("result = craft(...); if result:
+        # for obj in result: obj.location = caller"). Every other test
+        # here calls craft()/the recipe class directly and would never
+        # catch a real player ending up with a sword sitting nowhere.
+        from evennia.contrib.game_systems.crafting.crafting import CmdCraft
+
+        with mock.patch("world.recipes.randint", return_value=1):
+            result_text = self.call(
+                CmdCraft(),
+                "iron shortsword from iron ore, timber",
+                caller=self.char1,
+            )
+
+        swords = [o for o in self.char1.contents if o.key == "a hand-forged iron shortsword"]
+        self.assertEqual(len(swords), 1, "command output was: %r" % result_text)
+        self.assertEqual(swords[0].location, self.char1)
 
     def test_the_contribs_own_craft_access_function_finds_our_recipe(self):
         # Confirms the contrib's top-level craft() access function -
@@ -191,7 +217,7 @@ class TestIronShortswordRecipe(EvenniaCommandTest):
         from evennia.contrib.game_systems.crafting import craft as contrib_craft
 
         with mock.patch("world.recipes.randint", return_value=1):
-            result = contrib_craft(self.char1, "iron shortsword", self.ore1, self.ore2, self.timber)
+            result = contrib_craft(self.char1, "iron shortsword", self.ore, self.timber)
 
         self.assertTrue(result)
         self.assertEqual(result[0].key, "a hand-forged iron shortsword")

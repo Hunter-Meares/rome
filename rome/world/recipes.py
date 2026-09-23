@@ -143,8 +143,21 @@ class IronShortswordRecipe(SkilledCraftingRecipe):
     skill_key = "faber"
     difficulty = 10
 
-    consumable_tags = ["iron_ore", "iron_ore", "timber"]
-    consumable_names = ["iron ore", "iron ore", "timber"]
+    # Deliberately just 1 of each, not 2 ore - two real reasons found
+    # live, not just a simplification: (1) iron ore has a ~24h
+    # per-character cooldown, so requiring 2 would mean a genuinely
+    # new player waits TWO DAYS before their very first craft attempt
+    # is even possible, badly breaking the 5-minute cycle-time
+    # assumption _craft_reward's whole parity math is built on; (2) a
+    # real, confirmed Evennia limitation - two objects sharing the
+    # exact same display key ("a chunk of iron ore") can't reliably
+    # both be referenced in one 'craft ... from iron ore, iron ore,
+    # ...' command (CmdCraft's own ingredient search isn't disambig-
+    # uation-aware the way a player-facing 'get' command might be),
+    # so a duplicate-material recipe would have silently failed for a
+    # real player with 2 identical ore chunks, not just been slow.
+    consumable_tags = ["iron_ore", "timber"]
+    consumable_names = ["iron ore", "timber"]
     output_prototypes = ["CRAFTED_IRON_SHORTSWORD"]
 
     success_message = "|gYou hammer the ore into shape and fit a timber grip - a real iron shortsword, plain but sound.|n"
