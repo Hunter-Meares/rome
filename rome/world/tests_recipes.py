@@ -20,6 +20,7 @@ from world.recipes import (
     _craft_reward,
     _recipe_learn_cost,
     _get_recipe_class,
+    _skill_tier,
     SkilledCraftingRecipe,
     IronShortswordRecipe,
     IronLoricaRecipe,
@@ -27,6 +28,23 @@ from world.recipes import (
     HealingTonicRecipe,
     AntidoteRecipe,
 )
+
+
+class TestSkillTier(EvenniaTest):
+    # Direct request: get away from showing raw skill numbers to
+    # players at all - these five words, in these exact 20-point
+    # bands, are what do_craft's own messages show instead.
+    def test_boundaries(self):
+        self.assertEqual(_skill_tier(0), "bad")
+        self.assertEqual(_skill_tier(19), "bad")
+        self.assertEqual(_skill_tier(20), "poor")
+        self.assertEqual(_skill_tier(39), "poor")
+        self.assertEqual(_skill_tier(40), "average")
+        self.assertEqual(_skill_tier(59), "average")
+        self.assertEqual(_skill_tier(60), "superb")
+        self.assertEqual(_skill_tier(79), "superb")
+        self.assertEqual(_skill_tier(80), "mastered")
+        self.assertEqual(_skill_tier(100), "mastered")
 
 
 class TestCraftReward(EvenniaTest):
@@ -119,6 +137,66 @@ class TestSkilledCraftingRecipe(EvenniaTest):
             result = recipe.do_craft()
         self.assertFalse(result)
         self.assertEqual(recipe._skill(), 1)
+
+    # Real gap found by direct question ("do players get a message
+    # when they improve at crafting?") - a failed attempt already
+    # showed something, a successful one never did at all. Fixed, and
+    # a direct follow-up request replaced raw numbers with adjectives
+    # (_skill_tier) everywhere in these messages.
+    @staticmethod
+    def _sent_text(mock_msg):
+        # CraftingRecipeBase.msg() (the contrib) calls
+        # self.crafter.msg(text=(message, {"type": "crafting"})) - a
+        # keyword arg wrapping a (str, dict) tuple, not a plain
+        # positional string.
+        texts = []
+        for call in mock_msg.call_args_list:
+            text = call.kwargs.get("text")
+            if isinstance(text, tuple):
+                texts.append(str(text[0]))
+            elif text is not None:
+                texts.append(str(text))
+            elif call.args:
+                texts.append(str(call.args[0]))
+        return " ".join(texts)
+
+    def test_a_failed_attempt_shows_a_skill_word_not_a_number(self):
+        recipe_cls = _fake_recipe(difficulty=0)
+        recipe = recipe_cls(self.char1)
+        with mock.patch.object(self.char1, "msg") as mock_msg, mock.patch(
+            "world.recipes.randint", return_value=100
+        ):
+            recipe.do_craft()
+        sent = self._sent_text(mock_msg)
+        self.assertIn("bad", sent)
+        self.assertNotRegex(sent, r"\d")
+
+    def test_a_successful_attempt_that_crosses_a_tier_announces_it(self):
+        # 0 -> 3 crosses no boundary (still "bad"), so start just below
+        # one instead (bad/poor at 20) to force a real tier change.
+        recipe_cls = _fake_recipe(difficulty=0)
+        self.char1.db.craft_skill = {"faber": 19}
+        recipe = recipe_cls(self.char1)
+        with mock.patch.object(self.char1, "msg") as mock_msg, mock.patch(
+            "world.recipes.randint", return_value=1
+        ):
+            recipe.do_craft()
+        sent = self._sent_text(mock_msg)
+        self.assertIn("improved", sent)
+        self.assertIn("poor", sent)
+        self.assertNotRegex(sent, r"\d")
+
+    def test_a_successful_attempt_within_the_same_tier_says_nothing_extra(self):
+        # Skill 0 -> 3 stays "bad" both before and after - no reason to
+        # announce an "improvement" that isn't visible to the player.
+        recipe_cls = _fake_recipe(difficulty=0)
+        recipe = recipe_cls(self.char1)
+        with mock.patch.object(self.char1, "msg") as mock_msg, mock.patch(
+            "world.recipes.randint", return_value=1
+        ):
+            recipe.do_craft()
+        sent = self._sent_text(mock_msg)
+        self.assertNotIn("improved", sent)
 
     def test_higher_skill_than_difficulty_raises_the_chance(self):
         recipe_cls = _fake_recipe(difficulty=10)

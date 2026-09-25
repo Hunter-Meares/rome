@@ -469,6 +469,39 @@ CALIGAE_FERRATAE = {
 }
 
 # ----------------------------------------------------------------------------
+# PURELY COSMETIC CLOTHING - body-slot items with zero damage_reduction/
+# defense_modifier and no stat_bonuses/resource_bonuses at all, deliberately
+# real armor's polar opposite. No armor_category either (world/combat.py's
+# is_armor_proficient() treats that as "always proficient"), so nobody is
+# ever penalized for wearing one. Built specifically so a pacifist
+# (world/pacifism.py) isn't stuck bare-chested forever once world/combat.py's
+# _try_don_armor starts refusing real body armor/shields for them - the five
+# accessory slots (head/arms/hands/legs/feet) were already protection-free by
+# the game's own existing design (see the note above them), so the body slot
+# was the only real gap. Sold by world/economy.py's ForumTailor.
+# ----------------------------------------------------------------------------
+
+PLAIN_ROBE = {
+    "prototype_parent": "BASEARMOR",
+    "price": 10,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "body",
+    "key": "a plain wool robe",
+    "desc": "Undyed, unadorned wool, clearly not meant to stop a blade - just something decent to wear.",
+}
+
+SIMPLE_TUNIC = {
+    "prototype_parent": "BASEARMOR",
+    "price": 10,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "body",
+    "key": "a simple linen tunic",
+    "desc": "A plain, well-worn tunic - comfortable, unremarkable, and offering no protection whatsoever.",
+}
+
+# ----------------------------------------------------------------------------
 # GATHERING & CRAFTING - raw materials (world/gathering.py) and their finished
 # goods (world/recipes.py). Raw materials are plain typeclasses.objects.Object,
 # each tagged for the crafting contrib to recognize as an ingredient

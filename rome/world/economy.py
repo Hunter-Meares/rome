@@ -443,6 +443,31 @@ class ForumScribe(NPCMerchant):
             obj.move_to(self, quiet=True)
 
 
+TAILOR_STOCK = ["PLAIN_ROBE", "SIMPLE_TUNIC"]
+
+
+class ForumTailor(NPCMerchant):
+    """
+    A tailor at "Cloth Merchants and Tailors" (the Forum) - same gap
+    as ForumScribe above (that room's own description already implied
+    a tailor working there, with none ever actually placed). Direct,
+    practical purpose: world/combat.py's _try_don_armor now refuses
+    real body armor/shields (nonzero damage_reduction/defense_modifier)
+    for a pacifist, so this is where one buys something to actually
+    wear instead - purely cosmetic body-slot clothing (world/
+    prototypes.py's PLAIN_ROBE/SIMPLE_TUNIC), zero protection, zero
+    proficiency gating.
+    """
+
+    def at_object_creation(self):
+        super().at_object_creation()
+        self.db.shopname = "the tailor's counter"
+
+        for prototype_key in TAILOR_STOCK:
+            obj = spawn(prototype_key)[0]
+            obj.move_to(self, quiet=True)
+
+
 WINE_MERCHANT_STOCK = [
     "WINE_SPICED_CUP", "WINE_FALERNIAN",
     "WINE_WATERED_AMPHORA", "WINE_FORTIFIED_FLASK",

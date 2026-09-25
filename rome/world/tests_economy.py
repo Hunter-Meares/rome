@@ -472,3 +472,42 @@ class TestRomeShopsStockThemselves(EvenniaTest):
                 "BOMB", "POISON_DART", "ANTIDOTE_POTION",
             },
         )
+
+
+class TestForumTailor(EvenniaTest):
+    """
+    Sells armor, not consumables, so this stays separate from
+    TestRomeShopsStockThemselves (whose whole point is "every item has
+    a real item_func" - not true here on purpose, since these are
+    wearable clothing, not usable potions). Built specifically so a
+    pacifist (world/pacifism.py) has somewhere to buy cosmetic-only
+    body-slot clothing once world/combat.py's _try_don_armor started
+    refusing real armor for them.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from world.economy import ForumTailor
+
+        self.tailor = create.create_object(ForumTailor, key="Vendor", location=self.room1)
+
+    def test_stocks_exactly_its_own_stock_list(self):
+        from world.economy import TAILOR_STOCK
+
+        self.assertEqual(len(self.tailor.contents), len(TAILOR_STOCK))
+
+    def test_shopname_is_set(self):
+        self.assertEqual(self.tailor.db.shopname, "the tailor's counter")
+
+    def test_every_item_is_genuinely_zero_protection(self):
+        # The entire reason this shop exists - a pacifist needs
+        # something to wear that world/combat.py's pacifist check in
+        # _try_don_armor won't refuse.
+        for item in self.tailor.contents:
+            self.assertFalse(item.db.damage_reduction)
+            self.assertFalse(item.db.defense_modifier)
+
+    def test_every_item_is_a_body_slot_item_with_no_proficiency_gate(self):
+        for item in self.tailor.contents:
+            self.assertEqual(item.db.armor_slot, "body")
+            self.assertIsNone(item.db.armor_category)

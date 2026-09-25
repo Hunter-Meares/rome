@@ -10125,6 +10125,16 @@ def _try_wield_weapon(caller, weapon, rules):
         caller.msg("You can only do that on your turn.")
         return
 
+    if caller.db.pacifist:
+        # A pacifist can never enter combat at all, so a weapon is
+        # never anything but a prop for them - and the whole point of
+        # the gear surrender on switching (world/pacifism.py) is
+        # undermined if it can just be picked back up a moment later.
+        # Armor gets a narrower version of this same check (see
+        # _try_don_armor) since some of it is purely decorative.
+        caller.msg("You've laid down your arms for good - a pacifist can't wield a weapon.")
+        return
+
     if weapon.db.two_handed and caller.db.worn_shield:
         caller.msg(
             "You can't wield a two-handed weapon while carrying a shield - "
@@ -10157,6 +10167,23 @@ def _try_don_armor(caller, armor):
     _try_wield_weapon's own docstring for why this is split out."""
     if COMBAT_RULES.is_in_combat(caller):
         caller.msg("You can't don armor in a fight!")
+        return
+
+    if caller.db.pacifist and (armor.db.damage_reduction or armor.db.defense_modifier):
+        # Only real protection (nonzero damage_reduction/
+        # defense_modifier - body armor and shields) is blocked, same
+        # reasoning as _try_wield_weapon. The five accessory slots
+        # (head/arms/hands/legs/feet) never touch either stat at all -
+        # see world/prototypes.py's own note on why - so ordinary
+        # helmets/gloves/boots/etc. stay wearable; only body armor and
+        # shields (and any future item with real protection) are
+        # closed off. A purely cosmetic body-slot item (0/0 on both,
+        # e.g. a plain robe - see the Forum's tailor) still works.
+        caller.msg(
+            "That's built for a fight you'll never have - a pacifist can't "
+            "wear real armor. Something without any actual protection "
+            "would work fine, though."
+        )
         return
 
     slot = armor.db.armor_slot or "body"

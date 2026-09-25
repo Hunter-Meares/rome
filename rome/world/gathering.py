@@ -168,8 +168,11 @@ def announce_gather_spot(character):
     wilderness-style (lower) chance via db.gather_uses_wilderness_
     chance regardless of ndb/db - that override is checked first;
     otherwise the original ndb-vs-db distinction still applies for
-    anything that hasn't opted in (a genuinely single-room node, like
-    the Herbalist's own stall).
+    anything that hasn't opted in (a genuinely single-room node with
+    nowhere else to look - no live example currently exists since
+    herbs moved off Market Row and into the wilderness alongside
+    timber, see world/wilderness_rome.py, but the mechanism stays for
+    whatever the next single-room node turns out to be).
     """
     character.ndb.gather_spot = None
     location = character.location

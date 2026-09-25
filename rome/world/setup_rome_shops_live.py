@@ -1,10 +1,12 @@
 """
-One-time live setup for the six Rome-proper shops: places each new
+One-time live setup for the Rome-proper shops: places each new
 merchant NPC in its chosen room. Run once via
 `evennia shell < world/setup_rome_shops_live.py` after deploying
 world/economy.py and world/prototypes.py. Safe to re-run - each
 placement is guarded by a typeclass check per room, matching
-world/setup_factions_live.py's own idempotency pattern.
+world/setup_factions_live.py's own idempotency pattern (this is also
+what makes it safe to add a 7th entry, ForumTailor, later and re-run
+the whole script - the first six are just skipped as already present).
 
 Room choices and why:
   - SuburaApothecary -> Market Row - Back Stalls (Subura) - already
@@ -27,6 +29,12 @@ Room choices and why:
     gear commerce hub (the weaponsmith, both spell/skill trainers, the
     pet trainer all stand here already); "near the Ludus" as
     originally proposed literally means this room.
+  - ForumTailor -> Cloth Merchants and Tailors - same "room's own
+    description already implies this NPC, but none was ever placed"
+    gap as ForumScribe ("a tailor measures a customer with practiced,
+    rapid efficiency" - world/batch_forum_data.py). Added later, once
+    a pacifist needed somewhere to actually buy cosmetic-only clothing
+    after real body armor/shields were closed off to them.
 """
 
 from evennia.utils import search, create
@@ -38,6 +46,7 @@ from world.economy import (
     ForumScribe,
     ForumWineMerchant,
     LudusOutfitter,
+    ForumTailor,
 )
 
 SHOP_PLACEMENTS = [
@@ -78,6 +87,13 @@ SHOP_PLACEMENTS = [
         "running a stall of the practical things a fighter actually "
         "needs before a real fight - medical kits, potions, and a few "
         "things meant to be thrown at someone else.",
+    ),
+    (
+        ForumTailor, "Cloth Merchants and Tailors", "Vibia the tailor",
+        "Quick, precise hands and a mouth full of pins, taking a "
+        "customer's measure without ever seeming to slow down. Bolts "
+        "of plain, undyed cloth are stacked behind her - nothing "
+        "fancy, but always ready to be cut and stitched on the spot.",
     ),
 ]
 

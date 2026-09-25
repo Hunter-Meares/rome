@@ -97,6 +97,47 @@ class TestLiveWilderness(EvenniaTest):
         self.assertIn("miles to Rome", desc)
         self.assertIn("125 miles to Rome", desc)
 
+    def test_offroad_wooded_tile_offers_timber_or_herbs(self):
+        # Herbs used to be a fixed Market Row room - moved here by
+        # direct correction ("herbs should be gathered in the
+        # wilderness"). A wooded off-road tile can only hold one
+        # resource at a time, so which one a given visit gets is
+        # random rather than a fixed per-coordinate split.
+        self._enter((3, 20))
+        self.assertIn(self.char1.location.ndb.gather_resource, ("timber", "herbs"))
+
+    def test_both_timber_and_herbs_actually_turn_up_over_many_visits(self):
+        # Confirms the random.choice is genuinely both-sided, not
+        # silently always picking one (e.g. dict/list ordering bugs).
+        # Re-entering the exact coordinates you're already standing at
+        # (rather than actually moving) is a real, confirmed contrib
+        # limitation - it crashes move_obj's own room-recycling
+        # (KeyError: None, found live by this test in its first form).
+        # Alternating between two adjacent tiles via real exit
+        # traversal - the same approach the encounter test just above
+        # already uses - re-triggers at_prepare_room the way an actual
+        # player walking back and forth would, without hitting that.
+        self._enter((3, 20))
+        seen = set()
+        for _ in range(40):
+            exits = {e.key: e for e in self.char1.location.exits}
+            exits["north"].at_traverse(self.char1, exits["north"].destination)
+            seen.add(self.char1.location.ndb.gather_resource)
+            exits = {e.key: e for e in self.char1.location.exits}
+            exits["south"].at_traverse(self.char1, exits["south"].destination)
+            seen.add(self.char1.location.ndb.gather_resource)
+            if seen == {"timber", "herbs"}:
+                break
+        self.assertEqual(seen, {"timber", "herbs"})
+
+    def test_road_tile_never_offers_anything_to_gather(self):
+        self._enter((0, 20))
+        self.assertIsNone(self.char1.location.ndb.gather_resource)
+
+    def test_non_wooded_offroad_tile_offers_nothing(self):
+        self._enter((3, 3))  # farmland band
+        self.assertIsNone(self.char1.location.ndb.gather_resource)
+
     def test_no_milestone_off_the_road(self):
         self._enter((3, 20))
         desc = self.char1.location.get_display_desc(self.char1)

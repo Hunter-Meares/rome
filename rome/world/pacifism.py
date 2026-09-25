@@ -43,8 +43,19 @@ pacifist - every equipped item is removed, and anything tagged
 db.unique_item = True is destroyed outright rather than merely
 dropped (dropping alone doesn't actually stop hoarding - it could
 just be stashed or minded by someone else). Ordinary gear is only
-unequipped, since it isn't scarce. db.unique_item is a new convention
-- nothing in the game sets it yet (the only "unique" gear that exists
+unequipped here, not destroyed, since it isn't scarce - but a real
+gap found by direct question ("if they get to keep it, what's the
+point of making them take it off?") meant nothing stopped it being
+put right back on a moment later, making the whole surrender hollow
+for anything non-unique. Closed at the source, not here: world/
+combat.py's _try_wield_weapon/_try_don_armor now refuse to re-equip
+a weapon or real (nonzero-stat) armor for a pacifist going forward -
+a zero-stat cosmetic item (world/prototypes.py's PLAIN_ROBE/
+SIMPLE_TUNIC, sold by world.economy.ForumTailor) still works, so
+this isn't unequipped forever with nothing to replace it.
+
+db.unique_item is a new convention - nothing in the game sets it yet
+(the only "unique" gear that exists
 today, world/prototypes.py's divine THUNDERBOLT_OF_JUPITER and
 friends, is distinguished only by a get:false() lock and being
 hand-placed, not a data flag) - but any future one-of-a-kind player
@@ -202,8 +213,11 @@ class CmdPacifism(Command):
 
     You give up every weapon and piece of armor you're wearing to do
     this - anything one of a kind among it is lost for good, not just
-    set down. Once you're a pacifist, only a god can restore your
-    right to fight again; you can't undo this yourself.
+    set down. You also won't be able to wield a weapon or wear real
+    armor ever again while a pacifist - only purely cosmetic clothing
+    with zero protection still works. Once you're a pacifist, only a
+    god can restore your right to fight again; you can't undo this
+    yourself.
 
     You can't switch if you've ever killed another player, if you're
     currently in a fight, or for a while after your last real combat
@@ -231,7 +245,11 @@ class CmdPacifism(Command):
                 "player or any creature again."
             )
             if equipped:
-                warning += " Every weapon and piece of armor you're wearing comes off."
+                warning += (
+                    " Every weapon and piece of armor you're wearing comes "
+                    "off, and you won't be able to wield or wear anything "
+                    "but purely cosmetic clothing again."
+                )
             if unique:
                 warning += (
                     " %s, being one of a kind, will be lost for good, not "

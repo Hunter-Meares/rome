@@ -105,6 +105,22 @@ from evennia.contrib.game_systems.crafting import CraftingRecipe, CraftingValida
 # the entire in-game 'craft' command breaks the moment anyone uses it.
 CRAFT_SKILL_CAP = 100
 
+# Real skill numbers (0-100) are never shown to a player directly - a
+# direct request to move away from exposing hard numbers in general.
+# Five evenly-sized 20-point bands, in the exact words asked for.
+def _skill_tier(skill):
+    """The adjective for a 0-100 skill value: bad (0-19), poor (20-39),
+    average (40-59), superb (60-79), mastered (80-100)."""
+    if skill < 20:
+        return "bad"
+    if skill < 40:
+        return "poor"
+    if skill < 60:
+        return "average"
+    if skill < 80:
+        return "superb"
+    return "mastered"
+
 # How much of a level's own xp_for_level() a full gather-craft-sell
 # cycle should be worth per real minute it takes - see rome_mud_
 # todo.md's crafting section: derived from combat's own
@@ -197,8 +213,26 @@ class SkilledCraftingRecipe(CraftingRecipe):
         # time; skill above/below the recipe's difficulty shifts that
         # up or down, clamped so it's never a sure thing or hopeless.
         chance = max(5, min(95, 50 + (skill - self.difficulty)))
+        old_tier = _skill_tier(skill)
         if randint(1, 100) <= chance:
             self._train(3)
+            # Real gap found by direct question ("do players get a
+            # message when they improve at crafting?") - they didn't,
+            # even though a FAILED attempt already showed something
+            # below. Printed before the recipe's own flavor
+            # success_message (shown later, by the contrib's own
+            # post_craft) rather than after it - do_craft has no way
+            # to run code after post_craft fires. Shows an adjective
+            # tier (_skill_tier), never the raw number - a direct,
+            # general request to get away from hard numbers in the
+            # game - and only actually announces a tier CHANGE, not
+            # every single success, so it doesn't repeat itself
+            # several crafts in a row while sitting in the same band.
+            new_tier = _skill_tier(self._skill())
+            if new_tier != old_tier:
+                self.msg(
+                    "|g(Your %s skill has improved: %s.)|n" % (self.skill_key, new_tier)
+                )
             return super().do_craft(**kwargs)
 
         # Failure keeps the materials (consume_on_fail is False by
@@ -208,7 +242,7 @@ class SkilledCraftingRecipe(CraftingRecipe):
         self._train(1)
         self.msg(
             "|rThe attempt doesn't come together this time - you'll need "
-            "more practice with this (skill: %d/%d).|n" % (self._skill(), CRAFT_SKILL_CAP)
+            "more practice with this (%s skill: %s).|n" % (self.skill_key, _skill_tier(self._skill()))
         )
         return None
 

@@ -470,17 +470,27 @@ class RomeWildernessMapProvider(wilderness.WildernessMapProvider):
         else:
             room.ndb.active_desc = random.choice(_OFFROAD_DESCS[band])
 
-        # Timber gathering (world/gathering.py) - common, fast-respawn
-        # material, deliberately placed off-road in the two genuinely
-        # wooded bands rather than everywhere, so it means something
-        # to actually be standing among trees. Always explicitly
-        # (re-)set, including to None - this same room OBJECT gets
-        # reused for a different coordinate once vacated (see the
-        # wilderness contrib's own room-recycling), so a stale value
-        # from whatever this room represented last time must never
-        # survive into a fresh coordinate that isn't wooded off-road.
+        # Timber and herb gathering (world/gathering.py) - both common,
+        # fast-respawn materials, deliberately placed off-road in the
+        # two genuinely wooded bands rather than everywhere, so it
+        # means something to actually be standing among trees. Herbs
+        # were originally placed at a fixed room in Market Row, but
+        # that never made sense - a plant doesn't grow on a market
+        # stall - and moving it here also matches Faber's own
+        # established shape (gather ore at the mine, craft at a
+        # separate forge) rather than being a one-off exception. A
+        # forest tile can only ever offer one resource at a time
+        # (ndb.gather_resource is a single value), so which one a
+        # given visit offers is random - not a fixed timber-only or
+        # herbs-only split by coordinate, since the room OBJECT itself
+        # is recycled for a different coordinate on every visit anyway
+        # (see the wilderness contrib's own room-recycling) - there's
+        # no stable per-coordinate identity to hang a fixed split on.
+        # Always explicitly (re-)set, including to None, so a stale
+        # value from whatever this room represented last time never
+        # survives into a fresh coordinate that isn't wooded off-road.
         if x != 0 and band in ("forest_edge", "deep_woods"):
-            room.ndb.gather_resource = "timber"
+            room.ndb.gather_resource = random.choice(["timber", "herbs"])
         else:
             room.ndb.gather_resource = None
 

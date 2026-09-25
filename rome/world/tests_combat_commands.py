@@ -2459,6 +2459,78 @@ class TestWieldAndDonAreCrossCompatible(CombatCommandTestBase):
         self.assertEqual(unwield_names & doff_names, set())
 
 
+class TestPacifistGearRestrictions(CombatCommandTestBase):
+    """
+    Real gap found by direct question: "why does pacifism make you
+    remove ordinary gear if you get to keep it? Can't they just put
+    it back on?" - become_pacifist() (world/pacifism.py) always did
+    unequip-only for ordinary gear (a deliberate choice, since it
+    isn't scarce - see that module's own docstring), but nothing
+    stopped a pacifist from just wielding/donning it again a moment
+    later, making the "you give up your gear" framing hollow. Fixed
+    by direct request: a pacifist can never wield ANY weapon again,
+    and can never don real (nonzero damage_reduction/defense_modifier)
+    armor - but a purely cosmetic body-slot item (world/prototypes.py's
+    PLAIN_ROBE/SIMPLE_TUNIC, sold by the new ForumTailor) still works,
+    so they aren't stuck bare-chested forever.
+    """
+
+    def _add_weapon(self, key="an iron broadsword"):
+        return create.create_object("world.combat.CombatWeapon", key=key, location=self.char1)
+
+    def _add_armor(self, key="a suit of scale mail", slot="body", damage_reduction=4, defense_modifier=-4):
+        armor = create.create_object("world.combat.CombatArmor", key=key, location=self.char1)
+        armor.db.armor_slot = slot
+        armor.db.damage_reduction = damage_reduction
+        armor.db.defense_modifier = defense_modifier
+        return armor
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.pacifist = True
+
+    def test_a_pacifist_cannot_wield_any_weapon(self):
+        weapon = self._add_weapon()
+        result = self.call(CmdWield(), weapon.key, caller=self.char1)
+        self.assertIn("can't wield a weapon", result)
+        self.assertIsNone(self.char1.db.wielded_weapon)
+
+    def test_a_pacifist_cannot_don_real_body_armor(self):
+        armor = self._add_armor()
+        result = self.call(CmdDon(), armor.key, caller=self.char1)
+        self.assertIn("can't wear real armor", result)
+        self.assertIsNone(self.char1.db.worn_armor)
+
+    def test_a_pacifist_cannot_don_a_real_shield(self):
+        shield = self._add_armor(key="a curved legionary scutum", slot="shield", damage_reduction=0, defense_modifier=12)
+        result = self.call(CmdDon(), shield.key, caller=self.char1)
+        self.assertIn("can't wear real armor", result)
+        self.assertIsNone(self.char1.db.worn_shield)
+
+    def test_a_pacifist_can_still_don_zero_stat_cosmetic_clothing(self):
+        robe = self._add_armor(key="a plain wool robe", slot="body", damage_reduction=0, defense_modifier=0)
+        self.call(CmdDon(), robe.key, caller=self.char1)
+        self.assertEqual(self.char1.db.worn_armor, robe)
+
+    def test_a_pacifist_can_still_don_an_accessory_slot_item(self):
+        # Head/arms/hands/legs/feet never touch damage_reduction/
+        # defense_modifier at all (world/prototypes.py's own note) -
+        # they were already protection-free before this change, so
+        # they stay wearable.
+        cap = self._add_armor(key="a simple felt pileus cap", slot="head", damage_reduction=0, defense_modifier=0)
+        self.call(CmdDon(), cap.key, caller=self.char1)
+        self.assertEqual(self.char1.db.worn_head, cap)
+
+    def test_a_non_pacifist_is_unaffected(self):
+        self.char1.db.pacifist = False
+        weapon = self._add_weapon()
+        armor = self._add_armor()
+        self.call(CmdWield(), weapon.key, caller=self.char1)
+        self.assertEqual(self.char1.db.wielded_weapon, weapon)
+        self.call(CmdDon(), armor.key, caller=self.char1)
+        self.assertEqual(self.char1.db.worn_armor, armor)
+
+
 class TestEvidenceBasedAliases(CombatCommandTestBase):
     """
     Regression coverage for aliases added from real player command
