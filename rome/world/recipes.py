@@ -131,12 +131,31 @@ class SkilledCraftingRecipe(CraftingRecipe):
 
 class IronShortswordRecipe(SkilledCraftingRecipe):
     """
-    A basic, honest weapon - Faber's first real recipe. Level and
-    cycle-time assumptions (8, 5 minutes: gather ore and timber, walk
-    to the Smithy, craft, sell) are stated explicitly here since
-    _craft_reward() has no other way to know them - see that function
-    and rome_mud_todo.md for why 5 minutes/0.03 per minute is the
-    working target rather than a guess with no basis.
+    A basic, honest weapon - Faber's first real recipe.
+
+    Real, confirmed parity bug found live and fixed here: this recipe
+    originally hardcoded a single ITEM_LEVEL (8) for BOTH the item's
+    own stats AND the XP/gold reward, forever, regardless of who
+    crafted it or when. That's fine at level 8, but the explicit
+    leveling-parity requirement ("combat and crafting should level at
+    about the same real-world rate") completely breaks past it: the
+    real numbers work out to roughly 2,300 real HOURS of crafting to
+    reach level 100 at a flat 156 XP/cycle, against ~55 hours for
+    combat under the same parity assumption applied consistently - a
+    ~42x gap, not a rounding error.
+
+    Fixed by splitting the two concerns the old single ITEM_LEVEL
+    conflated: the REWARD (craft_xp/price) now scales with the
+    crafter's own real, current, UNCAPPED level - exactly matching how
+    an NPC kill's reward already scales with the NPC's level, so
+    leveling pace tracks combat at every level, not just at 8. The
+    item's own PHYSICAL power is a deliberately separate axis, capped
+    at ITEM_LEVEL_CEILING - a plain "iron shortsword" is meant to stay
+    a modest, entry-tier weapon forever, not become a repeatable path
+    to best-in-slot gear just because the crafter leveled up. A future
+    higher recipe tier (Faber's own natural next step) is how a
+    crafter should get access to stronger ITEMS; this fix is only
+    about keeping the REWARD's pace honest in the meantime.
     """
 
     name = "iron shortsword"
@@ -162,7 +181,13 @@ class IronShortswordRecipe(SkilledCraftingRecipe):
 
     success_message = "|gYou hammer the ore into shape and fit a timber grip - a real iron shortsword, plain but sound.|n"
 
-    ITEM_LEVEL = 8
+    # The item's own physical power - deliberately bounded, unlike the
+    # reward below. ITEM_LEVEL_FLOOR keeps a very-low-level crafter's
+    # sword from being worse than the original baseline design;
+    # ITEM_LEVEL_CEILING keeps a high-level crafter's sword from ever
+    # becoming genuinely best-in-slot gear just by leveling up.
+    ITEM_LEVEL_FLOOR = 8
+    ITEM_LEVEL_CEILING = 20
     CYCLE_MINUTES = 5
 
     def do_craft(self, **kwargs):
@@ -172,13 +197,20 @@ class IronShortswordRecipe(SkilledCraftingRecipe):
 
         from world.combat import compute_weapon_stats
 
-        damage_range, accuracy_bonus, _shop_price = compute_weapon_stats("gladius", self.ITEM_LEVEL)
-        craft_xp, price = _craft_reward(self.ITEM_LEVEL, self.CYCLE_MINUTES)
+        crafter_level = self.crafter.db.level or 1
+        item_level = max(self.ITEM_LEVEL_FLOOR, min(crafter_level, self.ITEM_LEVEL_CEILING))
+        damage_range, accuracy_bonus, _shop_price = compute_weapon_stats("gladius", item_level)
+        # Reward scales with the crafter's REAL level, uncapped -
+        # unlike item_level above, this has to track the whole curve
+        # for leveling-parity to hold at level 60 the same way it does
+        # at level 8, not just at whatever level the sword itself caps
+        # out at.
+        craft_xp, price = _craft_reward(crafter_level, self.CYCLE_MINUTES)
 
         for obj in result:
             obj.db.damage_range = damage_range
             obj.db.accuracy_bonus = accuracy_bonus
-            obj.db.item_level = self.ITEM_LEVEL
+            obj.db.item_level = item_level
             obj.db.price = price
             obj.db.craft_xp = craft_xp
 

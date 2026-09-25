@@ -8879,19 +8879,38 @@ class CmdGodTeleport(Command):
         if not target:
             return
 
-        destination = caller.search(
-            rhs.strip(), global_search=True, typeclass="typeclasses.rooms.Room", quiet=True,
+        # NOT caller.search(..., typeclass="typeclasses.rooms.Room")
+        # - a real, confirmed bug found live: several special-behavior
+        # rooms (Jupiter's Throne Room, the Holding Cells, among
+        # others - see typeclasses/rooms.py's own docstring) used to
+        # inherit straight from Evennia's DefaultRoom rather than this
+        # project's own Room subclass, so a typeclass= search filter
+        # (which matches db_typeclass_path EXACTLY - see evennia.
+        # objects.manager.get_objs_with_key_or_alias - it is NOT
+        # inheritance-aware the way is_typeclass(exact=False) is)
+        # silently excluded every one of them from ever being a valid
+        # godteleport destination by name. Those 4 rooms are fixed now
+        # too (typeclasses/rooms.py), but searching unrestricted and
+        # filtering in Python with is_typeclass(exact=False) here is
+        # the robust fix - unlike a typeclass= kwarg, it can't be
+        # broken again by some future room subclass making the same
+        # mistake, since it actually checks real inheritance.
+        found_rooms = caller.search(rhs.strip(), global_search=True, quiet=True)
+        destination = next(
+            (
+                obj for obj in found_rooms
+                if obj.is_typeclass("evennia.objects.objects.DefaultRoom", exact=False)
+            ),
+            None,
         )
-        if isinstance(destination, list):
-            destination = destination[0] if destination else None
 
         if not destination:
             # Not a room by that name - try anything at all instead,
             # and if it's somewhere real, go THERE (see this class's
             # own docstring for why this beats refusing outright).
-            found = caller.search(rhs.strip(), global_search=True, quiet=True)
-            if isinstance(found, list):
-                found = found[0] if found else None
+            # Reuses found_rooms above rather than re-querying - same
+            # unrestricted search, just no longer filtered to rooms.
+            found = found_rooms[0] if found_rooms else None
             if found and found.location:
                 destination = found.location
                 caller.msg("|x(%s is in %s - teleporting there instead.)|n" % (found, destination))

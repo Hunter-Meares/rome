@@ -785,6 +785,29 @@ class TestCmdGodTeleport(CombatCommandTestBase):
         self.assertIn("could not find anywhere named", result.lower())
         self.assertEqual(self.char2.location, self.room1)
 
+    def test_finds_a_room_not_rooted_in_typeclasses_rooms_room(self):
+        # Real, confirmed live bug: the destination search used to
+        # filter on typeclass="typeclasses.rooms.Room" specifically,
+        # which is an EXACT db_typeclass_path match (see evennia.
+        # objects.manager.get_objs_with_key_or_alias) - NOT
+        # inheritance-aware the way is_typeclass(exact=False) is. Any
+        # room rooted straight in Evennia's own DefaultRoom instead
+        # (exactly what typeclasses/rooms.py's ZeusThroneRoom/
+        # WelcomeCellRoom/MiloGreetingRoom/AtriumGreetingRoom used to
+        # do, until this same fix) was silently unreachable by name.
+        # Reproduced here with a fresh room typed straight off
+        # Evennia's own DefaultRoom, not this project's Room subclass.
+        odd_room = create.create_object(
+            "evennia.objects.objects.DefaultRoom", key="A Bare DefaultRoom"
+        )
+
+        result = self.call(CmdGodTeleport(), "Char2 = A Bare DefaultRoom", caller=self.char1)
+
+        self.assertEqual(self.char2.location, odd_room)
+        self.assertNotIn("could not find", (result or "").lower())
+
+        odd_room.delete()
+
 
 class TestCmdDismissPet(CombatCommandTestBase):
     """

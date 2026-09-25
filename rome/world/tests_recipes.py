@@ -141,6 +141,7 @@ class TestIronShortswordRecipe(EvenniaCommandTest):
     def setUp(self):
         super().setUp()
         self.char1.db.craft_skill = {}
+        self.char1.db.level = 8  # matches the recipe's own ITEM_LEVEL_FLOOR
         self.ore = spawn("RAW_IRON_ORE")[0]
         self.timber = spawn("RAW_TIMBER")[0]
         for obj in (self.ore, self.timber):
@@ -155,13 +156,47 @@ class TestIronShortswordRecipe(EvenniaCommandTest):
         sword = result[0]
         self.assertTrue(sword.db.damage_range)
         self.assertTrue(sword.db.accuracy_bonus)
-        self.assertEqual(sword.db.item_level, IronShortswordRecipe.ITEM_LEVEL)
+        self.assertEqual(sword.db.item_level, 8)
 
-        expected_xp, expected_price = _craft_reward(
-            IronShortswordRecipe.ITEM_LEVEL, IronShortswordRecipe.CYCLE_MINUTES
-        )
+        expected_xp, expected_price = _craft_reward(8, IronShortswordRecipe.CYCLE_MINUTES)
         self.assertEqual(sword.db.craft_xp, expected_xp)
         self.assertEqual(sword.db.price, expected_price)
+
+    def test_the_reward_scales_with_the_crafters_real_level(self):
+        # Real, confirmed parity bug fixed here - see the recipe's own
+        # docstring: the reward used to be a flat number forever
+        # regardless of who crafted it, making crafting fall ~42x
+        # behind combat's own pace past the low levels. It must now
+        # track the crafter's actual level, not a hardcoded one.
+        self.char1.db.level = 50
+        recipe = IronShortswordRecipe(self.char1, self.ore, self.timber)
+        with mock.patch("world.recipes.randint", return_value=1):
+            result = recipe.craft()
+
+        expected_xp, expected_price = _craft_reward(50, IronShortswordRecipe.CYCLE_MINUTES)
+        self.assertEqual(result[0].db.craft_xp, expected_xp)
+        self.assertEqual(result[0].db.price, expected_price)
+        self.assertGreater(expected_xp, 156)  # meaningfully more than the old flat rate
+
+    def test_the_items_own_power_is_capped_even_at_a_high_level(self):
+        # Unlike the reward above, the sword's OWN stats deliberately
+        # do NOT keep scaling forever - a plain "iron shortsword"
+        # should never become best-in-slot gear just because its
+        # crafter leveled up; see the recipe's own docstring.
+        self.char1.db.level = 90
+        recipe = IronShortswordRecipe(self.char1, self.ore, self.timber)
+        with mock.patch("world.recipes.randint", return_value=1):
+            result = recipe.craft()
+
+        self.assertEqual(result[0].db.item_level, IronShortswordRecipe.ITEM_LEVEL_CEILING)
+
+    def test_a_very_low_level_crafter_still_gets_the_floor_level_item(self):
+        self.char1.db.level = 1
+        recipe = IronShortswordRecipe(self.char1, self.ore, self.timber)
+        with mock.patch("world.recipes.randint", return_value=1):
+            result = recipe.craft()
+
+        self.assertEqual(result[0].db.item_level, IronShortswordRecipe.ITEM_LEVEL_FLOOR)
 
     def test_a_successful_craft_consumes_the_materials(self):
         recipe = IronShortswordRecipe(self.char1, self.ore, self.timber)

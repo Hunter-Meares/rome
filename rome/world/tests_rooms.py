@@ -58,3 +58,32 @@ class TestMessageSequenceSpacing(EvenniaTest):
         self.assertTrue(CELL_INTRO_MESSAGES)
         self.assertTrue(MILO_GREETING_MESSAGES)
         self.assertTrue(ATRIUM_INTRO_MESSAGES)
+
+
+class TestSpecialRoomsAreRootedInRoom(EvenniaTest):
+    """
+    Real, confirmed live bug (see this module's own docstring):
+    ZeusThroneRoom/WelcomeCellRoom/MiloGreetingRoom/AtriumGreetingRoom
+    used to inherit straight from (ObjectParent, DefaultRoom) rather
+    than this project's own Room subclass - functionally identical
+    today, but invisible to any typeclass="typeclasses.rooms.Room"
+    filter (an EXACT db_typeclass_path match, not inheritance-aware),
+    which is exactly what silently broke godteleport/gtel for
+    Jupiter's Throne Room and the Holding Cells. A plain
+    isinstance/issubclass check is enough here - no live server needed
+    to confirm the class hierarchy itself is fixed.
+    """
+
+    def test_every_special_room_is_a_real_room_subclass(self):
+        from typeclasses.rooms import (
+            Room,
+            ZeusThroneRoom,
+            WelcomeCellRoom,
+            MiloGreetingRoom,
+            AtriumGreetingRoom,
+        )
+
+        for cls in (ZeusThroneRoom, WelcomeCellRoom, MiloGreetingRoom, AtriumGreetingRoom):
+            self.assertTrue(
+                issubclass(cls, Room), "%s no longer inherits from Room" % cls.__name__
+            )

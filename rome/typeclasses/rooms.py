@@ -3,6 +3,25 @@ Room
 
 Rooms are simple containers that has no location of their own.
 
+Every special-behavior room below (ZeusThroneRoom, WelcomeCellRoom,
+MiloGreetingRoom, AtriumGreetingRoom) inherits from Room itself, not
+straight from (ObjectParent, DefaultRoom) - a real, confirmed bug
+found live, the same systemic class as CLAUDE.md's gotchas #11/#12
+(a bare-typeclass NPC/prop never actually rooted in this project's own
+base class), just never checked for rooms until now. All 4 used to
+inherit directly from (ObjectParent, DefaultRoom), which is
+functionally identical today (Room adds nothing beyond that) but
+meant `is_typeclass("typeclasses.rooms.Room")` / a spawn-search
+`typeclass="typeclasses.rooms.Room"` filter silently excluded every
+one of them - confirmed live as the root cause of `godteleport`/`gtel`
+reporting "Could not find anywhere named 'Holding Cells Beneath the
+Colosseum'" even though that exact room exists, because
+CmdGodTeleport's destination search filtered on that same typeclass
+string. Fixed both ways: these 4 classes now genuinely inherit from
+Room, and CmdGodTeleport's own search (world/combat.py) was widened to
+filter on the true common ancestor (evennia.objects.objects.
+DefaultRoom) instead, so any future room subclass that repeats this
+same mistake still gets found by a god-only teleport.
 """
 from evennia.objects.objects import DefaultRoom
 from evennia.utils.utils import delay
@@ -25,7 +44,7 @@ class Room(ObjectParent, DefaultRoom):
     pass
 
 
-class ZeusThroneRoom(ObjectParent, DefaultRoom):
+class ZeusThroneRoom(Room):
     def at_object_receive(self, obj, source_location, move_type="move", **kwargs):
         """
         Called when something arrives in this room. Only greets actual
@@ -101,7 +120,7 @@ def _send_cell_intro(character, index=0):
     _send_message_sequence(character, CELL_INTRO_MESSAGES, index)
 
 
-class WelcomeCellRoom(ObjectParent, DefaultRoom):
+class WelcomeCellRoom(Room):
     """
     Your Cell - the starting location. Fires the orientation sequence
     above exactly once per character (tracked via db.seen_cell_intro),
@@ -137,7 +156,7 @@ def _send_milo_greeting(character, index=0):
     _send_message_sequence(character, MILO_GREETING_MESSAGES, index)
 
 
-class MiloGreetingRoom(ObjectParent, DefaultRoom):
+class MiloGreetingRoom(Room):
     """
     Room #226 - where Old Milo is stationed, the first room past the
     cells. Fires his greeting exactly once per character, same
@@ -170,7 +189,7 @@ def _send_atrium_intro(character, index=0):
     _send_message_sequence(character, ATRIUM_INTRO_MESSAGES, index)
 
 
-class AtriumGreetingRoom(ObjectParent, DefaultRoom):
+class AtriumGreetingRoom(Room):
     """
     Atrium of the Games (#283) - where both escape routes lead. Fires
     the orientation sequence above exactly once per character, same

@@ -17,8 +17,12 @@ DIVINE PRESENCE - per-god teleport arrival/departure flavor
 Set db.divine_presence on a character to one of the keys below (a plain
 string, lowercase) to give them a signature entrance/exit whenever they
 @tel somewhere - matched to their domain from the lore on gods.html. Any
-value not found here still gets a dramatic generic message, so a future
-god-player doesn't need a lore entry written before they can use this.
+value not found here still gets a dramatic generic message, and (a real
+gap found live and fixed - see _wants_divine_flavor's own docstring)
+so does ANY god-tier character (db.level > 100) even with
+divine_presence never explicitly set at all - a future god-player
+doesn't need a lore entry written, or even to know this setting
+exists, before they can use this.
 
 Only fires on actual teleports (move_type == "teleport"), never on
 regular walking through exits.
@@ -175,6 +179,25 @@ DIVINE_ANNOUNCE_MESSAGES = {
     },
 }
 
+def _wants_divine_flavor(character, move_type):
+    """
+    True if character should get divine teleport flavor (a specific
+    god's, or the generic fallback) instead of Evennia's plain move
+    message. Real, confirmed gap found live: the module docstring
+    above already promised "a future god-player doesn't need a lore
+    entry written before they can use this," but the actual gating
+    used to be `if character.db.divine_presence:` alone - a real
+    god-tier character (db.level > 100) with divine_presence never
+    explicitly set (the normal case for anyone who isn't one of the
+    handful of hand-authored major deities) got Evennia's bare default
+    move message on every godteleport, not even the generic fallback,
+    directly contradicting that promise. Now any god-tier character
+    qualifies for at least the generic fallback even with no
+    divine_presence set at all.
+    """
+    return move_type == "teleport" and bool(character.db.divine_presence or (character.db.level or 0) > 100)
+
+
 # Fallback for any divine_presence value not found above - so a new
 # god-player still gets something dramatic before you've written their
 # lore-specific flavor.
@@ -222,8 +245,10 @@ class Character(ObjectParent, CombatCharacter):
         """
         Called in the OLD room, just before a move happens. Characters
         with db.divine_presence set to a god's name get that god's
-        signature departure message instead of the plain default, but
-        only when actually teleporting - regular walking is untouched.
+        signature departure message instead of the plain default, and
+        any other god-tier character gets the generic dramatic
+        fallback (see _wants_divine_flavor) - either way only when
+        actually teleporting, never for regular walking.
 
         Wizinvis (see CmdWizInvis in world/combat.py) overrides all of
         this: while active, no plain-movement departure message is
@@ -235,18 +260,18 @@ class Character(ObjectParent, CombatCharacter):
         look/room contents regardless of this message.
         """
         if self.db.wizinvis and self.location:
-            god_key = self.db.divine_presence
-            if god_key and move_type == "teleport":
-                flavor = DIVINE_ANNOUNCE_MESSAGES.get(str(god_key).lower())
+            if _wants_divine_flavor(self, move_type):
+                god_key = self.db.divine_presence
+                flavor = DIVINE_ANNOUNCE_MESSAGES.get(str(god_key).lower()) if god_key else None
                 text = (flavor["leave"] if flavor else _DEFAULT_DIVINE_LEAVE).format(name=self.key)
                 for observer in self.location.contents:
                     if observer != self and self.access(observer, "view"):
                         observer.msg(text)
             return
 
-        god_key = self.db.divine_presence
-        if god_key and move_type == "teleport" and self.location:
-            flavor = DIVINE_ANNOUNCE_MESSAGES.get(str(god_key).lower())
+        if _wants_divine_flavor(self, move_type) and self.location:
+            god_key = self.db.divine_presence
+            flavor = DIVINE_ANNOUNCE_MESSAGES.get(str(god_key).lower()) if god_key else None
             text = (flavor["leave"] if flavor else _DEFAULT_DIVINE_LEAVE).format(name=self.key)
             self.location.msg_contents(text, exclude=self)
             return
@@ -262,18 +287,18 @@ class Character(ObjectParent, CombatCharacter):
         wizinvis override.
         """
         if self.db.wizinvis and self.location:
-            god_key = self.db.divine_presence
-            if god_key and move_type == "teleport":
-                flavor = DIVINE_ANNOUNCE_MESSAGES.get(str(god_key).lower())
+            if _wants_divine_flavor(self, move_type):
+                god_key = self.db.divine_presence
+                flavor = DIVINE_ANNOUNCE_MESSAGES.get(str(god_key).lower()) if god_key else None
                 text = (flavor["arrive"] if flavor else _DEFAULT_DIVINE_ARRIVE).format(name=self.key)
                 for observer in self.location.contents:
                     if observer != self and self.access(observer, "view"):
                         observer.msg(text)
             return
 
-        god_key = self.db.divine_presence
-        if god_key and move_type == "teleport" and self.location:
-            flavor = DIVINE_ANNOUNCE_MESSAGES.get(str(god_key).lower())
+        if _wants_divine_flavor(self, move_type) and self.location:
+            god_key = self.db.divine_presence
+            flavor = DIVINE_ANNOUNCE_MESSAGES.get(str(god_key).lower()) if god_key else None
             text = (flavor["arrive"] if flavor else _DEFAULT_DIVINE_ARRIVE).format(name=self.key)
             self.location.msg_contents(text, exclude=self)
             return
