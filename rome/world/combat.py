@@ -3035,7 +3035,7 @@ class CombatRules:
         own convention for effect-application spells, not a gap.
         """
         spell_msg = "%s casts %s!" % (caster, spell_name)
-        min_damage, max_damage = kwargs.get("damage_range", (15, 25))
+        min_damage, max_damage = scale_spell_damage_range(caster, kwargs.get("damage_range", (15, 25)))
         drain_percent = kwargs.get("drain_percent", 0.5)
         ingenium_bonus = ((caster.db.ingenium or 10) - 10) // 2
         total_drained = 0
@@ -3090,7 +3090,7 @@ class CombatRules:
         way as spell_vampiric above.
         """
         hp_cost = kwargs.get("hp_cost", 15)
-        min_damage, max_damage = kwargs.get("damage_range", (35, 50))
+        min_damage, max_damage = scale_spell_damage_range(caster, kwargs.get("damage_range", (35, 50)))
         ingenium_bonus = ((caster.db.ingenium or 10) - 10) // 2
 
         if caster.db.hp <= hp_cost:
@@ -3151,12 +3151,12 @@ class CombatRules:
         ingenium_bonus = ((caster.db.ingenium or 10) - 10) // 2
         severe_chance = kwargs.get("severe_chance", 20)
         if randint(1, 100) <= severe_chance:
-            min_damage, max_damage = kwargs.get("severe_damage_range", (60, 90))
+            min_damage, max_damage = scale_spell_damage_range(caster, kwargs.get("severe_damage_range", (60, 90)))
             spell_msg = "|rDeath itself answers %s's call - a withering blow tears through %s!|n" % (
                 caster, target
             )
         else:
-            min_damage, max_damage = kwargs.get("damage_range", (25, 40))
+            min_damage, max_damage = scale_spell_damage_range(caster, kwargs.get("damage_range", (25, 40)))
             spell_msg = "%s's curse lashes into %s." % (caster, target)
         damage = randint(min_damage, max_damage) + ingenium_bonus
 
@@ -3265,7 +3265,7 @@ class CombatRules:
         spell_msg = "%s casts %s!" % (caster, spell_name)
 
         atkname_single, atkname_plural = kwargs.get("attack_name", ("The spell", "spells"))
-        min_damage, max_damage = kwargs.get("damage_range", (10, 20))
+        min_damage, max_damage = scale_spell_damage_range(caster, kwargs.get("damage_range", (10, 20)))
         accuracy = kwargs.get("accuracy", 0)
         attack_count = kwargs.get("attack_count", 1)
         # Two separate bonuses from the same stat: full-strength for
@@ -6162,6 +6162,58 @@ WEAPON_SUBTYPES = {
 }
 
 
+# The per-level growth of weapon damage, shared with spell scaling
+# below (scale_spell_damage_range) so the two can never drift apart.
+WEAPON_MIN_FLAT = 7
+WEAPON_MIN_PER_LEVEL = 1.3
+WEAPON_MAX_FLAT = 14
+WEAPON_MAX_PER_LEVEL = 2.1
+
+
+def weapon_base_average(level):
+    """Average of the un-multiplied weapon damage range at `level` - the
+    shared growth curve compute_weapon_stats builds every weapon from."""
+    return (
+        (WEAPON_MIN_FLAT + level * WEAPON_MIN_PER_LEVEL)
+        + (WEAPON_MAX_FLAT + level * WEAPON_MAX_PER_LEVEL)
+    ) / 2
+
+
+# The level every damaging spell's hand-authored `damage_range` is treated
+# as having been tuned for - Ritual Flame's own unlock level, the
+# workhorse single-target spell whose 25-35 sits at roughly two thirds of a
+# same-level weapon. Below it a spell hits exactly as authored; above it,
+# it grows with the caster the way a weapon does.
+SPELL_DAMAGE_ANCHOR_LEVEL = 20
+
+
+def scale_spell_damage_range(caster, damage_range):
+    """
+    Grows a damaging spell's authored (min, max) with the caster's level.
+
+    A real player report (Sep 18) - "ritual flame does 40 damage, my melee
+    does 50... no magic really scaled" - was confirmed: spell damage was a
+    flat authored range plus a small Ingenium bonus and never grew with
+    level, while a same-level weapon roughly triples in damage from level
+    20 to level 60. The factor is the weapon growth curve at the caster's
+    level over the same curve at SPELL_DAMAGE_ANCHOR_LEVEL, floored at 1
+    (a spell never hits weaker than authored), so a caster at or below the
+    anchor is unchanged and one above it keeps pace with melee.
+
+    Only real player characters are scaled (a persistent .account link,
+    not has_account - which only means "connected right now"). NPC damage
+    is deliberately untouched: NPC casters share these spell functions,
+    and scaling them by their own level would make every existing NPC
+    caster suddenly far deadlier - a separate, much bigger rebalance.
+    """
+    if not getattr(caster, "account", None):
+        return damage_range
+    level = min(caster.db.level or 1, MAX_LEVEL)
+    factor = max(1.0, weapon_base_average(level) / weapon_base_average(SPELL_DAMAGE_ANCHOR_LEVEL))
+    low, high = damage_range
+    return (max(1, round(low * factor)), max(1, round(high * factor)))
+
+
 def compute_weapon_stats(subtype, level):
     """
     Computes (damage_range, accuracy_bonus, price) for a weapon subtype
@@ -6172,8 +6224,8 @@ def compute_weapon_stats(subtype, level):
     info = WEAPON_SUBTYPES[subtype]
     category = WEAPON_CATEGORIES[info["category"]]
 
-    base_min = 7 + level * 1.3
-    base_max = 14 + level * 2.1
+    base_min = WEAPON_MIN_FLAT + level * WEAPON_MIN_PER_LEVEL
+    base_max = WEAPON_MAX_FLAT + level * WEAPON_MAX_PER_LEVEL
     min_dmg = round(base_min * category["damage_mult"] * info["damage_mult"])
     max_dmg = round(base_max * category["damage_mult"] * info["damage_mult"])
     accuracy_bonus = category["accuracy"] + info["accuracy_offset"]
