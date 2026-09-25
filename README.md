@@ -2,34 +2,52 @@
   <img src="hero-bg.jpg" width="400">
 </p>
 
-# Rome — An Evennia-Based Multiplayer Text Adventure
+# Rome: The Eternal City - A Roman Roleplay MUD
 
-**Rome** is a custom multiplayer text-based game built using the  
-[Evennia MUD framework (Python + Django)](https://www.evennia.com/).  
-Players explore, scheme, build power, command legions, and shape the fate of an empire.
+**Rome: The Eternal City** is a free, text-based multiplayer **MUD** (Multi-User
+Dungeon) set at the height of the Roman Empire, where the myths are true and the
+gods actively shape the story. It is built on the
+[Evennia MUD framework (Python + Django)](https://www.evennia.com/) and is a
+roleplay-enforced world: players explore, scheme, craft, build power, and shape
+the fate of an empire - or play a permanent pacifist and never draw a weapon.
 
 ---
 
 ### Play the Game
-**Homepage:** https://rome.vineyard.haus/
+**Website:** https://rome.vineyard.haus/ - play instantly in your browser, or
+connect with Mudlet, a MUSH client, or a mobile client.
+**Discord:** https://discord.gg/uh6HPvuM42
+
+New to MUDs? A MUD is a text-based online multiplayer game: you read a
+description of the world, type commands to act, and share it with other players
+in real time. See the [FAQ](https://rome.vineyard.haus/faq.html#what-is-a-mud).
 
 ---
 
-### Project Overview
+### What's Built
 
-This project blends elements of:
-- Roman history and mythology  
-- Political roleplay and intrigue  
-- PvE and PvP progression  
-- Exploration, faction conflicts, and character development
+Rome is in a Player Testing phase - the core game is complete and playable, and
+under active development.
 
-Currently playable: a full 8-class/6-race character system, a turn-based
-combat engine (spells, skills, NPC AI, party-based group fights), the
-Colosseum (gladiator escape questline, arena tiers, Ludus training
-grounds), a small player economy with real merchants, and the
-Underworld as the consequence of death. Rome the city itself is a
-planned future expansion. Rome is under active development and will
-keep evolving as more systems, lore, and mechanics are introduced.
+- **World:** over 800 rooms - the Colosseum and Ludus, the Forum Romanum and
+  Capitoline Hill, the Subura, Trajan's Market, the Library of Rome, the Domus
+  Aurea, the Aventine, the Pantheon and Campus Martius, the Palatine, the Baths,
+  noble houses, the Cloaca Maxima sewers, the Underworld, a wilderness road out
+  through the Porta Flaminia, the Germanic Stronghold, and the Amber Coast.
+- **Characters:** 6 races and 8 classes, four core stats, levelling and
+  stat points, earned titles and achievements.
+- **Combat:** turn-based, with initiative, spells and skills, status conditions,
+  gear, front/back row positioning, parties, and summoned companions and pets.
+- **Crafting and economy:** gathering, two professions (Faber, Herbalist),
+  fixed-location workshops, trainers, and merchants with distance and specialty
+  bonuses.
+- **Pacifism:** a permanent, one-way opt-out of combat for players who want to
+  focus on roleplay, with crafting as their path forward.
+- **Roleplay:** quests, a bounty board, eight factions and cults, devotion to
+  fourteen gods, languages, 80 socials, descriptions, masks, and in-game mail.
+
+Still ahead: a player-to-player marketplace, more crafting professions, more
+races' signature abilities, and more of the world beyond Rome.
 
 ---
 
