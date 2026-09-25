@@ -215,6 +215,65 @@ class TestDistanceBonusAndCraftXp(EconomyTestBase):
         self.assertEqual(self.char1.db.xp, 0)
 
 
+class TestMerchantSpecialtyBonus(EconomyTestBase):
+    """
+    Real, direct request: selling to a merchant who actually deals in
+    that kind of goods should pay more than an ordinary vendor -
+    world/economy.py's SPECIALTY_BONUS, stacking with (not replacing)
+    distance_bonus.
+    """
+
+    def test_a_weapon_specialist_pays_more_for_a_weapon(self):
+        self.merchant.db.buys_specialty = ["weapon"]
+        item = self._spawn_ware(proto_key="DAGGER", price=40, location=self.char1)  # CombatWeapon
+        self.char1.db.gold = 0
+
+        text, options = node_confirm_sell(self.char1, item=item)
+        options[0]["goto"](self.char1)
+
+        self.assertEqual(self.char1.db.gold, int(40 * SELL_BACK_RATE * 1.2))
+
+    def test_no_bonus_for_a_category_the_merchant_does_not_specialize_in(self):
+        self.merchant.db.buys_specialty = ["armor"]  # not weapons
+        item = self._spawn_ware(proto_key="DAGGER", price=40, location=self.char1)
+        self.char1.db.gold = 0
+
+        text, options = node_confirm_sell(self.char1, item=item)
+        options[0]["goto"](self.char1)
+
+        self.assertEqual(self.char1.db.gold, int(40 * SELL_BACK_RATE))
+
+    def test_an_armor_specialist_pays_more_for_armor(self):
+        self.merchant.db.buys_specialty = ["armor"]
+        item = self._spawn_ware(proto_key="CALIGAE_FERRATAE", price=40, location=self.char1)  # CombatArmor
+        self.char1.db.gold = 0
+
+        text, options = node_confirm_sell(self.char1, item=item)
+        options[0]["goto"](self.char1)
+
+        self.assertEqual(self.char1.db.gold, int(40 * SELL_BACK_RATE * 1.2))
+
+    def test_stacks_multiplicatively_with_the_distance_bonus(self):
+        self.merchant.db.buys_specialty = ["weapon"]
+        self.merchant.db.distance_bonus = 1.3
+        item = self._spawn_ware(proto_key="DAGGER", price=40, location=self.char1)
+        self.char1.db.gold = 0
+
+        text, options = node_confirm_sell(self.char1, item=item)
+        options[0]["goto"](self.char1)
+
+        self.assertEqual(self.char1.db.gold, int(40 * SELL_BACK_RATE * 1.3 * 1.2))
+
+    def test_no_specialty_set_at_all_is_a_plain_no_op(self):
+        item = self._spawn_ware(proto_key="DAGGER", price=40, location=self.char1)
+        self.char1.db.gold = 0
+
+        text, options = node_confirm_sell(self.char1, item=item)
+        options[0]["goto"](self.char1)
+
+        self.assertEqual(self.char1.db.gold, int(40 * SELL_BACK_RATE))
+
+
 class TestCmdShop(EvenniaCommandTest):
     def test_no_merchant_here_rejects(self):
         result = self.call(CmdShop(), "", caller=self.char1)

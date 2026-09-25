@@ -1,20 +1,22 @@
 """
 Player crafting recipes for evennia.contrib.game_systems.crafting
 (world/gathering.py is the other half of this system - raw materials
-feed the recipes here). CRAFT_RECIPE_MODULES = ["world.recipes"] in
-server/conf/settings.py registers every top-level recipe class
-defined in this module - see that contrib's own README for the
-exact mechanics (a recipe declares tool_tags/consumable_tags, the
-`craft` command matches inventory items against those tags).
+feed the recipes here; world/craft_commands.py is the third half - the
+player-facing commands, deliberately NOT the contrib's own CmdCraft).
+CRAFT_RECIPE_MODULES = ["world.recipes"] in server/conf/settings.py
+registers every top-level recipe class defined in this module - see
+that contrib's own README for the exact mechanics (a recipe declares
+tool_tags/consumable_tags; ingredients are matched by Tag, not name).
 
-First profession built end-to-end: Faber (smith) - promoted ahead of
-the crafting design discussion's original "build Textor first, not
-Faber" recommendation, which was specifically about Faber's ore
-needing frontier-safe gathering that didn't exist yet. That blocker
-is resolved in this same pass (see world/gathering.py's docstring on
-the new Ore Vein Shaft), and Faber has the strongest cross-demand
-with combat players of any profession in the original design doc, a
-real reason to build it first once nothing was actually blocking it.
+First profession built end-to-end: Faber (smith - Latin for
+"craftsman"/"maker," the root of "fabricate") - promoted ahead of the
+crafting design discussion's original "build Textor first, not Faber"
+recommendation, which was specifically about Faber's ore needing
+frontier-safe gathering that didn't exist yet. That blocker is
+resolved (see world/gathering.py's docstring on the new Ore Vein
+Shaft), and Faber has the strongest cross-demand with combat players
+of any profession in the original design doc, a real reason to build
+it first once nothing was actually blocking it.
 
 Skill progression (SkilledCraftingRecipe): a per-character crafting
 skill (db.craft_skill, a dict keyed by profession, 0-100) gates each
@@ -24,21 +26,52 @@ still grants a small amount of skill progress - a direct design
 requirement, so a solo player grinding alone never walks away from a
 failed attempt with literally nothing to show for it.
 
-Leveling parity (explicit design requirement, see rome_mud_todo.md's
-crafting section for the full math): a crafted item's reward is
-priced and XP-rewarded from the SAME real numbers combat already
-uses - xp_for_level() and GOLD_PER_XP_DIVISOR - rather than a
-separately hand-tuned number, so combat and crafting stay
-comparably fast per real minute invested rather than drifting apart
-as new recipes get added. The reward is paid entirely on SALE (see
-world/economy.py's node_confirm_sell reading db.craft_xp), not on
-gathering or crafting - gathering and crafting are the labor, selling
-is the payoff, matching the real economic shape of the loop.
+REWARD MODEL - a real design correction, made from direct user
+feedback, worth recording in full since it reverses an earlier
+decision in this same file's own history: the reward was originally
+scaled to the CRAFTER's own level (fixing an even earlier bug where
+it was a flat number forever). Both of those were wrong in the same
+way - tying reward to WHO crafts something, rather than to WHAT is
+being crafted. The correct analogy, pointed out directly: an NPC's
+own xp_reward is a FIXED property of that NPC, set once from ITS OWN
+level at spawn time - a level 100 character killing a level 5 NPC
+gets the exact same small reward a level 5 character would, not more.
+Reward-scales-with-attacker-level was never how combat worked at all.
+Tying craft reward to the crafter's level let a high-level character
+spam the easiest recipe forever for a reward meant for their level,
+exactly the exploit combat's own design already avoids. Fixed by
+giving every recipe a fixed TIER_LEVEL (its own inherent difficulty,
+like an NPC's own level) that drives BOTH its reward and its item's
+power - a low recipe always pays a low, fixed reward to anyone, and
+the only way to earn more is to progress to a harder recipe, exactly
+mirroring how a player has to fight higher-level content for better
+XP rather than farming trivial enemies forever.
+
+Leveling-parity math itself (see rome_mud_todo.md's crafting section)
+is unchanged: a recipe's TIER_LEVEL plugs into the same xp_for_level()/
+GOLD_PER_XP_DIVISOR formulas an NPC kill already uses, so a tier-N
+recipe pays what fighting a level-N NPC for the same real time would.
+Reaching level 100 via crafting now requires moving through the tier
+ladder as combat's own zones would require moving to harder content -
+not scaling one recipe forever. The reward is paid entirely on SALE
+(world/economy.py's node_confirm_sell, reading db.craft_xp), not on
+gathering or crafting itself.
+
+RECIPE ACCESS: KNOWN_BY_DEFAULT = True (the tier-1 recipe only) needs
+no training and no gold - a genuinely broke, non-combat character can
+attempt it the moment they've gathered materials, closing what would
+otherwise be a real chicken-and-egg problem (needing gold to learn
+crafting, but needing crafting to get gold without fighting). Every
+higher tier needs to be learned from a CraftTrainer (world/
+craft_commands.py's `learnrecipe`) for gold funded by tier-1 proceeds,
+mirroring how learnspell/learnskill already require an in-person
+trainer plus gold - crafting was the one teachable system in the game
+without that gate until now.
 """
 
 from random import randint
 
-from evennia.contrib.game_systems.crafting import CraftingRecipe
+from evennia.contrib.game_systems.crafting import CraftingRecipe, CraftingValidationError
 
 # Real, confirmed bug found live: the crafting contrib's own recipe
 # auto-discovery (_load_recipes(), triggered by settings.CRAFT_RECIPE_
@@ -51,11 +84,12 @@ from evennia.contrib.game_systems.crafting import CraftingRecipe
 # callables_from_module's own docstring/source: it filters by
 # get_module(obj) == this module (so an IMPORT like `from random
 # import randint` is safe, its __module__ points elsewhere) and by a
-# leading underscore - which is why _craft_reward below is prefixed,
-# not because it's "private" by convention. Any future top-level
-# helper function added to a CRAFT_RECIPE_MODULES file needs the same
-# underscore prefix, or the entire in-game 'craft' command breaks the
-# moment anyone uses it.
+# leading underscore - which is why every helper FUNCTION below is
+# prefixed, not because it's "private" by convention. A plain list
+# like ALL_RECIPES further down is safe unprefixed (callable() is
+# False for a list), but any future top-level helper FUNCTION added
+# to a CRAFT_RECIPE_MODULES file needs the same underscore prefix, or
+# the entire in-game 'craft' command breaks the moment anyone uses it.
 CRAFT_SKILL_CAP = 100
 
 # How much of a level's own xp_for_level() a full gather-craft-sell
@@ -68,36 +102,61 @@ CRAFT_SKILL_CAP = 100
 CRAFT_XP_PERCENT_PER_MINUTE = 0.03
 
 
-def _craft_reward(level, cycle_minutes):
+def _craft_reward(tier_level, cycle_minutes):
     """
-    (craft_xp, price) for an item that takes `cycle_minutes` of real
-    play (gather + craft + travel to sell) to produce, at `level`.
-    `price` is set so that selling at an ordinary Rome merchant
-    (distance_bonus 1.0) nets exactly the same gold an NPC kill of
-    this level would pay for equivalent real time - see world/
-    economy.py's node_confirm_sell for the actual sale math
-    (price * SELL_BACK_RATE * distance_bonus), and GOLD_PER_XP_
-    DIVISOR for the same xp-to-gold ratio every NPC kill already uses.
+    (craft_xp, price) for a recipe of fixed difficulty `tier_level`
+    that takes `cycle_minutes` of real play (gather + craft + travel
+    to sell) to produce - a property of the RECIPE, not of whoever
+    crafts it (see this module's own docstring for why). `price` is
+    set so that selling at an ordinary Rome merchant (distance_bonus
+    1.0) nets exactly the same gold an NPC kill of this level would
+    pay for equivalent real time - see world/economy.py's
+    node_confirm_sell for the actual sale math (price *
+    SELL_BACK_RATE * distance_bonus), and GOLD_PER_XP_DIVISOR for the
+    same xp-to-gold ratio every NPC kill already uses.
     """
     from world.combat import COMBAT_RULES, GOLD_PER_XP_DIVISOR
     from world.economy import SELL_BACK_RATE
 
-    craft_xp = max(1, round(cycle_minutes * CRAFT_XP_PERCENT_PER_MINUTE * COMBAT_RULES.xp_for_level(level)))
+    craft_xp = max(1, round(cycle_minutes * CRAFT_XP_PERCENT_PER_MINUTE * COMBAT_RULES.xp_for_level(tier_level)))
     target_net_gold = max(1, craft_xp // GOLD_PER_XP_DIVISOR)
     price = max(1, round(target_net_gold / SELL_BACK_RATE))
     return craft_xp, price
 
 
+def _recipe_learn_cost(tier_level):
+    """Gold cost to learn a recipe above tier 1 - mirrors world/
+    combat.py's compute_learn_cost's own "price scales with power"
+    shape exactly, for the same reason (a flat fee would undersell how
+    much stronger a high-tier recipe actually is)."""
+    return 20 + tier_level * 3
+
+
 class SkilledCraftingRecipe(CraftingRecipe):
     """
-    Shared skill-check parent for every profession's recipes. A
-    subclass sets `difficulty` (roughly 0-100, matching the skill
-    scale) and `skill_key` (which entry of db.craft_skill this recipe
-    trains and checks).
+    Shared skill-check parent for every profession's recipes.
+
+    Class attributes a concrete recipe sets:
+      - skill_key: which entry of db.craft_skill this recipe trains
+        and checks (e.g. "faber").
+      - difficulty: roughly 0-100, matching the skill scale - how hard
+        THIS recipe is to succeed at.
+      - TIER_LEVEL: this recipe's own fixed difficulty/tier, driving
+        both its reward (_craft_reward) and its item's power - see
+        this module's own docstring for why this is a property of the
+        recipe, never of the crafter.
+      - CYCLE_MINUTES: real-world minutes this recipe is assumed to
+        take, feeding the same reward formula.
+      - KNOWN_BY_DEFAULT: True for the one free, untrained starting
+        recipe per profession; False for anything that needs
+        `learnrecipe` first (world/craft_commands.py).
     """
 
     difficulty = 0
     skill_key = None
+    TIER_LEVEL = 1
+    CYCLE_MINUTES = 5
+    KNOWN_BY_DEFAULT = True
 
     def _skill(self):
         return (self.crafter.db.craft_skill or {}).get(self.skill_key, 0)
@@ -106,6 +165,18 @@ class SkilledCraftingRecipe(CraftingRecipe):
         skills = self.crafter.db.craft_skill or {}
         skills[self.skill_key] = min(CRAFT_SKILL_CAP, skills.get(self.skill_key, 0) + amount)
         self.crafter.db.craft_skill = skills
+
+    def knows_recipe(self):
+        return self.KNOWN_BY_DEFAULT or self.name in (self.crafter.db.craft_recipes_known or set())
+
+    def pre_craft(self, **kwargs):
+        # Checked here too, not just in world/craft_commands.py's
+        # CmdSimpleCraft (defense in depth - anything that ever calls
+        # this recipe directly, now or later, gets the same gate).
+        if not self.knows_recipe():
+            self.msg("You haven't learned how to make %s yet - find a trainer." % self.name)
+            raise CraftingValidationError
+        return super().pre_craft(**kwargs)
 
     def do_craft(self, **kwargs):
         skill = self._skill()
@@ -129,66 +200,15 @@ class SkilledCraftingRecipe(CraftingRecipe):
         return None
 
 
-class IronShortswordRecipe(SkilledCraftingRecipe):
-    """
-    A basic, honest weapon - Faber's first real recipe.
+class FaberWeaponRecipe(SkilledCraftingRecipe):
+    """Shared reward/stat tail for every Faber WEAPON recipe. A
+    subclass sets WEAPON_TYPE to a real world.combat.WEAPON_SUBTYPES
+    key - everything else (damage/accuracy/price/craft_xp) is computed
+    from that plus the recipe's own fixed TIER_LEVEL, the same formula
+    a merchant's own stock already uses."""
 
-    Real, confirmed parity bug found live and fixed here: this recipe
-    originally hardcoded a single ITEM_LEVEL (8) for BOTH the item's
-    own stats AND the XP/gold reward, forever, regardless of who
-    crafted it or when. That's fine at level 8, but the explicit
-    leveling-parity requirement ("combat and crafting should level at
-    about the same real-world rate") completely breaks past it: the
-    real numbers work out to roughly 2,300 real HOURS of crafting to
-    reach level 100 at a flat 156 XP/cycle, against ~55 hours for
-    combat under the same parity assumption applied consistently - a
-    ~42x gap, not a rounding error.
-
-    Fixed by splitting the two concerns the old single ITEM_LEVEL
-    conflated: the REWARD (craft_xp/price) now scales with the
-    crafter's own real, current, UNCAPPED level - exactly matching how
-    an NPC kill's reward already scales with the NPC's level, so
-    leveling pace tracks combat at every level, not just at 8. The
-    item's own PHYSICAL power is a deliberately separate axis, capped
-    at ITEM_LEVEL_CEILING - a plain "iron shortsword" is meant to stay
-    a modest, entry-tier weapon forever, not become a repeatable path
-    to best-in-slot gear just because the crafter leveled up. A future
-    higher recipe tier (Faber's own natural next step) is how a
-    crafter should get access to stronger ITEMS; this fix is only
-    about keeping the REWARD's pace honest in the meantime.
-    """
-
-    name = "iron shortsword"
     skill_key = "faber"
-    difficulty = 10
-
-    # Deliberately just 1 of each, not 2 ore - two real reasons found
-    # live, not just a simplification: (1) iron ore has a ~24h
-    # per-character cooldown, so requiring 2 would mean a genuinely
-    # new player waits TWO DAYS before their very first craft attempt
-    # is even possible, badly breaking the 5-minute cycle-time
-    # assumption _craft_reward's whole parity math is built on; (2) a
-    # real, confirmed Evennia limitation - two objects sharing the
-    # exact same display key ("a chunk of iron ore") can't reliably
-    # both be referenced in one 'craft ... from iron ore, iron ore,
-    # ...' command (CmdCraft's own ingredient search isn't disambig-
-    # uation-aware the way a player-facing 'get' command might be),
-    # so a duplicate-material recipe would have silently failed for a
-    # real player with 2 identical ore chunks, not just been slow.
-    consumable_tags = ["iron_ore", "timber"]
-    consumable_names = ["iron ore", "timber"]
-    output_prototypes = ["CRAFTED_IRON_SHORTSWORD"]
-
-    success_message = "|gYou hammer the ore into shape and fit a timber grip - a real iron shortsword, plain but sound.|n"
-
-    # The item's own physical power - deliberately bounded, unlike the
-    # reward below. ITEM_LEVEL_FLOOR keeps a very-low-level crafter's
-    # sword from being worse than the original baseline design;
-    # ITEM_LEVEL_CEILING keeps a high-level crafter's sword from ever
-    # becoming genuinely best-in-slot gear just by leveling up.
-    ITEM_LEVEL_FLOOR = 8
-    ITEM_LEVEL_CEILING = 20
-    CYCLE_MINUTES = 5
+    WEAPON_TYPE = None
 
     def do_craft(self, **kwargs):
         result = super().do_craft(**kwargs)
@@ -197,21 +217,130 @@ class IronShortswordRecipe(SkilledCraftingRecipe):
 
         from world.combat import compute_weapon_stats
 
-        crafter_level = self.crafter.db.level or 1
-        item_level = max(self.ITEM_LEVEL_FLOOR, min(crafter_level, self.ITEM_LEVEL_CEILING))
-        damage_range, accuracy_bonus, _shop_price = compute_weapon_stats("gladius", item_level)
-        # Reward scales with the crafter's REAL level, uncapped -
-        # unlike item_level above, this has to track the whole curve
-        # for leveling-parity to hold at level 60 the same way it does
-        # at level 8, not just at whatever level the sword itself caps
-        # out at.
-        craft_xp, price = _craft_reward(crafter_level, self.CYCLE_MINUTES)
+        damage_range, accuracy_bonus, _shop_price = compute_weapon_stats(self.WEAPON_TYPE, self.TIER_LEVEL)
+        craft_xp, price = _craft_reward(self.TIER_LEVEL, self.CYCLE_MINUTES)
 
         for obj in result:
             obj.db.damage_range = damage_range
             obj.db.accuracy_bonus = accuracy_bonus
-            obj.db.item_level = item_level
+            obj.db.item_level = self.TIER_LEVEL
             obj.db.price = price
             obj.db.craft_xp = craft_xp
+            obj.db.item_category = "weapon"
 
         return result
+
+
+class FaberArmorRecipe(SkilledCraftingRecipe):
+    """Shared reward/stat tail for every Faber ARMOR recipe - same
+    shape as FaberWeaponRecipe above, using compute_armor_stats
+    instead. A subclass sets ARMOR_CATEGORY to "light"/"medium"/
+    "heavy" (world.combat.ARMOR_CATEGORIES)."""
+
+    skill_key = "faber"
+    ARMOR_CATEGORY = None
+
+    def do_craft(self, **kwargs):
+        result = super().do_craft(**kwargs)
+        if not result:
+            return result
+
+        from world.combat import compute_armor_stats
+
+        reduction, defense_modifier, _shop_price = compute_armor_stats(self.ARMOR_CATEGORY, self.TIER_LEVEL)
+        craft_xp, price = _craft_reward(self.TIER_LEVEL, self.CYCLE_MINUTES)
+
+        for obj in result:
+            obj.db.damage_reduction = reduction
+            obj.db.defense_modifier = defense_modifier
+            obj.db.item_level = self.TIER_LEVEL
+            obj.db.price = price
+            obj.db.craft_xp = craft_xp
+            obj.db.item_category = "armor"
+
+        return result
+
+
+class IronShortswordRecipe(FaberWeaponRecipe):
+    """
+    Tier 1 - Faber's free, untrained starting recipe. Anyone can
+    attempt this the moment they've gathered materials, no gold or
+    trainer needed - see this module's own docstring on why the
+    starting recipe of each profession has to work this way.
+    """
+
+    name = "iron shortsword"
+    difficulty = 10
+    TIER_LEVEL = 8
+    WEAPON_TYPE = "gladius"
+    KNOWN_BY_DEFAULT = True
+
+    # Deliberately just 1 of each, not 2 ore - two real reasons found
+    # live: (1) iron ore has a ~24h per-character cooldown, so
+    # requiring 2 would mean a genuinely new player waits TWO DAYS
+    # before their very first craft attempt is even possible; (2) the
+    # ordinary crafting command used to parse ingredients by NAME
+    # (Evennia's own text search), and two objects sharing an
+    # identical display key aren't reliably both addressable that way
+    # - moot now that world/craft_commands.py's CmdSimpleCraft
+    # collects matching inventory objects directly rather than
+    # searching by name, but tier 1 stays minimal regardless.
+    consumable_tags = ["iron_ore", "timber"]
+    consumable_names = ["iron ore", "timber"]
+    output_prototypes = ["CRAFTED_IRON_SHORTSWORD"]
+
+    success_message = "|gYou hammer the ore into shape and fit a timber grip - a real iron shortsword, plain but sound.|n"
+
+
+class IronLoricaRecipe(FaberArmorRecipe):
+    """
+    Tier 2 - Faber's first trainable recipe (see `learnrecipe`, world/
+    craft_commands.py). A genuine step up in both material cost and
+    power from the tier-1 sword.
+    """
+
+    name = "iron lorica"
+    difficulty = 30
+    TIER_LEVEL = 18
+    ARMOR_CATEGORY = "medium"
+    KNOWN_BY_DEFAULT = False
+
+    consumable_tags = ["iron_ore", "iron_ore", "timber"]
+    consumable_names = ["iron ore", "iron ore", "timber"]
+    output_prototypes = ["CRAFTED_IRON_LORICA"]
+
+    success_message = "|gPlate by plate, you rivet together a real iron lorica - heavier work than the sword, and it shows.|n"
+
+
+class IronWarSpearRecipe(FaberWeaponRecipe):
+    """Tier 3 - Faber's hardest recipe so far, and its best reward."""
+
+    name = "iron war-spear"
+    difficulty = 45
+    TIER_LEVEL = 28
+    WEAPON_TYPE = "spear"
+    KNOWN_BY_DEFAULT = False
+
+    consumable_tags = ["iron_ore", "iron_ore", "timber", "timber"]
+    consumable_names = ["iron ore", "iron ore", "timber", "timber"]
+    output_prototypes = ["CRAFTED_IRON_WARSPEAR"]
+
+    success_message = "|gA long, true haft and a real forged head - this war-spear could hold a line.|n"
+
+
+# Every concrete, craftable recipe - the single source world/
+# craft_commands.py's 'recipes'/'learnrecipe' commands read from,
+# rather than reaching into the crafting contrib's own private
+# _RECIPE_CLASSES registry (which would also pick up the abstract
+# SkilledCraftingRecipe/FaberWeaponRecipe/FaberArmorRecipe bases
+# above, none of which are real recipes on their own).
+ALL_RECIPES = [IronShortswordRecipe, IronLoricaRecipe, IronWarSpearRecipe]
+
+
+def _get_recipe_class(name):
+    """Case-insensitive lookup by recipe name, or None."""
+    name = (name or "").strip().lower()
+    for cls in ALL_RECIPES:
+        if cls.name == name:
+            return cls
+    return None

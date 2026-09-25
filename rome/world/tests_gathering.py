@@ -7,14 +7,17 @@ character cooldown, and CmdGather itself.
 """
 
 import time
+from unittest.mock import patch
 
 from evennia.utils.test_resources import EvenniaTest, EvenniaCommandTest
 from evennia.utils import create
 
 from world.gathering import (
     GATHERABLE_MATERIALS,
+    SPOT_CHANCE,
     gather_resource_here,
     cooldown_remaining,
+    announce_gather_spot,
     CmdGather,
 )
 
@@ -66,13 +69,66 @@ class TestCooldown(EvenniaTest):
         self.assertEqual(cooldown_remaining(self.char1, "iron_ore"), 0)
 
 
+class TestAnnounceGatherSpot(EvenniaCommandTest):
+    """
+    Real, direct design request: gathering should reward actually
+    exploring, not standing in one spot on demand. announce_gather_spot
+    (called from CombatCharacter.at_post_move) is the roll that decides
+    whether a resource is even THERE to gather this visit.
+    """
+
+    def test_no_room_resource_means_no_spot_and_no_message(self):
+        received = []
+        self.char1.msg = lambda text="", **kw: received.append(text)
+        announce_gather_spot(self.char1)
+        self.assertIsNone(self.char1.ndb.gather_spot)
+        self.assertEqual(received, [])
+
+    def test_a_hit_sets_the_spot_and_messages(self):
+        self.room1.ndb.gather_resource = "timber"
+        received = []
+        self.char1.msg = lambda text="", **kw: received.append(text)
+        with patch("world.gathering.random.random", return_value=0.0):
+            announce_gather_spot(self.char1)
+        self.assertEqual(self.char1.ndb.gather_spot, "timber")
+        self.assertTrue(received)
+
+    def test_a_miss_is_silent(self):
+        self.room1.ndb.gather_resource = "timber"
+        received = []
+        self.char1.msg = lambda text="", **kw: received.append(text)
+        with patch("world.gathering.random.random", return_value=0.999):
+            announce_gather_spot(self.char1)
+        self.assertIsNone(self.char1.ndb.gather_spot)
+        self.assertEqual(received, [])
+
+    def test_still_on_cooldown_never_spots_anything(self):
+        self.room1.ndb.gather_resource = "timber"
+        self.char1.db.gather_cooldowns = {"timber": time.time()}
+        with patch("world.gathering.random.random", return_value=0.0):
+            announce_gather_spot(self.char1)
+        self.assertIsNone(self.char1.ndb.gather_spot)
+
+    def test_a_previous_spot_is_cleared_on_a_fresh_roll(self):
+        self.char1.ndb.gather_spot = "timber"
+        self.room1.ndb.gather_resource = None
+        announce_gather_spot(self.char1)
+        self.assertIsNone(self.char1.ndb.gather_spot)
+
+
 class TestCmdGather(EvenniaCommandTest):
     def test_nothing_to_gather_by_default(self):
         result = self.call(CmdGather(), "", caller=self.char1)
         self.assertIn("nothing to gather", result)
 
+    def test_no_spot_found_yet_is_refused_even_with_a_real_resource_here(self):
+        self.room1.ndb.gather_resource = "timber"
+        result = self.call(CmdGather(), "", caller=self.char1)
+        self.assertIn("nothing to actually gather", result)
+
     def test_gathering_spawns_the_right_material_into_inventory(self):
         self.room1.ndb.gather_resource = "timber"
+        self.char1.ndb.gather_spot = "timber"
         before = set(self.char1.contents)
 
         self.call(CmdGather(), "", caller=self.char1)
@@ -81,8 +137,15 @@ class TestCmdGather(EvenniaCommandTest):
         self.assertEqual(len(gained), 1)
         self.assertIn("timber", gained[0].tags.get(category="crafting_material") or "")
 
+    def test_gathering_clears_the_spot_flag(self):
+        self.room1.ndb.gather_resource = "timber"
+        self.char1.ndb.gather_spot = "timber"
+        self.call(CmdGather(), "", caller=self.char1)
+        self.assertIsNone(self.char1.ndb.gather_spot)
+
     def test_gathering_sets_a_cooldown(self):
         self.room1.ndb.gather_resource = "timber"
+        self.char1.ndb.gather_spot = "timber"
         self.assertEqual((self.char1.db.gather_cooldowns or {}).get("timber"), None)
 
         self.call(CmdGather(), "", caller=self.char1)
@@ -91,9 +154,11 @@ class TestCmdGather(EvenniaCommandTest):
 
     def test_gathering_again_immediately_is_refused(self):
         self.room1.ndb.gather_resource = "timber"
+        self.char1.ndb.gather_spot = "timber"
         self.call(CmdGather(), "", caller=self.char1)
         before = set(self.char1.contents)
 
+        self.char1.ndb.gather_spot = "timber"  # a second lucky spot roll
         result = self.call(CmdGather(), "", caller=self.char1)
 
         self.assertIn("try again in about", result)
@@ -101,9 +166,11 @@ class TestCmdGather(EvenniaCommandTest):
 
     def test_a_different_resource_has_its_own_independent_cooldown(self):
         self.room1.ndb.gather_resource = "timber"
+        self.char1.ndb.gather_spot = "timber"
         self.call(CmdGather(), "", caller=self.char1)
 
         self.room1.ndb.gather_resource = "iron_ore"
+        self.char1.ndb.gather_spot = "iron_ore"
         result = self.call(CmdGather(), "", caller=self.char1)
 
         self.assertNotIn("try again in about", result)
@@ -119,6 +186,7 @@ class TestGatheringWorksForAPacifist(EvenniaCommandTest):
     def test_a_pacifist_can_gather_freely(self):
         self.char1.db.pacifist = True
         self.room1.ndb.gather_resource = "iron_ore"
+        self.char1.ndb.gather_spot = "iron_ore"
 
         result = self.call(CmdGather(), "", caller=self.char1)
 

@@ -7329,6 +7329,13 @@ class CombatCharacter(ContribRPCharacter):
         if self.has_account:
             from world.quests import quest_entry_hint
             quest_entry_hint(self)
+        # Gathering (world/gathering.py) is meant to reward actually
+        # exploring, not standing in one spot on demand - a real
+        # design request. Rolled on every real player's move, same
+        # shape as the wilderness's own ENCOUNTER_CHANCE.
+        if self.has_account:
+            from world.gathering import announce_gather_spot
+            announce_gather_spot(self)
 
         pet = self.db.active_companion
         if pet and pet.pk and pet.db.is_purchased_pet and pet.location:

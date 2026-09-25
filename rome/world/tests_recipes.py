@@ -1,24 +1,29 @@
 """
 Tests for world/recipes.py - the crafting half of the crafting
-economy (world/gathering.py, world/tests_gathering.py cover the
-other half). Covers _craft_reward()'s parity math directly,
-SkilledCraftingRecipe's skill-check/training behavior, and a full
-IronShortswordRecipe craft using real gathered materials.
+economy (world/gathering.py/tests_gathering.py cover gathering;
+world/craft_commands.py/tests_craft_commands.py cover the actual
+player-facing commands). Covers _craft_reward()'s parity math,
+SkilledCraftingRecipe's skill-check/training/known-recipe gating, and
+each of the 3 concrete Faber recipes.
 """
 
 from unittest import mock
 
 from evennia.utils.test_resources import EvenniaTest, EvenniaCommandTest
-from evennia.utils import create
 from evennia.prototypes.spawner import spawn
 
 from world.combat import COMBAT_RULES, GOLD_PER_XP_DIVISOR
 from world.economy import SELL_BACK_RATE
 from world.recipes import (
     CRAFT_XP_PERCENT_PER_MINUTE,
+    ALL_RECIPES,
     _craft_reward,
+    _recipe_learn_cost,
+    _get_recipe_class,
     SkilledCraftingRecipe,
     IronShortswordRecipe,
+    IronLoricaRecipe,
+    IronWarSpearRecipe,
 )
 
 
@@ -35,17 +40,12 @@ class TestCraftReward(EvenniaTest):
         long_xp, _ = _craft_reward(8, 10)
         self.assertGreater(long_xp, short_xp)
 
-    def test_a_higher_level_pays_more_for_the_same_cycle_time(self):
+    def test_a_higher_tier_pays_more_for_the_same_cycle_time(self):
         low_xp, _ = _craft_reward(5, 5)
         high_xp, _ = _craft_reward(50, 5)
         self.assertGreater(high_xp, low_xp)
 
     def test_selling_at_the_baseline_nets_the_full_target_gold(self):
-        # This is the whole point of _craft_reward's price formula -
-        # see world/economy.py's node_confirm_sell for the actual
-        # sale math this has to match (price * SELL_BACK_RATE *
-        # distance_bonus, with distance_bonus 1.0 at an ordinary
-        # Rome merchant).
         craft_xp, price = _craft_reward(8, 5)
         target_gold = craft_xp // GOLD_PER_XP_DIVISOR
         net_at_baseline = int(price * SELL_BACK_RATE * 1.0)
@@ -57,7 +57,29 @@ class TestCraftReward(EvenniaTest):
         self.assertGreaterEqual(price, 1)
 
 
-def _fake_recipe(difficulty=10):
+class TestRecipeLearnCost(EvenniaTest):
+    def test_scales_with_tier_level(self):
+        self.assertGreater(_recipe_learn_cost(28), _recipe_learn_cost(18))
+
+    def test_matches_the_stated_formula(self):
+        self.assertEqual(_recipe_learn_cost(18), 20 + 18 * 3)
+
+
+class TestGetRecipeClass(EvenniaTest):
+    def test_finds_a_real_recipe_case_insensitively(self):
+        self.assertIs(_get_recipe_class("Iron Shortsword"), IronShortswordRecipe)
+        self.assertIs(_get_recipe_class("iron shortsword"), IronShortswordRecipe)
+
+    def test_unknown_name_returns_none(self):
+        self.assertIsNone(_get_recipe_class("a nonexistent recipe"))
+
+    def test_every_concrete_recipe_is_in_all_recipes(self):
+        self.assertIn(IronShortswordRecipe, ALL_RECIPES)
+        self.assertIn(IronLoricaRecipe, ALL_RECIPES)
+        self.assertIn(IronWarSpearRecipe, ALL_RECIPES)
+
+
+def _fake_recipe(difficulty=10, known_by_default=True):
     class _FakeRecipe(SkilledCraftingRecipe):
         name = "fake test recipe"
         skill_key = "faber"
@@ -65,6 +87,7 @@ def _fake_recipe(difficulty=10):
         output_prototypes = ["DAGGER"]
 
     _FakeRecipe.difficulty = difficulty
+    _FakeRecipe.KNOWN_BY_DEFAULT = known_by_default
     return _FakeRecipe
 
 
@@ -72,6 +95,7 @@ class TestSkilledCraftingRecipe(EvenniaTest):
     def setUp(self):
         super().setUp()
         self.char1.db.craft_skill = {}
+        self.char1.db.craft_recipes_known = set()
 
     def test_starts_at_zero_skill(self):
         recipe_cls = _fake_recipe()
@@ -128,131 +152,170 @@ class TestSkilledCraftingRecipe(EvenniaTest):
         self.assertEqual(self.char1.db.craft_skill.get("faber"), 3)
         self.assertNotIn("textor", self.char1.db.craft_skill)
 
+    def test_a_known_by_default_recipe_needs_no_unlock(self):
+        recipe_cls = _fake_recipe(known_by_default=True)
+        recipe = recipe_cls(self.char1)
+        self.assertTrue(recipe.knows_recipe())
 
-class TestIronShortswordRecipe(EvenniaCommandTest):
-    """
-    Deliberately just 1 ore + 1 timber, not 2 ore - see
-    IronShortswordRecipe's own comment for the two real reasons found
-    live (a ~24h-cooldown material can't reasonably require 2 of
-    itself, and two objects sharing an identical display key aren't
-    reliably both addressable in one 'craft ... from x, x' command).
-    """
+    def test_an_untrained_recipe_is_not_known_until_learned(self):
+        recipe_cls = _fake_recipe(known_by_default=False)
+        recipe = recipe_cls(self.char1)
+        self.assertFalse(recipe.knows_recipe())
+        self.char1.db.craft_recipes_known = {"fake test recipe"}
+        self.assertTrue(recipe.knows_recipe())
+
+    def test_pre_craft_refuses_an_unlearned_recipe(self):
+        from evennia.contrib.game_systems.crafting import CraftingValidationError
+
+        recipe_cls = _fake_recipe(known_by_default=False)
+        recipe = recipe_cls(self.char1)
+        with self.assertRaises(CraftingValidationError):
+            recipe.pre_craft()
+
+
+class _FaberRecipeTestBase(EvenniaCommandTest):
+    RECIPE_CLASS = None
+    MATERIALS = ()  # list of prototype keys to spawn and hand to the recipe
 
     def setUp(self):
         super().setUp()
         self.char1.db.craft_skill = {}
-        self.char1.db.level = 8  # matches the recipe's own ITEM_LEVEL_FLOOR
-        self.ore = spawn("RAW_IRON_ORE")[0]
-        self.timber = spawn("RAW_TIMBER")[0]
-        for obj in (self.ore, self.timber):
+        self.char1.db.craft_recipes_known = {self.RECIPE_CLASS.name}
+        self.materials = [spawn(proto)[0] for proto in self.MATERIALS]
+        for obj in self.materials:
             obj.move_to(self.char1, quiet=True)
 
-    def test_a_successful_craft_produces_a_priced_weapon(self):
-        recipe = IronShortswordRecipe(self.char1, self.ore, self.timber)
-        with mock.patch("world.recipes.randint", return_value=1):
-            result = recipe.craft()
+    def _craft(self, roll=1):
+        recipe = self.RECIPE_CLASS(self.char1, *self.materials)
+        with mock.patch("world.recipes.randint", return_value=roll):
+            return recipe.craft()
+
+
+class TestIronShortswordRecipe(_FaberRecipeTestBase):
+    """
+    Tier 1 - free, no training needed, and the one recipe that's
+    deliberately just 1 ore + 1 timber (not 2 ore) - see the recipe's
+    own docstring for the two real reasons (ore's ~24h cooldown, and a
+    real Evennia search-ambiguity limit with duplicate-keyed items).
+    """
+
+    RECIPE_CLASS = IronShortswordRecipe
+    MATERIALS = ("RAW_IRON_ORE", "RAW_TIMBER")
+
+    def test_known_by_default_with_no_training_at_all(self):
+        self.char1.db.craft_recipes_known = set()  # deliberately empty
+        result = self._craft()
+        self.assertTrue(result)
+
+    def test_a_successful_craft_produces_a_priced_weapon_at_its_own_fixed_tier(self):
+        result = self._craft()
 
         self.assertTrue(result)
         sword = result[0]
         self.assertTrue(sword.db.damage_range)
         self.assertTrue(sword.db.accuracy_bonus)
-        self.assertEqual(sword.db.item_level, 8)
+        self.assertEqual(sword.db.item_level, IronShortswordRecipe.TIER_LEVEL)
+        self.assertEqual(sword.db.item_category, "weapon")
 
-        expected_xp, expected_price = _craft_reward(8, IronShortswordRecipe.CYCLE_MINUTES)
+        expected_xp, expected_price = _craft_reward(
+            IronShortswordRecipe.TIER_LEVEL, IronShortswordRecipe.CYCLE_MINUTES
+        )
         self.assertEqual(sword.db.craft_xp, expected_xp)
         self.assertEqual(sword.db.price, expected_price)
 
-    def test_the_reward_scales_with_the_crafters_real_level(self):
-        # Real, confirmed parity bug fixed here - see the recipe's own
-        # docstring: the reward used to be a flat number forever
-        # regardless of who crafted it, making crafting fall ~42x
-        # behind combat's own pace past the low levels. It must now
-        # track the crafter's actual level, not a hardcoded one.
-        self.char1.db.level = 50
-        recipe = IronShortswordRecipe(self.char1, self.ore, self.timber)
-        with mock.patch("world.recipes.randint", return_value=1):
-            result = recipe.craft()
-
-        expected_xp, expected_price = _craft_reward(50, IronShortswordRecipe.CYCLE_MINUTES)
-        self.assertEqual(result[0].db.craft_xp, expected_xp)
-        self.assertEqual(result[0].db.price, expected_price)
-        self.assertGreater(expected_xp, 156)  # meaningfully more than the old flat rate
-
-    def test_the_items_own_power_is_capped_even_at_a_high_level(self):
-        # Unlike the reward above, the sword's OWN stats deliberately
-        # do NOT keep scaling forever - a plain "iron shortsword"
-        # should never become best-in-slot gear just because its
-        # crafter leveled up; see the recipe's own docstring.
-        self.char1.db.level = 90
-        recipe = IronShortswordRecipe(self.char1, self.ore, self.timber)
-        with mock.patch("world.recipes.randint", return_value=1):
-            result = recipe.craft()
-
-        self.assertEqual(result[0].db.item_level, IronShortswordRecipe.ITEM_LEVEL_CEILING)
-
-    def test_a_very_low_level_crafter_still_gets_the_floor_level_item(self):
+    def test_the_reward_does_not_depend_on_the_crafters_own_level(self):
+        # Real, direct design correction: reward must be a fixed
+        # property of the RECIPE, exactly like an NPC's own xp_reward
+        # is fixed from ITS level regardless of the attacking player's
+        # level - not something that scales with who's crafting, which
+        # would let a high-level character farm the easiest recipe
+        # forever for a high-level reward. See this module's own
+        # docstring for the full reasoning.
         self.char1.db.level = 1
-        recipe = IronShortswordRecipe(self.char1, self.ore, self.timber)
-        with mock.patch("world.recipes.randint", return_value=1):
-            result = recipe.craft()
+        result_low = self._craft()
+        self.char1.db.level = 99
+        # Fresh materials for a second attempt.
+        self.materials = [spawn(p)[0] for p in self.MATERIALS]
+        for obj in self.materials:
+            obj.move_to(self.char1, quiet=True)
+        result_high = self._craft()
 
-        self.assertEqual(result[0].db.item_level, IronShortswordRecipe.ITEM_LEVEL_FLOOR)
+        self.assertEqual(result_low[0].db.craft_xp, result_high[0].db.craft_xp)
+        self.assertEqual(result_low[0].db.item_level, result_high[0].db.item_level)
 
     def test_a_successful_craft_consumes_the_materials(self):
-        recipe = IronShortswordRecipe(self.char1, self.ore, self.timber)
-        with mock.patch("world.recipes.randint", return_value=1):
-            recipe.craft()
-
-        self.assertFalse(self.ore.pk)
-        self.assertFalse(self.timber.pk)
+        self._craft()
+        for obj in self.materials:
+            self.assertFalse(obj.pk)
 
     def test_a_failed_craft_keeps_the_materials(self):
-        recipe = IronShortswordRecipe(self.char1, self.ore, self.timber)
-        with mock.patch("world.recipes.randint", return_value=100):
-            result = recipe.craft()
-
+        result = self._craft(roll=100)
         self.assertFalse(result)
-        self.assertTrue(self.ore.pk)
-        self.assertTrue(self.timber.pk)
+        for obj in self.materials:
+            self.assertTrue(obj.pk)
 
     def test_missing_a_material_is_refused(self):
-        recipe = IronShortswordRecipe(self.char1, self.timber)  # no ore
+        recipe = IronShortswordRecipe(self.char1, self.materials[1])  # timber only
         with mock.patch("world.recipes.randint", return_value=1):
             result = recipe.craft()
         self.assertFalse(result)
-        self.assertTrue(self.timber.pk)
 
-    def test_the_real_craft_command_delivers_a_sellable_item_to_inventory(self):
-        # Real, confirmed gap found during live post-deploy
-        # verification: the contrib's own craft() access function does
-        # NOT move its result into the crafter's inventory - only
-        # CmdCraft.func() does that ("result = craft(...); if result:
-        # for obj in result: obj.location = caller"). Every other test
-        # here calls craft()/the recipe class directly and would never
-        # catch a real player ending up with a sword sitting nowhere.
-        from evennia.contrib.game_systems.crafting.crafting import CmdCraft
 
-        with mock.patch("world.recipes.randint", return_value=1):
-            result_text = self.call(
-                CmdCraft(),
-                "iron shortsword from iron ore, timber",
-                caller=self.char1,
-            )
+class TestIronLoricaRecipe(_FaberRecipeTestBase):
+    """Tier 2 - armor, and the first recipe that actually needs training."""
 
-        swords = [o for o in self.char1.contents if o.key == "a hand-forged iron shortsword"]
-        self.assertEqual(len(swords), 1, "command output was: %r" % result_text)
-        self.assertEqual(swords[0].location, self.char1)
+    RECIPE_CLASS = IronLoricaRecipe
+    MATERIALS = ("RAW_IRON_ORE", "RAW_IRON_ORE", "RAW_TIMBER")
 
-    def test_the_contribs_own_craft_access_function_finds_our_recipe(self):
-        # Confirms the contrib's top-level craft() access function -
-        # what the real in-game 'craft' command actually calls -
-        # resolves "iron shortsword" to our real registered recipe via
-        # settings.CRAFT_RECIPE_MODULES, not just that the recipe
-        # class works when constructed directly (covered above).
-        from evennia.contrib.game_systems.crafting import craft as contrib_craft
+    def test_refused_without_training(self):
+        self.char1.db.craft_recipes_known = set()
+        result = self._craft()
+        self.assertFalse(result)
+        for obj in self.materials:
+            self.assertTrue(obj.pk)  # never even consumed - refused before crafting
 
-        with mock.patch("world.recipes.randint", return_value=1):
-            result = contrib_craft(self.char1, "iron shortsword", self.ore, self.timber)
+    def test_a_successful_craft_produces_armor_at_its_own_fixed_tier(self):
+        result = self._craft()
 
         self.assertTrue(result)
-        self.assertEqual(result[0].key, "a hand-forged iron shortsword")
+        armor = result[0]
+        self.assertIsNotNone(armor.db.damage_reduction)
+        self.assertIsNotNone(armor.db.defense_modifier)
+        self.assertEqual(armor.db.item_level, IronLoricaRecipe.TIER_LEVEL)
+        self.assertEqual(armor.db.item_category, "armor")
+
+        expected_xp, expected_price = _craft_reward(IronLoricaRecipe.TIER_LEVEL, IronLoricaRecipe.CYCLE_MINUTES)
+        self.assertEqual(armor.db.craft_xp, expected_xp)
+        self.assertEqual(armor.db.price, expected_price)
+
+    def test_pays_more_than_the_tier_one_sword(self):
+        # A genuine step up, not just a different item - see the
+        # recipe's own docstring.
+        lorica_xp, _ = _craft_reward(IronLoricaRecipe.TIER_LEVEL, IronLoricaRecipe.CYCLE_MINUTES)
+        sword_xp, _ = _craft_reward(IronShortswordRecipe.TIER_LEVEL, IronShortswordRecipe.CYCLE_MINUTES)
+        self.assertGreater(lorica_xp, sword_xp)
+
+
+class TestIronWarSpearRecipe(_FaberRecipeTestBase):
+    """Tier 3 - Faber's hardest and best-paying recipe so far."""
+
+    RECIPE_CLASS = IronWarSpearRecipe
+    MATERIALS = ("RAW_IRON_ORE", "RAW_IRON_ORE", "RAW_TIMBER", "RAW_TIMBER")
+
+    def test_refused_without_training(self):
+        self.char1.db.craft_recipes_known = set()
+        result = self._craft()
+        self.assertFalse(result)
+
+    def test_a_successful_craft_produces_a_weapon_at_its_own_fixed_tier(self):
+        result = self._craft()
+
+        self.assertTrue(result)
+        spear = result[0]
+        self.assertEqual(spear.db.item_level, IronWarSpearRecipe.TIER_LEVEL)
+        self.assertEqual(spear.db.item_category, "weapon")
+
+    def test_pays_more_than_the_tier_two_armor(self):
+        spear_xp, _ = _craft_reward(IronWarSpearRecipe.TIER_LEVEL, IronWarSpearRecipe.CYCLE_MINUTES)
+        lorica_xp, _ = _craft_reward(IronLoricaRecipe.TIER_LEVEL, IronLoricaRecipe.CYCLE_MINUTES)
+        self.assertGreater(spear_xp, lorica_xp)

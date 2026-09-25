@@ -42,12 +42,44 @@ world/recipes.py) happens through the ordinary shop 'sell' flow
 already built in world/economy.py - nothing new needed there beyond
 giving each material/craft item a real db.price, plus a per-merchant
 db.distance_bonus for selling further from Rome.
+
+FINDING a resource is its own separate roll, added by direct design
+request: gathering originally worked "stand in the right room, type
+gather, always succeeds (subject only to your own cooldown)" - too
+easy, and it rewarded parking in one spot rather than actually
+exploring. announce_gather_spot() (called from CombatCharacter.
+at_post_move, mirroring world/wilderness_rome.py's own
+ENCOUNTER_CHANCE mechanism almost exactly) rolls SPOT_CHANCE on every
+real move into an eligible room; a hit sets a character-local
+ndb.gather_spot and prints a "you spot..." message, a miss says
+nothing at all. `gather` itself now additionally requires that flag
+to be set - walking into a wooded tile no longer guarantees anything
+is there to take, only that there MIGHT be, and you have to actually
+move around (and get a little lucky) to find out.
 """
 
+import random
 import time
 
 from evennia import Command
 from evennia.prototypes.spawner import spawn
+
+# Chance, per real move into an eligible room, that a resource is
+# actually there to gather right now - independent of, and checked
+# before, the character's own per-resource cooldown (no point
+# "finding" something you can't take yet).
+SPOT_CHANCE = 0.4
+
+SPOT_MESSAGES = {
+    "timber": (
+        "|YYou spot a fallen, sun-dried log half-buried in the "
+        "underbrush - good timber, if you take it now.|n"
+    ),
+    "iron_ore": (
+        "|YA vein catches the light in the rock wall, rust-streaked "
+        "and clearly workable.|n"
+    ),
+}
 
 # Every gatherable material: which prototype it spawns, its display
 # name for messages, and its cooldown in real seconds. "Common" vs
@@ -88,6 +120,26 @@ def cooldown_remaining(character, resource):
     return max(0, GATHERABLE_MATERIALS[resource]["cooldown"] - elapsed)
 
 
+def announce_gather_spot(character):
+    """
+    Called on every real move (CombatCharacter.at_post_move). Clears
+    any previous spot first - a find is only good for the room you
+    found it in, not carried forward - then rolls fresh for the
+    character's current room. Silent on a miss, same as the
+    wilderness's own ENCOUNTER_CHANCE roll.
+    """
+    character.ndb.gather_spot = None
+    resource = gather_resource_here(character)
+    if not resource:
+        return
+    if cooldown_remaining(character, resource) > 0:
+        # Nothing to spot if they couldn't gather it yet anyway.
+        return
+    if random.random() < SPOT_CHANCE:
+        character.ndb.gather_spot = resource
+        character.msg(SPOT_MESSAGES.get(resource, "You spot something worth gathering here."))
+
+
 def _format_remaining(seconds):
     if seconds < 120:
         return "%d seconds" % int(seconds)
@@ -104,13 +156,16 @@ class CmdGather(Command):
     Usage:
       gather
 
-    Some places - a wooded stretch of wilderness, a mine shaft - have
-    a real material waiting to be gathered. There's nothing to fight
-    and no risk involved; a pacifist can do this exactly as freely as
-    anyone else. Once you've gathered here, you personally need to
-    wait before that same kind of material is available to you again
-    - common materials (timber) refresh in minutes, rarer ones (mined
-    ore) take much longer.
+    Some places - a wooded stretch of wilderness, a mine shaft - might
+    have a real material waiting, but walking in is never a guarantee
+    - you'll see a real message the moment there's actually something
+    to take, so keep moving and looking if this spot comes up empty.
+    There's nothing to fight and no risk involved either way; a
+    pacifist can do this exactly as freely as anyone else. Once you've
+    gathered somewhere, you personally need to wait before that same
+    kind of material is available to you again - common materials
+    (timber) refresh in minutes, rarer ones (mined ore) take much
+    longer.
     """
 
     key = "gather"
@@ -132,8 +187,16 @@ class CmdGather(Command):
             )
             return
 
+        if caller.ndb.gather_spot != resource:
+            caller.msg(
+                "There's nothing to actually gather right here, right "
+                "now - keep exploring and look around."
+            )
+            return
+
         obj = spawn(GATHERABLE_MATERIALS[resource]["prototype"])[0]
         obj.move_to(caller, quiet=True)
+        caller.ndb.gather_spot = None
 
         cooldowns = caller.db.gather_cooldowns or {}
         cooldowns[resource] = time.time()

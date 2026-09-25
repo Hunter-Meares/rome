@@ -514,6 +514,27 @@ CRAFTED_IRON_SHORTSWORD = {
     "two_handed": False,
 }
 
+# world/recipes.py's IronLoricaRecipe (Faber tier 2) and
+# IronWarSpearRecipe (tier 3) - like CRAFTED_IRON_SHORTSWORD above,
+# their real combat stats (damage_reduction/defense_modifier or
+# damage_range/accuracy_bonus) are computed and set fresh at craft
+# time from the recipe's own fixed TIER_LEVEL, not baked in here.
+CRAFTED_IRON_LORICA = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a hand-riveted iron lorica",
+    "desc": "Overlapping iron plate, riveted by hand rather than stamped from a mold - heavier and less even than a legion-issue lorica, but it will turn a real blow.",
+    "armor_slot": "body",
+}
+
+CRAFTED_IRON_WARSPEAR = {
+    "prototype_parent": "BASEWEAPON",
+    "key": "a hand-forged iron war-spear",
+    "desc": "A long, straight-grained timber haft fitted to a real forged iron head - honest, serious work, built to hold a line rather than to look fine hanging on a wall.",
+    "weapon_type_name": "spear",
+    "weapon_category": "polearm",
+    "two_handed": True,
+}
+
 # ----------------------------------------------------------------------------
 # UNIQUE / DIVINE ITEMS - one-of-a-kind gear for specific god characters, not
 # meant to be sold, found, or spawned in numbers. Deliberately break the

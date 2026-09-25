@@ -32,19 +32,20 @@ from evennia import CmdSet
 from commands.command import Command
 from world.box_display import box_border, box_line, box_paragraph, box_blank
 
-RECENT_UPDATES_DATE = "2026-09-23"
+RECENT_UPDATES_DATE = "2026-09-25"
 
 RECENT_UPDATES_TEXT = (
-    "Not here to fight? 'help pacifism' explains a real, permanent way "
-    "to opt out of combat entirely, and 'help gathering'/'help "
-    "crafting' now give you a genuine repeatable way to earn gold and "
-    "level up without ever fighting - gather timber or iron ore, "
-    "craft it into something worth selling. Also new: thirteen "
-    "quests now wait around the city, two of them multi-step - a "
-    "line appears when a quest-giver has something for you. Also "
-    "recent: a triumphal procession through the Forum, a welcome "
-    "letter from Jupiter for every new character, and 80 social "
-    "commands ('help socials')."
+    "Crafting expanded: 'craft <recipe>' now finds your materials "
+    "automatically, 'recipes' shows everything you could make, and "
+    "Faber has a real tier ladder now (a free starting sword, plus an "
+    "iron lorica and war-spear learnable from the smith at the "
+    "Germanic Stronghold). Gathering ('help gathering') now rewards "
+    "actually exploring - you'll see a real message the moment "
+    "there's something to find. Not here to fight at all? 'help "
+    "pacifism' explains a real, permanent way to opt out of combat "
+    "entirely. Also recent: thirteen quests around the city, a "
+    "triumphal procession through the Forum, and 80 social commands "
+    "('help socials')."
 )
 
 # The box's own interior width, between its left/right borders and

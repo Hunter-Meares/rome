@@ -39,11 +39,14 @@ from world import socials
 from world import triumph_event
 from world import pacifism
 from world import gathering
-# CmdCraft is NOT re-exported at the contrib's top __init__.py level
-# (only CraftingRecipe/craft/the error classes are) - see CLAUDE.md
-# gotcha #4, verified directly against the contrib's own __init__.py
-# rather than assumed.
-from evennia.contrib.game_systems.crafting.crafting import CmdCraft
+from world import craft_commands
+# world/craft_commands.py's CmdSimpleCraft replaces the crafting
+# contrib's own CmdCraft entirely (a real design choice, not an
+# oversight - see CmdSimpleCraft's own docstring: it auto-detects
+# ingredients from inventory instead of requiring them named, which
+# also sidesteps a real Evennia search-ambiguity limitation with
+# duplicate-keyed materials). The contrib's CmdCraft is never
+# imported or registered here at all.
 from evennia.contrib.utils.debugpy import CmdDebugPy
 from evennia.contrib.grid.ingame_map_display import MapDisplayCmdSet
 from evennia.contrib.grid.ingame_map_display.ingame_map_display import CmdMap
@@ -204,7 +207,9 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(pacifism.CmdPacifism())
         self.add(pacifism.CmdGodPacifism())
         self.add(gathering.CmdGather())
-        self.add(CmdCraft())
+        self.add(craft_commands.CmdSimpleCraft())
+        self.add(craft_commands.CmdRecipeList())
+        self.add(craft_commands.CmdLearnRecipe())
         self.add(tutorial.CmdJourney())
         self.add(CmdNoInput())
 

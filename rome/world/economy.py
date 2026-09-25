@@ -28,6 +28,38 @@ from evennia.prototypes.prototypes import PROTOTYPE_TAG_CATEGORY
 
 SELL_BACK_RATE = 0.5
 
+# Real, direct request: selling to a merchant who actually deals in
+# that kind of goods should pay more than an ordinary generic vendor -
+# a real reason to seek out the right merchant, stacking with (not
+# replacing) the distance bonus below.
+SPECIALTY_BONUS = 0.2
+
+
+def _item_category(item):
+    """
+    "weapon"/"armor"/None - checked by real typeclass first (so this
+    applies to every weapon/armor already in the game, not just
+    crafted goods), falling back to a plain db.item_category Attribute
+    for anything that isn't a CombatWeapon/CombatArmor but still wants
+    to participate (a future non-weapon craft, say).
+    """
+    from world.combat import CombatWeapon, CombatArmor
+
+    if item.is_typeclass(CombatWeapon, exact=False):
+        return "weapon"
+    if item.is_typeclass(CombatArmor, exact=False):
+        return "armor"
+    return item.db.item_category
+
+
+def _specialty_multiplier(merchant, item):
+    """1 + SPECIALTY_BONUS if this merchant specializes in this item's
+    category, else 1.0 (a no-op multiplier)."""
+    specialties = merchant.db.buys_specialty or []
+    if _item_category(item) in specialties:
+        return 1.0 + SPECIALTY_BONUS
+    return 1.0
+
 
 class NPCMerchant(DefaultCharacter):
     """
@@ -123,6 +155,7 @@ class LudusWeaponsmith(NPCMerchant):
     def at_object_creation(self):
         super().at_object_creation()
         self.db.shopname = "the weaponsmith's stall"
+        self.db.buys_specialty = ["weapon", "armor"]
 
         from world.combat import compute_weapon_stats, compute_armor_stats
 
@@ -191,6 +224,7 @@ class GermanicWeaponsmith(NPCMerchant):
         # Genuinely far from Rome - a real reason to sell a gathered/
         # crafted good here rather than lugging it all the way home.
         self.db.distance_bonus = 1.3
+        self.db.buys_specialty = ["weapon", "armor"]
 
         from world.combat import compute_weapon_stats, compute_armor_stats
 
@@ -257,6 +291,7 @@ class AmberCoastArmorer(NPCMerchant):
         self.db.shopname = "the Smith's Quarter Armory"
         # Further still than the Germanic Stronghold.
         self.db.distance_bonus = 1.6
+        self.db.buys_specialty = ["weapon", "armor"]
 
         from world.combat import compute_weapon_stats, compute_armor_stats
 
@@ -586,7 +621,7 @@ def node_sell(caller, raw_string="", **kwargs):
         text += " |y(A %d%% bonus here, this far from Rome.)|n" % round((distance_bonus - 1.0) * 100)
     options = []
     for item in items:
-        sell_price = int(item.db.price * SELL_BACK_RATE * distance_bonus)
+        sell_price = int(item.db.price * SELL_BACK_RATE * distance_bonus * _specialty_multiplier(merchant, item))
         options.append(
             {
                 "desc": "%s (%d gold)" % (item.key, sell_price),
@@ -606,7 +641,8 @@ def node_confirm_sell(caller, raw_string="", **kwargs):
 
     merchant = caller.ndb.shop_merchant
     distance_bonus = merchant.db.distance_bonus or 1.0
-    sell_price = int(item.db.price * SELL_BACK_RATE * distance_bonus)
+    specialty_multiplier = _specialty_multiplier(merchant, item)
+    sell_price = int(item.db.price * SELL_BACK_RATE * distance_bonus * specialty_multiplier)
 
     def _sell(caller, raw_string="", **kwargs):
         if not item.pk or item.location != caller:
