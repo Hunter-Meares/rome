@@ -35,17 +35,17 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-25"
 
 RECENT_UPDATES_TEXT = (
-    "Crafting expanded: 'craft <recipe>' now finds your materials "
-    "automatically, 'recipes' shows everything you could make, and "
-    "Faber has a real tier ladder now (a free starting sword, plus an "
-    "iron lorica and war-spear learnable from the smith at the "
-    "Germanic Stronghold). Gathering ('help gathering') now rewards "
-    "actually exploring - you'll see a real message the moment "
-    "there's something to find. Not here to fight at all? 'help "
-    "pacifism' explains a real, permanent way to opt out of combat "
-    "entirely. Also recent: thirteen quests around the city, a "
-    "triumphal procession through the Forum, and 80 social commands "
-    "('help socials')."
+    "Crafting now has two professions: Faber the smith (forge at the "
+    "Smithy) and a new Herbalist (mortar at Market Row - Back Stalls), "
+    "brewing a free healing tonic or a trained antidote. 'craft "
+    "<recipe>' finds your materials automatically and 'recipes' shows "
+    "everything you could make. The Ore Vein Shaft is now a real, "
+    "sprawling mine - real ground to explore, not two rooms. Not here "
+    "to fight at all? 'help pacifism' explains a real, permanent way "
+    "to opt out of combat, and 'journey' now points a pacifist toward "
+    "crafting instead of the Ludus. Also recent: thirteen quests "
+    "around the city, a triumphal procession through the Forum, and "
+    "80 social commands ('help socials')."
 )
 
 # The box's own interior width, between its left/right borders and

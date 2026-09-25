@@ -13,6 +13,8 @@ from world.tutorial import (
     LUDUS_LEVEL_CEILING,
     SEWERS_LEVEL_CEILING,
     GERMANIA_LEVEL_CEILING,
+    PACIFIST_CRAFTING_LEVEL_CEILING,
+    PACIFIST_MASTERY_LEVEL_CEILING,
 )
 
 
@@ -96,3 +98,48 @@ class TestCmdJourney(EvenniaCommandTest):
         self.char1.db.level = GERMANIA_LEVEL_CEILING
         result = self.call(CmdJourney(), "", caller=self.char1)
         self.assertIn("cleared every zone", result)
+
+
+class TestCmdJourneyForAPacifist(EvenniaCommandTest):
+    # A real gap found by direct question: a pacifist can't 'challenge'
+    # at the Ludus or fight through the Cloaca Maxima - the two things
+    # every other level band above points at. These confirm the
+    # pacifist gets a crafting-based path instead, and never the
+    # combat-only branches.
+    def setUp(self):
+        super().setUp()
+        self.char1.db.is_dead = False
+        self.char1.db.combat_turnhandler = None
+        self.char1.db.colosseum_escaped = True
+        self.char1.db.pacifist = True
+        self.char1.db.level = 1
+
+    def test_not_escaped_still_takes_priority(self):
+        self.char1.db.colosseum_escaped = False
+        result = self.call(CmdJourney(), "", caller=self.char1)
+        self.assertIn("out of these", result)
+
+    def test_low_level_suggests_a_profession(self):
+        result = self.call(CmdJourney(), "", caller=self.char1)
+        self.assertIn("Smithy", result)
+        self.assertIn("Herbalist", result)
+        self.assertNotIn("Ludus", result)
+
+    def test_mid_level_suggests_training_the_profession_further(self):
+        self.char1.db.level = PACIFIST_CRAFTING_LEVEL_CEILING
+        result = self.call(CmdJourney(), "", caller=self.char1)
+        self.assertIn("learnrecipe", result)
+        self.assertNotIn("Cloaca Maxima", result)
+
+    def test_high_level_gets_the_congratulatory_message(self):
+        self.char1.db.level = PACIFIST_MASTERY_LEVEL_CEILING
+        result = self.call(CmdJourney(), "", caller=self.char1)
+        self.assertIn("crafting about as far", result)
+        self.assertNotIn("Porta Flaminia", result)
+
+    def test_a_pacifist_god_still_gets_the_god_message(self):
+        from world.factions import GOD_LEVEL_THRESHOLD
+
+        self.char1.db.level = GOD_LEVEL_THRESHOLD + 1
+        result = self.call(CmdJourney(), "", caller=self.char1)
+        self.assertIn("You're a god now", result)

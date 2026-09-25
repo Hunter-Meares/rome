@@ -498,6 +498,14 @@ RAW_IRON_ORE = {
     "tags": [("iron_ore", "crafting_material")],
 }
 
+RAW_HEALING_HERBS = {
+    "typeclass": "typeclasses.objects.Object",
+    "key": "a bundle of healing herbs",
+    "desc": "Fresh-cut leaves and roots, still fragrant - the real thing an apothecary works with, not the dried stock sold at a stall.",
+    "price": 6,
+    "tags": [("herbs", "crafting_material")],
+}
+
 # Baseline stats/price/craft_xp are computed live at craft time from
 # world.combat's own compute_weapon_stats/xp_for_level formulas
 # (world/recipes.py's IronShortswordRecipe), the same way a merchant's
@@ -533,6 +541,32 @@ CRAFTED_IRON_WARSPEAR = {
     "weapon_type_name": "spear",
     "weapon_category": "polearm",
     "two_handed": True,
+}
+
+# The one real forge Faber's own recipes require (world/recipes.py's
+# FaberRecipe) - a real, direct design request that crafting happen
+# at a fixed location. A `tool` in the crafting contrib's own sense:
+# present in the room, never consumed, never carried. get:false()
+# locks it in place the same way divine gear locks to whoever's
+# wearing it (world/prototypes.py's UNIQUE/DIVINE ITEMS section) -
+# here just "nobody can pick this up at all."
+FABER_FORGE = {
+    "typeclass": "typeclasses.objects.Object",
+    "key": "a smithing forge",
+    "desc": "A real working forge, banked coals glowing under a battered iron hood - hot enough to work iron, built solidly enough that it clearly isn't going anywhere.",
+    "tags": [("faber_forge", "crafting_tool")],
+    "locks": "get:false()",
+}
+
+# The Herbalist profession's own equivalent fixed-location tool (world/
+# recipes.py's HerbalistRecipe), standing at Market Row - Back Stalls,
+# right by Aviola the herbalist.
+APOTHECARY_MORTAR = {
+    "typeclass": "typeclasses.objects.Object",
+    "key": "an apothecary's mortar",
+    "desc": "A heavy stone mortar and pestle, stained deep green from years of crushed herbs - exactly the tool for grinding a real remedy, not just chopping leaves by hand.",
+    "tags": [("herbalist_mortar", "crafting_tool")],
+    "locks": "get:false()",
 }
 
 # ----------------------------------------------------------------------------
@@ -720,6 +754,33 @@ REGEN_POTION = {
     "item_consumable": "GLASS_BOTTLE",
     "item_kwargs": {"conditions": [("Regeneration", 10)]},
     "price": 30,
+}
+
+# world/recipes.py's HealingTonicRecipe/AntidoteRecipe (Herbalist
+# tiers 1/2). Unlike CRAFTED_IRON_SHORTSWORD and friends, a potion's
+# own effect is fixed here directly (item_func/item_kwargs) rather
+# than computed at craft time - it isn't derived from a level-scaling
+# formula the way weapon/armor stats are, so there's nothing to
+# compute; only price/craft_xp still get set fresh by the recipe.
+# Reuses the exact same item_func/GLASS_BOTTLE consumable pattern
+# HEALTH_POTION already uses, rather than a second "how does a potion
+# work" mechanic.
+CRAFTED_HEALING_TONIC = {
+    "key": "a hand-brewed healing tonic",
+    "desc": "A cloudy, herb-green liquid in a plain glass bottle - not as refined as an apothecary's own stock, but it does the job.",
+    "item_func": "heal",
+    "item_uses": 1,
+    "item_consumable": "GLASS_BOTTLE",
+    "item_kwargs": {"healing_range": (15, 25)},
+}
+
+CRAFTED_ANTIDOTE = {
+    "key": "a hand-brewed antidote",
+    "desc": "A sharp-smelling, bitter draught in a plain glass bottle - unpleasant to drink, but it clears a poison right out.",
+    "item_func": "cure_condition",
+    "item_uses": 1,
+    "item_consumable": "GLASS_BOTTLE",
+    "item_kwargs": {"to_cure": ["Poisoned"]},
 }
 
 HASTE_POTION = {

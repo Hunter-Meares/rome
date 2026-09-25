@@ -36,6 +36,14 @@ LUDUS_LEVEL_CEILING = 8
 SEWERS_LEVEL_CEILING = 25
 GERMANIA_LEVEL_CEILING = 45
 
+# A pacifist's progression is crafting-tier-based, not zone-based (they
+# never fight through the Ludus or the sewers) - these roughly mirror
+# world/recipes.py's own TIER_LEVEL spread (free tier-1 recipes around
+# 5-8, the higher-gold-gated tiers at 12/18/28) rather than the combat
+# zone ceilings above.
+PACIFIST_CRAFTING_LEVEL_CEILING = 15
+PACIFIST_MASTERY_LEVEL_CEILING = 30
+
 
 class CmdJourney(Command):
     """
@@ -101,6 +109,45 @@ class CmdJourney(Command):
             return
 
         level = caller.db.level or 1
+
+        if caller.db.pacifist:
+            # A pacifist can't 'challenge' at the Ludus or fight through the
+            # Cloaca Maxima - the two things every other branch below this
+            # one points at next. Real gap found by direct question: past
+            # the cells (already fine, 'sneak'/'solve' are zero-combat),
+            # this command had nothing else to tell a pacifist at all.
+            # Crafting (world/recipes.py's TIER_LEVEL-gated recipes) is
+            # their real leveling path instead.
+            if level < PACIFIST_CRAFTING_LEVEL_CEILING:
+                caller.msg(
+                    "|wYou've chosen pacifism - no fighting, but crafting is "
+                    "a real path to level up instead.|n Head to the Smithy "
+                    "Forge (Faber: gather iron ore and timber, then 'craft "
+                    "iron shortsword' - free, no training needed) or Market "
+                    "Row - Back Stalls (Herbalist: gather herbs, then 'craft "
+                    "healing tonic' - also free). 'recipes' shows what else "
+                    "is out there. See 'help crafting' for the full rundown."
+                )
+                return
+
+            if level < PACIFIST_MASTERY_LEVEL_CEILING:
+                caller.msg(
+                    "|wYou've got the basics of your profession down.|n "
+                    "'learnrecipe' a harder tier from your trainer once "
+                    "you've got the gold, and sell what you craft to a "
+                    "merchant who specializes in it for a real bonus. Check "
+                    "'achievements' and 'quest' too - plenty of both don't "
+                    "need a single fight."
+                )
+                return
+
+            caller.msg(
+                "|wYou've taken crafting about as far as it currently "
+                "goes.|n Check 'achievements' and 'quest' if any are still "
+                "open. Rome has more going on than fighting, if you go "
+                "looking for it."
+            )
+            return
 
         if level < LUDUS_LEVEL_CEILING:
             caller.msg(

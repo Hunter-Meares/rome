@@ -369,6 +369,7 @@ class SuburaApothecary(NPCMerchant):
     def at_object_creation(self):
         super().at_object_creation()
         self.db.shopname = "the herbalist's stall"
+        self.db.buys_specialty = ["potion"]
 
         for prototype_key in APOTHECARY_STOCK:
             obj = spawn(prototype_key)[0]

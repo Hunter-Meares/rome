@@ -24,6 +24,8 @@ from world.recipes import (
     IronShortswordRecipe,
     IronLoricaRecipe,
     IronWarSpearRecipe,
+    HealingTonicRecipe,
+    AntidoteRecipe,
 )
 
 
@@ -184,9 +186,16 @@ class _FaberRecipeTestBase(EvenniaCommandTest):
         self.materials = [spawn(proto)[0] for proto in self.MATERIALS]
         for obj in self.materials:
             obj.move_to(self.char1, quiet=True)
+        # Faber recipes now require a real forge present (world/
+        # recipes.py's FaberRecipe, a fixed-location design request) -
+        # a tool, so it stays in the room rather than the crafter's
+        # own inventory, same as CmdSimpleCraft would find it.
+        self.forge = spawn("FABER_FORGE")[0]
+        self.forge.location = self.room1
 
-    def _craft(self, roll=1):
-        recipe = self.RECIPE_CLASS(self.char1, *self.materials)
+    def _craft(self, roll=1, with_forge=True):
+        tools = [self.forge] if with_forge else []
+        recipe = self.RECIPE_CLASS(self.char1, *tools, *self.materials)
         with mock.patch("world.recipes.randint", return_value=roll):
             return recipe.craft()
 
@@ -255,10 +264,16 @@ class TestIronShortswordRecipe(_FaberRecipeTestBase):
             self.assertTrue(obj.pk)
 
     def test_missing_a_material_is_refused(self):
-        recipe = IronShortswordRecipe(self.char1, self.materials[1])  # timber only
+        recipe = IronShortswordRecipe(self.char1, self.forge, self.materials[1])  # timber only
         with mock.patch("world.recipes.randint", return_value=1):
             result = recipe.craft()
         self.assertFalse(result)
+
+    def test_missing_the_forge_is_refused_even_with_all_materials(self):
+        result = self._craft(with_forge=False)
+        self.assertFalse(result)
+        for obj in self.materials:
+            self.assertTrue(obj.pk)
 
 
 class TestIronLoricaRecipe(_FaberRecipeTestBase):
@@ -319,3 +334,91 @@ class TestIronWarSpearRecipe(_FaberRecipeTestBase):
         spear_xp, _ = _craft_reward(IronWarSpearRecipe.TIER_LEVEL, IronWarSpearRecipe.CYCLE_MINUTES)
         lorica_xp, _ = _craft_reward(IronLoricaRecipe.TIER_LEVEL, IronLoricaRecipe.CYCLE_MINUTES)
         self.assertGreater(spear_xp, lorica_xp)
+
+
+class _HerbalistRecipeTestBase(EvenniaCommandTest):
+    """
+    A real second profession, proving crafting isn't just weapons/
+    armor - see HerbalistRecipe's own docstring. Same fixed-location
+    tool pattern as Faber's own forge, just an apothecary's mortar.
+    """
+
+    RECIPE_CLASS = None
+    MATERIALS = ()
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.craft_skill = {}
+        self.char1.db.craft_recipes_known = {self.RECIPE_CLASS.name}
+        self.materials = [spawn(proto)[0] for proto in self.MATERIALS]
+        for obj in self.materials:
+            obj.move_to(self.char1, quiet=True)
+        self.mortar = spawn("APOTHECARY_MORTAR")[0]
+        self.mortar.location = self.room1
+
+    def _craft(self, roll=1, with_mortar=True):
+        tools = [self.mortar] if with_mortar else []
+        recipe = self.RECIPE_CLASS(self.char1, *tools, *self.materials)
+        with mock.patch("world.recipes.randint", return_value=roll):
+            return recipe.craft()
+
+
+class TestHealingTonicRecipe(_HerbalistRecipeTestBase):
+    """Tier 1 - Herbalist's free, untrained starting recipe."""
+
+    RECIPE_CLASS = HealingTonicRecipe
+    MATERIALS = ("RAW_HEALING_HERBS",)
+
+    def test_known_by_default_with_no_training_at_all(self):
+        self.char1.db.craft_recipes_known = set()
+        result = self._craft()
+        self.assertTrue(result)
+
+    def test_a_successful_craft_produces_a_usable_potion(self):
+        result = self._craft()
+
+        self.assertTrue(result)
+        tonic = result[0]
+        self.assertEqual(tonic.db.item_func, "heal")
+        self.assertEqual(tonic.db.item_category, "potion")
+
+        expected_xp, expected_price = _craft_reward(HealingTonicRecipe.TIER_LEVEL, HealingTonicRecipe.CYCLE_MINUTES)
+        self.assertEqual(tonic.db.craft_xp, expected_xp)
+        self.assertEqual(tonic.db.price, expected_price)
+
+    def test_missing_the_mortar_is_refused(self):
+        result = self._craft(with_mortar=False)
+        self.assertFalse(result)
+        for obj in self.materials:
+            self.assertTrue(obj.pk)
+
+    def test_a_failed_craft_keeps_the_herbs(self):
+        result = self._craft(roll=100)
+        self.assertFalse(result)
+        for obj in self.materials:
+            self.assertTrue(obj.pk)
+
+
+class TestAntidoteRecipe(_HerbalistRecipeTestBase):
+    """Tier 2 - a genuinely different item, not just a bigger heal."""
+
+    RECIPE_CLASS = AntidoteRecipe
+    MATERIALS = ("RAW_HEALING_HERBS", "RAW_HEALING_HERBS")
+
+    def test_refused_without_training(self):
+        self.char1.db.craft_recipes_known = set()
+        result = self._craft()
+        self.assertFalse(result)
+
+    def test_a_successful_craft_cures_poison_not_heals(self):
+        result = self._craft()
+
+        self.assertTrue(result)
+        antidote = result[0]
+        self.assertEqual(antidote.db.item_func, "cure_condition")
+        self.assertIn("Poisoned", antidote.db.item_kwargs["to_cure"])
+
+    def test_pays_more_than_the_tier_one_tonic(self):
+        antidote_xp, _ = _craft_reward(AntidoteRecipe.TIER_LEVEL, AntidoteRecipe.CYCLE_MINUTES)
+        tonic_xp, _ = _craft_reward(HealingTonicRecipe.TIER_LEVEL, HealingTonicRecipe.CYCLE_MINUTES)
+        self.assertGreater(antidote_xp, tonic_xp)

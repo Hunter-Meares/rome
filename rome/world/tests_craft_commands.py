@@ -29,6 +29,15 @@ class CraftCommandTestBase(EvenniaCommandTest):
         self.char1.db.craft_skill = {}
         self.char1.db.craft_recipes_known = set()
         self.char1.db.gold = 0
+        # Every profession now requires its own fixed-location tool
+        # (world/recipes.py's FaberRecipe/HerbalistRecipe) - both
+        # present here by default so tests not specifically about that
+        # requirement don't need to think about it; the dedicated
+        # missing-tool tests remove them explicitly.
+        self.forge = spawn("FABER_FORGE")[0]
+        self.forge.location = self.room1
+        self.mortar = spawn("APOTHECARY_MORTAR")[0]
+        self.mortar.location = self.room1
 
 
 class TestCmdSimpleCraft(CraftCommandTestBase):
@@ -79,6 +88,39 @@ class TestCmdSimpleCraft(CraftCommandTestBase):
         self.assertFalse(ore1.pk)
         self.assertFalse(ore2.pk)
 
+    def test_missing_the_forge_is_named_as_missing(self):
+        self.forge.location = None
+        spawn("RAW_IRON_ORE")[0].move_to(self.char1, quiet=True)
+        spawn("RAW_TIMBER")[0].move_to(self.char1, quiet=True)
+
+        result = self.call(CmdSimpleCraft(), "iron shortsword", caller=self.char1)
+
+        self.assertIn("smithing forge", result)
+
+    def test_the_forge_can_be_in_the_room_not_carried(self):
+        # Real, direct design request: crafting happens at a fixed
+        # location - the forge is a room fixture, never picked up.
+        spawn("RAW_IRON_ORE")[0].move_to(self.char1, quiet=True)
+        spawn("RAW_TIMBER")[0].move_to(self.char1, quiet=True)
+        self.assertEqual(self.forge.location, self.room1)
+        self.assertNotIn(self.forge, self.char1.contents)
+
+        with mock.patch("world.recipes.randint", return_value=1):
+            self.call(CmdSimpleCraft(), "iron shortsword", caller=self.char1)
+
+        swords = [o for o in self.char1.contents if o.key == "a hand-forged iron shortsword"]
+        self.assertEqual(len(swords), 1)
+        self.assertTrue(self.forge.pk)  # the forge itself is never consumed
+
+    def test_the_herbalist_mortar_works_the_same_way(self):
+        spawn("RAW_HEALING_HERBS")[0].move_to(self.char1, quiet=True)
+
+        with mock.patch("world.recipes.randint", return_value=1):
+            self.call(CmdSimpleCraft(), "healing tonic", caller=self.char1)
+
+        tonics = [o for o in self.char1.contents if o.key == "a hand-brewed healing tonic"]
+        self.assertEqual(len(tonics), 1)
+
     def test_an_untrained_recipe_is_refused_before_touching_materials(self):
         spawn("RAW_IRON_ORE")[0].move_to(self.char1, quiet=True)
         spawn("RAW_IRON_ORE")[0].move_to(self.char1, quiet=True)
@@ -96,6 +138,8 @@ class TestCmdRecipeList(CraftCommandTestBase):
         self.assertIn("iron shortsword", result)
         self.assertIn("iron lorica", result)
         self.assertIn("iron war-spear", result)
+        self.assertIn("healing tonic", result)
+        self.assertIn("antidote", result)
 
     def test_marks_the_free_recipe_as_free(self):
         result = self.call(CmdRecipeList(), "", caller=self.char1)

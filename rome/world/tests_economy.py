@@ -264,6 +264,26 @@ class TestMerchantSpecialtyBonus(EconomyTestBase):
 
         self.assertEqual(self.char1.db.gold, int(40 * SELL_BACK_RATE * 1.3 * 1.2))
 
+    def test_a_potion_specialist_pays_more_for_a_crafted_potion(self):
+        # world/economy.py's SuburaApothecary (Aviola) now specializes
+        # in potions - a crafted good's db.item_category ("potion",
+        # set by world/recipes.py's HerbalistRecipe) is what this
+        # checks, not a typeclass. Deliberately NOT spawned as a DAGGER
+        # here - a DAGGER is a real CombatWeapon, and _item_category()
+        # checks typeclass first, so it would resolve to "weapon"
+        # regardless of any db.item_category set on top; a genuine
+        # non-weapon/armor prototype is needed to actually exercise the
+        # fallback path this test means to check.
+        self.merchant.db.buys_specialty = ["potion"]
+        item = self._spawn_ware(proto_key="CRAFTED_HEALING_TONIC", price=40, location=self.char1)
+        item.db.item_category = "potion"
+        self.char1.db.gold = 0
+
+        text, options = node_confirm_sell(self.char1, item=item)
+        options[0]["goto"](self.char1)
+
+        self.assertEqual(self.char1.db.gold, int(40 * SELL_BACK_RATE * 1.2))
+
     def test_no_specialty_set_at_all_is_a_plain_no_op(self):
         item = self._spawn_ware(proto_key="DAGGER", price=40, location=self.char1)
         self.char1.db.gold = 0

@@ -14,7 +14,8 @@ from evennia.utils import create
 
 from world.gathering import (
     GATHERABLE_MATERIALS,
-    SPOT_CHANCE,
+    WILDERNESS_SPOT_CHANCE,
+    FIXED_NODE_SPOT_CHANCE,
     gather_resource_here,
     cooldown_remaining,
     announce_gather_spot,
@@ -101,6 +102,40 @@ class TestAnnounceGatherSpot(EvenniaCommandTest):
             announce_gather_spot(self.char1)
         self.assertIsNone(self.char1.ndb.gather_spot)
         self.assertEqual(received, [])
+
+    def test_a_wilderness_tile_uses_the_wilderness_chance(self):
+        # ndb.gather_resource (unset here) is exactly what marks a
+        # recycled wilderness tile - a roll between the two chance
+        # values should miss on the (lower) wilderness rate.
+        self.room1.ndb.gather_resource = "timber"
+        roll_between = (WILDERNESS_SPOT_CHANCE + FIXED_NODE_SPOT_CHANCE) / 2
+        with patch("world.gathering.random.random", return_value=roll_between):
+            announce_gather_spot(self.char1)
+        self.assertIsNone(self.char1.ndb.gather_spot)
+
+    def test_a_fixed_node_room_uses_the_higher_chance(self):
+        # A plain db.gather_resource (not ndb) is exactly what marks a
+        # real, permanently-authored room like the Ore Vein Shaft -
+        # the same roll that misses in the wilderness should hit here.
+        self.room1.db.gather_resource = "iron_ore"
+        roll_between = (WILDERNESS_SPOT_CHANCE + FIXED_NODE_SPOT_CHANCE) / 2
+        with patch("world.gathering.random.random", return_value=roll_between):
+            announce_gather_spot(self.char1)
+        self.assertEqual(self.char1.ndb.gather_spot, "iron_ore")
+
+    def test_a_persistent_room_can_opt_into_the_wilderness_chance(self):
+        # Real design fix: a persistent room isn't automatically "no
+        # ground left to explore" just because it's db-based rather
+        # than a recycled wilderness tile - a real multi-room mine
+        # complex needs the same lower, meaningful-exploration chance
+        # the wilderness uses, even though every room in it is a real,
+        # permanently-authored room.
+        self.room1.db.gather_resource = "iron_ore"
+        self.room1.db.gather_uses_wilderness_chance = True
+        roll_between = (WILDERNESS_SPOT_CHANCE + FIXED_NODE_SPOT_CHANCE) / 2
+        with patch("world.gathering.random.random", return_value=roll_between):
+            announce_gather_spot(self.char1)
+        self.assertIsNone(self.char1.ndb.gather_spot)
 
     def test_still_on_cooldown_never_spots_anything(self):
         self.room1.ndb.gather_resource = "timber"

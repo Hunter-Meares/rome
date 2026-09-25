@@ -49,13 +49,34 @@ gather, always succeeds (subject only to your own cooldown)" - too
 easy, and it rewarded parking in one spot rather than actually
 exploring. announce_gather_spot() (called from CombatCharacter.
 at_post_move, mirroring world/wilderness_rome.py's own
-ENCOUNTER_CHANCE mechanism almost exactly) rolls SPOT_CHANCE on every
-real move into an eligible room; a hit sets a character-local
+ENCOUNTER_CHANCE mechanism almost exactly) rolls a spot chance on
+every real move into an eligible room; a hit sets a character-local
 ndb.gather_spot and prints a "you spot..." message, a miss says
 nothing at all. `gather` itself now additionally requires that flag
 to be set - walking into a wooded tile no longer guarantees anything
 is there to take, only that there MIGHT be, and you have to actually
 move around (and get a little lucky) to find out.
+
+TWO DIFFERENT CHANCE VALUES, not one - a real correction made when
+directly asked "is 40% the sweet spot?" and actually checking the
+math rather than trusting the original guess. A fresh character has
+30 max SP and ordinary movement costs 1 SP (world/combat.py's
+MOVEMENT_SP_COST) - at 40%, expected moves-to-find is ~2.5, and even
+a real bad-luck streak of 10 moves without a hit happens only ~0.6%
+of the time. That's very safe against ever running a new player out
+of SP, but it barely creates any actual "wandering" feel - you're
+rarely more than a couple of steps from a hit either way. Worse, a
+single flat chance was doing two genuinely different jobs: in the
+open wilderness, "keep exploring" is a real, meaningful action with
+real ground to cover; at the Ore Vein Shaft (2 fixed rooms total),
+"keep exploring" only ever means walking in and out of the same tiny
+space to re-roll, which isn't exploration at all, just repetition -
+a low chance there is just tedium with no ground left to search.
+WILDERNESS_SPOT_CHANCE is lowered to make wilderness exploration
+actually matter (still statistically very safe: even at 30%, a
+10-move dry spell is under 3%); FIXED_NODE_SPOT_CHANCE stays high
+specifically because there's nowhere further to explore once you're
+already standing in the one room that has the node.
 """
 
 import random
@@ -67,8 +88,10 @@ from evennia.prototypes.spawner import spawn
 # Chance, per real move into an eligible room, that a resource is
 # actually there to gather right now - independent of, and checked
 # before, the character's own per-resource cooldown (no point
-# "finding" something you can't take yet).
-SPOT_CHANCE = 0.4
+# "finding" something you can't take yet). Two values, not one - see
+# this module's own docstring for why a single flat chance was wrong.
+WILDERNESS_SPOT_CHANCE = 0.3
+FIXED_NODE_SPOT_CHANCE = 0.6
 
 SPOT_MESSAGES = {
     "timber": (
@@ -78,6 +101,10 @@ SPOT_MESSAGES = {
     "iron_ore": (
         "|YA vein catches the light in the rock wall, rust-streaked "
         "and clearly workable.|n"
+    ),
+    "herbs": (
+        "|YA real cluster of healing herbs grows here, tucked behind "
+        "the stall where the foot traffic hasn't trampled it.|n"
     ),
 }
 
@@ -94,6 +121,10 @@ GATHERABLE_MATERIALS = {
     "iron_ore": {
         "prototype": "RAW_IRON_ORE",
         "cooldown": 86400,  # ~once a day - rare, worth the trip
+    },
+    "herbs": {
+        "prototype": "RAW_HEALING_HERBS",
+        "cooldown": 300,  # 5 real minutes - common, same pace as timber
     },
 }
 
@@ -127,15 +158,30 @@ def announce_gather_spot(character):
     found it in, not carried forward - then rolls fresh for the
     character's current room. Silent on a miss, same as the
     wilderness's own ENCOUNTER_CHANCE roll.
+
+    Which chance applies is no longer purely "recycled wilderness tile
+    vs. real room" - that broke the moment the Ore Vein Shaft grew
+    into a real, multi-room mine complex (world/setup_ore_mine_
+    complex_live.py): those vein rooms are real, persistent, db-based
+    rooms, but there's genuinely real ground to explore between them
+    now, same as the wilderness. A room can explicitly opt into the
+    wilderness-style (lower) chance via db.gather_uses_wilderness_
+    chance regardless of ndb/db - that override is checked first;
+    otherwise the original ndb-vs-db distinction still applies for
+    anything that hasn't opted in (a genuinely single-room node, like
+    the Herbalist's own stall).
     """
     character.ndb.gather_spot = None
+    location = character.location
     resource = gather_resource_here(character)
     if not resource:
         return
     if cooldown_remaining(character, resource) > 0:
         # Nothing to spot if they couldn't gather it yet anyway.
         return
-    if random.random() < SPOT_CHANCE:
+    uses_wilderness_chance = location.db.gather_uses_wilderness_chance or location.ndb.gather_resource is not None
+    chance = WILDERNESS_SPOT_CHANCE if uses_wilderness_chance else FIXED_NODE_SPOT_CHANCE
+    if random.random() < chance:
         character.ndb.gather_spot = resource
         character.msg(SPOT_MESSAGES.get(resource, "You spot something worth gathering here."))
 

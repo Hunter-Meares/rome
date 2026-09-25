@@ -67,6 +67,19 @@ craft_commands.py's `learnrecipe`) for gold funded by tier-1 proceeds,
 mirroring how learnspell/learnskill already require an in-person
 trainer plus gold - crafting was the one teachable system in the game
 without that gate until now.
+
+FIXED LOCATIONS - a real direct design request: crafting originally
+worked from anywhere. Every profession now declares `tool_tags`
+pointing at a real, uncarried tool object standing in one specific
+room (a forge, an apothecary's mortar) - the crafting contrib already
+supports a tool present in the room rather than carried, so this
+needed no new location-check system, just using what already existed.
+
+Two professions now exist: Faber (smith) above, and Herbalist below -
+a real second profession proving crafting isn't just weapons/armor.
+Herbalist potions reuse the game's existing item_func consumable
+system (HEALTH_POTION/REGEN_POTION in world/prototypes.py) rather than
+inventing a second "how does a potion work" mechanic.
 """
 
 from random import randint
@@ -200,14 +213,31 @@ class SkilledCraftingRecipe(CraftingRecipe):
         return None
 
 
-class FaberWeaponRecipe(SkilledCraftingRecipe):
+class FaberRecipe(SkilledCraftingRecipe):
+    """
+    Shared FIXED-LOCATION requirement for every Faber recipe - a real
+    direct design request: crafting originally worked from anywhere,
+    which didn't fit "craft at a workshop." A forge is a `tool` in the
+    contrib's own sense (present, not consumed, not carried - see
+    world/craft_commands.py's CmdSimpleCraft, which already checks the
+    caller's ROOM as well as their inventory for a tool match) rather
+    than a new location-check system - the engine already supported
+    this, it just wasn't being used. The one real forge stands at "The
+    Smithy Forge" (world/setup_faber_forge_live.py).
+    """
+
+    skill_key = "faber"
+    tool_tags = ["faber_forge"]
+    tool_names = ["a smithing forge"]
+
+
+class FaberWeaponRecipe(FaberRecipe):
     """Shared reward/stat tail for every Faber WEAPON recipe. A
     subclass sets WEAPON_TYPE to a real world.combat.WEAPON_SUBTYPES
     key - everything else (damage/accuracy/price/craft_xp) is computed
     from that plus the recipe's own fixed TIER_LEVEL, the same formula
     a merchant's own stock already uses."""
 
-    skill_key = "faber"
     WEAPON_TYPE = None
 
     def do_craft(self, **kwargs):
@@ -231,13 +261,12 @@ class FaberWeaponRecipe(SkilledCraftingRecipe):
         return result
 
 
-class FaberArmorRecipe(SkilledCraftingRecipe):
+class FaberArmorRecipe(FaberRecipe):
     """Shared reward/stat tail for every Faber ARMOR recipe - same
     shape as FaberWeaponRecipe above, using compute_armor_stats
     instead. A subclass sets ARMOR_CATEGORY to "light"/"medium"/
     "heavy" (world.combat.ARMOR_CATEGORIES)."""
 
-    skill_key = "faber"
     ARMOR_CATEGORY = None
 
     def do_craft(self, **kwargs):
@@ -328,13 +357,89 @@ class IronWarSpearRecipe(FaberWeaponRecipe):
     success_message = "|gA long, true haft and a real forged head - this war-spear could hold a line.|n"
 
 
+class HerbalistRecipe(SkilledCraftingRecipe):
+    """
+    Shared FIXED-LOCATION + reward tail for Herbalist recipes - a real
+    second profession, deliberately not just another weapon/armor
+    line, to prove crafting can make more than gear (potions here,
+    matching the original design doc's Medicus-linked herbalism idea).
+    Unlike Faber's weapon/armor stats, a potion's own effect (item_func/
+    item_kwargs) is fixed directly on its prototype rather than
+    computed at craft time - it isn't derived from a level-scaling
+    formula the way weapon/armor combat stats are, so there's nothing
+    to compute. Only the reward still comes from _craft_reward
+    (TIER_LEVEL, ...), exactly like every other profession. The one
+    real "apothecary's mortar" tool stands at Market Row - Back
+    Stalls, right where Aviola the herbalist already deals in exactly
+    this trade (world/setup_herbalist_live.py).
+    """
+
+    skill_key = "herbalist"
+    tool_tags = ["herbalist_mortar"]
+    tool_names = ["an apothecary's mortar"]
+
+    def do_craft(self, **kwargs):
+        result = super().do_craft(**kwargs)
+        if not result:
+            return result
+
+        craft_xp, price = _craft_reward(self.TIER_LEVEL, self.CYCLE_MINUTES)
+        for obj in result:
+            obj.db.price = price
+            obj.db.craft_xp = craft_xp
+            obj.db.item_category = "potion"
+
+        return result
+
+
+class HealingTonicRecipe(HerbalistRecipe):
+    """Tier 1 - Herbalist's free, untrained starting recipe."""
+
+    name = "healing tonic"
+    difficulty = 5
+    TIER_LEVEL = 5
+    KNOWN_BY_DEFAULT = True
+
+    consumable_tags = ["herbs"]
+    consumable_names = ["herbs"]
+    output_prototypes = ["CRAFTED_HEALING_TONIC"]
+
+    success_message = "|gYou grind the herbs down and steep them into a real healing tonic - bitter, but it works.|n"
+
+
+class AntidoteRecipe(HerbalistRecipe):
+    """
+    Tier 2 - a genuinely different kind of item, not just a bigger
+    heal: cures a poisoned condition outright (itemfunc_cure_
+    condition) rather than restoring HP. A real reason for this
+    profession to exist beyond "healing potion, but better."
+    """
+
+    name = "antidote"
+    difficulty = 25
+    TIER_LEVEL = 12
+    KNOWN_BY_DEFAULT = False
+
+    consumable_tags = ["herbs", "herbs"]
+    consumable_names = ["herbs", "herbs"]
+    output_prototypes = ["CRAFTED_ANTIDOTE"]
+
+    success_message = "|gYou work the herbs into a sharp-smelling antidote - not pleasant to drink, but it'll clear a poison right out.|n"
+
+
 # Every concrete, craftable recipe - the single source world/
 # craft_commands.py's 'recipes'/'learnrecipe' commands read from,
 # rather than reaching into the crafting contrib's own private
 # _RECIPE_CLASSES registry (which would also pick up the abstract
 # SkilledCraftingRecipe/FaberWeaponRecipe/FaberArmorRecipe bases
 # above, none of which are real recipes on their own).
-ALL_RECIPES = [IronShortswordRecipe, IronLoricaRecipe, IronWarSpearRecipe]
+ALL_RECIPES = [
+    IronShortswordRecipe,
+    IronLoricaRecipe,
+    IronWarSpearRecipe,
+    HealingTonicRecipe,
+    AntidoteRecipe,
+]
 
 
 def _get_recipe_class(name):
