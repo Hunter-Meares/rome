@@ -187,6 +187,14 @@ def all_player_characters():
 # actually START (CmdFight, skill_ambush) - once a fight is already
 # running elsewhere, nothing moves a live encounter into one of these
 # rooms, so there's no separate mid-fight check needed.
+def item_use_verb(item):
+    """"eats"/"drinks" for food and drink (db.consume_verb - see
+    world/food.py), "uses" for everything else - so an item's own
+    effect message reads naturally ("Rufa's loaf" is eaten, a potion is
+    used)."""
+    return {"eat": "eats", "drink": "drinks"}.get(item.db.consume_verb, "uses")
+
+
 NO_COMBAT_ZONE_TAG = ("no_combat_zone", "zone")
 
 
@@ -488,6 +496,23 @@ PVP_XP_REWARD_PERCENT = 0.06
 # gold, and not applied to the separate PvP XP path - not asked for,
 # a trivial addition later if wanted.
 PARTY_XP_BONUS_PERCENT = 0.20
+
+# Per-kill XP cap, so a low-level character can't leech a high-level kill.
+# The damage-proportional split stops pure idling (no damage = no XP) but
+# NOT "tagging": nothing accounted for level, so a level 1 landing a few
+# hits beside a level 100 collected a real share of a reward sized for the
+# high-level NPC (a level-90 NPC pays ~6,200 XP - a 5% share took a level 1
+# to level 4 from ONE kill). A contributor's share of a single kill is now
+# capped at KILL_XP_CAP_FRACTION of THEIR OWN level's XP cost (about 2.5x
+# the ~6% an on-level kill pays), with a floor because early-game content
+# is deliberately generous (the arena trainer pays 125% of a level-1's
+# cost, Ludus trainers and early quest targets 12-25%) - a plain percentage
+# would cripple levels 1-5. On-level and moderately-above-level kills, and
+# every stretch fight at high level (a 75 vs the level-100 Arena Master),
+# fall under the cap and are untouched - tests_combat_commands' data check
+# proves no XP-paying NPC in the game is capped for an on-level player.
+KILL_XP_CAP_FRACTION = 0.15
+KILL_XP_CAP_FLOOR = 60
 
 LEVEL_XP_BASE = 20
 LEVEL_XP_EXPONENT = 1.9
@@ -1568,6 +1593,7 @@ class CombatRules:
         # the last hit. Falls back to the old killing-blow-only
         # behavior only if damage_log is somehow empty (shouldn't
         # normally happen, since apply_damage always logs it now).
+        kill_xp_factors = {}
         if defeated.db.xp_reward:
             damage_log = defeated.db.damage_log or {}
             total_damage = sum(damage_log.values())
@@ -1586,7 +1612,7 @@ class CombatRules:
                         continue
                     share = int(round(xp_pool * (dealt / total_damage)))
                     if share > 0:
-                        self.award_xp(contributor, share)
+                        kill_xp_factors[contributor] = self.award_kill_xp(contributor, share)
             elif attacker and not attacker.is_typeclass(SummonedAlly, exact=False):
                 # A pet can reach this branch as the recorded killing
                 # blow (its own signature move calls at_defeat with
@@ -1597,7 +1623,7 @@ class CombatRules:
                 # solo-kill, exactly the exploit path this is meant to
                 # close. No one earns XP in that specific case, rather
                 # than guessing an alternate recipient.
-                self.award_xp(attacker, defeated.db.xp_reward)
+                kill_xp_factors[attacker] = self.award_kill_xp(attacker, defeated.db.xp_reward)
 
         # --- Loot drop (sewer_npc, arena_fighter, and germania_npc-
         # tagged NPCs - see world/loot.py) - same "any NPC with
@@ -1697,10 +1723,10 @@ class CombatRules:
                 for contributor, dealt in player_damage.items():
                     share = int(round(pvp_pool * (dealt / total_damage)))
                     if share > 0:
-                        self.award_xp(contributor, share)
+                        self.award_kill_xp(contributor, share)
             elif attacker and getattr(attacker, "account", None):
                 attacker.db.has_ever_killed_player = True
-                self.award_xp(attacker, pvp_pool)
+                self.award_kill_xp(attacker, pvp_pool)
 
         # --- Gold reward, derived from xp_reward rather than a
         # separate hand-tuned field per NPC - xp_reward already
@@ -1717,14 +1743,20 @@ class CombatRules:
                 for contributor, dealt in damage_log.items():
                     if contributor is None or not contributor.pk:
                         continue
-                    share = int(round(gold_pool * (dealt / total_damage)))
+                    # Reduced by the same factor as this contributor's XP
+                    # (see KILL_XP_CAP_FRACTION) - a low level tagging a
+                    # high-level kill shouldn't leech its gold either.
+                    share = int(round(
+                        gold_pool * (dealt / total_damage) * kill_xp_factors.get(contributor, 1.0)
+                    ))
                     if share > 0:
                         contributor.db.gold = (contributor.db.gold or 0) + share
                         contributor.msg("|Y+%d gold.|n" % share)
             elif attacker and not attacker.is_typeclass(SummonedAlly, exact=False):
                 # Same pet-exclusion reasoning as the XP award above.
-                attacker.db.gold = (attacker.db.gold or 0) + gold_pool
-                attacker.msg("|Y+%d gold.|n" % gold_pool)
+                gold_share = int(round(gold_pool * kill_xp_factors.get(attacker, 1.0)))
+                attacker.db.gold = (attacker.db.gold or 0) + gold_share
+                attacker.msg("|Y+%d gold.|n" % gold_share)
 
         # --- Persistent NPC respawn (see RespawningNPC) - checked
         # BEFORE instance cleanup below, since a respawning NPC is
@@ -2714,7 +2746,10 @@ class CombatRules:
                 user.msg("%s has no uses remaining." % item.key.capitalize())
             else:
                 if item.db.item_consumable is True:
-                    user.msg("%s has been consumed." % item.key.capitalize())
+                    if item.db.consume_verb:
+                        user.msg("You finish %s." % item)
+                    else:
+                        user.msg("%s has been consumed." % item.key.capitalize())
                     item.delete()
                 else:
                     residue = spawn({"prototype_parent": item.db.item_consumable})[0]
@@ -2783,7 +2818,9 @@ class CombatRules:
             to_heal = target.db.max_hp - target.db.hp
         target.db.hp += to_heal
 
-        user.location.msg_contents("%s uses %s! %s regains %i HP!" % (user, item, target, to_heal))
+        user.location.msg_contents(
+            "%s %s %s! %s regains %i HP!" % (user, item_use_verb(item), item, target, to_heal)
+        )
         self.announce_hp_threshold_change(target, old_hp)
 
     def itemfunc_add_condition(self, item, user, target, **kwargs):
@@ -2797,7 +2834,7 @@ class CombatRules:
             user.msg("You can't use %s on that." % item)
             return False
 
-        user.location.msg_contents("%s uses %s!" % (user, item))
+        user.location.msg_contents("%s %s %s!" % (user, item_use_verb(item), item))
 
         for condition in conditions:
             self.add_condition(target, user, condition[0], condition[1])
@@ -2813,7 +2850,7 @@ class CombatRules:
             user.msg("You can't use %s on that." % item)
             return False
 
-        item_msg = "%s uses %s! " % (user, item)
+        item_msg = "%s %s %s! " % (user, item_use_verb(item), item)
 
         for key in list(self.get_conditions(target)):
             if key in to_cure:
@@ -4181,6 +4218,26 @@ class CombatRules:
             leader = contributor.db.party_leader or contributor
             groups.setdefault(leader, set()).add(contributor)
         return any(len(members) >= 2 for members in groups.values())
+
+    def kill_xp_cap(self, character):
+        """The most XP one kill can give this character (see
+        KILL_XP_CAP_FRACTION for why)."""
+        level = min(character.db.level or 1, MAX_LEVEL)
+        return max(KILL_XP_CAP_FLOOR, int(KILL_XP_CAP_FRACTION * self.xp_for_level(level)))
+
+    def award_kill_xp(self, character, share):
+        """
+        award_xp for a kill's share, never more than kill_xp_cap. Returns
+        the fraction of the share actually paid (1.0 if uncapped), so the
+        same kill's gold can be reduced by the same factor.
+        """
+        cap = self.kill_xp_cap(character)
+        if share <= cap:
+            self.award_xp(character, share)
+            return 1.0
+        self.award_xp(character, cap)
+        character.msg("|x(A foe this far above you teaches you only so much.)|n")
+        return cap / share
 
     def award_xp(self, character, amount):
         """
@@ -10981,10 +11038,14 @@ class CmdInventory(Command):
 
 class CmdUse(MuxCommand):
     """
-    Use an item.
+    Use a potion, pill, or other usable item.
 
     Usage:
       use <item> [= target]
+
+    For things you drink or eat - wine, bread, cheese, and the like -
+    use 'drink' or 'eat' instead (see 'help food'). Try to 'use' one
+    and you'll be pointed there.
     """
 
     key = "use"
@@ -11008,6 +11069,15 @@ class CmdUse(MuxCommand):
             if not self.rules.is_turn(self.caller):
                 self.caller.msg("You can only use items on your turn.")
                 return
+
+        if item.db.consume_verb:
+            # Food and drink go through eat/drink (world/food.py) - `use`
+            # is for potions, pills, and other usable items.
+            self.caller.msg(
+                "You %s that, you don't use it - try '%s %s'."
+                % (item.db.consume_verb, item.db.consume_verb, item.key)
+            )
+            return
 
         if not item.db.item_func:
             self.caller.msg("'%s' is not a usable item." % item.key.capitalize())

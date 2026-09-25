@@ -40,6 +40,7 @@ from world import triumph_event
 from world import pacifism
 from world import gathering
 from world import craft_commands
+from world import food
 # world/craft_commands.py's CmdSimpleCraft replaces the crafting
 # contrib's own CmdCraft entirely (a real design choice, not an
 # oversight - see CmdSimpleCraft's own docstring: it auto-detects
@@ -210,6 +211,8 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(craft_commands.CmdSimpleCraft())
         self.add(craft_commands.CmdRecipeList())
         self.add(craft_commands.CmdLearnRecipe())
+        self.add(food.CmdEat())
+        self.add(food.CmdDrink())
         self.add(tutorial.CmdJourney())
         self.add(CmdNoInput())
 

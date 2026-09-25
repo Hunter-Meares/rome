@@ -983,12 +983,22 @@ VIAL_OF_PERFUME = {
 
 ROASTED_MEAT_SKEWER = {
     "key": "a roasted meat skewer",
+    "consume_verb": "eat",
+    "item_func": "heal",
+    "item_uses": 1,
+    "item_consumable": True,
+    "item_kwargs": {"healing_range": (5, 8)},
     "desc": "A skewer of well-charred meat, still warm, sold fresh off the brazier.",
     "price": 4,
 }
 
 HONEYED_BREAD = {
     "key": "a piece of honeyed bread",
+    "consume_verb": "eat",
+    "item_func": "heal",
+    "item_uses": 1,
+    "item_consumable": True,
+    "item_kwargs": {"healing_range": (4, 7)},
     "desc": "A dense little loaf, drizzled with honey until it's nearly too sticky to hold.",
     "price": 3,
 }
@@ -1948,8 +1958,17 @@ COLOSSEUM_VENDOR = {
     "locks": "puppet:false()",
 }
 
+# Food and drink carry `consume_verb` ("eat"/"drink") - the flag that routes
+# them to world/food.py's eat/drink commands and OUT of `use` (which is for
+# potions, pills, and other usable items). Every shop that sells something
+# edible must set it; tests_food.py fails if a food shop's ware lacks it.
 VENDOR_NUTS = {
     "key": "a handful of roasted nuts",
+    "consume_verb": "eat",
+    "item_func": "heal",
+    "item_uses": 1,
+    "item_consumable": True,
+    "item_kwargs": {"healing_range": (2, 4)},
     "price": 2,
     "desc": "Salted and still warm - the kind of thing you buy without really thinking about it.",
     "locks": "puppet:false()",
@@ -1957,6 +1976,11 @@ VENDOR_NUTS = {
 
 VENDOR_WATERED_WINE = {
     "key": "a cup of watered wine",
+    "consume_verb": "drink",
+    "item_func": "heal",
+    "item_uses": 1,
+    "item_consumable": True,
+    "item_kwargs": {"healing_range": (3, 5)},
     "price": 3,
     "desc": "More water than wine, and priced accordingly - still, it's wet, and the sun is brutal today.",
     "locks": "puppet:false()",
@@ -4587,6 +4611,7 @@ HERB_YARROW_SPRIG = {
 # good meal as a real, if modest, buff - not just flavor bread.
 BAKERY_BREAD_LOAF = {
     "key": "a warm loaf of bread",
+    "consume_verb": "eat",
     "desc": "A round loaf, still warm from the oven. Simple, filling, and cheap.",
     "item_func": "heal",
     "item_uses": 1,
@@ -4597,6 +4622,7 @@ BAKERY_BREAD_LOAF = {
 
 BAKERY_HARD_CHEESE = {
     "key": "a wheel of hard cheese",
+    "consume_verb": "eat",
     "desc": "A dense wheel of aged cheese - the kind of heavy, sustaining food that sticks to your ribs.",
     "item_func": "add_condition",
     "item_uses": 1,
@@ -4607,6 +4633,7 @@ BAKERY_HARD_CHEESE = {
 
 BAKERY_SPICED_NUTS = {
     "key": "a handful of spiced nuts",
+    "consume_verb": "eat",
     "desc": "Roasted nuts, dusted with pepper and salt - the kind of thing you eat right before a fight.",
     "item_func": "add_condition",
     "item_uses": 1,
@@ -4617,6 +4644,7 @@ BAKERY_SPICED_NUTS = {
 
 BAKERY_MEAT_PIE = {
     "key": "a hearty meat pie",
+    "consume_verb": "eat",
     "desc": "A thick-crusted pie, heavy with meat and gravy - a real meal, not a snack.",
     "item_func": "heal",
     "item_uses": 1,
@@ -4715,6 +4743,7 @@ SCRIBE_MEMORY_TONIC = {
 # warmth, courage, and a bit of aggression - not just a drink.
 WINE_SPICED_CUP = {
     "key": "a cup of spiced wine",
+    "consume_verb": "drink",
     "desc": "A cup of wine, warmed and spiced - takes the edge off, and puts a different edge back.",
     "item_func": "heal",
     "item_uses": 1,
@@ -4725,6 +4754,7 @@ WINE_SPICED_CUP = {
 
 WINE_FALERNIAN = {
     "key": "a skein of Falernian wine",
+    "consume_verb": "drink",
     "desc": "A real Falernian vintage, strong and well-regarded - the kind of wine that puts fight into a man.",
     "item_func": "add_condition",
     "item_uses": 1,
@@ -4735,6 +4765,7 @@ WINE_FALERNIAN = {
 
 WINE_WATERED_AMPHORA = {
     "key": "an amphora of watered wine",
+    "consume_verb": "drink",
     "desc": "A modest amphora of wine cut with water, the everyday drink of ordinary Romans - good for several cups.",
     "item_func": "heal",
     "item_uses": 3,
@@ -4745,6 +4776,7 @@ WINE_WATERED_AMPHORA = {
 
 WINE_FORTIFIED_FLASK = {
     "key": "a flask of fortified wine",
+    "consume_verb": "drink",
     "desc": "A strong, fortified wine - the kind soldiers drink to steady their nerve before a fight, not to enjoy.",
     "item_func": "cure_condition",
     "item_uses": 1,

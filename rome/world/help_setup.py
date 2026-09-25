@@ -80,7 +80,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "pacifism", "godpacifism", "gathering", "crafting", "faber", "herbalist", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming", "trivia", "pets", "buypet", "row", "socials"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "pacifism", "godpacifism", "gathering", "crafting", "faber", "herbalist", "food", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming", "trivia", "pets", "buypet", "row", "socials"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
         + list(RACIAL_ABILITIES.keys())
     )
@@ -1239,6 +1239,42 @@ def create_all_help_entries():
             "Herbalist trainer, costs more herbs\n\n"
             "Herbalist has its own skill (separate from Faber's) that "
             "only improves by actually attempting Herbalist recipes."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    HelpEntry.objects.create(
+        db_key="food",
+        db_help_category="General",
+        db_entrytext=(
+            "|wFood & Drink|n\n\n"
+            "Three verbs, kept apart on purpose:\n"
+            "  |Weat <item>|n    - bread, cheese, nuts, roasted meat, pies\n"
+            "  |Wdrink <item>|n  - wine and other drinks\n"
+            "  |Wuse <item>|n    - potions, pills, tonics, and other usable "
+            "items (not food)\n"
+            "Try to 'use' a loaf of bread and you'll be pointed to 'eat'; try "
+            "to 'eat' a potion and you'll be pointed to 'use'. Type 'eat' or "
+            "'drink' on its own to see what you're carrying that fits.\n\n"
+            "|wWhat it does:|n most food and drink gives a small healing or a "
+            "short-lived bonus - a meat pie heals well, hard cheese steadies "
+            "your defense, spiced nuts sharpen your aim, Falernian wine puts "
+            "fight into you. Cheap street food heals only a little. If it "
+            "would do nothing (you're already at full health) it stays "
+            "uneaten, so nothing is wasted. A drink with several servings "
+            "(an amphora) lasts a few sips.\n\n"
+            "|wIn a fight:|n you can eat or drink only on your own turn, it "
+            "takes your action, and only food that actually does something - "
+            "there's no lingering over a snack mid-battle.\n\n"
+            "|wWhere to buy it|n (use 'shop' beside the seller):\n"
+            "  - Rufa the baker, Market Row in the Subura: bread, cheese, "
+            "spiced nuts, meat pies\n"
+            "  - Vinicius the wine merchant, the Merchants' Fountain Plaza in "
+            "the Forum: spiced, Falernian, watered and fortified wine\n"
+            "  - a food vendor, the Market Stretch in the Forum: roasted meat "
+            "skewers and honeyed bread\n"
+            "  - a Colosseum vendor, wandering the Atrium of the Games and "
+            "beneath the stands: cheap roasted nuts and watered wine"
         ),
         db_lock_storage="view:all()",
     )
