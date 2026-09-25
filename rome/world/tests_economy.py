@@ -433,14 +433,17 @@ class TestRomeShopsStockThemselves(EvenniaTest):
                     "%s (%s) has no price" % (item.key, typeclass.__name__),
                 )
 
-    def test_every_stocked_item_has_a_real_item_func(self):
+    def test_every_stocked_item_does_something(self):
         """
         The whole point of this batch, made concrete: every item any of
-        these six shops sells must actually do something when used, not
-        just be a sellable trinket. Also confirms the item_func string
-        on each new prototype is a real key in ITEMFUNCS - a typo here
-        would silently make CmdUse's own error message the only sign
-        anything was wrong.
+        these shops sells must actually DO something, not just be a
+        sellable trinket. "Does something" is either an item_func effect
+        (a heal, buff or cure - used with 'use', or with eat/drink for
+        food) or, for food and drink, a consume_restore of HP/MP/SP (see
+        world/food.py - the owner rule that nothing edible does nothing).
+        Also confirms any item_func string is a real key in ITEMFUNCS - a
+        typo would silently make the use command's own error message the
+        only sign anything was wrong.
         """
         from world.combat import ITEMFUNCS
 
@@ -448,17 +451,18 @@ class TestRomeShopsStockThemselves(EvenniaTest):
             merchant = create.create_object(typeclass, key="Vendor", location=self.room1)
             for item in merchant.contents:
                 self.assertTrue(
-                    item.db.item_func,
-                    "%s (%s) has no item_func - sells for gold but does nothing" % (
+                    item.db.item_func or item.db.consume_restore,
+                    "%s (%s) has no effect - sells for gold but does nothing" % (
                         item.key, typeclass.__name__
                     ),
                 )
-                self.assertIn(
-                    item.db.item_func, ITEMFUNCS,
-                    "%s's item_func %r isn't a real ITEMFUNCS key" % (
-                        item.key, item.db.item_func
-                    ),
-                )
+                if item.db.item_func:
+                    self.assertIn(
+                        item.db.item_func, ITEMFUNCS,
+                        "%s's item_func %r isn't a real ITEMFUNCS key" % (
+                            item.key, item.db.item_func
+                        ),
+                    )
 
     def test_ludus_outfitter_reuses_the_generic_consumables_not_new_ones(self):
         # A deliberate design choice, not an oversight - see the

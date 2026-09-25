@@ -984,10 +984,9 @@ VIAL_OF_PERFUME = {
 ROASTED_MEAT_SKEWER = {
     "key": "a roasted meat skewer",
     "consume_verb": "eat",
-    "item_func": "heal",
+    "consume_restore": {"hp": (5, 8)},
     "item_uses": 1,
     "item_consumable": True,
-    "item_kwargs": {"healing_range": (5, 8)},
     "desc": "A skewer of well-charred meat, still warm, sold fresh off the brazier.",
     "price": 4,
 }
@@ -995,10 +994,9 @@ ROASTED_MEAT_SKEWER = {
 HONEYED_BREAD = {
     "key": "a piece of honeyed bread",
     "consume_verb": "eat",
-    "item_func": "heal",
+    "consume_restore": {"sp": (4, 7)},
     "item_uses": 1,
     "item_consumable": True,
-    "item_kwargs": {"healing_range": (4, 7)},
     "desc": "A dense little loaf, drizzled with honey until it's nearly too sticky to hold.",
     "price": 3,
 }
@@ -1962,13 +1960,18 @@ COLOSSEUM_VENDOR = {
 # them to world/food.py's eat/drink commands and OUT of `use` (which is for
 # potions, pills, and other usable items). Every shop that sells something
 # edible must set it; tests_food.py fails if a food shop's ware lacks it.
+#
+# Every food and drink must DO SOMETHING (owner rule): restore HP/MP/SP via
+# `consume_restore` - {"hp": (min, max)}, {"sp": ...}, {"mp": ...} - and/or
+# have an `item_func` effect (a buff like Defense Up, or curing a condition).
+# A buff alone is fine; a restore alone is fine; both is fine; neither is a
+# data error that world/food.py refuses to eat and tests_food.py fails on.
 VENDOR_NUTS = {
     "key": "a handful of roasted nuts",
     "consume_verb": "eat",
-    "item_func": "heal",
+    "consume_restore": {"sp": (3, 5)},
     "item_uses": 1,
     "item_consumable": True,
-    "item_kwargs": {"healing_range": (2, 4)},
     "price": 2,
     "desc": "Salted and still warm - the kind of thing you buy without really thinking about it.",
     "locks": "puppet:false()",
@@ -1977,10 +1980,9 @@ VENDOR_NUTS = {
 VENDOR_WATERED_WINE = {
     "key": "a cup of watered wine",
     "consume_verb": "drink",
-    "item_func": "heal",
+    "consume_restore": {"hp": (3, 5)},
     "item_uses": 1,
     "item_consumable": True,
-    "item_kwargs": {"healing_range": (3, 5)},
     "price": 3,
     "desc": "More water than wine, and priced accordingly - still, it's wet, and the sun is brutal today.",
     "locks": "puppet:false()",
@@ -4612,11 +4614,10 @@ HERB_YARROW_SPRIG = {
 BAKERY_BREAD_LOAF = {
     "key": "a warm loaf of bread",
     "consume_verb": "eat",
+    "consume_restore": {"hp": (10, 20)},
     "desc": "A round loaf, still warm from the oven. Simple, filling, and cheap.",
-    "item_func": "heal",
     "item_uses": 1,
     "item_consumable": True,
-    "item_kwargs": {"healing_range": (10, 20)},
     "price": 10,
 }
 
@@ -4645,11 +4646,10 @@ BAKERY_SPICED_NUTS = {
 BAKERY_MEAT_PIE = {
     "key": "a hearty meat pie",
     "consume_verb": "eat",
+    "consume_restore": {"hp": (30, 45)},
     "desc": "A thick-crusted pie, heavy with meat and gravy - a real meal, not a snack.",
-    "item_func": "heal",
     "item_uses": 1,
     "item_consumable": True,
-    "item_kwargs": {"healing_range": (30, 45)},
     "price": 30,
 }
 
@@ -4744,11 +4744,10 @@ SCRIBE_MEMORY_TONIC = {
 WINE_SPICED_CUP = {
     "key": "a cup of spiced wine",
     "consume_verb": "drink",
+    "consume_restore": {"hp": (15, 25)},
     "desc": "A cup of wine, warmed and spiced - takes the edge off, and puts a different edge back.",
-    "item_func": "heal",
     "item_uses": 1,
     "item_consumable": True,
-    "item_kwargs": {"healing_range": (15, 25)},
     "price": 15,
 }
 
@@ -4766,11 +4765,10 @@ WINE_FALERNIAN = {
 WINE_WATERED_AMPHORA = {
     "key": "an amphora of watered wine",
     "consume_verb": "drink",
+    "consume_restore": {"hp": (10, 15)},
     "desc": "A modest amphora of wine cut with water, the everyday drink of ordinary Romans - good for several cups.",
-    "item_func": "heal",
     "item_uses": 3,
     "item_consumable": True,
-    "item_kwargs": {"healing_range": (10, 15)},
     "price": 32,
 }
 

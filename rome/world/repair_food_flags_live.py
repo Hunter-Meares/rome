@@ -1,19 +1,20 @@
 """
-One-time live repair: give every ALREADY-EXISTING food and drink item its
-`consume_verb` (and, for the four items that used to be pure flavor, their
-new small effect).
+One-time live repair: bring every ALREADY-EXISTING food and drink item in line
+with its prototype's `consume_verb` / `consume_restore` / effect setup.
 
-world/prototypes.py's food prototypes now carry `consume_verb` ("eat" /
-"drink"), which routes them to world/food.py's eat/drink commands instead of
-`use` - but a prototype change only reaches items spawned AFTER it
-(CLAUDE.md gotcha #20). Every loaf, cheese and cup of wine a player already
-bought, and every shop's own display copy, still has the old attributes and
-would keep answering "not a usable item" to `use` while `eat` refused it as
-"not something you eat". This walks every object tagged as spawned from a
-consume_verb prototype and fills in whatever it is missing.
+world/prototypes.py's food prototypes carry `consume_verb` ("eat"/"drink") -
+which routes them to world/food.py's eat/drink commands instead of `use` - and
+`consume_restore` (what HP/MP/SP they restore); the formerly `item_func:
+"heal"` foods had that heal converted into `consume_restore`. But a prototype
+change only reaches items spawned AFTER it (CLAUDE.md gotcha #20), so every
+existing copy (each shop's own display item, and any a player already bought)
+still has the old attributes. This walks every object tagged as spawned from a
+consume_verb prototype and syncs it.
 
-Only fills in attributes the object does NOT already have, so a partly-
-drunk amphora keeps its remaining uses. Safe to re-run.
+The synced attributes are set to the prototype's value, or REMOVED if the
+prototype no longer has them (so a converted food loses its old heal
+item_func). `item_uses` is only filled in if missing, so a partly-drunk
+amphora keeps its remaining servings. Safe to re-run.
 
 Run once via `evennia shell < world/repair_food_flags_live.py`, then
 `evennia reload` (the running server may have some of these objects cached -
@@ -25,7 +26,7 @@ from evennia.prototypes.spawner import PROTOTYPE_TAG_CATEGORY
 
 import world.prototypes as prototypes
 
-ATTRS = ("consume_verb", "item_func", "item_uses", "item_consumable", "item_kwargs")
+SYNCED = ("consume_verb", "consume_restore", "item_func", "item_kwargs", "item_consumable")
 
 total = fixed = 0
 for name, proto in sorted(vars(prototypes).items()):
@@ -38,10 +39,17 @@ for name, proto in sorted(vars(prototypes).items()):
     for obj in objs:
         total += 1
         touched = False
-        for attr in ATTRS:
-            if attr in proto and not obj.attributes.has(attr):
-                obj.attributes.add(attr, proto[attr])
+        for attr in SYNCED:
+            if attr in proto:
+                if obj.attributes.get(attr) != proto[attr]:
+                    obj.attributes.add(attr, proto[attr])
+                    touched = True
+            elif obj.attributes.has(attr):
+                obj.attributes.remove(attr)
                 touched = True
+        if "item_uses" in proto and not obj.attributes.has("item_uses"):
+            obj.attributes.add("item_uses", proto["item_uses"])
+            touched = True
         if touched:
             changed += 1
             fixed += 1

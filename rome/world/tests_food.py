@@ -67,10 +67,29 @@ class TestEatAndDrink(FoodTestBase):
             ("ROASTED_MEAT_SKEWER", CmdEat, "skewer"),
             ("HONEYED_BREAD", CmdEat, "honeyed bread"),
         ):
-            self.char1.db.hp = 10
-            self._give(proto)
+            self.char1.db.hp, self.char1.db.sp = 10, 5
+            item = self._give(proto)
             self.call(verb_cmd(), needle, caller=self.char1)
-            self.assertGreater(self.char1.db.hp, 10, proto)
+            self.assertTrue(self.char1.db.hp > 10 or self.char1.db.sp > 5, proto)
+            self.assertFalse(item.pk, proto)
+
+    def test_nuts_restore_stamina_not_health(self):
+        self.char1.db.sp, self.char1.db.max_sp = 5, 100
+        self._give("VENDOR_NUTS")
+        result = self.call(CmdEat(), "roasted nuts", caller=self.char1)
+        self.assertGreater(self.char1.db.sp, 5)
+        self.assertEqual(self.char1.db.hp, 10)
+        self.assertIn("SP", result)
+
+    def test_a_food_can_restore_mana(self):
+        item = create.create_object("typeclasses.objects.Object", key="a honey cake", location=self.char1)
+        item.db.consume_verb = "eat"
+        item.db.consume_restore = {"mp": (5, 5)}
+        item.db.item_uses = 1
+        item.db.item_consumable = True
+        self.char1.db.mp, self.char1.db.max_mp = 1, 50
+        self.call(CmdEat(), "honey cake", caller=self.char1)
+        self.assertEqual(self.char1.db.mp, 6)
 
     def test_a_multi_serving_drink_lasts_several_sips(self):
         amphora = self._give("WINE_WATERED_AMPHORA")
@@ -78,12 +97,19 @@ class TestEatAndDrink(FoodTestBase):
         self.assertTrue(amphora.pk)
         self.assertEqual(amphora.db.item_uses, 2)
 
-    def test_food_that_would_do_nothing_is_not_wasted(self):
+    def test_a_pure_restore_food_is_not_wasted_when_you_are_already_full(self):
         self.char1.db.hp = self.char1.db.max_hp
         pie = self._give("BAKERY_MEAT_PIE")
         result = self.call(CmdEat(), "meat pie", caller=self.char1)
-        self.assertIn("full health", result)
+        self.assertIn("no need", result)
         self.assertTrue(pie.pk)
+
+    def test_a_buff_food_is_still_eaten_at_full_strength(self):
+        self.char1.db.hp = self.char1.db.max_hp
+        cheese = self._give("BAKERY_HARD_CHEESE")
+        self.call(CmdEat(), "cheese", caller=self.char1)
+        self.assertFalse(cheese.pk)
+        self.assertIn("Defense Up", self.char1.db.conditions or {})
 
     def test_you_cannot_eat_a_drink_or_drink_a_food(self):
         self._give("WINE_SPICED_CUP")
@@ -111,29 +137,28 @@ class TestEatAndDrink(FoodTestBase):
         self.assertIn("dead", self.call(CmdEat(), "bread", caller=self.char1))
 
 
-class TestEffectlessFoodIsStillConsumableForRoleplay(FoodTestBase):
-    def _flavor(self):
-        item = create.create_object("typeclasses.objects.Object", key="a fig", location=self.char1)
-        item.db.consume_verb = "eat"
-        return item
+class TestNothingEdibleDoesNothing(FoodTestBase):
+    """Owner rule: food must DO SOMETHING. A flagged item with neither a
+    restore nor a buff/cure is bad data - it is refused and kept, never
+    eaten for no effect."""
 
-    def test_an_item_with_no_effect_is_eaten_and_gone(self):
-        fig = self._flavor()
+    def test_an_item_with_no_effect_is_refused_and_kept(self):
+        fig = create.create_object("typeclasses.objects.Object", key="a fig", location=self.char1)
+        fig.db.consume_verb = "eat"
         result = self.call(CmdEat(), "fig", caller=self.char1)
-        self.assertIn("You eat a fig", result)
-        self.assertFalse(fig.pk)
+        self.assertIn("can't eat that", result)
+        self.assertTrue(fig.pk)
 
-    def test_but_not_in_the_middle_of_a_fight(self):
-        fig = self._flavor()
-        self.char1.db.combat_turnhandler = True
+    def test_eating_off_your_turn_in_a_fight_is_refused(self):
         from unittest import mock
 
+        pie = self._give("BAKERY_MEAT_PIE")
         with mock.patch("world.combat.COMBAT_RULES.is_in_combat", return_value=True), mock.patch(
-            "world.combat.COMBAT_RULES.is_turn", return_value=True
+            "world.combat.COMBAT_RULES.is_turn", return_value=False
         ):
-            result = self.call(CmdEat(), "fig", caller=self.char1)
-        self.assertIn("no time to linger", result)
-        self.assertTrue(fig.pk)
+            result = self.call(CmdEat(), "meat pie", caller=self.char1)
+        self.assertIn("your turn", result)
+        self.assertTrue(pie.pk)
 
 
 class TestUseIsOnlyForUsableItems(FoodTestBase):
@@ -186,6 +211,29 @@ class TestEveryFoodShopWareIsFlagged(FoodTestBase):
         }
         listed = {p for protos in self.FOOD_PROTOS.values() for p in protos}
         self.assertEqual(flagged, listed)
+
+    def test_every_flagged_prototype_does_something(self):
+        # The owner rule as data: a restore of HP/MP/SP, or a buff/cure
+        # item_func, or both - never neither.
+        from world.combat import ITEMFUNCS
+
+        for name, p in vars(prototypes).items():
+            if not (isinstance(p, dict) and p.get("consume_verb")):
+                continue
+            restore = p.get("consume_restore") or {}
+            for stat, (low, high) in restore.items():
+                self.assertIn(stat, ("hp", "mp", "sp"), name)
+                self.assertTrue(0 < low <= high, name)
+            self.assertTrue(restore or p.get("item_func"), "%s does nothing" % name)
+            if p.get("item_func"):
+                self.assertIn(p["item_func"], ITEMFUNCS, name)
+
+    def test_a_converted_food_does_not_also_keep_the_old_heal(self):
+        # Foods that restore via consume_restore must not double-heal
+        # through a leftover item_func "heal".
+        for name, p in vars(prototypes).items():
+            if isinstance(p, dict) and p.get("consume_restore"):
+                self.assertNotEqual(p.get("item_func"), "heal", name)
 
     def test_every_flagged_prototype_names_a_real_verb(self):
         for name, p in vars(prototypes).items():
