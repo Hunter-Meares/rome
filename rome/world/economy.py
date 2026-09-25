@@ -93,6 +93,18 @@ class NPCMerchant(DefaultCharacter):
         # overridden by subclasses genuinely far from the city.
         self.db.distance_bonus = self.db.distance_bonus or 1.0
 
+    def buy_pitch(self, ware):
+        """
+        An optional in-character line shown on a ware's inspect screen
+        (node_inspect_and_buy) before the player commits to buying it,
+        or None for no line at all (the default, every ordinary
+        merchant). A method rather than a db attribute on purpose: a
+        db default set in at_object_creation never reaches a merchant
+        that already exists live (CLAUDE.md gotcha #20), but a class
+        method takes effect on every instance the moment it's reloaded.
+        """
+        return None
+
 
 # Three tiers (prototype_key, level) per weapon/armor/shield the Ludus
 # weaponsmith stocks - see the matching SMITH_* prototypes and their
@@ -467,6 +479,17 @@ class ForumTailor(NPCMerchant):
             obj = spawn(prototype_key)[0]
             obj.move_to(self, quiet=True)
 
+    def buy_pitch(self, ware):
+        # Everything she stocks is purely cosmetic (see TAILOR_STOCK),
+        # so a player should hear that in her own voice before paying,
+        # rather than discover it in a fight - or, for a pacifist who
+        # bought it as their only wearable body item, never notice at all.
+        return (
+            '|w%s|n says, "My clothing won\'t turn a blade - it offers no '
+            'protection in a fight at all - but it sure is beautiful! Are '
+            'you certain you want it?"' % self.key
+        )
+
 
 WINE_MERCHANT_STOCK = [
     "WINE_SPICED_CUP", "WINE_FALERNIAN",
@@ -575,6 +598,14 @@ def node_inspect_and_buy(caller, raw_string="", **kwargs):
 
     text = "|Y%s|n - %d gold\n\n%s" % (ware.key, price, desc)
 
+    # An in-character heads-up before committing (see NPCMerchant.
+    # buy_pitch) - this screen is already the "are you sure" step, so
+    # the Buy option below just gets relabeled rather than adding a
+    # separate typed confirm on top of it.
+    pitch = merchant.buy_pitch(ware) if merchant else None
+    if pitch:
+        text += "\n\n" + pitch
+
     def _buy(caller, raw_string="", **kwargs):
         gold = caller.db.gold or 0
         if gold < price:
@@ -623,7 +654,7 @@ def node_inspect_and_buy(caller, raw_string="", **kwargs):
         return "node_shopfront"
 
     options = [
-        {"desc": "Buy for %d gold" % price, "goto": _buy},
+        {"desc": ("Buy anyway for %d gold" if pitch else "Buy for %d gold") % price, "goto": _buy},
         {"desc": "Back", "goto": "node_shopfront"},
     ]
     return text, options

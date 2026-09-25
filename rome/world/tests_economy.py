@@ -511,3 +511,35 @@ class TestForumTailor(EvenniaTest):
         for item in self.tailor.contents:
             self.assertEqual(item.db.armor_slot, "body")
             self.assertIsNone(item.db.armor_category)
+
+    # Direct request: a player should hear, in the tailor's own voice
+    # and BEFORE paying, that her clothing offers no protection.
+    def test_inspecting_a_ware_shows_her_in_character_warning(self):
+        self.char1.ndb.shop_merchant = self.tailor
+        ware = self.tailor.contents[0]
+        text, options = node_inspect_and_buy(self.char1, ware=ware)
+        self.assertIn("no protection in a fight", text)
+        self.assertIn(self.tailor.key, text)
+
+    def test_the_buy_option_is_relabeled_so_it_reads_as_a_second_thought(self):
+        self.char1.ndb.shop_merchant = self.tailor
+        ware = self.tailor.contents[0]
+        text, options = node_inspect_and_buy(self.char1, ware=ware)
+        self.assertIn("Buy anyway", options[0]["desc"])
+
+    def test_the_warning_does_not_block_or_change_the_purchase_itself(self):
+        self.char1.ndb.shop_merchant = self.tailor
+        self.char1.db.gold = 100
+        ware = self.tailor.contents[0]
+        text, options = node_inspect_and_buy(self.char1, ware=ware)
+        options[0]["goto"](self.char1)
+        self.assertEqual(self.char1.db.gold, 100 - ware.db.price)
+        self.assertTrue([o for o in self.char1.contents if o.key == ware.key])
+
+
+class TestOrdinaryMerchantHasNoBuyPitch(EconomyTestBase):
+    def test_no_warning_and_normal_buy_label(self):
+        ware = self._spawn_ware(proto_key="DAGGER", price=25)
+        text, options = node_inspect_and_buy(self.char1, ware=ware)
+        self.assertNotIn("says", text)
+        self.assertEqual(options[0]["desc"], "Buy for 25 gold")
