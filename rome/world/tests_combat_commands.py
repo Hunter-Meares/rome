@@ -966,6 +966,39 @@ class TestCmdUseSkillNamedTargeting(CombatCommandTestBase):
         self.assertIn("don't know a skill", result)
 
 
+class TestSkillVersusSpellHints(CombatCommandTestBase):
+    """
+    A real player report ("curse doesn't work, tells me I don't know
+    anything by that name"): `curse` is a Cult of Hecate SKILL, used
+    with 'skill', but a Haruspex (who has spells too) naturally types
+    'cast curse' - and got a message that gave no hint the ability was
+    already learned. Each command now points at the other when the
+    name matches something the character DOES know.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.spells_known = ["ritual flame"]
+        self.char1.db.skills_known = ["curse"]
+        self.char1.permissions.remove("Developer")
+
+    def test_casting_a_known_skill_points_at_the_skill_command(self):
+        result = self.call(CmdCast(), "curse = Char2", caller=self.char1)
+        self.assertIn("is a skill, not a spell", result)
+        self.assertIn("skill curse", result)
+
+    def test_using_a_known_spell_as_a_skill_points_at_cast(self):
+        result = self.call(CmdUseSkill(), "ritual flame = Char2", caller=self.char1)
+        self.assertIn("is a spell, not a skill", result)
+        self.assertIn("cast ritual flame", result)
+
+    def test_a_name_known_as_neither_keeps_the_plain_message(self):
+        cast_result = self.call(CmdCast(), "nonsense = Char2", caller=self.char1)
+        self.assertIn("don't know a spell", cast_result)
+        skill_result = self.call(CmdUseSkill(), "nonsense = Char2", caller=self.char1)
+        self.assertIn("don't know a skill", skill_result)
+
+
 class TestCmdCastAndCmdUseSkillStartARealFightOutOfCombat(CombatCommandTestBase):
     """
     Real, confirmed live bug: a player reported "when I used a combat

@@ -11241,6 +11241,21 @@ class CmdCast(MuxCommand):
                     spell_to_cast.append(spell)
 
         if not spell_to_cast:
+            # A real player report ("curse doesn't work, tells me I
+            # don't know anything by that name"): `curse` is a Cult of
+            # Hecate SKILL, used with 'skill', not a spell - a class with
+            # spells (Haruspex) plus a faction skill has both lists, and
+            # the plain "don't know a spell" message gave no hint the
+            # ability was learned and just needed the other command.
+            skill_match = [
+                sk for sk in (caller.db.skills_known or []) if spellname in sk.lower()
+            ]
+            if skill_match:
+                caller.msg(
+                    "%s is a skill, not a spell - use it with: skill %s"
+                    % (skill_match[0].title(), skill_match[0])
+                )
+                return
             if self.rhs is None and " " in spellname:
                 caller.msg(
                     "You don't know a spell of that name. If you're trying "
@@ -11551,6 +11566,15 @@ class CmdUseSkill(MuxCommand):
                     skill_to_use.append(skill)
 
         if not skill_to_use:
+            spell_match = [
+                sp for sp in (user.db.spells_known or []) if skillname in sp.lower()
+            ]
+            if spell_match:
+                user.msg(
+                    "%s is a spell, not a skill - use it with: cast %s"
+                    % (spell_match[0].title(), spell_match[0])
+                )
+                return
             user.msg("You don't know a skill of that name.")
             return
         if len(skill_to_use) > 1:

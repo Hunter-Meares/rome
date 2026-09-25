@@ -463,9 +463,16 @@ class RomeWildernessMapProvider(wilderness.WildernessMapProvider):
         if x == 0:
             room.ndb.active_desc = random.choice(_ROAD_DESCS[band])
             if y > 0 and y % 5 == 0:
+                # y=0 is Rome's own gate and y=ROAD_LENGTH the Germanic
+                # Stronghold (see LeaveGermaniaWildernessExit), so the
+                # distance BACK to Rome grows as y does. This used to be
+                # 25 * (ROAD_LENGTH - y) - the distance to the far end,
+                # mislabeled "to Rome" - so a player walking away from
+                # Rome saw the number shrink (found by a real player
+                # report: 500 miles at y=5, then 375 at y=10).
                 room.ndb.active_desc += (
                     "\n\n|YA worn milestone marks this spot: |w%d miles to Rome.|n"
-                    % (25 * (ROAD_LENGTH - y))
+                    % (25 * y)
                 )
         else:
             room.ndb.active_desc = random.choice(_OFFROAD_DESCS[band])

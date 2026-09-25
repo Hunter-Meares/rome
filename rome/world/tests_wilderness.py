@@ -91,11 +91,22 @@ class TestLiveWilderness(EvenniaTest):
         desc = self.char1.location.get_display_desc(self.char1)
         self.assertTrue(desc)
 
-    def test_milestone_appears_every_five_and_counts_down(self):
+    def test_milestone_appears_every_five_and_counts_up_away_from_rome(self):
+        # Rome is at y=0, so the distance back to it must GROW as you
+        # walk north - a real player report caught the old code
+        # showing it shrinking (500 miles at y=5, 375 at y=10).
         self._enter((0, 20))
         desc = self.char1.location.get_display_desc(self.char1)
         self.assertIn("miles to Rome", desc)
-        self.assertIn("125 miles to Rome", desc)
+        self.assertIn("500 miles to Rome", desc)
+
+    def test_milestone_distance_to_rome_increases_with_y(self):
+        self._enter((0, 5))
+        near = self.char1.location.get_display_desc(self.char1)
+        self._enter((0, 10))
+        far = self.char1.location.get_display_desc(self.char1)
+        self.assertIn("125 miles to Rome", near)
+        self.assertIn("250 miles to Rome", far)
 
     def test_offroad_wooded_tile_offers_timber_or_herbs(self):
         # Herbs used to be a fixed Market Row room - moved here by
