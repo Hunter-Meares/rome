@@ -724,6 +724,9 @@ def node_confirm_sell(caller, raw_string="", **kwargs):
         from world.religion import credit_mercury_trade
         credit_mercury_trade(caller)
         caller.msg("|gYou sell %s for %d gold.|n" % (item.key, sell_price))
+        from world.achievements import track_and_announce
+
+        track_and_announce(caller, category="sell", tracking="any")
         return "node_shopfront"
 
     text = "Sell %s for %d gold?" % (item.key, sell_price)

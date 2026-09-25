@@ -1243,6 +1243,9 @@ class CmdQuest(Command):
             title = QUEST_TITLES.get(quest_key)
             if title:
                 grant_earned_title(caller, title)
+            from world.achievements import track_and_announce
+
+            track_and_announce(caller, category="quest", tracking="any")
         elif state == "completed":
             caller.msg("%s has nothing more for you." % giver.key)
 

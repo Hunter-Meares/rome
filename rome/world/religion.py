@@ -163,7 +163,11 @@ def god_display_name(god_key):
 
 
 def _religion_channel_name(god_key):
-    return "%s-religion" % god_key
+    # Capitalized like "Public" and the faction channels (a direct
+    # request: every channel name starts with a capital letter). Lookups
+    # are case-insensitive (search_channel), so old lowercase names keep
+    # resolving until world/rename_channels_live.py renames them.
+    return "%s-religion" % god_key.capitalize()
 
 
 def get_religion_channel(god_key):
@@ -250,7 +254,7 @@ def connect_god_to_all_religion_channels(character):
 # something this infrequent.
 # ----------------------------------------------------------------------
 
-DIVINE_CHANNEL_KEY = "divine"
+DIVINE_CHANNEL_KEY = "Divine"
 
 # A modest per-account rate limit, not a resource cost - beseech has no
 # mechanical effect at all (no piety, no guaranteed reply, same as
@@ -270,7 +274,7 @@ def get_divine_channel():
 
 def ensure_divine_channel_exists():
     """
-    Creates the single shared 'divine' channel if it doesn't already
+    Creates the single shared 'Divine' channel if it doesn't already
     exist. Safe to call repeatedly - idempotent, matches the shape of
     ensure_faction_channels_exist/ensure_religion_channels_exist.
     Deliberately locked so ordinary players can never listen OR send

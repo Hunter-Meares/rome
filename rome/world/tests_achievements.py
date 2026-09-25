@@ -26,7 +26,7 @@ _WORLD_DIR = Path(achievements_module.__file__).parent
 # is called with at each real call site. A call site "counts" for an
 # achievement if it passes that same (category, tracking) pair.
 _CALL_SITE_PATTERN = re.compile(
-    r"track_achievements\([^)]*category=[\"']([^\"']+)[\"'][^)]*tracking=[\"']([^\"']+)[\"']",
+    r"(?:track_achievements|track_and_announce)\([^)]*category=[\"']([^\"']+)[\"'][^)]*tracking=[\"']([^\"']+)[\"']",
     re.DOTALL,
 )
 

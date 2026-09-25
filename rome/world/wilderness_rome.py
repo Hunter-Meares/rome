@@ -393,6 +393,9 @@ class LeaveGermaniaWildernessExit(DefaultExit):
             "|wThe wilderness finally, genuinely ends - a real palisade rises ahead.|n"
         )
         traversing_object.move_to(real_room[0], quiet=False, move_type="teleport")
+        from world.achievements import track_and_announce
+
+        track_and_announce(traversing_object, category="explore", tracking="germania")
         return True
 
 
@@ -652,6 +655,9 @@ class EnterWildernessExit(DefaultExit):
         traversing_object.msg(
             "|wThe last real houses of Rome fall behind you - open country ahead now.|n"
         )
+        from world.achievements import track_and_announce
+
+        track_and_announce(traversing_object, category="explore", tracking="wilderness")
         traversing_object.at_post_move(None)
         return True
 

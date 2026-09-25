@@ -368,6 +368,16 @@ class TestReligionChannels(EvenniaTest):
         second_pass = ensure_religion_channels_exist()
         self.assertEqual(len(second_pass), 0)
 
+    def test_every_religion_channel_name_starts_with_a_capital(self):
+        # A direct request: all channel names read like "Public".
+        from world.god_help import PANTHEON
+
+        ensure_religion_channels_exist()
+        for god_key in PANTHEON:
+            key = get_religion_channel(god_key).key
+            self.assertTrue(key[0].isupper(), key)
+            self.assertEqual(key, "%s-religion" % god_key.capitalize())
+
     def test_joining_connects_to_the_channel(self):
         ensure_religion_channels_exist()
         join_religion(self.char1, "mars")
@@ -562,6 +572,10 @@ class TestDivineChannel(EvenniaTest):
     religion channels: one shared channel every god hears regardless of
     which god a prayer was addressed to, not 14 separate ones.
     """
+
+    def test_its_name_starts_with_a_capital(self):
+        ensure_divine_channel_exists()
+        self.assertEqual(get_divine_channel().key, "Divine")
 
     def test_ensure_creates_it_exactly_once(self):
         first = ensure_divine_channel_exists()

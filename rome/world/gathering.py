@@ -255,3 +255,7 @@ class CmdGather(Command):
         caller.location.msg_contents(
             "%s gathers something from the surroundings." % caller, exclude=caller
         )
+
+        from world.achievements import track_and_announce
+
+        track_and_announce(caller, category="gather", tracking="any")

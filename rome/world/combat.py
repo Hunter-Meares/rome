@@ -1601,6 +1601,11 @@ class CombatRules:
                 xp_pool = defeated.db.xp_reward
                 if self._is_party_kill(damage_log):
                     xp_pool = int(round(xp_pool * (1 + PARTY_XP_BONUS_PERCENT)))
+                    from world.achievements import track_and_announce
+
+                    for contributor in damage_log:
+                        if contributor is not None and contributor.pk:
+                            track_and_announce(contributor, category="defeat", tracking="party_kill")
                 for contributor, dealt in damage_log.items():
                     # See gotcha #2 in CLAUDE.md: a deleted object's
                     # reference, reloaded from a persisted attribute
@@ -2102,6 +2107,10 @@ class CombatRules:
 
         from world.religion import credit_pluto_resurrection
         credit_pluto_resurrection(character)
+
+        from world.achievements import track_and_announce
+
+        track_and_announce(character, category="death", tracking="returned")
 
         return True
 
@@ -4288,6 +4297,18 @@ class CombatRules:
                 from world.achievements import announce_achievements
                 completed = track_achievements(character, category="level", tracking="pacifist_ten")
                 announce_achievements(character, completed)
+
+            # Early-game milestones (world/achievements.py). Spelled out
+            # rather than looked up from a table so tests_achievements.py's
+            # source scan can see each (category, tracking) pair is wired.
+            from world.achievements import track_and_announce
+
+            if character.db.level == 5:
+                track_and_announce(character, category="level", tracking="five")
+            elif character.db.level == 10:
+                track_and_announce(character, category="level", tracking="ten")
+            elif character.db.level == 25:
+                track_and_announce(character, category="level", tracking="twentyfive")
 
     # Tunable: how much XP a single cast awards per point of MP/SP
     # spent. Applies to EVERY successful spell or skill use, not just
@@ -11277,6 +11298,9 @@ class CmdLearn(Command):
         caller.db.gold -= cost
         known.append(name)
         caller.msg("You pay %d gold and learn the %s '%s'!" % (cost, kind, name))
+        from world.achievements import track_and_announce
+
+        track_and_announce(caller, category="learn", tracking="any")
 
 
 class CmdCast(MuxCommand):

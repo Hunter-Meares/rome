@@ -6,6 +6,46 @@ _Compiled from our working session on Evennia upgrade + combat system rebuild. U
 
 ---
 
+## 🧭 First-hour quest chains - design plan (💡 designed, NOT built - decisions needed)
+
+Goal: a brand-new character has a visible, rewarding ladder of tasks from their first minutes, whichever way they play. Builds on the multi-step quest framework (`world/quests.py`) and the early-game achievements added Sep 25 (`world/achievements.py`, each of which is a natural step in these chains).
+
+**What a level 1 actually has today (verified):**
+- No task anywhere near the start. The two level-1 quests (`secession_memory`, `corrupt_official`) start with givers in Rome proper, far from the Atrium/Ludus where `journey` sends a new player; `quest_entry_hint` only fires in a giver's own room. The Atrium has the Herald and a menagerie handler, neither a quest giver.
+- Starting gold is 0 (`db.gold = 0`), and the cheapest spell/skill costs 23 gold (`20 + 3 x level_required`) - so the first quest MUST pay enough to afford one.
+- The two existing L1-2 quests together pay ~90 XP; reaching level 5 takes ~530 XP (20 + 74 + 161 + 278).
+
+**Framework limits that shape the design:**
+1. **One quest per giver** (already a to-do item). Chains need either many givers or an ordered-chain extension. **Recommended:** let a quest carry `after: "<quest_key>"` so a giver offers the first uncompleted quest whose predecessor is done - each chain becomes 3 short quests paying as they go, instead of one long quest paying only at the end.
+2. **Step types are only kill / visit / talk.** No gather/craft/sell/learn/buy. **Recommended:** a new `"event"` step type (`category`, `tracking`, optional `detail`, `count`) fed from `world.achievements.track_and_announce` - the same choke point every one of those events already goes through - plus the two direct sites that bypass it (buying in `economy._buy`, kills in `at_defeat`).
+3. **A kill step's target must be a plain HostileNPC**, and Ludus trainers are RespawningNPCs. A `defeat` *event* step (any NPC) sidesteps this and works with `challenge`.
+4. Kill/defeat steps are never offered to a pacifist (existing rule) - extend it to `defeat` events.
+
+**Two findings that change what the chains can be (need owner decisions):**
+- **The first-hour crafting path is Herbalist, not Faber.** Iron ore is only in the Germanic mine (a level 27-46 zone at the end of the wilderness road). Herbs are the only material a level 1 can plausibly reach.
+- **Even herbs are too far and too dangerous today.** They only appear on the wilderness road's forest bands (y 11-22), and that road's random encounters are banded to levels 24-43 for anyone who isn't a pacifist - lethal to a level-1 fighter - while a level-1 pacifist's max SP (~30) is nearly used up just walking there. **Decision:** add a small SAFE starter herb patch inside Rome (recommended: a 3-room market-gardens/"Horti" area, using `db.gather_resource = "herbs"` - it would be the first live use of the fixed-node 60% chance), or restrict the crafting chain to pacifists.
+
+**Chain A - "The Sand and the Sword"** (giver: the Colosseum Herald, already in the Atrium; combat-flavored, hidden from pacifists):
+- A1 *Report to the Ludus* - talk to the Ludus weapons master at Ludus Entrance. Pays ~25 gold + ~40 XP (enough for the first skill).
+- A2 *Your First Lesson* - `learn` one spell/skill AND buy one item from a merchant. ~50 gold + ~90 XP. (Fires Quick Study, A Fine Purchase.)
+- A3 *Blood on the Sand* - win three `challenge` fights in the Weapons Yard (`defeat` event x3). ~60 gold + ~150 XP + points at the Wrestling Pit (level 3 gate) and then the sewers.
+
+**Chain B - "A Living in Rome"** (giver: a NEW NPC in the Atrium, e.g. a freedwoman with a basket of herbs; open to everyone, the pacifist's main track):
+- B1 *Ask Around the Subura* - visit Market Row - Back Stalls and talk to Aviola. ~15 gold + ~40 XP (also teaches where shops are).
+- B2 *Something to Sell* - gather 3 herbs (`gather` event, detail "herbs"). ~25 gold + ~60 XP. (Fires Fruits of the Land.)
+- B3 *Your First Tonic* - craft a healing tonic at the mortar and sell it to Aviola (potion specialist bonus). ~60 gold + ~150 XP - enough to learn the antidote (56 gold). (Fires Apprentice's Hands, Open for Business, and the title "the Apprentice".)
+- Faber is deliberately NOT in the first hour; a later "Journeyman" chain at the Smithy is the sequel.
+
+**Numbers are first-pass targets** (A ~280 XP, B ~250 XP, roughly levels 1 to 4 with the escape fight) - measure with a fresh character before shipping. Both chains share level 1, so a player may run both.
+
+**Integration:** `journey`/`whatnow` names the giver until the chain is done (fighter -> Herald, pacifist -> the freedwoman); `help newbie` step 2 mentions it; the giver's `quest_entry_hint` fires on entering the Atrium.
+
+**Work:** (1) engine - `event` step type, `after:` ordering, pacifist rule; (2) content - 6 quest entries, 1 new NPC, ~3 Horti rooms + herb node; (3) tests, including a data test that every event step maps to a real `track_and_announce` site; (4) a playtest pass. Engine is the main effort; content is small.
+
+**Open questions for the owner:** safe herb patch (build it) or pacifist-only crafting chain? Should the Herald (existing, has chatter) be the giver or a new NPC? Ordered-chain extension (recommended) or 6 separate givers?
+
+---
+
 ## 🏟️ Colosseum Games - design plan (💡 designed, NOT built - open questions remain)
 
 A scheduled, all-levels, spectator-friendly competition on the Colosseum's main arena floor. The social/competitive layer on top of the existing solo grinds - not a replacement for any of them.
@@ -45,6 +85,13 @@ A scheduled, all-levels, spectator-friendly competition on the Colosseum's main 
 | 10 | Milestone distances inconsistent (500 mi at y=5, 375 at y=10) | **Real bug, fixed.** The road's y=0 is Rome and y=25 the Germanic Stronghold, but the code computed `25*(ROAD_LENGTH-y)` - the distance to the far end, labeled "to Rome" - so the number shrank as you walked away. Now `25*y` (y=5 -> 125, y=10 -> 250, y=20 -> 500). The old test had enshrined the bug and was corrected. Amber Coast's "miles to the coast" is correct. |
 
 ---
+
+## 🏅 Early-game achievements/titles and capitalized channel names - ✅ Sep 25
+
+- [x] **14 new achievements** for the first hours, both playstyles: Fruits of the Land (first gather), Apprentice's Hands (first craft), Steady Hands (25 crafts), Open for Business (first sale), A Task Well Done (first quest), The Reliable (5 quests), Quick Study (first spell/skill), Stronger Together (party kill), Finding Your Feet / Seasoned / Veteran of Rome (levels 5 / 10 / 25), Beyond the Walls (first step onto the wilderness road), The Long Road (reach the Germanic Stronghold), Twice-Born (return from the Underworld). Each fires from a real event via `world.achievements.track_and_announce`.
+- [x] **8 titles**: the Apprentice, the Craftsman, the Reliable, the Veteran, the Wayfarer, the Twice-Born, and (pacifist identity, from the existing achievements) the Peaceable, the Iron-Willed.
+- [x] `tests_achievements.py`'s source scan now recognises `track_and_announce`, so a new achievement with no call site still fails the suite. **Gotcha:** the achievements contrib registers every module-level dict in `world/achievements.py` as an achievement - keep helper data out of that file.
+- [x] **Channel names capitalized** ("Divine", "Mars-religion", ...) to match "Public": code creates them capitalized; `world/rename_channels_live.py` renamed the 15 existing ones (lookups are case-insensitive, so nothing else changed).
 
 ## 🍞 Food and drink are real, plus the per-kill XP cap - ✅ Sep 25
 

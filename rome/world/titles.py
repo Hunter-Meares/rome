@@ -37,6 +37,17 @@ from evennia import Command
 
 ACHIEVEMENT_TITLES = {
     "legend": "the Undefeated",
+    # Early-game milestones (world/achievements.py) - a few of them earn a
+    # title, so a new player's first title arrives within their first hours.
+    "first_craft": "the Apprentice",
+    "craft_25": "the Craftsman",
+    "quests_5": "the Reliable",
+    "level_25": "the Veteran",
+    "the_long_road": "the Wayfarer",
+    "twice_born": "the Twice-Born",
+    # A pacifist's identity, in the same voice.
+    "the_peaceable": "the Peaceable",
+    "iron_will": "the Iron-Willed",
 }
 
 QUEST_TITLES = {

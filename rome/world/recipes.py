@@ -246,6 +246,16 @@ class SkilledCraftingRecipe(CraftingRecipe):
         )
         return None
 
+    def post_craft(self, craft_result, **kwargs):
+        result = super().post_craft(craft_result, **kwargs)
+        if result:
+            # After the recipe's own success message, so the achievement
+            # banner follows the crafted item rather than interrupting it.
+            from world.achievements import track_and_announce
+
+            track_and_announce(self.crafter, category="craft", tracking="any")
+        return result
+
 
 class FaberRecipe(SkilledCraftingRecipe):
     """

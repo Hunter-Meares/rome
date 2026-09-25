@@ -8,7 +8,30 @@ confirmed to exist in the game, rather than guessing at NPC tagging
 that hasn't been verified - see world/combat.py (at_defeat,
 award_xp's level-up branch) and world/economy.py (_buy) for where
 track_achievements() actually gets called for each of these.
+
+CAUTION: the achievements contrib registers EVERY module-level dict in
+this file as an achievement, so never add helper data (a mapping, a
+table) as a module-level dict here - keep it in the module that uses it.
+Functions are fine.
 """
+
+
+def track_and_announce(character, category, tracking, count=1):
+    """
+    track_achievements() + announce_achievements() in one call, for a real
+    player character only (an NPC has no .account and is skipped) - the
+    shape every call site wants, instead of each repeating the same three
+    lines. Pass category=/tracking= as keyword literals at the call site:
+    tests_achievements.py finds each achievement's wiring by scanning for
+    exactly that.
+    """
+    if not getattr(character, "account", None):
+        return
+    from evennia.contrib.game_systems.achievements import track_achievements
+
+    announce_achievements(
+        character, track_achievements(character, category=category, tracking=tracking, count=count)
+    )
 
 
 def announce_achievements(character, completed_keys):
@@ -127,3 +150,129 @@ IRON_WILL = {
     "category": "level",
     "tracking": "pacifist_ten",
 }
+
+
+# ----------------------------------------------------------------------------
+# EARLY-GAME MILESTONES - a quick run of wins across a new player's first
+# hours, for BOTH playstyles (a fighter and a pacifist crafter each hit
+# several of these in their first session). Added from a direct request to
+# make the first hour feel rewarding; each is announced with the usual banner
+# and gossiped about by NPCs, and a few grant an earned title (world/
+# titles.py's ACHIEVEMENT_TITLES). Counts run concurrently (no prereqs) so
+# "25" means exactly 25.
+# ----------------------------------------------------------------------------
+
+FIRST_GATHER = {
+    "key": "first_gather",
+    "name": "Fruits of the Land",
+    "desc": "Gather a material from the wild for the first time.",
+    "category": "gather",
+    "tracking": "any",
+}
+
+FIRST_CRAFT = {
+    "key": "first_craft",
+    "name": "Apprentice's Hands",
+    "desc": "Craft your first item.",
+    "category": "craft",
+    "tracking": "any",
+}
+
+CRAFT_25 = {
+    "key": "craft_25",
+    "name": "Steady Hands",
+    "desc": "Craft 25 items - the work has stopped being new.",
+    "category": "craft",
+    "tracking": "any",
+    "count": 25,
+}
+
+FIRST_SALE = {
+    "key": "first_sale",
+    "name": "Open for Business",
+    "desc": "Sell something to a merchant for the first time.",
+    "category": "sell",
+    "tracking": "any",
+}
+
+FIRST_QUEST = {
+    "key": "first_quest",
+    "name": "A Task Well Done",
+    "desc": "Complete your first quest.",
+    "category": "quest",
+    "tracking": "any",
+}
+
+QUESTS_5 = {
+    "key": "quests_5",
+    "name": "The Reliable",
+    "desc": "Complete five quests - the sort of person Rome's citizens ask twice.",
+    "category": "quest",
+    "tracking": "any",
+    "count": 5,
+}
+
+FIRST_LESSON = {
+    "key": "first_lesson",
+    "name": "Quick Study",
+    "desc": "Learn your first spell or skill from a trainer.",
+    "category": "learn",
+    "tracking": "any",
+}
+
+FIRST_PARTY_KILL = {
+    "key": "first_party_kill",
+    "name": "Stronger Together",
+    "desc": "Help defeat an enemy as part of a party.",
+    "category": "defeat",
+    "tracking": "party_kill",
+}
+
+LEVEL_5 = {
+    "key": "level_5",
+    "name": "Finding Your Feet",
+    "desc": "Reach level 5.",
+    "category": "level",
+    "tracking": "five",
+}
+
+LEVEL_10 = {
+    "key": "level_10",
+    "name": "Seasoned",
+    "desc": "Reach level 10.",
+    "category": "level",
+    "tracking": "ten",
+}
+
+LEVEL_25 = {
+    "key": "level_25",
+    "name": "Veteran of Rome",
+    "desc": "Reach level 25.",
+    "category": "level",
+    "tracking": "twentyfive",
+}
+
+BEYOND_THE_WALLS = {
+    "key": "beyond_the_walls",
+    "name": "Beyond the Walls",
+    "desc": "Step out through the Porta Flaminia onto the wilderness road for the first time.",
+    "category": "explore",
+    "tracking": "wilderness",
+}
+
+THE_LONG_ROAD = {
+    "key": "the_long_road",
+    "name": "The Long Road",
+    "desc": "Walk the whole wilderness road and reach the Germanic Stronghold.",
+    "category": "explore",
+    "tracking": "germania",
+}
+
+TWICE_BORN = {
+    "key": "twice_born",
+    "name": "Twice-Born",
+    "desc": "Return from the Underworld.",
+    "category": "death",
+    "tracking": "returned",
+}
+
