@@ -1154,6 +1154,30 @@ class TestSkillInfoAndSpellInfoListing(CombatCommandTestBase):
         self.assertIn("Hold The Line", result)
         self.assertNotIn("Some Removed Skill", result)
 
+    # Real gap found by direct question ("does the help file explain
+    # pacifists can still use some spells?") - it didn't, and the
+    # claim it now makes (spellinfo/skillinfo tells you which) wasn't
+    # true either until this "Usable:" line was added.
+    def test_a_combat_only_spell_says_so(self):
+        result = self.call(CmdSpellInfo(), "ritual flame", caller=self.char1)
+        self.assertIn("Usable: In combat only", result)
+
+    def test_a_noncombat_only_spell_says_so(self):
+        result = self.call(CmdSpellInfo(), "conjure torch", caller=self.char1)
+        self.assertIn("Usable: Outside combat only", result)
+
+    def test_a_spell_with_no_restriction_says_any_time(self):
+        result = self.call(CmdSpellInfo(), "haste", caller=self.char1)
+        self.assertIn("Usable: Any time", result)
+
+    def test_a_combat_only_skill_says_so(self):
+        result = self.call(CmdSkillInfo(), "backstab", caller=self.char1)
+        self.assertIn("Usable: In combat only", result)
+
+    def test_a_noncombat_only_skill_says_so(self):
+        result = self.call(CmdSkillInfo(), "track", caller=self.char1)
+        self.assertIn("Usable: Outside combat only", result)
+
 
 class TestStatsHealthBar(CombatCommandTestBase):
     """

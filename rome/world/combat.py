@@ -4393,6 +4393,25 @@ def _usage_line(verb, name, target_type):
     return "%s %s = <target>" % (verb, name)
 
 
+def _combat_usability_line(data):
+    """
+    "In combat only" / "Outside combat only" / "Any time" - reads the
+    same combat_spell/noncombat_spell flags CmdCast/CmdUseSkill enforce
+    (default True for both, via their own setdefault calls) so
+    spellinfo/skillinfo can tell a player - a pacifist especially,
+    since they can never enter combat at all - whether a given
+    spell/skill is actually usable for them before they spend gold
+    learning it.
+    """
+    combat_ok = data.get("combat_spell", True)
+    noncombat_ok = data.get("noncombat_spell", True)
+    if not noncombat_ok:
+        return "In combat only"
+    if not combat_ok:
+        return "Outside combat only"
+    return "Any time"
+
+
 def _format_ability_list(caller, data_dict, known_names, header_label, learn_verb):
     """
     Shared listing used by both CmdSkillInfo and CmdSpellInfo when
@@ -11856,14 +11875,16 @@ class CmdSkillInfo(Command):
         desc = data.get("desc", "No description available.")
         level_required = data.get("level_required", 1)
         usage = _usage_line("skill", skill, data["target"])
+        usable_when = _combat_usability_line(data)
 
         caller.msg(
             "|w%s|n\n"
             "  Cost: %s SP\n"
             "  Classes: %s\n"
             "  Requires level: %d\n"
+            "  Usable: %s\n"
             "  Usage: %s\n"
-            "  %s" % (skill.title(), data["cost"], class_str, level_required, usage, desc)
+            "  %s" % (skill.title(), data["cost"], class_str, level_required, usable_when, usage, desc)
         )
 
 
@@ -11926,14 +11947,16 @@ class CmdSpellInfo(Command):
         desc = data.get("desc", "No description available.")
         level_required = data.get("level_required", 1)
         usage = _usage_line("cast", spell, data["target"])
+        usable_when = _combat_usability_line(data)
 
         caller.msg(
             "|w%s|n\n"
             "  Cost: %s MP\n"
             "  Classes: %s\n"
             "  Requires level: %d\n"
+            "  Usable: %s\n"
             "  Usage: %s\n"
-            "  %s" % (spell.title(), data["cost"], class_str, level_required, usage, desc)
+            "  %s" % (spell.title(), data["cost"], class_str, level_required, usable_when, usage, desc)
         )
 
 

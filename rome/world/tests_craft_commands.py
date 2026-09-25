@@ -196,6 +196,24 @@ class TestCmdLearnRecipe(CraftCommandTestBase):
         result = self.call(CmdLearnRecipe(), "iron shortsword", caller=self.char1)
         self.assertIn("needs no training", result.lower())
 
+    def test_a_herbalist_trainer_teaches_the_antidote_recipe(self):
+        # Real gap found live: the antidote recipe (KNOWN_BY_DEFAULT
+        # False) shipped with no Herbalist trainer ever placed anywhere
+        # in the actual game world - find_craft_trainer/CmdLearnRecipe
+        # themselves were always profession-agnostic (this test proves
+        # it), but 'learnrecipe antidote' still failed for every real
+        # player until world/setup_herbalist_trainer_live.py was
+        # written and run, mirroring Faber's own trainer setup script.
+        herbalist_trainer = create.create_object(
+            CraftTrainer, key="a Herbalist apprentice", location=self.room1
+        )
+        herbalist_trainer.db.teaches_profession = "herbalist"
+        self.char1.db.gold = 1000
+
+        result = self.call(CmdLearnRecipe(), "antidote", caller=self.char1)
+
+        self.assertIn("antidote", self.char1.db.craft_recipes_known)
+
     def test_not_enough_gold_is_refused(self):
         self.char1.db.gold = 0
         result = self.call(CmdLearnRecipe(), "iron lorica", caller=self.char1)

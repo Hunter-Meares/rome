@@ -80,7 +80,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "pacifism", "godpacifism", "gathering", "crafting", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming", "trivia", "pets", "buypet", "row", "socials"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "pacifism", "godpacifism", "gathering", "crafting", "faber", "herbalist", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming", "trivia", "pets", "buypet", "row", "socials"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
         + list(RACIAL_ABILITIES.keys())
     )
@@ -1037,6 +1037,14 @@ def create_all_help_entries():
             "gathering' and 'help crafting' are your real, repeatable "
             "way to earn gold and experience without ever fighting - "
             "not just a handful of one-time quests.\n\n"
+            "|wYour spells and skills aren't all useless.|n Every one is "
+            "individually flagged as combat-only or non-combat-only (or "
+            "both) - 'spellinfo'/'skillinfo' on a specific one will tell "
+            "you which. Anything not flagged combat-only still works for "
+            "you exactly as it would for anyone else (a heal, a buff, "
+            "most utility effects); only the ones flagged combat-only are "
+            "permanently closed off, since you can never enter a fight to "
+            "use them.\n\n"
             "|wStats and leveling work exactly the same for you|n - the "
             "same stat point every 3 levels, spent with 'statup' "
             "exactly as anyone else's would be. Virtus, Agilitas, "
@@ -1106,24 +1114,34 @@ def create_all_help_entries():
             "experience - a genuine, repeatable non-combat path to "
             "leveling, not just a one-time quest. See 'help gathering' "
             "for where materials come from.\n\n"
-            "|wUsage:|n\n"
+            "|wTwo professions exist so far, and they're unrelated to "
+            "each other|n - each has its own materials, its own fixed "
+            "crafting location, and its own separate skill that only "
+            "rises by practicing that profession specifically:\n"
+            "  |YFaber|n (smithing) - weapons and armor. See 'help "
+            "faber'.\n"
+            "  |YHerbalist|n (alchemy) - healing potions. See 'help "
+            "herbalist'.\n\n"
+            "|wUsage (same commands for either profession):|n\n"
             "  craft <recipe>       - automatically uses whatever you're "
-            "carrying that the recipe needs\n"
+            "carrying (and whatever fixed tool is in the room) that the "
+            "recipe needs\n"
             "  recipes              - see everything you could make, "
-            "what it needs, and whether you already know it\n"
+            "from both professions, what it needs, and whether you "
+            "already know it\n"
             "  learnrecipe <recipe> - learn a recipe above tier 1 from "
             "a trainer standing with you (costs gold)\n\n"
-            "|wTiers:|n a profession's first recipe needs no training at "
-            "all - anyone can attempt it the moment they have the "
-            "materials, so starting out never requires gold you don't "
-            "have yet. Every recipe past that has to be learned in "
-            "person from a trainer, the same way learning a spell or "
-            "skill already works - fund it from selling what your free "
-            "starting recipe makes. Faber's own trainer stands at the "
-            "Smithy in the Germanic Stronghold, right by the Ore Vein "
-            "Shaft. A higher tier means a genuinely stronger item AND a "
-            "genuinely better reward - there's no benefit to grinding an "
-            "easy recipe forever once a harder one is within reach.\n\n"
+            "|wTiers:|n each profession's first recipe needs no training "
+            "at all - anyone can attempt it the moment they have the "
+            "materials and are standing at that profession's tool, so "
+            "starting out never requires gold you don't have yet. Every "
+            "recipe past that has to be learned in person from a "
+            "trainer, the same way learning a spell or skill already "
+            "works - fund it from selling what your free starting "
+            "recipe makes. A higher tier means a genuinely stronger "
+            "item AND a genuinely better reward - there's no benefit to "
+            "grinding an easy recipe forever once a harder one is "
+            "within reach.\n\n"
             "|wSkill:|n each craft attempt is checked against your own "
             "skill in that profession, which starts at 0 and rises with "
             "practice - a failed attempt keeps your materials and still "
@@ -1135,9 +1153,66 @@ def create_all_help_entries():
             "experience on sale, raw materials pay gold only. Selling "
             "further from Rome pays a real bonus, and so does selling to "
             "a merchant who actually deals in that kind of goods (a "
-            "weaponsmith pays extra for weapons or armor) - real reasons "
-            "to think about where you sell, not just carry everything "
-            "back to the nearest shop."
+            "weaponsmith pays extra for weapons or armor, an apothecary "
+            "pays extra for potions) - real reasons to think about where "
+            "you sell, not just carry everything back to the nearest "
+            "shop."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    HelpEntry.objects.create(
+        db_key="faber",
+        db_help_category="General",
+        db_entrytext=(
+            "|wFaber (Smithing)|n\n\n"
+            "The blacksmithing profession - turns iron ore and timber "
+            "into real weapons and armor. See 'help crafting' for the "
+            "commands ('craft', 'recipes', 'learnrecipe') and 'help "
+            "gathering' for where ore and timber come from.\n\n"
+            "|wWhere:|n every Faber recipe needs the smithing forge at "
+            "The Smithy Forge (Germanic Stronghold, right by the Ore "
+            "Vein Shaft) - it's a fixture, not something you carry, so "
+            "you have to actually be standing there to craft.\n\n"
+            "|wRecipes (lowest tier first):|n\n"
+            "  iron shortsword  - needs no training, anyone can start "
+            "the moment they have 1 iron ore and 1 timber\n"
+            "  iron lorica      - armor, needs training from the Faber "
+            "trainer at the Smithy\n"
+            "  iron war-spear   - needs training, the toughest Faber "
+            "recipe so far\n\n"
+            "Faber has its own skill (separate from Herbalist's) that "
+            "only improves by actually attempting Faber recipes."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    HelpEntry.objects.create(
+        db_key="herbalist",
+        db_help_category="General",
+        db_entrytext=(
+            "|wHerbalist (Alchemy)|n\n\n"
+            "The potion-brewing profession - turns healing herbs into "
+            "real, usable consumables. See 'help crafting' for the "
+            "commands ('craft', 'recipes', 'learnrecipe') and 'help "
+            "gathering' for where herbs come from.\n\n"
+            "|wWhere:|n every Herbalist recipe needs the apothecary's "
+            "mortar at Market Row - Back Stalls (the Subura) - it's a "
+            "fixture, not something you carry, so you have to actually "
+            "be standing there to craft.\n\n"
+            "|w\"Free\" doesn't mean handed to you|n - it means the "
+            "recipe itself needs no gold or trainer to learn, exactly "
+            "like Faber's own starting recipe. You still have to gather "
+            "your own herbs and actually succeed at the craft attempt "
+            "(a skill check, same as Faber) - nothing here is given away "
+            "for nothing.\n\n"
+            "|wRecipes (lowest tier first):|n\n"
+            "  healing tonic - needs no training, anyone can start the "
+            "moment they have 1 bundle of healing herbs\n"
+            "  antidote      - cures Poisoned, needs training from a "
+            "Herbalist trainer, costs more herbs\n\n"
+            "Herbalist has its own skill (separate from Faber's) that "
+            "only improves by actually attempting Herbalist recipes."
         ),
         db_lock_storage="view:all()",
     )
