@@ -214,8 +214,9 @@ class CmdPacifism(Command):
     You give up every weapon and piece of armor you're wearing to do
     this - anything one of a kind among it is lost for good, not just
     set down. You also won't be able to wield a weapon or wear real
-    armor ever again while a pacifist - only purely cosmetic clothing
-    with zero protection still works. Once you're a pacifist, only a
+    armor ever again while a pacifist - only clothing with zero
+    protection still works, and the tailor at Cloth Merchants and
+    Tailors in the Forum sells it. Once you're a pacifist, only a
     god can restore your right to fight again; you can't undo this
     yourself.
 
