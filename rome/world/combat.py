@@ -7475,6 +7475,8 @@ class CombatCharacter(ContribRPCharacter):
             log_room_visit(self)
         from world.factions import record_room_visit
         record_room_visit(self)
+        from world.exploration import record_room_visit as record_explored_room
+        record_explored_room(self)
         if self.db.quest_log:
             from world.quests import check_quest_visit
             check_quest_visit(self)

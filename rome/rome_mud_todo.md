@@ -86,6 +86,11 @@ A scheduled, all-levels, spectator-friendly competition on the Colosseum's main 
 
 ---
 
+## 🧭 Tiered explorer achievements - ✅ Sep 26
+
+- [x] **Wanderer / Well-Traveled / Explorer / Cartographer** (100 / 250 / 350 / 600 distinct rooms; titles "the Explorer" and "the Cartographer" on the top two). `world/exploration.py` tracks visited room ids per character; wilderness tiles, gods and NPCs don't count (see CLAUDE.md for why). 776 ordinary rooms exist live, so 600 (77%) is attainable. Descriptions name no numbers.
+- [ ] Not built: zone-completion achievements ("walk every room of the Forum/Aventine/Amber Coast" - would need a room-to-zone mapping), and any backfill for existing players (nothing recorded where they'd been; the analytics room trails are too approximate).
+
 ## 🔒 Earned titles made unforgeable, escape purse, road checks - ✅ Sep 26
 
 - [x] **Earned titles can no longer be typed in** and are drawn differently from custom ones everywhere (bold gold vs cyan, no quotes). Found by owner question ("can't players change titles at will? then what's the point?"): correct - `who` drew every title plain gold, and `title` accepted any text including an earned title's exact words (its own help example was "the Undefeated").

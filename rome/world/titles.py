@@ -45,6 +45,9 @@ ACHIEVEMENT_TITLES = {
     "level_25": "the Veteran",
     "the_long_road": "the Wayfarer",
     "twice_born": "the Twice-Born",
+    # The top two explorer tiers (world/exploration.py).
+    "explorer": "the Explorer",
+    "cartographer": "the Cartographer",
     # A pacifist's identity, in the same voice.
     "the_peaceable": "the Peaceable",
     "iron_will": "the Iron-Willed",

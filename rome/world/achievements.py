@@ -276,3 +276,48 @@ TWICE_BORN = {
     "tracking": "returned",
 }
 
+
+# ----------------------------------------------------------------------------
+# EXPLORER TIERS - counted from world/exploration.py, which feeds every NEW
+# authored room (never wilderness tiles) a character stands in. Four tiers of
+# the same progress; the descriptions deliberately name no numbers (a direct
+# request to move away from showing hard numbers in the game). The top two
+# earn a title.
+# ----------------------------------------------------------------------------
+
+WANDERER = {
+    "key": "wanderer",
+    "name": "Wanderer",
+    "desc": "Wander far enough that Rome starts to feel like home.",
+    "category": "explore",
+    "tracking": "rooms",
+    "count": 100,
+}
+
+WELL_TRAVELED = {
+    "key": "well_traveled",
+    "name": "Well-Traveled",
+    "desc": "Know Rome's byways as well as its highways.",
+    "category": "explore",
+    "tracking": "rooms",
+    "count": 250,
+}
+
+EXPLORER = {
+    "key": "explorer",
+    "name": "Explorer",
+    "desc": "Explore a great part of the world - from the Colosseum's tunnels to the far frontier.",
+    "category": "explore",
+    "tracking": "rooms",
+    "count": 350,
+}
+
+CARTOGRAPHER = {
+    "key": "cartographer",
+    "name": "Cartographer",
+    "desc": "Leave hardly a corner of the world unseen.",
+    "category": "explore",
+    "tracking": "rooms",
+    "count": 600,
+}
+
