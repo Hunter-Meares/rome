@@ -46,6 +46,15 @@ RESOURCE_MP_GAIN = 5
 RESOURCE_SP_GAIN = 5
 
 CORE_STATS = ("virtus", "agilitas", "ingenium", "vigor")
+
+# One-line reminders of what each stat does, shown by 'statup' (the full
+# explanations live in the stat help topics, world/help_setup.py's STAT_HELP).
+STAT_BLURBS = {
+    "virtus": "melee and heavy-weapon damage",
+    "agilitas": "accuracy, dodge, initiative, light/ranged damage",
+    "ingenium": "spell power, Max MP, resists mind effects (sleep, fear, confusion)",
+    "vigor": "Max HP, damage reduction, resists body effects (poison, slow, paralysis)",
+}
 RESOURCE_OPTIONS = {
     "hp": ("max_hp", RESOURCE_HP_GAIN),
     "mp": ("max_mp", RESOURCE_MP_GAIN),
@@ -103,7 +112,10 @@ class CmdStatUp(Command):
             lines = ["|wUnspent stat points:|n %d" % points, "", "|wCurrent stats and caps:|n"]
             for stat in CORE_STATS:
                 current = getattr(caller.db, stat) or 10
-                lines.append("  %s: %d / %d" % (stat.title(), current, stat_cap(caller, stat)))
+                lines.append(
+                    "  %s: %d / %d  |x- %s|n"
+                    % (stat.title(), current, stat_cap(caller, stat), STAT_BLURBS[stat])
+                )
             lines.append("")
             lines.append(
                 "Or convert a point into +%d max HP, +%d max MP, or +%d max SP "

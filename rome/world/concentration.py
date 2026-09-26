@@ -504,7 +504,7 @@ def spell_sleep(caster, spell_name, targets, cost, **kwargs):
     caster.db.mp -= cost
     reveal_on_offense(caster)
     caster.location.msg_contents("%s casts %s at %s!" % (caster, spell_name, target))
-    if rules.resists_condition(caster, target):
+    if rules.resists_condition(caster, target, condition="Asleep"):
         caster.location.msg_contents("%s shakes off the drowsiness and resists the effect!" % target)
         _finish_cast(caster)
         return
@@ -688,7 +688,7 @@ def spell_confusion(caster, spell_name, targets, cost, **kwargs):
     caster.db.mp -= cost
     reveal_on_offense(caster)
     caster.location.msg_contents("%s casts %s at %s!" % (caster, spell_name, target))
-    if rules.resists_condition(caster, target):
+    if rules.resists_condition(caster, target, condition="Confused"):
         caster.location.msg_contents("%s clears their head and resists the effect!" % target)
         _finish_cast(caster)
         return
@@ -1012,6 +1012,34 @@ REMOVED_SPELLS = {
 FREE_REPLACEMENTS = {"bane": "magic arrow"}
 
 
+# Spells that still exist under a new name. Players who know the old one get
+# the new one in its place (and any cooldown carried over) - nothing lost, no
+# gold changes hands. "vigor" clashed with the Vigor core stat.
+RENAMED_SPELLS = {"vigor": "renew spirit"}
+
+
+def _rename_spells(character):
+    known = character.db.spells_known
+    changed = []
+    if known:
+        for old, new in RENAMED_SPELLS.items():
+            if old in known:
+                fresh = [name for name in known if name != old]
+                if new not in fresh:
+                    fresh.append(new)
+                character.db.spells_known = sorted(fresh)
+                known = character.db.spells_known
+                changed.append((old, new))
+    cooldowns = character.db.cooldowns
+    if cooldowns:
+        for old, new in RENAMED_SPELLS.items():
+            if old in cooldowns:
+                cooldowns[new] = cooldowns.pop(old)
+    for old, new in changed:
+        character.msg("|yYour spell '%s' is now called '%s' - it works exactly as before.|n" % (old, new))
+    return changed
+
+
 def prune_removed_spells(character):
     """
     Idempotent. Drops any removed spell from a character's spellbook,
@@ -1022,6 +1050,7 @@ def prune_removed_spells(character):
     """
     from world.combat import SPELLS, compute_learn_cost
 
+    _rename_spells(character)
     known = character.db.spells_known
     if not known:
         return 0

@@ -36,9 +36,10 @@ RECENT_UPDATES_DATE = "2026-09-26"
 
 RECENT_UPDATES_TEXT = (
     "The casters have been reworked. Augurs gain Magic Arrow, Sleep, See "
-    "Invisibility, Fly, Invisibility, Slow and Confusion; Haruspex gain "
-    "Inflict Wounds, False Life and Armor of Agathys; Medicus gain Healing "
-    "Word, Aid and Flame of Vesta. Some spells are held by concentration "
+    "Invisibility, Fly, Invisibility and Confusion; Haruspex gain Inflict "
+    "Wounds, False Life, Armor of Agathys and Slow; Medicus gain Healing "
+    "Word, Aid and Flame of Vesta. Vigor now resists body effects (poison, "
+    "slow, paralysis) as Ingenium resists mind ones. Some spells are held by concentration "
     "and drain your MP until you let go - 'effects' shows what's on you, "
     "'release' lets go, and 'help concentration' explains it all. Harpies "
     "now fly for free with 'fly'. Bane, Omen of Weakness, Omen of Doom, "

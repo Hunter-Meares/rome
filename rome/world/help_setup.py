@@ -43,17 +43,27 @@ STAT_HELP = {
         "Ingenium (Intelligence)",
         "Magical aptitude. Ingenium increases both the accuracy and the "
         "power of your spells - damage spells hit harder, healing spells "
-        "restore more. It has no effect on physical weapon damage or "
-        "SP-based skills. Only casters (Augur, Medicus, Haruspex) get "
-        "much practical benefit from investing in this.",
+        "restore more. It also decides how well you shrug off effects "
+        "that work on the mind or will - sleep, confusion, fear, silence, "
+        "and curses - so a high-Ingenium character resists them (the "
+        "caster's own Ingenium counts against you). It has no effect on "
+        "physical weapon damage or SP-based skills. Only casters (Augur, "
+        "Medicus, Haruspex) get much practical benefit from investing in "
+        "this.",
     ),
     "vigor": (
         "Vigor (Constitution)",
         "Physical toughness and endurance. Vigor grants a small amount of "
         "bonus Max HP on top of your race and class's normal total, and "
         "provides a flat reduction to incoming damage, independent of "
-        "and in addition to whatever armor you're wearing. High-Vigor "
-        "characters are simply harder to bring down.",
+        "and in addition to whatever armor you're wearing. Vigor is also "
+        "your defense against effects that work on the body - poison, "
+        "being slowed, paralysis (Petrify), and weakened flesh - so a "
+        "high-Vigor character resists them far more often, while a frail "
+        "spellcaster is easy prey for them. (Mind effects like sleep, "
+        "confusion, fear and silence are resisted with Ingenium "
+        "instead.) High-Vigor characters are simply harder to bring "
+        "down.",
     ),
 }
 
@@ -121,8 +131,10 @@ NEW_SPELL_HELP = {
     ),
     "slow": (
         "Drags an enemy's movements to a crawl: for a short time they lose "
-        "every other turn. A target with strong Ingenium can resist it. Won't "
-        "work on someone who has laid down arms for good."
+        "every other turn. A Haruspex spell: a body effect, so a target with "
+        "strong |wVigor|n can resist it (Ingenium resists mind effects like "
+        "Sleep and Confusion instead). Won't work on someone who has laid "
+        "down arms for good."
     ),
     "confusion": (
         "Scatters an enemy's wits for three to five real minutes. They wander "
@@ -1430,7 +1442,7 @@ def create_all_help_entries():
             "Two related spells aren't held: |wConfusion|n (Augur) scatters an "
             "enemy's wits for three to five minutes - they wander through random "
             "rooms and lash out at whoever's near, and cast mid-fight it ends the "
-            "fight for them. |wSlow|n makes an enemy lose every other turn. Neither "
+            "fight for them. |wSlow|n (Haruspex) makes an enemy lose every other turn. Neither "
             "works on someone who has laid down arms for good (see 'help "
             "pacifism'), and a confused player's random blows never count against "
             "them.\n\n"

@@ -269,3 +269,69 @@ class TestLevelTermInResistance(SkillDamageBase):
             landed += "Asleep" in self.char2.db.conditions
             self.char1.scripts.remove("concentration")
         self.assertEqual(landed, 100 - CONDITION_RESIST_MAX)
+
+
+class TestWhichStatResistsWhichEffect(SkillDamageBase):
+    """Body effects are resisted with Vigor, mind effects with Ingenium."""
+
+    def _resisted(self, condition, roll=1):
+        with patch("world.combat.randint", return_value=roll):
+            return COMBAT_RULES.resists_condition(self.char1, self.char2, condition=condition)
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.level = self.char2.db.level = 50
+        self.char1.db.ingenium = 10
+
+    def test_the_body_effects_map_to_vigor_and_the_rest_default_to_ingenium(self):
+        from world.combat import CONDITION_RESIST_STAT
+
+        for name in ("Poisoned", "Slowed", "Paralyzed", "Defense Down"):
+            self.assertEqual(CONDITION_RESIST_STAT[name], "vigor", name)
+        for name in ("Frightened", "Silenced", "Asleep", "Confused", "Cursed",
+                     "Accuracy Down", "Damage Down"):
+            self.assertNotIn(name, CONDITION_RESIST_STAT, name)
+
+    def test_high_vigor_resists_a_body_effect_but_not_a_mind_one(self):
+        self.char2.db.vigor, self.char2.db.ingenium = 30, 10
+        self.assertTrue(self._resisted("Slowed", roll=40))    # 10 + (30-10)*2 = 50%
+        self.assertFalse(self._resisted("Asleep", roll=40))   # mind: 10%
+
+    def test_high_ingenium_resists_a_mind_effect_but_not_a_body_one(self):
+        self.char2.db.vigor, self.char2.db.ingenium = 10, 30
+        self.assertTrue(self._resisted("Asleep", roll=40))
+        self.assertFalse(self._resisted("Slowed", roll=40))
+        self.assertFalse(self._resisted("Poisoned", roll=40))
+
+    def test_no_condition_named_means_ingenium_as_before(self):
+        self.char2.db.vigor, self.char2.db.ingenium = 30, 10
+        self.assertFalse(self._resisted(None, roll=40))
+
+    def test_slow_is_resisted_by_vigor_through_the_real_spell(self):
+        self.char2.db.vigor = 40
+        with patch("world.combat.randint", return_value=1):
+            COMBAT_RULES.spell_add_condition(
+                self.char1, "slow", [self.char2], 9, conditions=[("Slowed", 4)]
+            )
+        self.assertNotIn("Slowed", self.char2.db.conditions)
+
+    def test_a_frail_low_vigor_target_is_slowed_easily(self):
+        self.char2.db.vigor = 6
+        with patch("world.combat.randint", return_value=20):
+            COMBAT_RULES.spell_add_condition(
+                self.char1, "slow", [self.char2], 9, conditions=[("Slowed", 4)]
+            )
+        self.assertIn("Slowed", self.char2.db.conditions)
+
+    def test_the_stat_help_says_what_vigor_and_ingenium_resist(self):
+        from world.help_setup import STAT_HELP
+
+        self.assertIn("poison", STAT_HELP["vigor"][1])
+        self.assertIn("slowed", STAT_HELP["vigor"][1])
+        self.assertIn("sleep", STAT_HELP["ingenium"][1])
+
+    def test_the_statup_and_stats_screens_say_it_too(self):
+        from world.leveling import STAT_BLURBS
+
+        self.assertIn("poison", STAT_BLURBS["vigor"])
+        self.assertIn("sleep", STAT_BLURBS["ingenium"])

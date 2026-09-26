@@ -394,6 +394,21 @@ CONDITION_RESIST_MAX = 75
 # unlikely to land from below, or very likely to land from above, never
 # certain either way.
 CONDITION_RESIST_LEVEL_MULTIPLIER = 1.5  # percent per level of the target's level advantage
+# Which of the TARGET's stats fights off a condition (Sep 26, owner request:
+# "shouldn't high Vigor also affect spell resistance?"). Effects that hit the
+# BODY - poison, being slowed, paralysis, weakened flesh - are shrugged off with
+# Vigor; everything that works on the mind or will - sleep, confusion, fear,
+# silence, the will-curses - with Ingenium (the default). So a tanky Vigor
+# build resists the body debuffs a frail caster is weak to, and a caster with
+# strong Ingenium resists the mind effects a brute is weak to: every class ends
+# up with a real weakness. The CASTER's side of the roll stays Ingenium (spell
+# power). Formula is unchanged - only which target stat is compared.
+CONDITION_RESIST_STAT = {
+    "Poisoned": "vigor",
+    "Slowed": "vigor",
+    "Paralyzed": "vigor",
+    "Defense Down": "vigor",
+}
 
 # Weapon categories long/far enough to strike into the back row
 # directly, bypassing row protection - see CombatRules.has_reach.
@@ -1037,7 +1052,7 @@ class CombatRules:
                     "|rWith no one left to shield you, you're pulled into the front row!|n"
                 )
 
-    def resists_condition(self, caster, target):
+    def resists_condition(self, caster, target, condition=None):
         """
         Rolls whether `target` resists a debuff `caster` is trying to
         inflict on them - see CONDITION_RESIST_BASE's own comment for
@@ -1047,7 +1062,10 @@ class CombatRules:
         self/ally targets, same as they already skip hit-rolls for
         those cases.
         """
-        target_ingenium = target.db.ingenium or 10
+        # `condition` (a condition name) picks which target stat resists it -
+        # see CONDITION_RESIST_STAT; no condition (or a mind effect) uses
+        # Ingenium.
+        target_ingenium = getattr(target.db, CONDITION_RESIST_STAT.get(condition, "ingenium")) or 10
         caster_ingenium = caster.db.ingenium or 10
         chance = CONDITION_RESIST_BASE + (target_ingenium - caster_ingenium) * (
             CONDITION_RESIST_STAT_MULTIPLIER
@@ -3148,7 +3166,7 @@ class CombatRules:
 
     def spell_restore_mp(self, caster, spell_name, targets, cost, **kwargs):
         """
-        Restores MP to a target - Medicus's Vigor. Nothing else in the
+        Restores MP to a target - Medicus's Renew Spirit. Nothing else in the
         game currently restores MP at all (spent MP normally only
         comes back through resting/regenerating over time), so this
         fills a genuine gap rather than duplicating an existing effect.
@@ -3393,7 +3411,7 @@ class CombatRules:
                         "The spell can find no purchase on %s." % target
                     )
                     continue
-                if self.resists_condition(caster, target):
+                if self.resists_condition(caster, target, condition=conditions[0][0]):
                     caster.location.msg_contents(
                         "%s resists the effect!" % target
                     )
@@ -3829,7 +3847,7 @@ class CombatRules:
             # See spell_add_condition's identical guard - resistance
             # only ever applies to a genuinely hostile application.
             if target != user and not self.is_ally(user, target):
-                if self.resists_condition(user, target):
+                if self.resists_condition(user, target, condition=conditions[0][0]):
                     user.location.msg_contents("%s resists the effect!" % target)
                     continue
             for condition in conditions:
@@ -5120,11 +5138,12 @@ SPELLS = {
     "slow": {
         "spellfunc": COMBAT_RULES.spell_add_condition,
         "level_required": 45,
-        "desc": "Drags an enemy's movements to a crawl - they lose every other turn for a short time.",
+        "desc": "Drags an enemy's movements to a crawl - they lose every other turn for a short time. A body effect, resisted with Vigor.",
         "target": "otherchar",
         "cost": 9,
         "conditions": [("Slowed", 4)],
-        "classes": ["augur"],
+        "npc_cast": False,
+        "classes": ["haruspex"],
     },
     "confusion": {
         "spellfunc": concentration.spell_confusion,
@@ -5242,9 +5261,10 @@ SPELLS = {
     "sacred chant": {
         "spellfunc": COMBAT_RULES.spell_add_condition,
         # Was missing level_required entirely (so a level-1 Medicus could
-        # learn a five-ally heal-over-time) - set to 20 by owner decision,
-        # Sep 26, between Field Dressing and the mass heals.
-        "level_required": 20,
+        # learn a five-ally heal-over-time) - set to 28 by owner decision,
+        # Sep 26: between Aid (3 allies, 15) and Mass Cure Wounds (5 allies,
+        # 40), and clear of Guardian Spirit at 20.
+        "level_required": 28,
         "desc": "Grants up to five allies a heal-over-time effect.",
         "target": "anychar",
         "cost": 8,
@@ -5366,7 +5386,9 @@ SPELLS = {
         "to_cure": ["Poisoned", "Frightened", "Accuracy Down", "Damage Down", "Defense Down"],
         "classes": ["medicus"],
     },
-    "vigor": {
+    "renew spirit": {
+        # Renamed from "vigor" (Sep 26): it clashed with the Vigor core stat,
+        # making "help vigor" and every line about Vigor-the-stat ambiguous.
         "spellfunc": COMBAT_RULES.spell_restore_mp,
         "level_required": 25,
         "desc": "Restores MP to a target - one of the only ways to recover spent MP outside of resting.",
@@ -9703,8 +9725,8 @@ class CmdCoreStats(Command):
         lines.append(box_line("|wCore Stats|n", w))
         lines.append(box_line("  Virtus:    %2d  |x(melee power)|n" % char.db.virtus, w))
         lines.append(box_line("  Agilitas:  %2d  |x(accuracy, dodge, ranged power)|n" % char.db.agilitas, w))
-        lines.append(box_line("  Ingenium:  %2d  |x(spell power, Max MP)|n" % char.db.ingenium, w))
-        lines.append(box_line("  Vigor:     %2d  |x(Max HP, damage reduction)|n" % char.db.vigor, w))
+        lines.append(box_line("  Ingenium:  %2d  |x(spell power, Max MP, resists mind effects)|n" % char.db.ingenium, w))
+        lines.append(box_line("  Vigor:     %2d  |x(Max HP, damage reduction, resists poison/slow)|n" % char.db.vigor, w))
 
         if char.db.unspent_stat_points:
             lines.append(box_border(w, "-"))

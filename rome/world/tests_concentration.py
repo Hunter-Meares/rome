@@ -604,15 +604,15 @@ class TestSpellTable(ConcTestBase):
 
     def test_new_spells_are_in_the_right_lanes(self):
         for name in ("magic arrow", "sleep", "see invisibility", "fly", "invisibility",
-                     "slow", "confusion"):
+                     "confusion"):
             self.assertEqual(SPELLS[name]["classes"], ["augur"], name)
-        for name in ("inflict wounds", "false life", "armor of agathys"):
+        for name in ("inflict wounds", "false life", "armor of agathys", "slow"):
             self.assertEqual(SPELLS[name]["classes"], ["haruspex"], name)
         for name in ("aid", "healing word", "flame of vesta"):
             self.assertEqual(SPELLS[name]["classes"], ["medicus"], name)
 
-    def test_sacred_chant_is_a_level_20_medicus_spell(self):
-        self.assertEqual(SPELLS["sacred chant"]["level_required"], 20)
+    def test_sacred_chant_is_a_level_28_medicus_spell(self):
+        self.assertEqual(SPELLS["sacred chant"]["level_required"], 28)
         self.assertEqual(SPELLS["sacred chant"]["classes"], ["medicus"])
 
     def test_every_spell_declares_its_level(self):
@@ -625,7 +625,7 @@ class TestSpellTable(ConcTestBase):
 
     def test_npcs_never_cast_the_new_special_spells(self):
         for name in ("sleep", "fly", "invisibility", "confusion", "false life",
-                     "armor of agathys", "aid", "healing word", "flame of vesta"):
+                     "armor of agathys", "aid", "healing word", "flame of vesta", "slow"):
             self.assertIs(SPELLS[name].get("npc_cast"), False, name)
 
     def test_concentration_spells_all_declare_a_drain(self):
@@ -649,6 +649,53 @@ class TestSpellTable(ConcTestBase):
         self.call(CmdCast(), "fly", caller=self.char1)
         self.assertEqual(self.char1.db.mp, 100)
         self.assertEqual(self.char1.db.xp, xp_before)
+
+
+class TestSpellRename(ConcTestBase):
+    """The Medicus spell "vigor" was renamed "renew spirit" (it clashed with the stat)."""
+
+    def test_no_spell_shares_a_name_with_a_core_stat(self):
+        for stat in ("virtus", "agilitas", "ingenium", "vigor"):
+            self.assertNotIn(stat, SPELLS)
+
+    def test_the_spell_exists_under_its_new_name_and_does_the_same_thing(self):
+        self.assertNotIn("vigor", SPELLS)
+        data = SPELLS["renew spirit"]
+        self.assertEqual(data["classes"], ["medicus"])
+        self.assertEqual(data["level_required"], 25)
+        self.assertEqual(data["cost"], 8)
+        self.assertEqual(data["restore_range"], (15, 25))
+        self.assertIs(data["spellfunc"].__func__, COMBAT_RULES.spell_restore_mp.__func__)
+
+    def test_a_player_who_knew_vigor_now_knows_renew_spirit(self):
+        self.char1.db.player_class = "medicus"
+        self.char1.db.spells_known = ["cure wounds", "vigor"]
+        self.char1.db.gold = 7
+        conc.prune_removed_spells(self.char1)
+        self.assertEqual(sorted(self.char1.db.spells_known), ["cure wounds", "renew spirit"])
+        self.assertEqual(self.char1.db.gold, 7)  # a rename, not a refund
+
+    def test_a_cooldown_on_the_old_name_carries_over(self):
+        self.char1.db.spells_known = ["vigor"]
+        self.char1.db.cooldowns = {"vigor": 2}
+        conc.prune_removed_spells(self.char1)
+        self.assertEqual(self.char1.db.cooldowns.get("renew spirit"), 2)
+        self.assertNotIn("vigor", self.char1.db.cooldowns)
+
+    def test_it_is_idempotent_and_never_duplicates(self):
+        self.char1.db.spells_known = ["vigor", "renew spirit"]
+        conc.prune_removed_spells(self.char1)
+        conc.prune_removed_spells(self.char1)
+        self.assertEqual(self.char1.db.spells_known.count("renew spirit"), 1)
+        self.assertNotIn("vigor", self.char1.db.spells_known)
+
+    def test_casting_after_the_rename_works_for_a_player_who_still_has_the_old_name(self):
+        self.char1.db.player_class = "medicus"
+        self.char1.db.spells_known = ["vigor"]
+        self.char1.db.mp = 50
+        self.char2.db.mp = 10
+        self.call(CmdCast(), "renew spirit = Char2", caller=self.char1)
+        self.assertGreater(self.char2.db.mp, 10)
 
 
 class TestRemovedSpellMigration(ConcTestBase):

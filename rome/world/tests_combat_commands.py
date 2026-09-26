@@ -1702,25 +1702,25 @@ class TestCooldowns(CombatCommandTestBase):
         self.assertNotIn("cure wounds", self.char1.db.cooldowns)
 
     def test_casting_a_tier_20_spell_sets_a_cooldown(self):
-        self.char1.db.spells_known = ["vigor"]  # level_required 25 -> cooldown 2
-        self.call(CmdCast(), "vigor", caller=self.char1)
-        self.assertEqual(self.char1.db.cooldowns.get("vigor"), 2)
+        self.char1.db.spells_known = ["renew spirit"]  # level_required 25 -> cooldown 2
+        self.call(CmdCast(), "renew spirit", caller=self.char1)
+        self.assertEqual(self.char1.db.cooldowns.get("renew spirit"), 2)
 
     def test_recasting_before_cooldown_expires_is_refused(self):
-        self.char1.db.spells_known = ["vigor"]
-        self.call(CmdCast(), "vigor", caller=self.char1)
+        self.char1.db.spells_known = ["renew spirit"]
+        self.call(CmdCast(), "renew spirit", caller=self.char1)
         self.char1.db.mp = 20  # refill so MP itself isn't the blocker
-        result = self.call(CmdCast(), "vigor", caller=self.char1)
+        result = self.call(CmdCast(), "renew spirit", caller=self.char1)
         self.assertIn("recovering", result)
 
     def test_cooldown_ticks_down_and_clears(self):
-        self.char1.db.spells_known = ["vigor"]
-        self.call(CmdCast(), "vigor", caller=self.char1)
-        self.assertEqual(self.char1.db.cooldowns.get("vigor"), 2)
+        self.char1.db.spells_known = ["renew spirit"]
+        self.call(CmdCast(), "renew spirit", caller=self.char1)
+        self.assertEqual(self.char1.db.cooldowns.get("renew spirit"), 2)
         COMBAT_RULES.tick_cooldowns(self.char1)
-        self.assertEqual(self.char1.db.cooldowns.get("vigor"), 1)
+        self.assertEqual(self.char1.db.cooldowns.get("renew spirit"), 1)
         COMBAT_RULES.tick_cooldowns(self.char1)
-        self.assertNotIn("vigor", self.char1.db.cooldowns)
+        self.assertNotIn("renew spirit", self.char1.db.cooldowns)
 
     def test_skill_cooldown_enforced_the_same_way(self):
         self.char1.db.skills_known = ["shield wall"]  # level_required 25
