@@ -386,6 +386,14 @@ CONDITION_RESIST_BASE = 10  # percent, at equal Ingenium
 CONDITION_RESIST_STAT_MULTIPLIER = 2  # percent per point of the target's Ingenium advantage
 CONDITION_RESIST_MIN = 5
 CONDITION_RESIST_MAX = 75
+# Level counts too (Sep 26, owner request): before this a level-30 Augur
+# could sleep a level-90 monster at Ingenium-only odds. Each level the
+# target has over the caster adds this many percentage points of resist
+# (and each level the caster has over the target takes as many away), still
+# bounded by MIN/MAX - a big enough gap (about 45 levels) makes a hex very
+# unlikely to land from below, or very likely to land from above, never
+# certain either way.
+CONDITION_RESIST_LEVEL_MULTIPLIER = 1.5  # percent per level of the target's level advantage
 
 # Weapon categories long/far enough to strike into the back row
 # directly, bypassing row protection - see CombatRules.has_reach.
@@ -1044,6 +1052,8 @@ class CombatRules:
         chance = CONDITION_RESIST_BASE + (target_ingenium - caster_ingenium) * (
             CONDITION_RESIST_STAT_MULTIPLIER
         )
+        level_gap = (target.db.level or 1) - (caster.db.level or 1)
+        chance += level_gap * CONDITION_RESIST_LEVEL_MULTIPLIER
         chance = max(CONDITION_RESIST_MIN, min(CONDITION_RESIST_MAX, chance))
         return randint(1, 100) <= chance
 
@@ -1259,9 +1269,10 @@ class CombatRules:
 
         return defense_value
 
-    def get_damage(self, attacker, defender):
+    def get_damage(self, attacker, defender, ignore_armor=False):
         """
-        Damage roll for a basic weapon/unarmed attack. Factors in:
+        Damage roll for a basic weapon/unarmed attack. `ignore_armor`
+        skips the defender's worn armor entirely (Piercing Shot). Factors in:
             - Wielded weapon's damage range, or unarmed damage range
             - Worn armor's damage reduction (on the defender)
             - Damage Up / Damage Down conditions
@@ -1300,7 +1311,7 @@ class CombatRules:
             from world.religion import religion_bonus
             damage_value += religion_bonus(attacker, "mars", "melee_damage_bonus")
 
-        if defender.db.worn_armor:
+        if defender.db.worn_armor and not ignore_armor:
             reduction = defender.db.worn_armor.db.damage_reduction
             if not self.is_armor_proficient(defender, defender.db.worn_armor):
                 reduction = int(reduction * NONPROFICIENT_ARMOR_REDUCTION_MULTIPLIER)
@@ -3942,7 +3953,12 @@ class CombatRules:
         if "Ambush" in self.get_conditions(user):
             del self.get_conditions(user)["Ambush"]
 
-        self.apply_damage(target, bonus_damage + agilitas_bonus, attacker=user, melee=True)
+        multiplier = kwargs.get("weapon_multiplier")
+        if multiplier and getattr(user, "account", None):
+            damage = max(0, int(round(self.get_damage(user, target) * multiplier)))
+        else:
+            damage = bonus_damage + agilitas_bonus
+        self.apply_damage(target, damage, attacker=user, melee=True)
         user.db.sp -= cost
         user.location.msg_contents(
             "%s finds an opening and strikes %s from the shadows!" % (user, target)
@@ -3996,6 +4012,28 @@ class CombatRules:
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
 
+    def _skill_damage(self, user, target, kwargs, default_range, stat, ignore_armor=False):
+        """
+        Damage roll for a physical damage skill.
+
+        A real player's skill hits for their own normal weapon strike times
+        the skill's `weapon_multiplier` (Sep 26 rework): a flat authored
+        range fell below a plain attack from about level 20 on, so no
+        damage skill was worth its SP later on. Based on the weapon hit,
+        it scales with level AND gear, and can never fall behind a basic
+        attack (every multiplier is 1 or more per target). Anything
+        without a weapon_multiplier, and every NPC (no .account - their
+        skills keep the authored flat range so this doesn't silently
+        rebalance every monster), uses the old roll: the authored
+        `damage_range` plus half the relevant stat's bonus.
+        """
+        multiplier = kwargs.get("weapon_multiplier")
+        if multiplier and getattr(user, "account", None):
+            base = self.get_damage(user, target, ignore_armor=ignore_armor)
+            return max(0, int(round(base * multiplier)))
+        low, high = kwargs.get("damage_range", default_range)
+        return randint(low, high) + ((getattr(user.db, stat) or 10) - 10) // 2
+
     def skill_attack(self, user, skill_name, targets, cost, **kwargs):
         """
         Generic SP-costing direct damage skill - the skill-system
@@ -4031,7 +4069,7 @@ class CombatRules:
             if attack_value < defense_value:
                 skill_msg += " %s misses %s!" % (skill_name, target)
                 continue
-            damage = randint(min_damage, max_damage) + agilitas_bonus
+            damage = self._skill_damage(user, target, kwargs, (min_damage, max_damage), "agilitas")
             # announce_threshold=False - skill_msg below already shows
             # this target's post-hit wound phrase inline.
             self.apply_damage(
@@ -4066,9 +4104,9 @@ class CombatRules:
         that's the entire point of the skill.
         """
         target = targets[0]
-        min_damage, max_damage = kwargs.get("damage_range", (20, 30))
-        agilitas_bonus = ((user.db.agilitas or 10) - 10) // 2
-        damage = randint(min_damage, max_damage) + agilitas_bonus
+        damage = self._skill_damage(
+            user, target, kwargs, (20, 30), "agilitas", ignore_armor=True
+        )
 
         self.apply_damage(target, damage, attacker=user)
         user.db.sp -= cost
@@ -4214,8 +4252,7 @@ class CombatRules:
             )
             return
 
-        agilitas_bonus = ((user.db.agilitas or 10) - 10) // 2
-        damage = randint(min_damage, max_damage) + agilitas_bonus
+        damage = self._skill_damage(user, target, kwargs, (min_damage, max_damage), "agilitas")
         self.apply_damage(target, damage, attacker=user, melee=True)
 
         user.db.sp -= cost
@@ -4245,9 +4282,7 @@ class CombatRules:
             return
 
         target = targets[0]
-        min_damage, max_damage = kwargs.get("damage_range", (30, 45))
-        virtus_bonus = ((user.db.virtus or 10) - 10) // 2
-        damage = randint(min_damage, max_damage) + virtus_bonus
+        damage = self._skill_damage(user, target, kwargs, (30, 45), "virtus")
         self.apply_damage(target, damage, attacker=user, melee=True)
 
         user.db.sp -= cost
@@ -4269,9 +4304,7 @@ class CombatRules:
         genuine risk/reward tradeoff, not just a bigger number.
         """
         target = targets[0]
-        min_damage, max_damage = kwargs.get("damage_range", (35, 55))
-        virtus_bonus = ((user.db.virtus or 10) - 10) // 2
-        damage = randint(min_damage, max_damage) + virtus_bonus
+        damage = self._skill_damage(user, target, kwargs, (35, 55), "virtus")
         self.apply_damage(target, damage, attacker=user, melee=True)
 
         user.db.sp -= cost
@@ -5423,6 +5456,7 @@ SKILLS = {
         "cost": 6,
         "level_required": 15,
         "bonus_damage": 20,
+        "weapon_multiplier": 2.0,
         "noncombat_spell": False,
         "classes": ["speculator"],
         "desc": "Bonus damage against a target who hasn't yet acted in the fight. Requires being already in combat - does not stack with Ambush.",
@@ -5521,6 +5555,7 @@ SKILLS = {
         "cost": 6,
         "level_required": 20,
         "damage_range": (20, 30),
+        "weapon_multiplier": 1.3,
         "classes": ["venator"],
         "desc": "An armor-ignoring ranged strike - the target's armor provides no protection against this hit.",
     },
@@ -5531,6 +5566,7 @@ SKILLS = {
         "level_required": 30,
         "max_targets": 3,
         "damage_range": (14, 22),
+        "weapon_multiplier": 1.0,
         "classes": ["venator"],
         "desc": "A quick volley of shots, striking up to three targets at once.",
     },
@@ -5566,6 +5602,7 @@ SKILLS = {
         "level_required": 90,
         "max_targets": 5,
         "damage_range": (28, 40),
+        "weapon_multiplier": 1.4,
         "classes": ["venator"],
         "desc": "Mythic tier. A hunt Artemis herself would envy - a devastating volley striking up to five targets at once.",
     },
@@ -5621,6 +5658,7 @@ SKILLS = {
         "level_required": 30,
         "threshold_percent": 0.2,
         "damage_range": (30, 45),
+        "weapon_multiplier": 2.0,
         "classes": ["gladiator"],
         "desc": "A cinematic execute - only works against a target already below 20% HP, but hits hard when it does.",
     },
@@ -5646,6 +5684,7 @@ SKILLS = {
         "cost": 8,
         "level_required": 50,
         "damage_range": (25, 38),
+        "weapon_multiplier": 1.6,
         "classes": ["gladiator"],
         "desc": "A heavy, direct strike aimed to end a fight quickly.",
     },
@@ -5664,6 +5703,7 @@ SKILLS = {
         "cost": 12,
         "level_required": 90,
         "damage_range": (45, 65),
+        "weapon_multiplier": 2.5,
         "classes": ["gladiator"],
         "desc": "Mythic tier. A strike worthy of a legend retold for generations - a massive damage finisher.",
     },
@@ -5690,6 +5730,7 @@ SKILLS = {
         "cost": 5,
         "level_required": 5,
         "damage_range": (15, 25),
+        "weapon_multiplier": 1.3,
         "classes": ["legionary"],
         "desc": "A heavy shield strike, driving a target back.",
     },
@@ -5709,6 +5750,7 @@ SKILLS = {
         "level_required": 15,
         "max_targets": 3,
         "damage_range": (14, 22),
+        "weapon_multiplier": 1.0,
         "classes": ["legionary"],
         "desc": "A close-range cleave, striking up to three enemies in front of you at once.",
     },
@@ -5756,6 +5798,7 @@ SKILLS = {
         "cost": 9,
         "level_required": 75,
         "damage_range": (28, 40),
+        "weapon_multiplier": 1.7,
         "classes": ["legionary"],
         "desc": "A heavy strike aimed to break through even the sturdiest guard.",
     },
@@ -5784,6 +5827,7 @@ SKILLS = {
         "cost": 5,
         "level_required": 5,
         "damage_range": (18, 28),
+        "weapon_multiplier": 1.4,
         "classes": ["barbarian"],
         "desc": "A wild, heavy swing with little regard for form.",
     },
@@ -5803,6 +5847,7 @@ SKILLS = {
         "cost": 8,
         "level_required": 20,
         "damage_range": (30, 45),
+        "weapon_multiplier": 1.5,
         "classes": ["barbarian"],
         "desc": "A heavy two-handed strike. Requires an actual two-handed weapon in hand - won't work with anything else.",
     },
@@ -5830,6 +5875,7 @@ SKILLS = {
         "cost": 9,
         "level_required": 50,
         "damage_range": (35, 55),
+        "weapon_multiplier": 2.0,
         "classes": ["barbarian"],
         "desc": "A huge damage strike that leaves the user's own defense down afterward - real risk for real reward.",
     },
@@ -5849,6 +5895,7 @@ SKILLS = {
         "level_required": 80,
         "max_targets": 3,
         "damage_range": (25, 38),
+        "weapon_multiplier": 1.2,
         "classes": ["barbarian"],
         "desc": "A ground-shaking slam striking up to three enemies at once.",
     },
@@ -5859,6 +5906,7 @@ SKILLS = {
         "level_required": 90,
         "max_targets": 5,
         "damage_range": (32, 48),
+        "weapon_multiplier": 1.5,
         "classes": ["barbarian"],
         "desc": "Mythic tier. A storm of axe and fury the legions still tell campfire stories about - a massive multi-hit rage attack striking up to five enemies at once.",
     },
@@ -5941,6 +5989,7 @@ SKILLS = {
         "cost": 6,
         "level_required": 10,
         "damage_range": (18, 28),
+        "weapon_multiplier": 1.3,
         "classes": ["faction"],
         "factions": ["hellenic_resistance"],
         "desc": "One hard guerrilla strike.",
@@ -12349,6 +12398,13 @@ class CmdSkillInfo(Command):
         level_required = data.get("level_required", 1)
         usage = _usage_line("skill", skill, data["target"])
         usable_when = _combat_usability_line(data)
+        multiplier = data.get("weapon_multiplier")
+        damage_line = ""
+        if multiplier:
+            damage_line = "  Damage: about %s a normal hit from your weapon%s\n" % (
+                "%g times" % multiplier if multiplier != 1 else "the same as",
+                " (each target)" if data.get("max_targets", 1) > 1 else "",
+            )
 
         caller.msg(
             "|w%s|n\n"
@@ -12356,8 +12412,10 @@ class CmdSkillInfo(Command):
             "  Classes: %s\n"
             "  Requires level: %d\n"
             "  Usable: %s\n"
+            "%s"
             "  Usage: %s\n"
-            "  %s" % (skill.title(), data["cost"], class_str, level_required, usable_when, usage, desc)
+            "  %s" % (skill.title(), data["cost"], class_str, level_required, usable_when,
+                      damage_line, usage, desc)
         )
 
 
