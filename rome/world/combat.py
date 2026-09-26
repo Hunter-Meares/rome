@@ -270,6 +270,21 @@ REGEN_RATE = (4, 8)
 # Raised from (4, 8) as one half of the fix - see apply_turn_
 # conditions for the other half (a real stat bonus at tick time).
 POISON_RATE = (6, 12)
+# Poison scales with the poisoner's level (real players only, Sep 26): a flat
+# 6-12 a turn was a fraction of a weapon hit by level 60. A tick is never
+# below the old roll, but grows with the weapon curve: about POISON_WEAPON_SHARE
+# of an average weapon hit at the poisoner's level, so a full poison (4-5 ticks)
+# is worth roughly a hit and a half.
+POISON_WEAPON_SHARE = 0.35
+# Hostile stat-debuffs and poison last longer as their caster levels: one extra
+# turn per DEBUFF_LEVELS_PER_TURN levels, up to DEBUFF_MAX_LEVEL_TURNS. Turn-
+# skipping controls (fear, paralysis, slow, silence...) are deliberately left
+# out - a longer stun-type effect is a far bigger deal than a longer stat drop.
+DEBUFF_LEVELS_PER_TURN = 20
+DEBUFF_MAX_LEVEL_TURNS = 5
+LEVEL_SCALED_DEBUFFS = frozenset({
+    "Accuracy Down", "Damage Down", "Defense Down", "Cursed", "Poisoned",
+})
 ACC_UP_MOD = 25
 ACC_DOWN_MOD = -25
 DMG_UP_MOD = 5
@@ -289,12 +304,12 @@ HARMFUL_CONDITIONS = frozenset({
     "Poisoned", "Cursed", "Frightened", "Marked for Death", "Silenced",
     "Paralyzed", "Accuracy Down", "Damage Down", "Defense Down",
     "Sanctuary Broken", "Asleep", "Slowed", "Confused",
-    "Bleeding", "Stunned", "Blinded", "Disarmed", "Grappled",
+    "Bleeding", "Stunned", "Blinded", "Disarmed", "Grappled", "Goaded",
 })
 BENEFICIAL_CONDITIONS = frozenset({
     "Regeneration", "Haste", "Accuracy Up", "Damage Up", "Defense Up",
     "Death Ward", "Invisible", "Illusory Duplicate", "Shielded",
-    "Ambush", "Riposte Ready", "Sees Invisible",
+    "Ambush", "Riposte Ready", "Sees Invisible", "Raging", "Sentinel",
 })
 
 # ----------------------------------------------------------------------------
@@ -351,6 +366,12 @@ ACCURACY_STAT_MULTIPLIER = 7
 # Veil of Night and Illusory Duplicate spells.
 INVISIBLE_ACCURACY_PENALTY = -40
 ILLUSION_ACCURACY_PENALTY = -30
+# Goaded (Legionary's Goad): a goaded fighter who attacks anyone but the one
+# who goaded them suffers this accuracy penalty (D&D's Compelled Duel); a goaded
+# monster simply can't choose another target.
+GOAD_OFFTARGET_PENALTY = -30
+# Raging (Barbarian's Ferocity): fraction of physical (weapon) damage shrugged off.
+RAGE_MELEE_RESISTANCE = 0.35
 
 # Sanctuary (Medicus mythic-tier spell). A higher-level attacker has
 # this percent chance to break through and drag a Sanctuary'd
@@ -409,12 +430,15 @@ CONDITION_RESIST_STAT = {
     "Slowed": "vigor",
     "Paralyzed": "vigor",
     "Defense Down": "vigor",
-    # The martial effects (world/martial.py) all attack the body.
+    # The martial effects (world/martial.py): a wound and a knockout blow are
+    # shrugged off with toughness (Vigor); a kick of dirt, a grab and a disarm
+    # have to actually catch you, so you get away from them with reflexes
+    # (Agilitas) - owner reasoning, Sep 26.
     "Bleeding": "vigor",
     "Stunned": "vigor",
-    "Blinded": "vigor",
-    "Disarmed": "vigor",
-    "Grappled": "vigor",
+    "Blinded": "agilitas",
+    "Disarmed": "agilitas",
+    "Grappled": "agilitas",
 }
 
 # Weapon categories long/far enough to strike into the back row
@@ -878,6 +902,22 @@ COMBAT RULES - MERGED
 """
 
 
+def debuff_level_bonus(caster):
+    """Extra turns a real player's stat-debuff/poison lasts at their level."""
+    if not getattr(caster, "account", None):
+        return 0
+    level = min(caster.db.level or 1, MAX_LEVEL)
+    return min(DEBUFF_MAX_LEVEL_TURNS, level // DEBUFF_LEVELS_PER_TURN)
+
+
+def poison_floor_for(poisoner):
+    """Minimum poison tick from a real player's poison at their level (0 for anyone else)."""
+    if poisoner is None or not getattr(poisoner, "account", None):
+        return 0
+    level = min(poisoner.db.level or 1, MAX_LEVEL)
+    return round(weapon_base_average(level) * POISON_WEAPON_SHARE)
+
+
 class CombatRules:
     """
     Stores all combat rules and helper methods. Combines equipment
@@ -1258,6 +1298,9 @@ class CombatRules:
             attack_value += ACC_DOWN_MOD
         if "Blinded" in self.get_conditions(attacker):
             attack_value += martial.BLINDED_ACCURACY_MOD
+        goad = self.get_conditions(attacker).get("Goaded")
+        if goad and defender is not goad[1]:
+            attack_value += GOAD_OFFTARGET_PENALTY
 
         # Defender-side conditions - unlike the two above (which are
         # about the attacker's own state), these belong to the
@@ -1440,6 +1483,9 @@ class CombatRules:
         # to match, so a basic attack isn't multiplied twice.
         if damage > 0 and "Cursed" in self.get_conditions(defender):
             damage = int(damage * CURSED_DAMAGE_MULTIPLIER)
+        # A Raging barbarian shrugs off a share of every physical blow.
+        if melee and damage > 0 and "Raging" in self.get_conditions(defender):
+            damage = int(damage * (1 - RAGE_MELEE_RESISTANCE))
 
         old_hp = defender.db.hp or 0
 
@@ -2214,6 +2260,33 @@ class CombatRules:
 
         return True
 
+    def _sentinel_reactions(self, attacker, defender):
+        """
+        D&D's Sentinel: while a Legionary's Sentinel stance is up, an enemy who
+        attacks one of their allies (not the Sentinel themself) takes a free
+        strike from them - once per turn each. Free: it costs no action.
+        Triggered by basic attacks and physical skills, not spells.
+        """
+        handler = attacker.db.combat_turnhandler
+        if not handler or not handler.pk:
+            return
+        for guard in list(handler.db.fighters or []):
+            if guard is None or not guard.pk or guard is defender or guard is attacker:
+                continue
+            if (guard.db.hp or 0) <= 0 or "Sentinel" not in (guard.db.conditions or {}):
+                continue
+            if guard.db.combat_sentinel_used or martial.is_incapacitated(guard):
+                continue
+            if not self.is_ally(guard, defender) or self.is_ally(guard, attacker):
+                continue
+            guard.db.combat_sentinel_used = True
+            attacker.location.msg_contents(
+                "|y%s stays alert - as %s goes after %s, they strike!|n" % (guard, attacker, defender)
+            )
+            self.resolve_attack(guard, attacker, reaction=True)
+            if (attacker.db.hp or 0) <= 0:
+                return
+
     def resolve_attack(
         self,
         attacker,
@@ -2224,6 +2297,7 @@ class CombatRules:
         inflict_condition=None,
         bonus_attack_count=0,
         allow_crit=None,
+        reaction=False,
     ):
         """
         Resolves an attack (from the 'attack' command, item use, or a
@@ -2253,6 +2327,13 @@ class CombatRules:
 
         # Striking anyone ends the attacker's invisibility outright.
         reveal_on_offense(attacker)
+
+        # A Sentinel guarding the defender answers the attack with a free strike
+        # (never a chain: a reaction attack triggers no further reactions).
+        if not reaction:
+            self._sentinel_reactions(attacker, defender)
+            if (attacker.db.hp or 0) <= 0:
+                return
 
         # Tracks who this attacker most recently went after. Used by
         # summoned allies (Augur's familiar, Haruspex's Lemures,
@@ -2788,6 +2869,7 @@ class CombatRules:
             # which apply_damage's own attacker param exists for.
             poisoner = self.get_conditions(character)["Poisoned"][1]
             to_hurt = randint(POISON_RATE[0], POISON_RATE[1])
+            to_hurt = max(to_hurt, poison_floor_for(poisoner))
             # Real, confirmed live balance gap: this used to be a flat
             # roll with no stat scaling at all, no matter how the
             # poisoner was built - a Haruspex's Ingenium investment did
@@ -2812,6 +2894,9 @@ class CombatRules:
                 )
             if character.db.hp <= 0:
                 self.at_defeat(character, attacker=poisoner)
+
+        if self.is_in_combat(character):
+            character.db.combat_sentinel_used = False  # a Sentinel may react once per turn
 
         # Bleeding (world/martial.py): a wound that costs HP every turn until
         # it runs out or the target is healed.
@@ -3477,10 +3562,12 @@ class CombatRules:
                         "%s resists the effect!" % target
                     )
                     continue
+            hostile = target != caster and not self.is_ally(caster, target)
             for condition in conditions:
-                self.add_condition(
-                    target, caster, condition[0], condition[1] + duration_bonus
-                )
+                extra = duration_bonus
+                if hostile and condition[0] in LEVEL_SCALED_DEBUFFS:
+                    extra += debuff_level_bonus(caster)
+                self.add_condition(target, caster, condition[0], condition[1] + extra)
 
         if self.is_in_combat(caster):
             self.spend_action(caster, 1, action_name="cast")
@@ -3913,8 +4000,12 @@ class CombatRules:
                 if self.resists_condition(user, target, condition=conditions[0][0]):
                     user.location.msg_contents("%s resists the effect!" % target)
                     continue
+            hostile = target != user and not self.is_ally(user, target)
             for condition in conditions:
-                self.add_condition(target, user, condition[0], condition[1] + duration_bonus)
+                extra = duration_bonus
+                if hostile and condition[0] in LEVEL_SCALED_DEBUFFS:
+                    extra += debuff_level_bonus(user)
+                self.add_condition(target, user, condition[0], condition[1] + extra)
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -4152,6 +4243,9 @@ class CombatRules:
                     user, target,
                 )
                 continue
+            self._sentinel_reactions(user, target)
+            if (user.db.hp or 0) <= 0:
+                break
             attack_value = randint(1, 100) + accuracy + agilitas_accuracy
             if "Blinded" in self.get_conditions(user):
                 attack_value += martial.BLINDED_ACCURACY_MOD
@@ -5435,7 +5529,7 @@ SPELLS = {
         "level_required": 65,
         "desc": "A lance of holy light - Medicus's mid-tier offensive spell.",
         "target": "otherchar",
-        "cost": 6,
+        "cost": 10,  # was 6: the cheapest spell of its tier by a wide margin (Doom is 7 at level 45)
         "noncombat_spell": False,
         "attack_name": ("A lance of holy light", "lances of holy light"),
         "damage_range": (20, 30),
@@ -5552,7 +5646,27 @@ SKILLS = {
         "conditions": [("Blinded", 3)],
         "npc_cast": False,
         "classes": ["gladiator"],
-        "desc": "An arena dirty trick - a kick of sand into the eyes. The target is Blinded for a few turns: a big drop to their accuracy, twice that of an ordinary Accuracy Down. Resisted with Vigor.",
+        "desc": "An arena dirty trick - a kick of sand into the eyes. The target is Blinded for a few turns: a big drop to their accuracy, twice that of an ordinary Accuracy Down. Dodged with Agilitas.",
+    },
+    "goad": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "otherchar",
+        "cost": 5,
+        "level_required": 20,
+        "conditions": [("Goaded", 3)],
+        "npc_cast": False,
+        "classes": ["legionary"],
+        "desc": "Taunts an enemy into fixating on you (D&D's Compelled Duel). For a few turns a monster can attack no one but you - unless you're out of its reach in the back row - and a player who strikes anyone else suffers a big accuracy penalty. The tank's way of protecting the party. A target with strong Ingenium can resist.",
+    },
+    "sentinel": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "self",
+        "cost": 8,
+        "level_required": 45,
+        "conditions": [("Sentinel", 4)],
+        "npc_cast": False,
+        "classes": ["legionary"],
+        "desc": "A guardian's stance (D&D's Sentinel): for a few turns, any enemy who attacks one of your allies takes a free strike from you, once per turn, at no cost to your action. Works against basic attacks and physical skills, not spells.",
     },
     "sneak": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -6005,9 +6119,9 @@ SKILLS = {
         "target": "self",
         "cost": 8,
         "level_required": 40,
-        "conditions": [("Damage Up", 4)],
+        "conditions": [("Damage Up", 4), ("Raging", 4)],
         "classes": ["barbarian"],
-        "desc": "A stronger, purer rage than Rage of the North - a bigger damage boost, without the defense cost.",
+        "desc": "A stronger, purer rage than Rage of the North - a bigger damage boost, without the defense cost, and the D&D barbarian's hard hide: while it lasts you shrug off over a third of every physical blow (the way Rage of the North does not).",
     },
     "reckless abandon": {
         "skillfunc": COMBAT_RULES.skill_reckless_abandon,
@@ -7008,6 +7122,11 @@ class HostileNPC(AutoStatNPC):
         # CombatRules.is_row_protected for the full reasoning.
         front_row = [f for f in possible_targets if (f.db.combat_row or "front") == "front"]
         opponent = (front_row or possible_targets)[0]
+        # Goaded (Legionary's Goad): a monster fixates on whoever goaded it,
+        # unless they're out of reach in the back row.
+        goad = (self.db.conditions or {}).get("Goaded")
+        if goad and goad[1] in possible_targets and not COMBAT_RULES.is_row_protected(goad[1], attacker=self):
+            opponent = goad[1]
 
         actions = self._gather_actions()
         kind, name, target_is_self = actions[randint(0, len(actions) - 1)]

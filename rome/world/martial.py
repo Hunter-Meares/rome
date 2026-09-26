@@ -11,7 +11,7 @@ CRITICAL HITS (owner request, Sep 26): a landed melee weapon strike can be a
 critical hit and deal extra damage. The chance and multiplier follow the
 weapon, D&D 3.5-style "threat range x multiplier" - light blades crit often for
 double, axes and polearms rarely for triple - and Agilitas nudges the chance up.
-Melee only (a bow doesn't crit), REAL PLAYERS only (monsters don't, so no
+Melee and ranged weapons (bows and javelins crit too - added at the owner's request after the first pass was melee only), REAL PLAYERS only (monsters don't, so no
 creature quietly gets deadlier), and a disarmed fighter fights unarmed.
 Basic attacks, power attacks and every weapon-based skill can crit.
 
@@ -46,6 +46,7 @@ from django.conf import settings
 # weapon_category -> (base crit chance in percent, damage multiplier)
 CRIT_PROFILES = {
     "light_blade": (10, 2.0),   # daggers, gladii: quick and keen
+    "ranged": (8, 2.0),         # bows and javelins: a well-placed shot
     "heavy_blade": (8, 2.0),    # swords and greatswords
     "polearm": (5, 3.0),        # spears and tridents: rare but brutal
     "heavy_weapon": (5, 3.0),   # axes and mauls: rare but brutal

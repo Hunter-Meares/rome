@@ -36,8 +36,11 @@ STAT_HELP = {
         "things: your accuracy in combat, your defense (how hard you are "
         "to hit), your initiative (how likely you are to act early in a "
         "fight), and your damage with ranged weapons and light blades "
-        "specifically (daggers, gladii, bows, javelins). It's the closest "
-        "thing to an all-purpose combat stat in the game.",
+        "specifically (daggers, gladii, bows, javelins). It also decides "
+        "how well you slip out of tricks that have to catch you - dirt "
+        "kicked in your eyes, a grapple, a disarm - and each point of "
+        "Agilitas over 10 nudges your critical-hit chance up. It's the "
+        "closest thing to an all-purpose combat stat in the game.",
     ),
     "ingenium": (
         "Ingenium (Intelligence)",
@@ -201,11 +204,27 @@ NEW_SKILL_HELP = {
         "chain-stunned). The stun ends when the fight does. It also does a "
         "little damage. Won't work on someone who has laid down arms for good."
     ),
+    "goad": (
+        "The Legionary's taunt (D&D's Compelled Duel): the enemy fixates on "
+        "you. For a few turns a |wmonster can attack no one but you|n - unless "
+        "you're standing out of its reach in the back row - and a |wplayer who "
+        "attacks anyone else suffers a big accuracy penalty|n. That's how a "
+        "tank keeps a mob off the healers and casters. A target with strong "
+        "|wIngenium|n can resist it (it's a compulsion, a mind effect)."
+    ),
+    "sentinel": (
+        "The Legionary's guardian stance (D&D's Sentinel). For a few turns, "
+        "|wany enemy who attacks one of your allies takes a free strike from "
+        "you|n - once per turn, and it costs you no action. It doesn't trigger "
+        "when the enemy attacks you yourself, works against basic attacks and "
+        "physical skills (not spells), and a reaction never triggers another "
+        "one. Pair it with 'Goad' and a party of two or three holds a line."
+    ),
     "dirt kick": (
         "The Gladiator's arena dirty trick: a kick of sand into the eyes. The "
         "target is |wBlinded|n for a few turns - a big drop to their accuracy, "
         "twice that of an ordinary Accuracy Down (which is a caster curse; "
-        "Blinded is its own effect). It can be resisted with |wVigor|n. Cheap "
+        "Blinded is its own effect). A target dodges it with |wAgilitas|n. Cheap "
         "and quick, it's for the moment you need the enemy to stop hitting you."
     ),
 }
@@ -1421,14 +1440,15 @@ def create_all_help_entries():
         db_help_category="General",
         db_entrytext=(
             "|wCritical Hits|n\n\n"
-            "A landed strike with a |wmelee weapon|n - or your fists - can be a "
+            "A landed strike with a |wweapon|n - or your fists - can be a "
             "critical hit, doing extra damage. It's announced in the room.\n\n"
             "The weapon decides how often, and how hard:\n"
             "  light blades (daggers, gladii)   - often, for double damage\n"
             "  swords and greatswords           - fairly often, for double\n"
             "  spears, tridents, axes, mauls    - rarely, for |wtriple|n damage\n"
+            "  bows and javelins                - fairly often, for double\n"
             "  staves and bare fists            - occasionally, for double\n"
-            "Bows and thrown weapons don't crit. A high Agilitas nudges your "
+            "A high Agilitas nudges your "
             "chance up (to a limit). Basic attacks, power attacks and every "
             "weapon-based skill can crit; Glory, the Gladiator's mythic, is "
             "|walways|n a critical hit.\n\n"
@@ -1444,9 +1464,11 @@ def create_all_help_entries():
         db_entrytext=(
             "|wMartial Effects|n\n\n"
             "Some warrior skills do more than damage - a landed hit can leave an "
-            "effect that no spell copies. All of them attack the body, so they're "
-            "resisted with |wVigor|n (see 'help vigor'), and all of them end when "
-            "the fight does (except a bleeding wound, which lingers).\n\n"
+            "effect that no spell copies. |wBleeding|n and |wStunned|n are shrugged "
+            "off with |wVigor|n (toughness); |wBlinded|n, |wGrappled|n and |wDisarmed|n "
+            "have to actually catch you, so you slip them with |wAgilitas|n "
+            "(reflexes). They end when the fight does (except a bleeding wound, "
+            "which lingers).\n\n"
             "  |wBleeding|n  - a wound that costs HP every turn. |wAny healing stops "
             "it|n - a spell, a potion, food. (Unlike poison, which a heal "
             "doesn't touch.)\n"

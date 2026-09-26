@@ -64,11 +64,15 @@ class TestCriticalHits(MartialBase):
         self.char1.db.agilitas = 500
         self.assertEqual(martial.crit_profile(self.char1)[0], martial.CRIT_MAX_CHANCE)
 
-    def test_a_bow_cannot_crit_and_fists_can(self):
+    def test_a_bow_crits_and_so_do_fists(self):
         self.char1.db.wielded_weapon = _weapon(self.char1, 10, 10, category="ranged")
-        self.assertIsNone(martial.crit_profile(self.char1))
+        self.assertEqual(martial.crit_profile(self.char1), (8, 2.0))
         self.char1.db.wielded_weapon = None
         self.assertEqual(martial.crit_profile(self.char1), martial.UNARMED_CRIT)
+
+    def test_something_that_is_not_a_weapon_category_cannot_crit(self):
+        self.char1.db.wielded_weapon = _weapon(self.char1, 10, 10, category="mystery")
+        self.assertIsNone(martial.crit_profile(self.char1))
 
     def test_monsters_never_crit(self):
         from world.combat import HostileNPC
@@ -127,10 +131,17 @@ class TestCriticalHits(MartialBase):
             damage = COMBAT_RULES._skill_damage(self.char1, self.char2, kwargs, (0, 0), "agilitas")
         self.assertEqual(damage, int(100 * 2.0 * 1.6))
 
-    def test_a_ranged_skill_does_not_crit(self):
+    def test_a_ranged_skill_crits_by_chance_too(self):
         self.char1.db.wielded_weapon = _weapon(self.char1, 100, 100, category="ranged")
         self.char1.db.player_class = "venator"
-        self.assertEqual(self._hit("piercing shot"), int(100 * 1.3))
+        self.assertEqual(self._hit("piercing shot"), int(100 * 1.3))  # no crit on a high roll
+        data = dict(SKILLS["piercing shot"])
+        kwargs = {k: v for k, v in data.items() if k in ("weapon_multiplier", "damage_range")}
+        with patch("world.combat.randint", side_effect=lambda lo, hi: lo):
+            damage = COMBAT_RULES._skill_damage(
+                self.char1, self.char2, kwargs, (0, 0), "agilitas", ignore_armor=True
+            )
+        self.assertEqual(damage, int(100 * 2.0 * 1.3))
 
     def test_crits_are_off_under_the_test_runner_by_default(self):
         with patch("world.martial.CRITS_IN_TESTS", False):
@@ -329,11 +340,19 @@ class TestStunned(MartialBase):
         self.assertFalse(landed)
         self.assertNotIn("Stunned", self.char2.db.conditions)
 
-    def test_the_effects_are_all_body_effects_resisted_with_vigor(self):
+    def test_toughness_shrugs_off_a_wound_or_a_knockout_and_reflexes_slip_the_rest(self):
         from world.combat import CONDITION_RESIST_STAT
 
-        for effect in ("Bleeding", "Stunned", "Blinded", "Disarmed", "Grappled"):
+        for effect in ("Bleeding", "Stunned"):
             self.assertEqual(CONDITION_RESIST_STAT[effect], "vigor", effect)
+        for effect in ("Blinded", "Disarmed", "Grappled"):
+            self.assertEqual(CONDITION_RESIST_STAT[effect], "agilitas", effect)
+
+    def test_a_nimble_target_dodges_dirt_but_not_a_knockout(self):
+        self.char2.db.agilitas, self.char2.db.vigor = 18, 10
+        with patch("world.combat.randint", return_value=20):  # 10 + 8*2 = 26% resist
+            self.assertTrue(COMBAT_RULES.resists_condition(self.char1, self.char2, condition="Blinded"))
+            self.assertFalse(COMBAT_RULES.resists_condition(self.char1, self.char2, condition="Stunned"))
 
 
 class TestRidersInGeneral(MartialBase):
@@ -470,7 +489,7 @@ class TestMartialHelp(MartialBase):
     def test_the_new_skills_have_help_with_their_real_stats(self):
         from evennia.help.models import HelpEntry
 
-        for name in ("headbutt", "dirt kick"):
+        for name in ("headbutt", "dirt kick", "goad", "sentinel"):
             text = HelpEntry.objects.get(db_key=name).db_entrytext
             self.assertIn("level %d" % SKILLS[name]["level_required"], text, name)
             self.assertIn("Cost: %s SP" % SKILLS[name]["cost"], text, name)
@@ -492,3 +511,237 @@ class TestMartialHelp(MartialBase):
             self.assertTrue(len(SKILLS[name]["desc"]) > 60, name)
         self.assertIn("bleeding", SKILLS["reckless swing"]["desc"])
         self.assertIn("critical", SKILLS["glory"]["desc"])
+
+
+class TestSmiteAndScalingDebuffs(MartialBase):
+    def test_smite_the_unclean_costs_10_mp_not_the_cheapest_of_its_tier(self):
+        self.assertEqual(SPELLS["smite the unclean"]["cost"], 10)
+        self.assertGreater(SPELLS["smite the unclean"]["cost"], SPELLS["doom"]["cost"])
+
+    def test_the_extra_turns_grow_with_level_and_cap_at_five(self):
+        from world.combat import debuff_level_bonus
+
+        for level, extra in ((1, 0), (19, 0), (20, 1), (60, 3), (99, 4), (100, 5)):
+            self.char1.db.level = level
+            self.assertEqual(debuff_level_bonus(self.char1), extra, level)
+
+    def test_a_monster_gets_no_level_bonus(self):
+        from world.combat import HostileNPC, debuff_level_bonus, poison_floor_for
+
+        npc = create.create_object(HostileNPC, key="a witch", location=self.room1)
+        npc.db.level = 90
+        self.assertEqual(debuff_level_bonus(npc), 0)
+        self.assertEqual(poison_floor_for(npc), 0)
+
+    def test_a_high_level_stat_debuff_lasts_longer(self):
+        self.char1.db.level = 60
+        self.char1.db.ingenium = 10
+        with patch.object(COMBAT_RULES, "resists_condition", return_value=False):
+            COMBAT_RULES.spell_add_condition(
+                self.char1, "grave chill", [self.char2], 4, conditions=[("Accuracy Down", 4)]
+            )
+        self.assertEqual(self.char2.db.conditions["Accuracy Down"][0], 4 + 3)
+
+    def test_a_turn_skipping_control_is_not_lengthened(self):
+        self.char1.db.level = 100
+        with patch.object(COMBAT_RULES, "resists_condition", return_value=False):
+            COMBAT_RULES.spell_add_condition(
+                self.char1, "omen of ruin", [self.char2], 10,
+                conditions=[("Frightened", 2), ("Accuracy Down", 5)],
+            )
+        self.assertEqual(self.char2.db.conditions["Frightened"][0], 2)
+        self.assertEqual(self.char2.db.conditions["Accuracy Down"][0], 5 + 5)
+
+    def test_a_curse_on_an_ally_is_not_lengthened(self):
+        self.char1.db.level = 100
+        self.char1.db.party_leader = self.char1
+        self.char1.db.party_members = [self.char1, self.char2]
+        self.char2.db.party_leader = self.char1
+        COMBAT_RULES.spell_add_condition(
+            self.char1, "rite of the entrails", [self.char2], 5, conditions=[("Cursed", 4)]
+        )
+        self.assertEqual(self.char2.db.conditions["Cursed"][0], 4)
+
+    def test_a_players_poison_hits_harder_at_higher_level(self):
+        from world.combat import poison_floor_for
+
+        self.char1.db.level = 60
+        self.assertEqual(poison_floor_for(self.char1), round(112.5 * 0.35))
+        self.char2.db.conditions = {"Poisoned": [4, self.char1]}
+        before = self.char2.db.hp
+        with patch("world.combat.randint", side_effect=lambda lo, hi: lo):
+            COMBAT_RULES.apply_turn_conditions(self.char2)
+        self.assertEqual(before - self.char2.db.hp, round(112.5 * 0.35))
+
+    def test_a_low_level_poison_is_never_weaker_than_before(self):
+        self.char1.db.level = 1
+        self.char2.db.conditions = {"Poisoned": [4, self.char1]}
+        before = self.char2.db.hp
+        with patch("world.combat.randint", side_effect=lambda lo, hi: hi):
+            COMBAT_RULES.apply_turn_conditions(self.char2)
+        self.assertGreaterEqual(before - self.char2.db.hp, 12)
+
+    def test_a_monsters_poison_is_unchanged(self):
+        from world.combat import HostileNPC
+
+        npc = create.create_object(HostileNPC, key="a viper", location=self.room1)
+        npc.db.level = 90
+        self.char2.db.conditions = {"Poisoned": [4, npc]}
+        before = self.char2.db.hp
+        with patch("world.combat.randint", side_effect=lambda lo, hi: lo):
+            COMBAT_RULES.apply_turn_conditions(self.char2)
+        self.assertLessEqual(before - self.char2.db.hp, 12)
+
+
+class TestGoad(MartialBase):
+    def test_goad_is_a_level_20_legionary_taunt_monsters_never_use(self):
+        data = SKILLS["goad"]
+        self.assertEqual(data["classes"], ["legionary"])
+        self.assertEqual(data["level_required"], 20)
+        self.assertEqual(data["conditions"][0][0], "Goaded")
+        self.assertIs(data["npc_cast"], False)
+
+    def test_a_goaded_player_is_less_accurate_against_anyone_but_the_goader(self):
+        third = create.create_object("typeclasses.characters.Character", key="Third", location=self.room1)
+        third.db.conditions = {}
+        self.char2.db.conditions = {"Goaded": [3, self.char1]}
+        with patch("world.combat.randint", return_value=50):
+            at_goader = COMBAT_RULES.get_attack(self.char2, self.char1)
+            at_other = COMBAT_RULES.get_attack(self.char2, third)
+        self.assertEqual(at_goader - at_other, -martial_penalty())
+
+    def test_goad_lands_through_the_real_skill_and_records_who(self):
+        with patch.object(COMBAT_RULES, "resists_condition", return_value=False):
+            SKILLS["goad"]["skillfunc"](
+                self.char1, "goad", [self.char2], 5, conditions=[("Goaded", 3)]
+            )
+        self.assertEqual(self.char2.db.conditions["Goaded"][1], self.char1)
+
+    def test_a_goaded_monster_can_only_attack_the_goader(self):
+        from world.combat import HostileNPC
+
+        self.char2.location = self.room2  # out of this fight
+        other = create.create_object("typeclasses.characters.Character", key="Ally", location=self.room1)
+        other.db.hp = other.db.max_hp = 100
+        other.db.conditions = {}
+        self.char1.db.party_leader = self.char1
+        self.char1.db.party_members = [self.char1, other]
+        other.db.party_leader = self.char1
+        npc = create.create_object(HostileNPC, key="a raider", location=self.room1)
+        self.room1.scripts.add(CombatTurnHandler)
+        npc.db.conditions = {"Goaded": [3, self.char1]}
+        npc.db.combat_actionsleft = 1
+        with patch.object(COMBAT_RULES, "resolve_attack") as attack, \
+                patch.object(COMBAT_RULES, "spend_action"):
+            for _ in range(12):
+                npc.at_turn_start()
+        targets = {call.args[1] for call in attack.call_args_list}
+        self.assertEqual(targets, {self.char1})
+
+
+def martial_penalty():
+    from world.combat import GOAD_OFFTARGET_PENALTY
+
+    return GOAD_OFFTARGET_PENALTY
+
+
+class TestSentinel(MartialBase):
+    def setUp(self):
+        super().setUp()
+        self.ally = create.create_object("typeclasses.characters.Character", key="Ally", location=self.room1)
+        self.ally.db.hp = self.ally.db.max_hp = 100000
+        self.ally.db.conditions = {}
+        self.char1.db.party_leader = self.char1
+        self.char1.db.party_members = [self.char1, self.ally]
+        self.ally.db.party_leader = self.char1
+        self.room1.scripts.add(CombatTurnHandler)
+        self.char1.db.conditions = {"Sentinel": [4, self.char1]}
+        self.char1.db.combat_sentinel_used = False
+
+    def _foe_hits(self, victim):
+        with patch("world.combat.randint", side_effect=lambda lo, hi: hi):
+            COMBAT_RULES.resolve_attack(self.char2, victim, attack_value=999, defense_value=0)
+
+    def test_an_enemy_who_attacks_an_ally_takes_a_free_strike(self):
+        before = self.char2.db.hp
+        self._foe_hits(self.ally)
+        self.assertEqual(before - self.char2.db.hp, 100)  # the sentinel's weapon hit
+
+    def test_attacking_the_sentinel_themself_triggers_nothing(self):
+        before = self.char2.db.hp
+        self._foe_hits(self.char1)
+        self.assertEqual(before, self.char2.db.hp)
+
+    def test_it_reacts_only_once_per_turn(self):
+        self._foe_hits(self.ally)
+        after_first = self.char2.db.hp
+        self._foe_hits(self.ally)
+        self.assertEqual(self.char2.db.hp, after_first)
+        COMBAT_RULES.apply_turn_conditions(self.char1)  # the sentinel's next turn
+        self.assertFalse(self.char1.db.combat_sentinel_used)
+
+    def test_a_reaction_never_chains(self):
+        self.char2.db.conditions = {"Sentinel": [4, self.char2]}
+        third = create.create_object("typeclasses.characters.Character", key="Third", location=self.room1)
+        self.char1.db.hp = 100000
+        before = self.char1.db.hp
+        self._foe_hits(self.ally)
+        self.assertLess(before - self.char1.db.hp, 100000)  # finishes, no runaway loop
+
+    def test_it_costs_no_action(self):
+        self.char1.db.combat_actionsleft = 1
+        self._foe_hits(self.ally)
+        self.assertEqual(self.char1.db.combat_actionsleft, 1)
+
+    def test_a_physical_skill_against_an_ally_triggers_it_too(self):
+        data = dict(SKILLS["finishing blow"])
+        kwargs = {k: v for k, v in data.items() if k in ("weapon_multiplier", "damage_range")}
+        before = self.char2.db.hp
+        with patch("world.combat.randint", side_effect=lambda lo, hi: hi):
+            data["skillfunc"](self.char2, "finishing blow", [self.ally], 8, **kwargs)
+        self.assertGreaterEqual(before - self.char2.db.hp, 100)
+
+    def test_no_sentinel_stance_means_no_reaction(self):
+        self.char1.db.conditions = {}
+        before = self.char2.db.hp
+        self._foe_hits(self.ally)
+        self.assertEqual(before, self.char2.db.hp)
+
+    def test_sentinel_is_a_level_45_legionary_stance(self):
+        data = SKILLS["sentinel"]
+        self.assertEqual(data["classes"], ["legionary"])
+        self.assertEqual(data["level_required"], 45)
+        self.assertEqual(data["target"], "self")
+        self.assertIs(data["npc_cast"], False)
+
+
+class TestRageResistance(MartialBase):
+    def test_a_raging_fighter_shrugs_off_over_a_third_of_a_blow(self):
+        from world.combat import RAGE_MELEE_RESISTANCE
+
+        self.char2.db.conditions = {"Raging": [4, self.char2]}
+        before = self.char2.db.hp
+        COMBAT_RULES.apply_damage(self.char2, 100, attacker=self.char1, melee=True)
+        self.assertEqual(before - self.char2.db.hp, int(100 * (1 - RAGE_MELEE_RESISTANCE)))
+        self.assertGreater(RAGE_MELEE_RESISTANCE, 0.33)
+
+    def test_it_does_not_soften_a_spell(self):
+        self.char2.db.conditions = {"Raging": [4, self.char2]}
+        before = self.char2.db.hp
+        COMBAT_RULES.apply_damage(self.char2, 100, attacker=self.char1, melee=False)
+        self.assertEqual(before - self.char2.db.hp, 100)
+
+    def test_ferocity_is_the_upgrade_and_rage_of_the_north_is_unchanged(self):
+        ferocity = dict(SKILLS["ferocity"]["conditions"])
+        self.assertIn("Raging", ferocity)
+        self.assertIn("Damage Up", ferocity)
+        self.assertNotIn("Defense Down", ferocity)
+        rage = dict(SKILLS["rage of the north"]["conditions"])
+        self.assertNotIn("Raging", rage)
+        self.assertIn("Defense Down", rage)
+
+    def test_ferocity_grants_it_through_the_real_skill(self):
+        SKILLS["ferocity"]["skillfunc"](
+            self.char1, "ferocity", [self.char1], 8, conditions=SKILLS["ferocity"]["conditions"]
+        )
+        self.assertIn("Raging", self.char1.db.conditions)

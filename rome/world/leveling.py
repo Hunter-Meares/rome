@@ -51,7 +51,7 @@ CORE_STATS = ("virtus", "agilitas", "ingenium", "vigor")
 # explanations live in the stat help topics, world/help_setup.py's STAT_HELP).
 STAT_BLURBS = {
     "virtus": "melee and heavy-weapon damage",
-    "agilitas": "accuracy, dodge, initiative, light/ranged damage",
+    "agilitas": "accuracy, dodge, initiative, light/ranged damage, slipping blind/grapple/disarm, crits",
     "ingenium": "spell power, Max MP, resists mind effects (sleep, fear, confusion)",
     "vigor": "Max HP, damage reduction, resists body effects (poison, slow, paralysis)",
 }
