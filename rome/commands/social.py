@@ -64,6 +64,25 @@ _RANK_COLORS = [
 ]
 
 
+def _who_title_cell(character, width):
+    """A who-table title cell. An EARNED title is bold gold; a free-text
+    custom title is cyan (world/titles.py's format_* helpers, shared with
+    look and stats) - so they can't be mistaken for one another. They were
+    both plain gold before, which made an earned title indistinguishable
+    from the same words typed in."""
+    from world.titles import format_custom_title, format_earned_title
+
+    if not character:
+        return "-"
+    earned = character.db.active_earned_title
+    if earned:
+        return format_earned_title(utils.crop(earned, width=width))
+    custom = character.db.custom_title
+    if custom:
+        return format_custom_title(utils.crop(custom, width=width))
+    return "-"
+
+
 def _rank_color_code(level):
     """The color code for a given level's tier, per _RANK_COLORS above."""
     lvl = level if isinstance(level, int) else 1
@@ -172,7 +191,6 @@ class CmdWho(DefaultCmdWho):
                     continue
                 location = puppet.location.key if puppet and puppet.location else "None"
 
-                title = (puppet.db.active_earned_title or puppet.db.custom_title) if puppet else ""
                 race = _short_flavor_name(puppet.db.race_display if puppet else None)
                 pclass = _short_flavor_name(puppet.db.class_display if puppet else None)
                 level = (puppet.db.level if puppet else None) or 1
@@ -182,7 +200,7 @@ class CmdWho(DefaultCmdWho):
                     utils.time_format(delta_conn, 0),
                     utils.time_format(delta_cmd, 1),
                     puppet.key if puppet else "None",
-                    "|Y%s|n" % utils.crop(title, width=_WHO_TITLE_WIDTH) if title else "-",
+                    _who_title_cell(puppet, _WHO_TITLE_WIDTH),
                     utils.crop(race, width=_WHO_RACE_WIDTH),
                     utils.crop(pclass, width=_WHO_CLASS_WIDTH),
                     _colored_level(level),
@@ -222,7 +240,6 @@ class CmdWho(DefaultCmdWho):
                     continue
                 location = puppet.location.key if puppet and puppet.location else "None"
 
-                title = (puppet.db.active_earned_title or puppet.db.custom_title) if puppet else ""
                 race = _short_flavor_name(puppet.db.race_display if puppet else None)
                 pclass = _short_flavor_name(puppet.db.class_display if puppet else None)
                 level = (puppet.db.level if puppet else None) or 1
@@ -230,7 +247,7 @@ class CmdWho(DefaultCmdWho):
                 table.add_row(
                     utils.crop(sess_account.get_display_name(sess_account), width=10),
                     utils.crop(puppet.key if puppet else "None", width=10),
-                    "|Y%s|n" % utils.crop(title, width=_WHO_TITLE_WIDTH) if title else "-",
+                    _who_title_cell(puppet, _WHO_TITLE_WIDTH),
                     utils.crop(race, width=_WHO_RACE_WIDTH),
                     utils.crop(pclass, width=_WHO_CLASS_WIDTH),
                     _colored_rank(level),
@@ -260,21 +277,19 @@ class CmdWho(DefaultCmdWho):
 
             if char:
                 name = char.key
-                title = char.db.active_earned_title or char.db.custom_title or ""
                 race = _short_flavor_name(char.db.race_display)
                 pclass = _short_flavor_name(char.db.class_display)
                 level = char.db.level or 1
             else:
                 # Account is online but not currently puppeting a character
                 name = session.account.key
-                title = ""
                 race = "-"
                 pclass = "-"
                 level = "-"
 
             table.add_row(
                 name,
-                "|Y%s|n" % utils.crop(title, width=_WHO_TITLE_WIDTH_WIDE) if title else "-",
+                _who_title_cell(char, _WHO_TITLE_WIDTH_WIDE),
                 utils.crop(race, width=_WHO_RACE_WIDTH),
                 utils.crop(pclass, width=_WHO_CLASS_WIDTH),
                 _colored_rank(level) if level != "-" else "-",
@@ -407,8 +422,10 @@ class CmdTitle(Command):
       title <text>     - set a new title
       title clear      - remove your title
 
-    Your title appears next to your name on the who list, e.g.
-    "Marcus - the Undefeated". Keep it short (40 characters or less).
+    Your title appears next to your name on the who list, in cyan.
+    Keep it short (60 characters or less). Titles you EARN in play -
+    for a quest, an achievement, a god's favor - are separate: they show
+    in bold gold, can't be typed in here, and are chosen with 'titles'.
     """
 
     key = "title"
@@ -440,6 +457,16 @@ class CmdTitle(Command):
         # 'look' without wrapping on an ordinary 80-column client.
         if len(title) > 60:
             caller.msg("Titles must be 60 characters or less.")
+            return
+
+        from evennia.utils.ansi import strip_ansi
+        from world.titles import reserved_title_texts
+
+        if " ".join(strip_ansi(title).split()).lower() in reserved_title_texts():
+            caller.msg(
+                "That's a title earned in play - it can't just be claimed. "
+                "'titles' shows the ones you've actually earned."
+            )
             return
 
         caller.db.custom_title = title

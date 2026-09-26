@@ -37,6 +37,25 @@ from evennia.objects.objects import DefaultExit
 #########################################################
 
 
+# A new character starts with 0 gold and the cheapest first spell/skill costs
+# 23, so nothing in the first minutes could be bought or learned until enough
+# was earned in fights. Paid ONCE, at the moment of escaping the cells, by
+# whichever route (each with its own story): about enough for that first
+# lesson without letting anyone skip the early economy.
+ESCAPE_PURSE_GOLD = 30
+
+
+def grant_escape_purse(character, message):
+    """Pays the one-time escape purse to a real player who has just escaped
+    the cells, with `message` telling how they came by it. Safe to call
+    more than once - it only ever pays once per character."""
+    if not getattr(character, "account", None) or character.db.escape_purse_paid:
+        return
+    character.db.escape_purse_paid = True
+    character.db.gold = (character.db.gold or 0) + ESCAPE_PURSE_GOLD
+    character.msg("%s |Y+%d gold.|n" % (message, ESCAPE_PURSE_GOLD))
+
+
 class GateOfLifeExit(DefaultExit):
     """
     Blocks passage until the traverser has actually earned their
@@ -437,7 +456,14 @@ class CmdSolve(Command):
                 "|yThe inscription flares with pale light and the door grinds open "
                 "before you.|n"
             )
+            first_escape = not caller.db.colosseum_escaped
             caller.db.colosseum_escaped = True
+            if first_escape:
+                grant_escape_purse(
+                    caller,
+                    "|yBehind a loose stone on the stairwell you find a small purse - "
+                    "a previous prisoner's stash, left for whoever made it this far.|n",
+                )
             dest = search_tag("colosseum_hidden_stairwell", category="colosseum")
             if dest:
                 caller.move_to(dest[0], quiet=True, move_type="teleport")

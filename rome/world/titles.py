@@ -69,6 +69,35 @@ RELIGION_BELOVED_TITLES = {
 }
 
 
+# How the two kinds of title are drawn EVERYWHERE they appear (who, look,
+# stats) - one place so they can't drift apart. An earned title is bold
+# gold; a free-text custom title is plain cyan. Deliberately no quote marks
+# on either: the colour alone tells them apart, so a typed title can't pass
+# for an earned one.
+EARNED_TITLE_COLOR = "|Y"
+CUSTOM_TITLE_COLOR = "|c"
+
+
+def format_earned_title(text):
+    return "%s%s|n" % (EARNED_TITLE_COLOR, text)
+
+
+def format_custom_title(text):
+    return "%s%s|n" % (CUSTOM_TITLE_COLOR, text)
+
+
+def reserved_title_texts():
+    """Every earned title's text, lowercased. A player cannot type one of
+    these as a free-text custom title (commands/social.py's CmdTitle) - an
+    earned title is only proof of something if it can't simply be typed."""
+    values = (
+        set(ACHIEVEMENT_TITLES.values())
+        | set(QUEST_TITLES.values())
+        | set(RELIGION_BELOVED_TITLES.values())
+    )
+    return {value.lower() for value in values}
+
+
 def grant_earned_title(character, title):
     """
     The one shared place every source (achievements, quests,

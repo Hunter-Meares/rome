@@ -180,6 +180,81 @@ class TestCmdSneak(ColosseumTestBase):
         self.assertEqual(self.char1.location, tunnel)
 
 
+class TestEscapePurse(ColosseumTestBase):
+    """A new character has 0 gold and the cheapest first lesson costs 23,
+    so escaping the cells now pays a one-time purse, by either route."""
+
+    def _trainer(self):
+        trainer = create.create_object("evennia.objects.objects.DefaultObject", key="a purse test trainer")
+        trainer.tags.add("colosseum_trainer", category="npc_role")
+        trainer.db.hp = 0
+        return trainer
+
+    def _stairwell(self):
+        stairwell = create.create_object("typeclasses.rooms.Room", key="Hidden Stairwell Purse")
+        stairwell.tags.add("colosseum_hidden_stairwell", category="colosseum")
+        return stairwell
+
+    def test_a_new_character_starts_with_no_gold_to_begin_with(self):
+        self.assertFalse(self.char1.db.gold)
+
+    def test_defeating_the_trainer_pays_the_purse(self):
+        from world.colosseum import ESCAPE_PURSE_GOLD
+        from world.combat import COMBAT_RULES
+
+        self.char1.db.gold = 0
+        COMBAT_RULES.at_defeat(self._trainer(), attacker=self.char1)
+        self.assertEqual(self.char1.db.gold, ESCAPE_PURSE_GOLD)
+
+    def test_solving_the_riddle_pays_the_purse(self):
+        from world.colosseum import ESCAPE_PURSE_GOLD
+
+        self.room1.key = "Riddle Door Chamber"
+        self._stairwell()
+        self.char1.db.gold = 0
+        self.call(CmdSolve(), "shadow", caller=self.char1)
+        self.assertEqual(self.char1.db.gold, ESCAPE_PURSE_GOLD)
+
+    def test_it_is_paid_only_once_however_you_escape(self):
+        from world.colosseum import ESCAPE_PURSE_GOLD
+        from world.combat import COMBAT_RULES
+
+        self.char1.db.gold = 0
+        COMBAT_RULES.at_defeat(self._trainer(), attacker=self.char1)
+        # Solving the riddle afterwards must not pay a second time.
+        self.room1.key = "Riddle Door Chamber"
+        self._stairwell()
+        self.call(CmdSolve(), "shadow", caller=self.char1)
+        self.assertEqual(self.char1.db.gold, ESCAPE_PURSE_GOLD)
+
+    def test_re_solving_after_already_escaping_pays_nothing(self):
+        self.char1.db.colosseum_escaped = True
+        self.char1.db.gold = 0
+        self.room1.key = "Riddle Door Chamber"
+        self._stairwell()
+        self.call(CmdSolve(), "shadow", caller=self.char1)
+        self.assertEqual(self.char1.db.gold, 0)
+
+    def test_the_purse_message_names_the_amount(self):
+        from unittest import mock
+
+        from world.combat import COMBAT_RULES
+
+        self.char1.db.gold = 0
+        with mock.patch.object(self.char1, "msg") as mock_msg:
+            COMBAT_RULES.at_defeat(self._trainer(), attacker=self.char1)
+        said = " ".join(str(c.args[0]) for c in mock_msg.call_args_list if c.args)
+        self.assertIn("+30 gold", said)
+
+    def test_an_npc_defeating_a_trainer_is_not_paid(self):
+        from world.colosseum import grant_escape_purse
+
+        npc = create.create_object("typeclasses.characters.Character", key="a passer-by")
+        npc.db.gold = 0
+        grant_escape_purse(npc, "x")
+        self.assertEqual(npc.db.gold, 0)
+
+
 class TestCmdSolve(ColosseumTestBase):
     def test_only_works_in_riddle_door_chamber(self):
         self.room1.key = "Somewhere Else"

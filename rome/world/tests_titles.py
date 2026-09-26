@@ -137,14 +137,17 @@ class TestStatsAndLookDisplayBothTitles(EvenniaCommandTest):
         self.char1.db.custom_title = "Senator of Rome"
         result = self.call(CmdCoreStats(), "", caller=self.char1)
         self.assertIn("the Undefeated", result)
-        self.assertIn('"Senator of Rome"', result)
+        self.assertIn("Senator of Rome", result)
+        self.assertNotIn('"Senator of Rome"', result)  # no quote marks any more
 
     def test_look_shows_earned_and_custom_title_both(self):
         self.char1.db.active_earned_title = "the War-Blessed"
         self.char1.db.custom_title = "the Unbroken"
         appearance = self.char1.return_appearance(self.char2)
-        self.assertIn("the War-Blessed", appearance)
-        self.assertIn('"the Unbroken"', appearance)
+        # Earned = bold gold, custom = cyan - the colour is the difference.
+        self.assertIn("|Ythe War-Blessed|n", appearance)
+        self.assertIn("|cthe Unbroken|n", appearance)
+        self.assertNotIn('"', appearance)
 
     def test_look_with_no_titles_is_unchanged(self):
         self.char1.db.active_earned_title = None

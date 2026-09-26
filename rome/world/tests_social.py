@@ -150,10 +150,87 @@ class TestCmdWho(EvenniaCommandTest):
         self.assertIsNotNone(result)
 
 
+class TestWhoTitleCell(EvenniaCommandTest):
+    """Earned and typed titles must not look alike on the who tables."""
+
+    def test_an_earned_title_is_bold_gold_and_unquoted(self):
+        from commands.social import _who_title_cell
+
+        self.char1.db.active_earned_title = "the Apprentice"
+        self.char1.db.custom_title = "something else"
+        cell = _who_title_cell(self.char1, 30)
+        self.assertIn("|Y", cell)
+        self.assertNotIn('"', cell)
+        self.assertIn("the Apprentice", cell)
+
+    def test_a_custom_title_is_cyan_not_gold_and_unquoted(self):
+        from commands.social import _who_title_cell
+
+        self.char1.db.active_earned_title = None
+        self.char1.db.custom_title = "Wolf of the Aventine"
+        cell = _who_title_cell(self.char1, 30)
+        self.assertNotIn("|Y", cell)
+        self.assertNotIn('"', cell)
+        self.assertEqual(cell, "|cWolf of the Aventine|n")
+
+    def test_the_two_kinds_use_different_colours_everywhere(self):
+        from world.titles import (
+            CUSTOM_TITLE_COLOR, EARNED_TITLE_COLOR, format_custom_title, format_earned_title,
+        )
+
+        self.assertNotEqual(EARNED_TITLE_COLOR, CUSTOM_TITLE_COLOR)
+        self.assertNotEqual(format_earned_title("x"), format_custom_title("x"))
+
+    def test_no_title_shows_a_dash(self):
+        from commands.social import _who_title_cell
+
+        self.char1.db.active_earned_title = None
+        self.char1.db.custom_title = None
+        self.assertEqual(_who_title_cell(self.char1, 30), "-")
+        self.assertEqual(_who_title_cell(None, 30), "-")
+
+    def test_a_long_custom_title_is_cropped_to_fit(self):
+        from commands.social import _who_title_cell
+
+        self.char1.db.active_earned_title = None
+        self.char1.db.custom_title = "x" * 60
+        cell = _who_title_cell(self.char1, 20)
+        self.assertLessEqual(len(cell.replace("|c", "").replace("|n", "")), 20)
+
+
 class TestCmdTitle(EvenniaCommandTest):
     def test_sets_a_title(self):
-        self.call(CmdTitle(), "the Undefeated", caller=self.char1)
-        self.assertEqual(self.char1.db.custom_title, "the Undefeated")
+        self.call(CmdTitle(), "Wolf of the Aventine", caller=self.char1)
+        self.assertEqual(self.char1.db.custom_title, "Wolf of the Aventine")
+
+    # An earned title is only proof of something if it can't simply be
+    # typed in. ("the Undefeated" used to be this command's own example.)
+    def test_an_earned_titles_exact_text_cannot_be_claimed(self):
+        self.char1.db.custom_title = None
+        result = self.call(CmdTitle(), "the Undefeated", caller=self.char1)
+        self.assertIn("earned in play", result)
+        self.assertIsNone(self.char1.db.custom_title)
+
+    def test_the_block_ignores_case_spacing_and_color_codes(self):
+        for attempt in ("THE UNDEFEATED", "the   Undefeated", "|Cthe Undefeated|n", "the Apprentice", "the Twice-Born"):
+            self.char1.db.custom_title = None
+            self.call(CmdTitle(), attempt, caller=self.char1)
+            self.assertIsNone(self.char1.db.custom_title, attempt)
+
+    def test_every_earned_title_from_every_source_is_reserved(self):
+        from world.titles import (
+            ACHIEVEMENT_TITLES, QUEST_TITLES, RELIGION_BELOVED_TITLES, reserved_title_texts,
+        )
+
+        reserved = reserved_title_texts()
+        for source in (ACHIEVEMENT_TITLES, QUEST_TITLES, RELIGION_BELOVED_TITLES):
+            for title in source.values():
+                self.assertIn(title.lower(), reserved, title)
+
+    def test_similar_but_different_text_is_still_allowed(self):
+        self.char1.db.custom_title = None
+        self.call(CmdTitle(), "Undefeated in Spirit", caller=self.char1)
+        self.assertEqual(self.char1.db.custom_title, "Undefeated in Spirit")
 
     def test_clear_removes_it(self):
         self.char1.db.custom_title = "something"

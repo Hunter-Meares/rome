@@ -1571,6 +1571,13 @@ class CombatRules:
                     "%s has triumphed over the trainer and earned their freedom!" % attacker,
                     exclude=attacker,
                 )
+                from world.colosseum import grant_escape_purse
+
+                grant_escape_purse(
+                    attacker,
+                    "|yThe crowd throws coins down onto the sand for the victor, and "
+                    "you gather up a small purse's worth.|n",
+                )
 
         # --- Generic "any NPC defeated" achievement tracking ---
         # Covers first_blood/battle_hardened - fires for any attacker
@@ -7177,19 +7184,21 @@ class CombatCharacter(ContribRPCharacter):
     def return_appearance(self, looker, **kwargs):
         """
         Adds a title line ahead of the normal appearance text - an
-        earned title (gold, world/titles.py), a custom title
-        (quoted), or both, when set. db.custom_title only ever
+        earned title (bold gold, world/titles.py), a custom title
+        (cyan), or both, when set. db.custom_title only ever
         showed up on the who tables before this addition - there was
         genuinely no way to see a title in full anywhere else, and no
         way at all to see another character's title if who's column
         width had cropped it.
         """
         appearance = super().return_appearance(looker, **kwargs)
+        from world.titles import format_custom_title, format_earned_title
+
         lines = []
         if self.db.active_earned_title:
-            lines.append("|Y%s|n" % self.db.active_earned_title)
+            lines.append(format_earned_title(self.db.active_earned_title))
         if self.db.custom_title:
-            lines.append('"%s"' % self.db.custom_title)
+            lines.append(format_custom_title(self.db.custom_title))
         if lines:
             return "%s\n%s" % ("\n".join(lines), appearance)
         return appearance
@@ -9336,10 +9345,12 @@ class CmdCoreStats(Command):
         w = STATS_WIDTH
         lines = [box_border(w, "=")]
         lines.append(box_line("|w%s|n" % char.key, w, align="c"))
+        from world.titles import format_custom_title, format_earned_title
+
         if active_title:
-            lines.append(box_line("|Y%s|n" % active_title, w, align="c"))
+            lines.append(box_line(format_earned_title(active_title), w, align="c"))
         if custom_title:
-            lines.append(box_line('"%s"' % custom_title, w, align="c"))
+            lines.append(box_line(format_custom_title(custom_title), w, align="c"))
         lines.append(box_border(w, "-"))
         lines.append(box_line("  Race: %s" % race_display, w))
         lines.append(box_line("  Class: %s" % class_display, w))

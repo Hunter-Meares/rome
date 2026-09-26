@@ -86,6 +86,13 @@ A scheduled, all-levels, spectator-friendly competition on the Colosseum's main 
 
 ---
 
+## 🔒 Earned titles made unforgeable, escape purse, road checks - ✅ Sep 26
+
+- [x] **Earned titles can no longer be typed in** and are drawn differently from custom ones everywhere (bold gold vs cyan, no quotes). Found by owner question ("can't players change titles at will? then what's the point?"): correct - `who` drew every title plain gold, and `title` accepted any text including an earned title's exact words (its own help example was "the Undefeated").
+- [x] **30-gold escape purse** for new characters, paid once when they escape the cells by either route (fight or riddle), with a story line for each.
+- [x] **Wilderness checks (owner suggested changes; no code change needed):** resources ALREADY only appear on off-road tiles (`x != 0`), and bandit encounters ALREADY spawn on every tile including the road, at the same 20% chance, on both the Rome and Amber Coast roads. Open option: require resources to be 2+ tiles from the road so hugging its verge doesn't work.
+- [ ] Observed while doing this: solving the riddle (the quiet escape) never fires the "Free at Last" achievement - its text says "defeat the trainer", so it may be intentional, but a quiet escapee gets nothing for it.
+
 ## 🏅 Early-game achievements/titles and capitalized channel names - ✅ Sep 25
 
 - [x] **14 new achievements** for the first hours, both playstyles: Fruits of the Land (first gather), Apprentice's Hands (first craft), Steady Hands (25 crafts), Open for Business (first sale), A Task Well Done (first quest), The Reliable (5 quests), Quick Study (first spell/skill), Stronger Together (party kill), Finding Your Feet / Seasoned / Veteran of Rome (levels 5 / 10 / 25), Beyond the Walls (first step onto the wilderness road), The Long Road (reach the Germanic Stronghold), Twice-Born (return from the Underworld). Each fires from a real event via `world.achievements.track_and_announce`.
