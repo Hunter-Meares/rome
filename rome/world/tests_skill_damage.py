@@ -80,10 +80,18 @@ class TestEveryDamagingSkillIsWeaponBased(EvenniaTest):
             if "damage_range" in data or "bonus_damage" in data:
                 self.assertIn("weapon_multiplier", data, name)
 
-    def test_no_skill_ever_hits_for_less_than_a_basic_attack_per_target(self):
+    def test_every_skill_hits_for_more_than_a_basic_attack_per_target(self):
+        # Strictly more: with only one enemy in reach an area skill that merely
+        # matched a basic attack would be strictly worse (it costs SP for nothing).
         for name, data in SKILLS.items():
             if "weapon_multiplier" in data:
-                self.assertGreaterEqual(data["weapon_multiplier"], 1.0, name)
+                self.assertGreater(data["weapon_multiplier"], 1.0, name)
+
+    def test_area_skills_rank_by_tier(self):
+        m = lambda n: SKILLS[n]["weapon_multiplier"]
+        self.assertLess(m("gladius cleave"), m("earth-shaking slam"))
+        self.assertLess(m("rapid volley"), m("bane of the wild hunt"))
+        self.assertLess(m("earth-shaking slam"), m("fury of the frontier"))
 
     def test_the_legacy_flat_ranges_are_kept_for_npcs(self):
         for name, data in SKILLS.items():
@@ -152,8 +160,8 @@ class TestSkillsHitForTheWeaponTimesTheMultiplier(SkillDamageBase):
         kwargs = {k: v for k, v in data.items() if k in ("weapon_multiplier", "damage_range")}
         with patch("world.combat.randint", side_effect=lambda lo, hi: hi):
             data["skillfunc"](self.char1, "earth-shaking slam", [self.char2, target2], 11, **kwargs)
-        self.assertEqual(100000 - self.char2.db.hp, 120)
-        self.assertEqual(100000 - target2.db.hp, 120)
+        self.assertEqual(100000 - self.char2.db.hp, 130)
+        self.assertEqual(100000 - target2.db.hp, 130)
 
     def test_the_two_handed_check_still_applies(self):
         self.char1.db.player_class = "barbarian"

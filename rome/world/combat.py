@@ -5241,6 +5241,10 @@ SPELLS = {
     },
     "sacred chant": {
         "spellfunc": COMBAT_RULES.spell_add_condition,
+        # Was missing level_required entirely (so a level-1 Medicus could
+        # learn a five-ally heal-over-time) - set to 20 by owner decision,
+        # Sep 26, between Field Dressing and the mass heals.
+        "level_required": 20,
         "desc": "Grants up to five allies a heal-over-time effect.",
         "target": "anychar",
         "cost": 8,
@@ -5566,7 +5570,7 @@ SKILLS = {
         "level_required": 30,
         "max_targets": 3,
         "damage_range": (14, 22),
-        "weapon_multiplier": 1.0,
+        "weapon_multiplier": 1.2,
         "classes": ["venator"],
         "desc": "A quick volley of shots, striking up to three targets at once.",
     },
@@ -5750,7 +5754,7 @@ SKILLS = {
         "level_required": 15,
         "max_targets": 3,
         "damage_range": (14, 22),
-        "weapon_multiplier": 1.0,
+        "weapon_multiplier": 1.2,
         "classes": ["legionary"],
         "desc": "A close-range cleave, striking up to three enemies in front of you at once.",
     },
@@ -5895,7 +5899,7 @@ SKILLS = {
         "level_required": 80,
         "max_targets": 3,
         "damage_range": (25, 38),
-        "weapon_multiplier": 1.2,
+        "weapon_multiplier": 1.3,
         "classes": ["barbarian"],
         "desc": "A ground-shaking slam striking up to three enemies at once.",
     },

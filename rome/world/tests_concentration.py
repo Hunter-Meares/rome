@@ -611,6 +611,14 @@ class TestSpellTable(ConcTestBase):
         for name in ("aid", "healing word", "flame of vesta"):
             self.assertEqual(SPELLS[name]["classes"], ["medicus"], name)
 
+    def test_sacred_chant_is_a_level_20_medicus_spell(self):
+        self.assertEqual(SPELLS["sacred chant"]["level_required"], 20)
+        self.assertEqual(SPELLS["sacred chant"]["classes"], ["medicus"])
+
+    def test_every_spell_declares_its_level(self):
+        for name, data in SPELLS.items():
+            self.assertIn("level_required", data, name)
+
     def test_the_new_spell_names_do_not_collide_with_existing_ones(self):
         self.assertNotIn("spirit guardians", SPELLS)
         self.assertIn("guardian spirit", SPELLS)
