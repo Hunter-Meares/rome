@@ -131,6 +131,9 @@ def consume(caller, args, verb):
             COMBAT_RULES.spend_action(caller, 1, action_name="item")
 
     if "hp" in gained:
+        from world.martial import stop_bleeding
+
+        stop_bleeding(caller)  # a meal that restores HP closes a bleeding wound
         COMBAT_RULES.announce_hp_threshold_change(caller, old_hp)
 
 

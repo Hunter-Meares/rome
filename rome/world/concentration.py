@@ -645,7 +645,7 @@ class ConfusionScript(DefaultScript):
         if not target.location or target.db.is_dead or not target.db.hp:
             return
         rules = _rules()
-        if asleep_blocks(target) or rules.is_in_combat(target):
+        if asleep_blocks(target) or "Stunned" in (target.db.conditions or {}) or rules.is_in_combat(target):
             return
         if hasattr(target, "stop_resting"):
             target.stop_resting()

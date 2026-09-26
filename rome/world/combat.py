@@ -51,7 +51,7 @@ from evennia.utils import utils as evennia_utils
 from evennia.contrib.rpg.health_bar import display_meter
 from typeclasses.objects import ObjectParent
 from world.box_display import box_border, box_line, box_blank
-from world import concentration, wards
+from world import concentration, martial, wards
 from world.concentration import (
     asleep_blocks,
     invisible_hides_from,
@@ -289,6 +289,7 @@ HARMFUL_CONDITIONS = frozenset({
     "Poisoned", "Cursed", "Frightened", "Marked for Death", "Silenced",
     "Paralyzed", "Accuracy Down", "Damage Down", "Defense Down",
     "Sanctuary Broken", "Asleep", "Slowed", "Confused",
+    "Bleeding", "Stunned", "Blinded", "Disarmed", "Grappled",
 })
 BENEFICIAL_CONDITIONS = frozenset({
     "Regeneration", "Haste", "Accuracy Up", "Damage Up", "Defense Up",
@@ -408,6 +409,12 @@ CONDITION_RESIST_STAT = {
     "Slowed": "vigor",
     "Paralyzed": "vigor",
     "Defense Down": "vigor",
+    # The martial effects (world/martial.py) all attack the body.
+    "Bleeding": "vigor",
+    "Stunned": "vigor",
+    "Blinded": "vigor",
+    "Disarmed": "vigor",
+    "Grappled": "vigor",
 }
 
 # Weapon categories long/far enough to strike into the back row
@@ -954,7 +961,7 @@ class CombatRules:
         not get this - by direct request ("a dagger should not").
         Unarmed never has reach either.
         """
-        weapon = attacker.db.wielded_weapon
+        weapon = martial.wielded_weapon(attacker)
         if not weapon:
             return False
         return weapon.db.weapon_category in REACH_WEAPON_CATEGORIES
@@ -1238,7 +1245,7 @@ class CombatRules:
         attack_value = randint(1, 100)
         attack_value += ((attacker.db.agilitas or 10) - 10) * ACCURACY_STAT_MULTIPLIER
 
-        if attacker.db.wielded_weapon:
+        if martial.wielded_weapon(attacker):
             attack_value += attacker.db.wielded_weapon.db.accuracy_bonus
             if not self.is_proficient(attacker, attacker.db.wielded_weapon):
                 attack_value += NONPROFICIENT_ACCURACY_PENALTY
@@ -1249,6 +1256,8 @@ class CombatRules:
             attack_value += ACC_UP_MOD
         if "Accuracy Down" in self.get_conditions(attacker):
             attack_value += ACC_DOWN_MOD
+        if "Blinded" in self.get_conditions(attacker):
+            attack_value += martial.BLINDED_ACCURACY_MOD
 
         # Defender-side conditions - unlike the two above (which are
         # about the attacker's own state), these belong to the
@@ -1270,12 +1279,14 @@ class CombatRules:
         defense_value = 50
         defense_value += (defender.db.agilitas or 10) - 10
 
-        if defender.db.worn_armor:
+        # A piece of armor cleaved through (Sundered) stops helping for the
+        # rest of the fight - see world/martial.py.
+        if defender.db.worn_armor and defender.db.combat_sundered != "worn_armor":
             defense_value += defender.db.worn_armor.db.defense_modifier
             if not self.is_armor_proficient(defender, defender.db.worn_armor):
                 defense_value += NONPROFICIENT_ARMOR_DEFENSE_PENALTY
 
-        if defender.db.worn_shield:
+        if defender.db.worn_shield and defender.db.combat_sundered != "worn_shield":
             defense_value += defender.db.worn_shield.db.defense_modifier
             if not self.is_armor_proficient(defender, defender.db.worn_shield):
                 defense_value += NONPROFICIENT_ARMOR_DEFENSE_PENALTY
@@ -1304,7 +1315,7 @@ class CombatRules:
         result) funnels through there regardless of how it computed
         its raw number.
         """
-        if attacker.db.wielded_weapon:
+        if martial.wielded_weapon(attacker):
             weapon = attacker.db.wielded_weapon
             damage_value = randint(weapon.db.damage_range[0], weapon.db.damage_range[1])
             if not self.is_proficient(attacker, weapon):
@@ -1329,7 +1340,11 @@ class CombatRules:
             from world.religion import religion_bonus
             damage_value += religion_bonus(attacker, "mars", "melee_damage_bonus")
 
-        if defender.db.worn_armor and not ignore_armor:
+        if (
+            defender.db.worn_armor
+            and not ignore_armor
+            and defender.db.combat_sundered != "worn_armor"
+        ):
             reduction = defender.db.worn_armor.db.damage_reduction
             if not self.is_armor_proficient(defender, defender.db.worn_armor):
                 reduction = int(reduction * NONPROFICIENT_ARMOR_REDUCTION_MULTIPLIER)
@@ -2208,6 +2223,7 @@ class CombatRules:
         damage_value=None,
         inflict_condition=None,
         bonus_attack_count=0,
+        allow_crit=None,
     ):
         """
         Resolves an attack (from the 'attack' command, item use, or a
@@ -2268,7 +2284,7 @@ class CombatRules:
 
         attackers_weapon = "attack"
         weapon_category = None
-        if attacker.db.wielded_weapon:
+        if martial.wielded_weapon(attacker):
             attackers_weapon = attacker.db.wielded_weapon.db.weapon_type_name
             weapon_category = attacker.db.wielded_weapon.db.weapon_category
         messages = get_weapon_attack_messages(attackers_weapon, weapon_category)
@@ -2308,8 +2324,19 @@ class CombatRules:
             )
             return
 
+        computed_here = damage_value is None
         if damage_value is None:
             damage_value = self.get_damage(attacker, defender)
+
+        # Critical hit (real players, melee weapons - world/martial.py): rolled
+        # on a basic strike computed right here, or one the caller explicitly
+        # allows (the power attack). A Double Strike bonus swing hands in its own
+        # damage and never crits.
+        if (computed_here or allow_crit) and damage_value > 0:
+            crit = martial.roll_crit(attacker)
+            if crit > 1:
+                damage_value = int(damage_value * crit)
+                martial.announce_crit(attacker)
 
         if damage_value > 0:
             attacker.location.msg_contents(
@@ -2436,6 +2463,11 @@ class CombatRules:
         for attr in list(character.attributes.all()):
             if attr.key[:7] == "combat_":
                 character.attributes.remove(key=attr.key)
+        # A stun or a grapple is a hold of the fight itself: it ends with it.
+        held = character.db.conditions
+        if held:
+            for name in ("Stunned", "Grappled", "Stun Immunity"):
+                held.pop(name, None)
 
     def is_in_combat(self, character):
         return bool(character.db.combat_turnhandler)
@@ -2734,6 +2766,8 @@ class CombatRules:
             if character.db.hp + to_heal > character.db.max_hp:
                 to_heal = character.db.max_hp - character.db.hp
             character.db.hp += to_heal
+            if to_heal > 0:
+                martial.stop_bleeding(character)
             if character.location:
                 character.location.msg_contents(
                     "%s regains %i HP from Regeneration." % (character, to_heal)
@@ -2779,6 +2813,20 @@ class CombatRules:
             if character.db.hp <= 0:
                 self.at_defeat(character, attacker=poisoner)
 
+        # Bleeding (world/martial.py): a wound that costs HP every turn until
+        # it runs out or the target is healed.
+        if "Bleeding" in self.get_conditions(character):
+            bleed = self.get_conditions(character)["Bleeding"]
+            wound = bleed[2] if len(bleed) > 2 else 3
+            self.apply_damage(character, wound, attacker=bleed[1], announce_threshold=False)
+            if character.location:
+                character.location.msg_contents(
+                    "|r%s bleeds for %i damage.|n" % (character, wound)
+                )
+            if character.db.hp <= 0:
+                self.at_defeat(character, attacker=bleed[1])
+                return
+
         if self.is_in_combat(character) and "Haste" in self.get_conditions(character):
             character.db.combat_actionsleft += 1
             character.msg("You gain an extra action this turn from Haste!")
@@ -2804,6 +2852,15 @@ class CombatRules:
             character.db.combat_actionsleft = 0
             if character.location:
                 character.location.msg_contents("%s is fast asleep and can't act!" % character)
+            character.db.combat_turnhandler.turn_end_check(character)
+        if (
+            self.is_in_combat(character)
+            and character.db.combat_actionsleft
+            and "Stunned" in self.get_conditions(character)
+        ):
+            character.db.combat_actionsleft = 0
+            if character.location:
+                character.location.msg_contents("%s is stunned and can't act!" % character)
             character.db.combat_turnhandler.turn_end_check(character)
         if (
             self.is_in_combat(character)
@@ -2942,6 +2999,8 @@ class CombatRules:
         if target.db.hp + to_heal > target.db.max_hp:
             to_heal = target.db.max_hp - target.db.hp
         target.db.hp += to_heal
+        if to_heal > 0:
+            martial.stop_bleeding(target)
 
         user.location.msg_contents(
             "%s %s %s! %s regains %i HP!" % (user, item_use_verb(item), item, target, to_heal)
@@ -3056,6 +3115,8 @@ class CombatRules:
             if character.db.hp + to_heal > character.db.max_hp:
                 to_heal = character.db.max_hp - character.db.hp
             character.db.hp += to_heal
+            if to_heal > 0:
+                martial.stop_bleeding(character)
             spell_msg += " %s regains %i HP!" % (character, to_heal)
 
         caster.db.mp -= cost
@@ -3473,6 +3534,8 @@ class CombatRules:
 
         for fighter in to_attack:
             attack_value = randint(1, 100) + accuracy + ingenium_accuracy
+            if "Blinded" in self.get_conditions(caster):
+                attack_value += martial.BLINDED_ACCURACY_MOD
             defense_value = self.get_defense(caster, fighter)
             if kwargs.get("auto_hit") or attack_value >= defense_value:
                 spell_dmg = randint(min_damage, max_damage) + ingenium_bonus
@@ -3983,6 +4046,8 @@ class CombatRules:
         )
         if target.db.hp <= 0:
             self.at_defeat(target, attacker=user)
+        else:
+            martial.apply_rider(self, user, target, kwargs.get("rider"), damage)
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -4048,6 +4113,10 @@ class CombatRules:
         multiplier = kwargs.get("weapon_multiplier")
         if multiplier and getattr(user, "account", None):
             base = self.get_damage(user, target, ignore_armor=ignore_armor)
+            crit = martial.roll_crit(user, guaranteed=kwargs.get("guaranteed_crit", False))
+            if crit > 1:
+                base = int(base * crit)
+                martial.announce_crit(user)
             return max(0, int(round(base * multiplier)))
         low, high = kwargs.get("damage_range", default_range)
         return randint(low, high) + ((getattr(user.db, stat) or 10) - 10) // 2
@@ -4076,6 +4145,7 @@ class CombatRules:
 
         total_damage = 0
         defeated_targets = []
+        riders_to_apply = []
         for target in targets:
             if self.is_row_protected(target, attacker=user):
                 skill_msg += " %s can't reach %s - someone else is still standing in the way!" % (
@@ -4083,6 +4153,8 @@ class CombatRules:
                 )
                 continue
             attack_value = randint(1, 100) + accuracy + agilitas_accuracy
+            if "Blinded" in self.get_conditions(user):
+                attack_value += martial.BLINDED_ACCURACY_MOD
             defense_value = self.get_defense(user, target)
             if attack_value < defense_value:
                 skill_msg += " %s misses %s!" % (skill_name, target)
@@ -4099,6 +4171,8 @@ class CombatRules:
             )
             if target.db.hp <= 0:
                 defeated_targets.append(target)
+            else:
+                riders_to_apply.append((target, damage))
 
         user.db.sp -= cost
         user.location.msg_contents(skill_msg)
@@ -4109,6 +4183,11 @@ class CombatRules:
         # should read AFTER the hit itself, not interleave mid-message.
         for target in defeated_targets:
             self.at_defeat(target, attacker=user)
+
+        # A landed hit may carry a rider (world/martial.py): bleeding, a
+        # cleaved piece of armor, a stun... real players' skills only.
+        for target, damage in riders_to_apply:
+            martial.apply_rider(self, user, target, kwargs.get("rider"), damage)
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -4310,6 +4389,8 @@ class CombatRules:
         )
         if target.db.hp <= 0:
             self.at_defeat(target, attacker=user)
+        else:
+            martial.apply_rider(self, user, target, kwargs.get("rider"), damage)
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -4359,6 +4440,7 @@ class CombatRules:
             attack_value=attack_value,
             defense_value=defense_value,
             damage_value=damage_value,
+            allow_crit=True,
         )
 
     # ------------------------------------------------------------------
@@ -4822,10 +4904,11 @@ SPELLS = {
     "omen of ruin": {
         "spellfunc": COMBAT_RULES.spell_add_condition,
         "level_required": 50,
-        "desc": "Frightens a target and lowers their accuracy and damage at once.",
+        "desc": "Frightens up to three enemies - they lose two turns in terror - and leaves each with lowered accuracy and damage that outlasts the fear.",
         "target": "otherchar",
-        "cost": 8,
-        "conditions": [("Frightened", 3), ("Accuracy Down", 3), ("Damage Down", 3)],
+        "cost": 10,
+        "max_targets": 3,
+        "conditions": [("Frightened", 2), ("Accuracy Down", 5), ("Damage Down", 5)],
         "classes": ["haruspex"],
     },
     "soul rot": {
@@ -5449,6 +5532,28 @@ SPELLS = {
 }
 
 SKILLS = {
+    "headbutt": {
+        "skillfunc": COMBAT_RULES.skill_attack,
+        "target": "otherchar",
+        "cost": 9,
+        "level_required": 35,
+        "damage_range": (20, 30),
+        "weapon_multiplier": 1.1,
+        "rider": {"effect": "Stunned", "duration": 2, "chance": 100},
+        "npc_cast": False,
+        "classes": ["barbarian"],
+        "desc": "A vicious headbutt that knocks the target senseless: they lose their next two turns and can't act, cast, use skills, speak or move, and - unlike Sleep - damage does not wake them. Resisted with Vigor; a stunned target is then immune to being stunned again for a few turns.",
+    },
+    "dirt kick": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "otherchar",
+        "cost": 5,
+        "level_required": 25,
+        "conditions": [("Blinded", 3)],
+        "npc_cast": False,
+        "classes": ["gladiator"],
+        "desc": "An arena dirty trick - a kick of sand into the eyes. The target is Blinded for a few turns: a big drop to their accuracy, twice that of an ordinary Accuracy Down. Resisted with Vigor.",
+    },
     "sneak": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
         "target": "self",
@@ -5483,9 +5588,10 @@ SKILLS = {
         "level_required": 15,
         "bonus_damage": 20,
         "weapon_multiplier": 2.0,
+        "rider": {"effect": "Bleeding", "chance": 50, "duration": 4, "share": 0.2},
         "noncombat_spell": False,
         "classes": ["speculator"],
-        "desc": "Bonus damage against a target who hasn't yet acted in the fight. Requires being already in combat - does not stack with Ambush.",
+        "desc": "Bonus damage against a target who hasn't yet acted in the fight. Requires being already in combat - does not stack with Ambush. May leave a bleeding wound.",
     },
     "field report": {
         "skillfunc": COMBAT_RULES.skill_field_report,
@@ -5593,8 +5699,9 @@ SKILLS = {
         "max_targets": 3,
         "damage_range": (14, 22),
         "weapon_multiplier": 1.2,
+        "rider": {"effect": "Bleeding", "chance": 40, "duration": 3, "share": 0.15},
         "classes": ["venator"],
-        "desc": "A quick volley of shots, striking up to three targets at once.",
+        "desc": "A quick volley of shots, striking up to three targets at once. Arrows may leave bleeding wounds.",
     },
     "snare": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -5711,8 +5818,9 @@ SKILLS = {
         "level_required": 50,
         "damage_range": (25, 38),
         "weapon_multiplier": 1.6,
+        "rider": {"effect": "Grappled", "chance": 60, "duration": 3},
         "classes": ["gladiator"],
-        "desc": "A heavy, direct strike aimed to end a fight quickly.",
+        "desc": "A heavy, direct strike aimed to end a fight quickly. May grapple the target so they can't break away for a few turns.",
     },
     "favor": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -5730,8 +5838,9 @@ SKILLS = {
         "level_required": 90,
         "damage_range": (45, 65),
         "weapon_multiplier": 2.5,
+        "guaranteed_crit": True,  # Deadly Precision: always a critical hit
         "classes": ["gladiator"],
-        "desc": "Mythic tier. A strike worthy of a legend retold for generations - a massive damage finisher.",
+        "desc": "Mythic tier. A strike worthy of a legend retold for generations - a massive damage finisher. Always a critical hit.",
     },
     "triple strike": {
         "skillfunc": COMBAT_RULES.skill_passive_info,
@@ -5757,8 +5866,9 @@ SKILLS = {
         "level_required": 5,
         "damage_range": (15, 25),
         "weapon_multiplier": 1.3,
+        "rider": {"effect": "Disarmed", "chance": 40, "duration": 2},
         "classes": ["legionary"],
-        "desc": "A heavy shield strike, driving a target back.",
+        "desc": "A heavy shield strike, driving a target back. May knock the target's weapon from their hand for two turns.",
     },
     "provoke": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -5777,8 +5887,9 @@ SKILLS = {
         "max_targets": 3,
         "damage_range": (14, 22),
         "weapon_multiplier": 1.2,
+        "rider": {"effect": "Sundered", "chance": 35},
         "classes": ["legionary"],
-        "desc": "A close-range cleave, striking up to three enemies in front of you at once.",
+        "desc": "A close-range cleave, striking up to three enemies in front of you at once. May cleave through one piece of each target's armor for the rest of the fight.",
     },
     "shield wall": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -5825,8 +5936,9 @@ SKILLS = {
         "level_required": 75,
         "damage_range": (28, 40),
         "weapon_multiplier": 1.7,
+        "rider": {"effect": "Sundered", "chance": 60},
         "classes": ["legionary"],
-        "desc": "A heavy strike aimed to break through even the sturdiest guard.",
+        "desc": "A heavy strike aimed to break through even the sturdiest guard. Often cleaves through a piece of the target's armor for the rest of the fight.",
     },
     "last stand": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -5854,8 +5966,9 @@ SKILLS = {
         "level_required": 5,
         "damage_range": (18, 28),
         "weapon_multiplier": 1.4,
+        "rider": {"effect": "Bleeding", "chance": 50, "duration": 3, "share": 0.2},
         "classes": ["barbarian"],
-        "desc": "A wild, heavy swing with little regard for form.",
+        "desc": "A wild, heavy swing with little regard for form. A landed hit may open a bleeding wound that costs HP each turn until it runs out or the target is healed.",
     },
     "war cry": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -5874,8 +5987,9 @@ SKILLS = {
         "level_required": 20,
         "damage_range": (30, 45),
         "weapon_multiplier": 1.5,
+        "rider": {"effect": "Sundered", "chance": 40},
         "classes": ["barbarian"],
-        "desc": "A heavy two-handed strike. Requires an actual two-handed weapon in hand - won't work with anything else.",
+        "desc": "A heavy two-handed strike. Requires an actual two-handed weapon in hand - won't work with anything else. May cleave through one piece of the target's armor, leaving it useless for the rest of the fight.",
     },
     "intimidating roar": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -5933,8 +6047,9 @@ SKILLS = {
         "max_targets": 5,
         "damage_range": (32, 48),
         "weapon_multiplier": 1.5,
+        "rider": {"effect": "Bleeding", "chance": 60, "duration": 4, "share": 0.25},
         "classes": ["barbarian"],
-        "desc": "Mythic tier. A storm of axe and fury the legions still tell campfire stories about - a massive multi-hit rage attack striking up to five enemies at once.",
+        "desc": "Mythic tier. A storm of axe and fury the legions still tell campfire stories about - a massive multi-hit rage attack striking up to five enemies at once. Hits may leave bleeding wounds.",
     },
     # ------------------------------------------------------------------
     # FACTION ABILITIES
@@ -7622,8 +7737,8 @@ class CombatCharacter(ContribRPCharacter):
         if self.rules.is_in_combat(self):
             self.msg("You can't exit a room while in combat!")
             return False
-        if move_type == "move" and asleep_blocks(self):
-            self.msg(concentration.ASLEEP_MESSAGE)
+        if move_type == "move" and martial.is_incapacitated(self):
+            self.msg(martial.incapacitated_message(self))
             return False
         if self.db.hp <= 0 and not self.db.is_dead and not kwargs.get("force_move"):
             self.msg("You can't move, you've been defeated!")
@@ -9249,6 +9364,9 @@ class CmdDisengage(Command):
             return
         if not self.rules.is_turn(self.caller):
             self.caller.msg("You can only do that on your turn.")
+            return
+        if "Grappled" in (self.caller.db.conditions or {}):
+            self.caller.msg("|rYou're held fast - you can't break away while you're grappled!|n")
             return
 
         roll = randint(1, 100)

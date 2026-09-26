@@ -308,8 +308,8 @@ class NPCChatter(SelfHealingRepeatScript):
         npc = self.obj
         if not npc or not npc.pk or not npc.location:
             return
-        if "Asleep" in (npc.db.conditions or {}):
-            return  # a sleeping NPC says nothing (world/concentration.py)
+        if "Asleep" in (npc.db.conditions or {}) or "Stunned" in (npc.db.conditions or {}):
+            return  # a sleeping or stunned NPC says nothing
 
         line = None
         if npc.db.tells_rumors and randint(1, 100) <= (npc.db.rumor_chance or 30):
@@ -372,8 +372,9 @@ class WanderingNPC(SelfHealingRepeatScript):
         current = npc.location
         if not wander_rooms or not current:
             return
-        if "Asleep" in (npc.db.conditions or {}) or "Confused" in (npc.db.conditions or {}):
-            return  # asleep, or already stumbling on its own (world/concentration.py)
+        held = npc.db.conditions or {}
+        if "Asleep" in held or "Stunned" in held or "Confused" in held:
+            return  # out cold, or already stumbling on its own
 
         valid_exits = [
             ex for ex in current.exits if ex.destination in wander_rooms

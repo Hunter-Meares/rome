@@ -151,7 +151,7 @@
           <tr><td class="lvl">40</td><td>Blood Sacrament</td><td class="cost">6 MP + HP</td><td>Converts a portion of the caster's own health into a devastating burst of damage.</td></tr>
           <tr><td class="lvl">45</td><td>Slow</td><td class="cost">9 MP</td><td>Drags an enemy's movements to a crawl - they lose every other turn for a short time. A body effect - resisted with Vigor.</td></tr>
           <tr><td class="lvl">45</td><td>Doom</td><td class="cost">7 MP</td><td>A heavy bolt of black doom - strong single-target damage.</td></tr>
-          <tr><td class="lvl">50</td><td>Omen of Ruin</td><td class="cost">8 MP</td><td>Frightens a target and lowers their accuracy and damage at once.</td></tr>
+          <tr><td class="lvl">50</td><td>Omen of Ruin</td><td class="cost">10 MP</td><td>Frightens up to three enemies - they lose two turns in terror - and leaves each with lowered accuracy and damage that outlasts the fear.</td></tr>
           <tr><td class="lvl">50</td><td>Summon Lemures</td><td class="cost">10 MP</td><td>Calls a restless spirit of the dead to fight at the caster's side, its strength scaling with level.</td></tr>
           <tr><td class="lvl">60</td><td>Soul Rot</td><td class="cost">9 MP</td><td>A spreading poison curse that can strike up to three enemies at once.</td></tr>
           <tr><td class="lvl">70</td><td>Finger of Death</td><td class="cost">11 MP</td><td>A genuine execute - only usable against a target already close to falling, with a real chance of a severe, final blow.</td></tr>
@@ -173,7 +173,7 @@
           <tr><td class="lvl">1</td><td>Sneak</td><td class="cost">SP</td><td>Turn nearly invisible, making yourself much harder to hit. Usable in or out of combat.</td></tr>
           <tr><td class="lvl">5</td><td>Ambush</td><td class="cost">SP</td><td>Starts a fight with a burst from hiding, guaranteeing a bonus on your first successful attack. Only you and the target are drawn in.</td></tr>
           <tr><td class="lvl">8</td><td>Poisoned Blade</td><td class="cost">SP</td><td>Coats your weapon, applying a poison curse to the target's next hit.</td></tr>
-          <tr><td class="lvl">15</td><td>Backstab</td><td class="cost">SP</td><td>Bonus damage against a target who hasn't yet acted in the fight. Requires already being in combat.</td></tr>
+          <tr><td class="lvl">15</td><td>Backstab</td><td class="cost">SP</td><td>Bonus damage against a target who hasn't yet acted in the fight. Requires already being in combat. May leave a bleeding wound.</td></tr>
           <tr><td class="lvl">20</td><td>Field Report</td><td class="cost">SP</td><td>Reveals a target's current HP and conditions to your whole party at once.</td></tr>
           <tr><td class="lvl">25</td><td>Precision Strike</td><td class="cost">SP</td><td>Lowers a target's accuracy for a short time.</td></tr>
           <tr><td class="lvl">35</td><td>Crippling Strike</td><td class="cost">SP</td><td>Lowers a target's defense for a short time.</td></tr>
@@ -197,7 +197,7 @@
           <tr><td class="lvl">10</td><td>Entangle</td><td class="cost">SP</td><td>A thrown cord, a snare line, a well-placed trip - lowers a target's defense for a short time.</td></tr>
           <tr><td class="lvl">15</td><td>Track</td><td class="cost">SP</td><td>Reveals who's present in an adjacent room, through a named exit, without entering it.</td></tr>
           <tr><td class="lvl">20</td><td>Piercing Shot</td><td class="cost">SP</td><td>An armor-ignoring ranged strike.</td></tr>
-          <tr><td class="lvl">30</td><td>Rapid Volley</td><td class="cost">SP</td><td>A quick volley of shots, striking up to three targets at once.</td></tr>
+          <tr><td class="lvl">30</td><td>Rapid Volley</td><td class="cost">SP</td><td>A quick volley of shots, striking up to three targets at once. Arrows may leave bleeding wounds.</td></tr>
           <tr><td class="lvl">40</td><td>Snare</td><td class="cost">SP</td><td>A hidden trap poisons whatever springs it.</td></tr>
           <tr><td class="lvl">50</td><td>Call of the Wild</td><td class="cost">SP</td><td>Calls a beast companion to fight at your side - wolf, boar, or something greater, depending on your level.</td></tr>
           <tr><td class="lvl">70</td><td>Pack Tactics</td><td class="cost">SP</td><td>A damage boost, but only while an active beast companion is out fighting alongside you.</td></tr>
@@ -219,12 +219,13 @@
           <tr><td class="lvl">10</td><td>Weapon Flourish</td><td class="cost">SP</td><td>A flashy display of weapon control - a temporary accuracy boost.</td></tr>
           <tr><td class="lvl">15</td><td>Disarming Strike</td><td class="cost">SP</td><td>A precise strike aimed at the weapon hand - lowers a target's outgoing damage for a short time.</td></tr>
           <tr><td class="lvl">20</td><td>Second Wind</td><td class="cost">SP</td><td>The crowd's roar carries you through the pain - a short heal-over-time.</td></tr>
+          <tr><td class="lvl">25</td><td>Dirt Kick</td><td class="cost">SP</td><td>An arena dirty trick: sand in the eyes. The target is Blinded for a few turns - a big drop to their accuracy, twice an ordinary Accuracy Down. Resisted with Vigor.</td></tr>
           <tr><td class="lvl">30</td><td>Gory Finish</td><td class="cost">SP</td><td>A cinematic execute - only works against a target already below 20% HP, but hits hard when it does.</td></tr>
           <tr><td class="lvl">40</td><td>Riposte</td><td class="cost">SP</td><td>The next hit you take triggers an immediate counter-attack against whoever landed it.</td></tr>
           <tr><td class="lvl">45</td><td>Double Strike</td><td class="cost">Passive</td><td>Landing a normal attack has a real chance to immediately follow up with a second, lighter strike. Nothing to activate - it triggers on its own.</td></tr>
-          <tr><td class="lvl">50</td><td>Finishing Blow</td><td class="cost">SP</td><td>A heavy, direct strike aimed to end a fight quickly.</td></tr>
+          <tr><td class="lvl">50</td><td>Finishing Blow</td><td class="cost">SP</td><td>A heavy, direct strike aimed to end a fight quickly. May grapple the target so they can't break away for a few turns.</td></tr>
           <tr><td class="lvl">70</td><td>Favor</td><td class="cost">SP</td><td>The crowd rises to their feet - both an accuracy and a damage boost at once.</td></tr>
-          <tr><td class="lvl tier-mythic">90</td><td class="tier-mythic">Glory</td><td class="cost">SP</td><td>A strike worthy of a legend retold for generations - a massive damage finisher.</td></tr>
+          <tr><td class="lvl tier-mythic">90</td><td class="tier-mythic">Glory</td><td class="cost">SP</td><td>A strike worthy of a legend retold for generations - a massive damage finisher. Always a critical hit.</td></tr>
           <tr><td class="lvl">95</td><td>Triple Strike</td><td class="cost">Passive</td><td>Builds on Double Strike - if that follow-up strike also lands, there's a real chance of a third, lighter strike still.</td></tr>
         </table>
         </div>
@@ -239,14 +240,14 @@
         <table class="ability-table">
           <tr><th>Level</th><th>Ability</th><th>Cost</th><th>Effect</th></tr>
           <tr><td class="lvl">1</td><td>Hold the Line</td><td class="cost">SP</td><td>Plants your feet and draws every eye - a temporary defense boost.</td></tr>
-          <tr><td class="lvl">5</td><td>Shield Bash</td><td class="cost">SP</td><td>A heavy shield strike, driving a target back.</td></tr>
+          <tr><td class="lvl">5</td><td>Shield Bash</td><td class="cost">SP</td><td>A heavy shield strike, driving a target back. May knock the target's weapon from their hand for two turns.</td></tr>
           <tr><td class="lvl">10</td><td>Provoke</td><td class="cost">SP</td><td>Draws a target's focus and rattles their guard - lowers their accuracy for a short time.</td></tr>
-          <tr><td class="lvl">15</td><td>Gladius Cleave</td><td class="cost">SP</td><td>A close-range cleave, striking up to three enemies in front of you at once.</td></tr>
+          <tr><td class="lvl">15</td><td>Gladius Cleave</td><td class="cost">SP</td><td>A close-range cleave, striking up to three enemies in front of you at once. May cleave through one piece of each target's armor for the rest of the fight.</td></tr>
           <tr><td class="lvl">25</td><td>Shield Wall</td><td class="cost">SP</td><td>A stronger defensive stance than Hold the Line.</td></tr>
           <tr><td class="lvl">35</td><td>Testudo</td><td class="cost">SP, group</td><td>Forms a shield wall, granting up to five allies (use '= party') a temporary defense boost.</td></tr>
           <tr><td class="lvl">45</td><td>Rally</td><td class="cost">SP, group</td><td>Steadies the whole unit, granting up to five allies (use '= party') a heal-over-time.</td></tr>
           <tr><td class="lvl">60</td><td>Unbreakable</td><td class="cost">SP</td><td>A near-total defensive stance, held longer than any lesser stance.</td></tr>
-          <tr><td class="lvl">75</td><td>Shattering Blow</td><td class="cost">SP</td><td>A heavy strike aimed to break through even the sturdiest guard.</td></tr>
+          <tr><td class="lvl">75</td><td>Shattering Blow</td><td class="cost">SP</td><td>A heavy strike aimed to break through even the sturdiest guard. Often cleaves through a piece of the target's armor for the rest of the fight.</td></tr>
           <tr><td class="lvl tier-mythic">90</td><td class="tier-mythic">Last Stand</td><td class="cost">SP, group</td><td>The line that will not break, no matter the cost - a powerful, long-lasting defense boost for up to five allies.</td></tr>
         </table>
         </div>
@@ -261,15 +262,16 @@
         <table class="ability-table">
           <tr><th>Level</th><th>Ability</th><th>Cost</th><th>Effect</th></tr>
           <tr><td class="lvl">1</td><td>Rage of the North</td><td class="cost">SP</td><td>A berserker's rage - a damage boost, at the cost of your own defense for the same duration.</td></tr>
-          <tr><td class="lvl">5</td><td>Reckless Swing</td><td class="cost">SP</td><td>A wild, heavy swing with little regard for form.</td></tr>
+          <tr><td class="lvl">5</td><td>Reckless Swing</td><td class="cost">SP</td><td>A wild, heavy swing with little regard for form. A landed hit may open a bleeding wound that costs HP each turn until it runs out or the target is healed.</td></tr>
           <tr><td class="lvl">15</td><td>War Cry</td><td class="cost">SP</td><td>A roar that shakes nearby enemies' resolve - lowers the accuracy of up to three enemies at once.</td></tr>
-          <tr><td class="lvl">20</td><td>Thundering Maul</td><td class="cost">SP</td><td>A heavy two-handed strike. Requires an actual two-handed weapon in hand.</td></tr>
+          <tr><td class="lvl">20</td><td>Thundering Maul</td><td class="cost">SP</td><td>A heavy two-handed strike. Requires an actual two-handed weapon in hand. May cleave through one piece of the target's armor, leaving it useless for the rest of the fight.</td></tr>
           <tr><td class="lvl">30</td><td>Intimidating Roar</td><td class="cost">SP</td><td>A roar that leaves a single enemy too frightened to act for a short time.</td></tr>
+          <tr><td class="lvl">35</td><td>Headbutt</td><td class="cost">SP</td><td>A vicious headbutt that knocks the target senseless - they lose their next two turns and can't act, cast, use skills, speak or move. Unlike Sleep, damage does not wake them. Resisted with Vigor; a stunned target is then immune to stuns for a few turns.</td></tr>
           <tr><td class="lvl">40</td><td>Ferocity</td><td class="cost">SP</td><td>A stronger, purer rage than Rage of the North - a bigger damage boost, without the defense cost.</td></tr>
           <tr><td class="lvl">50</td><td>Reckless Abandon</td><td class="cost">SP</td><td>A huge damage strike that leaves your own defense down afterward - real risk for real reward.</td></tr>
           <tr><td class="lvl">65</td><td>Unstoppable</td><td class="cost">SP</td><td>A powerful, sustained defensive resolve that nothing seems able to shake.</td></tr>
           <tr><td class="lvl">80</td><td>Earth-Shaking Slam</td><td class="cost">SP</td><td>A ground-shaking slam striking up to three enemies at once.</td></tr>
-          <tr><td class="lvl tier-mythic">90</td><td class="tier-mythic">Fury of the Frontier</td><td class="cost">SP</td><td>A storm of axe and fury the legions still tell campfire stories about - a massive multi-hit rage attack striking up to five enemies at once.</td></tr>
+          <tr><td class="lvl tier-mythic">90</td><td class="tier-mythic">Fury of the Frontier</td><td class="cost">SP</td><td>A storm of axe and fury the legions still tell campfire stories about - a massive multi-hit rage attack striking up to five enemies at once. Hits may leave bleeding wounds.</td></tr>
         </table>
         </div>
       </div>

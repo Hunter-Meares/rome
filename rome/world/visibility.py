@@ -35,6 +35,8 @@ def state_tags(character, looker):
     tags = []
     if asleep_blocks(character):
         tags.append("|y(asleep)|n")
+    elif "Stunned" in (character.db.conditions or {}):
+        tags.append("|y(stunned)|n")
     if is_flying(character):
         tags.append("|c(flying)|n")
     if is_invisible(character):

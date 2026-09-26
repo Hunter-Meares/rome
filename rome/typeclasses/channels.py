@@ -128,7 +128,8 @@ class Channel(DefaultChannel):
             sessions = getattr(accessing_obj, "sessions", None)
             for session in (sessions.all() if sessions else []):
                 puppet = getattr(session, "puppet", None)
-                if puppet is not None and "Asleep" in (puppet.db.conditions or {}):
+                held = (puppet.db.conditions or {}) if puppet is not None else {}
+                if "Asleep" in held or "Stunned" in held:
                     return False
         return super().access(
             accessing_obj,

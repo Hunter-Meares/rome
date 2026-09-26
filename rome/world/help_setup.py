@@ -188,6 +188,29 @@ NEW_SPELL_HELP = {
 }
 
 
+# Help for the martial rework (world/martial.py): two new warrior skills, plus
+# topics for critical hits and the status effects skills can inflict.
+NEW_SKILL_HELP = {
+    "headbutt": (
+        "The Barbarian's knockout blow. A landed headbutt leaves the target "
+        "|wStunned|n for two turns: they lose every turn and can't act, cast, use "
+        "skills, speak or move. Unlike Sleep, |wdamage does not wake them|n - "
+        "you can hit a stunned foe all you like. It has no cost to hold, but it "
+        "can be resisted with |wVigor|n, and a target that has just been stunned "
+        "is immune to being stunned again for a few turns (so nobody can be "
+        "chain-stunned). The stun ends when the fight does. It also does a "
+        "little damage. Won't work on someone who has laid down arms for good."
+    ),
+    "dirt kick": (
+        "The Gladiator's arena dirty trick: a kick of sand into the eyes. The "
+        "target is |wBlinded|n for a few turns - a big drop to their accuracy, "
+        "twice that of an ordinary Accuracy Down (which is a caster curse; "
+        "Blinded is its own effect). It can be resisted with |wVigor|n. Cheap "
+        "and quick, it's for the moment you need the enemy to stop hitting you."
+    ),
+}
+
+
 def create_all_help_entries():
     from world.racial_abilities import RACIAL_ABILITIES
 
@@ -197,6 +220,8 @@ def create_all_help_entries():
         + list(STAT_HELP.keys())
         + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "pacifism", "godpacifism", "gathering", "crafting", "faber", "herbalist", "food", "concentration", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming", "trivia", "pets", "buypet", "row", "socials"]
         + list(NEW_SPELL_HELP.keys())
+        + list(NEW_SKILL_HELP.keys())
+        + ["critical hits", "martial effects"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
         + list(RACIAL_ABILITIES.keys())
     )
@@ -1358,6 +1383,86 @@ def create_all_help_entries():
             "Herbalist trainer, costs more herbs\n\n"
             "Herbalist has its own skill (separate from Faber's) that "
             "only improves by actually attempting Herbalist recipes."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- The martial rework: skills, critical hits, status effects ---
+    from world.combat import SKILLS as _SKILLS, _combat_usability_line, _usage_line
+
+    for skill_name, extra in NEW_SKILL_HELP.items():
+        data = _SKILLS[skill_name]
+        HelpEntry.objects.create(
+            db_key=skill_name,
+            db_help_category="Skills",
+            db_entrytext=(
+                "|w%s|n - a %s skill, level %d\n"
+                "Cost: %s SP\n"
+                "Usable: %s\n"
+                "Usage: %s\n\n"
+                "%s\n\n"
+                "See also: 'skillinfo %s', 'help martial effects'."
+                % (
+                    skill_name.title(),
+                    ", ".join(c.capitalize() for c in data.get("classes", [])) or "any class",
+                    data.get("level_required", 1),
+                    data["cost"],
+                    _combat_usability_line(data),
+                    _usage_line("skill", skill_name, data["target"]),
+                    extra,
+                    skill_name,
+                )
+            ),
+            db_lock_storage="view:all()",
+        )
+
+    HelpEntry.objects.create(
+        db_key="critical hits",
+        db_help_category="General",
+        db_entrytext=(
+            "|wCritical Hits|n\n\n"
+            "A landed strike with a |wmelee weapon|n - or your fists - can be a "
+            "critical hit, doing extra damage. It's announced in the room.\n\n"
+            "The weapon decides how often, and how hard:\n"
+            "  light blades (daggers, gladii)   - often, for double damage\n"
+            "  swords and greatswords           - fairly often, for double\n"
+            "  spears, tridents, axes, mauls    - rarely, for |wtriple|n damage\n"
+            "  staves and bare fists            - occasionally, for double\n"
+            "Bows and thrown weapons don't crit. A high Agilitas nudges your "
+            "chance up (to a limit). Basic attacks, power attacks and every "
+            "weapon-based skill can crit; Glory, the Gladiator's mythic, is "
+            "|walways|n a critical hit.\n\n"
+            "Only characters crit - monsters don't. A disarmed fighter (see "
+            "'help martial effects') fights, and crits, like a brawler."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    HelpEntry.objects.create(
+        db_key="martial effects",
+        db_help_category="General",
+        db_entrytext=(
+            "|wMartial Effects|n\n\n"
+            "Some warrior skills do more than damage - a landed hit can leave an "
+            "effect that no spell copies. All of them attack the body, so they're "
+            "resisted with |wVigor|n (see 'help vigor'), and all of them end when "
+            "the fight does (except a bleeding wound, which lingers).\n\n"
+            "  |wBleeding|n  - a wound that costs HP every turn. |wAny healing stops "
+            "it|n - a spell, a potion, food. (Unlike poison, which a heal "
+            "doesn't touch.)\n"
+            "  |wSundered|n  - the blow cleaves through one random piece of worn "
+            "armor - the body armor or the shield - and it stops helping for the rest "
+            "of the fight. The item isn't harmed. No effect on someone wearing "
+            "neither.\n"
+            "  |wDisarmed|n  - the target's weapon is knocked from their hand for a "
+            "couple of turns; they fight with bare fists.\n"
+            "  |wGrappled|n  - held fast: the target can't disengage or flee.\n"
+            "  |wStunned|n   - knocked senseless: loses every turn, can't act, cast, "
+            "speak or move, and damage doesn't wake them. Afterwards they're "
+            "immune to stuns for a few turns.\n"
+            "  |wBlinded|n   - dust in the eyes: a big drop to accuracy.\n\n"
+            "'effects' shows what's on you. 'skillinfo <skill>' says what a skill "
+            "can do."
         ),
         db_lock_storage="view:all()",
     )

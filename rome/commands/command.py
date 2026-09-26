@@ -58,10 +58,13 @@ class RomePromptMixin:
             and hasattr(caller, "attributes")
             and caller.attributes.has("max_hp")
         ):
-            from world.concentration import ASLEEP_MESSAGE, asleep_blocks, sleeper_may_run
+            from world.concentration import sleeper_may_run
+            from world.martial import incapacitated_message, is_incapacitated
 
-            if asleep_blocks(caller) and not sleeper_may_run(self):
-                caller.msg(ASLEEP_MESSAGE)
+            # Asleep (Sleep spell) or Stunned (a knockout blow): look around
+            # and out-of-game housekeeping only.
+            if is_incapacitated(caller) and not sleeper_may_run(self):
+                caller.msg(incapacitated_message(caller))
                 return True
 
         if caller and hasattr(caller, "attributes") and caller.attributes.has("max_hp"):
