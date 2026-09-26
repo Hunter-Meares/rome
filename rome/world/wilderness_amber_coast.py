@@ -58,7 +58,7 @@ from evennia import DefaultExit
 from evennia.contrib.grid import wilderness
 from evennia.utils import create
 
-from world.wilderness_rome import FixedWildernessRoom
+from world.wilderness_rome import FixedWildernessRoom, _is_unseen
 
 # --- Map bounds -------------------------------------------------------
 
@@ -278,6 +278,8 @@ def _aggro_on_sight(npc, caller, room):
     active Sanctuary, no-ops for non-player movers)."""
     if not caller or not getattr(caller, "has_account", False):
         return
+    if _is_unseen(caller) or "Asleep" in (npc.db.conditions or {}):
+        return
 
     from world.combat import COMBAT_RULES, CombatTurnHandler
 
@@ -396,7 +398,7 @@ class AmberCoastWildernessMapProvider(wilderness.WildernessMapProvider):
         # See world/wilderness_rome.py's identical comment - a
         # pacifist (world/pacifism.py) can't be attacked by any NPC,
         # so no encounter spawns for them here either.
-        if caller and caller.db.pacifist:
+        if caller and (caller.db.pacifist or _is_unseen(caller)):
             pass
         elif caller and random.random() < ENCOUNTER_CHANCE:
             low, high = _ENCOUNTER_LEVELS[band]

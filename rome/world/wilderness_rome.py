@@ -53,6 +53,8 @@ from evennia import DefaultExit
 from evennia.contrib.grid import wilderness
 from evennia.utils import create
 
+from world.visibility import InvisibleAwareRoom
+
 # --- Map bounds -------------------------------------------------------
 
 # y=0 is the threshold just past the Porta Flaminia ("The Road's True
@@ -283,6 +285,14 @@ def _schedule_encounter_cleanup(npc, in_seconds=ENCOUNTER_CLEANUP_SECONDS):
     delay(in_seconds, _cleanup_encounter_npc, npc, persistent=True)
 
 
+def _is_unseen(character):
+    """True for someone under a real invisibility spell - the road's
+    ambushes don't spawn for them and can't find them (world/concentration.py)."""
+    from world.concentration import is_invisible
+
+    return is_invisible(character)
+
+
 def _aggro_on_sight(npc, caller, room):
     """
     Forces combat to start immediately between npc and whoever just
@@ -307,6 +317,8 @@ def _aggro_on_sight(npc, caller, room):
     able to trigger this).
     """
     if not caller or not getattr(caller, "has_account", False):
+        return
+    if _is_unseen(caller) or "Asleep" in (npc.db.conditions or {}):
         return
 
     from world.combat import COMBAT_RULES, CombatTurnHandler
@@ -399,7 +411,7 @@ class LeaveGermaniaWildernessExit(DefaultExit):
         return True
 
 
-class FixedWildernessRoom(wilderness.WildernessRoom):
+class FixedWildernessRoom(InvisibleAwareRoom, wilderness.WildernessRoom):
     """
     The wilderness contrib's own WildernessRoom.at_object_receive()
     (evennia/contrib/grid/wilderness/wilderness.py) takes no **kwargs
@@ -510,7 +522,7 @@ class RomeWildernessMapProvider(wilderness.WildernessMapProvider):
         # at all rather than spawning one and then refusing to engage
         # it (which would still crowd the room with a hostile-looking
         # NPC for no reason).
-        if caller and caller.db.pacifist:
+        if caller and (caller.db.pacifist or _is_unseen(caller)):
             pass
         elif caller and random.random() < ENCOUNTER_CHANCE:
             low, high = _ENCOUNTER_LEVELS[band]

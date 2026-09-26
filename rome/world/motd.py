@@ -32,20 +32,19 @@ from evennia import CmdSet
 from commands.command import Command
 from world.box_display import box_border, box_line, box_paragraph, box_blank
 
-RECENT_UPDATES_DATE = "2026-09-25"
+RECENT_UPDATES_DATE = "2026-09-26"
 
 RECENT_UPDATES_TEXT = (
-    "Crafting now has two professions: Faber the smith (forge at the "
-    "Smithy) and a new Herbalist (mortar at Market Row - Back Stalls), "
-    "brewing a free healing tonic or a trained antidote. 'craft "
-    "<recipe>' finds your materials automatically and 'recipes' shows "
-    "everything you could make. The Ore Vein Shaft is now a real, "
-    "sprawling mine - real ground to explore, not two rooms. Not here "
-    "to fight at all? 'help pacifism' explains a real, permanent way "
-    "to opt out of combat, and 'journey' now points a pacifist toward "
-    "crafting instead of the Ludus. Also recent: thirteen quests "
-    "around the city, a triumphal procession through the Forum, and "
-    "80 social commands ('help socials')."
+    "The casters have been reworked. Augurs gain Magic Arrow, Sleep, See "
+    "Invisibility, Fly, Invisibility, Slow and Confusion; Haruspex gain "
+    "Inflict Wounds, False Life and Armor of Agathys; Medicus gain Healing "
+    "Word, Aid and Flame of Vesta. Some spells are held by concentration "
+    "and drain your MP until you let go - 'effects' shows what's on you, "
+    "'release' lets go, and 'help concentration' explains it all. Harpies "
+    "now fly for free with 'fly'. Bane, Omen of Weakness, Omen of Doom, "
+    "Bless and Divine Favor are retired - you're swapped or refunded "
+    "automatically. Crafting, pacifism and 'journey' are covered in the "
+    "help files."
 )
 
 # The box's own interior width, between its left/right borders and

@@ -48,6 +48,22 @@ class RomePromptMixin:
         ret = super().at_pre_cmd()
 
         caller = self.caller
+        # A magically sleeping character can look around and do out-of-game
+        # housekeeping, and nothing else - no speech, spells, skills or
+        # movement (world/concentration.py). Checked centrally here so no
+        # individual command has to remember it.
+        if (
+            not ret
+            and caller
+            and hasattr(caller, "attributes")
+            and caller.attributes.has("max_hp")
+        ):
+            from world.concentration import ASLEEP_MESSAGE, asleep_blocks, sleeper_may_run
+
+            if asleep_blocks(caller) and not sleeper_may_run(self):
+                caller.msg(ASLEEP_MESSAGE)
+                return True
+
         if caller and hasattr(caller, "attributes") and caller.attributes.has("max_hp"):
             # Blank line right after the prompt (and the command you just
             # typed) and before this command's output - moved here instead

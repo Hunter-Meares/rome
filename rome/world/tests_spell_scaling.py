@@ -109,3 +109,79 @@ class TestSpellAttackUsesTheScaledRange(EvenniaTest):
         low, high = max_hit_at(20), max_hit_at(60)
         self.assertEqual(low, RITUAL_FLAME[1])
         self.assertGreater(high, low * 2)
+
+
+class TestScalingStartsAtEachSpellsOwnUnlockLevel(EvenniaTest):
+    """
+    Every damaging spell grows with level from the level it's learned at
+    (capped at the shared level-20 anchor) - a level-1 spell no longer sits
+    flat until level 20. Owner requirement: "ALL damage spells should scale
+    with level including level 1 spells."
+    """
+
+    def _at(self, level, authored, spell):
+        self.char1.db.level = level
+        return scale_spell_damage_range(self.char1, authored, spell_name=spell)
+
+    def test_magic_missile_is_as_authored_at_level_one_and_grows_from_there(self):
+        from world.combat import SPELLS
+
+        authored = SPELLS["magic arrow"]["damage_range"]
+        self.assertEqual(self._at(1, authored, "magic arrow"), authored)
+        low = self._at(10, authored, "magic arrow")
+        high = self._at(40, authored, "magic arrow")
+        self.assertGreater(low[1], authored[1])
+        self.assertGreater(high[1], low[1])
+
+    def test_every_damaging_spell_is_as_authored_at_its_own_unlock_level(self):
+        from world.combat import SPELLS
+
+        for name, data in SPELLS.items():
+            authored = data.get("damage_range")
+            if not authored:
+                continue
+            # A spell's authored range is what it does at its own unlock
+            # level, or at the shared anchor level if it unlocks above that.
+            tuned_for = min(data["level_required"], SPELL_DAMAGE_ANCHOR_LEVEL)
+            self.assertEqual(self._at(tuned_for, authored, name), authored, name)
+
+    def test_every_damaging_spell_never_shrinks_as_level_rises(self):
+        from world.combat import SPELLS
+
+        for name, data in SPELLS.items():
+            authored = data.get("damage_range")
+            if not authored:
+                continue
+            previous = (0, 0)
+            for level in range(min(data["level_required"], SPELL_DAMAGE_ANCHOR_LEVEL), MAX_LEVEL + 1):
+                current = self._at(level, authored, name)
+                self.assertGreaterEqual(current[1], previous[1], (name, level))
+                previous = current
+
+    def test_spells_unlocked_at_or_above_the_anchor_are_unchanged_by_the_new_rule(self):
+        # Ritual Flame unlocks at the anchor level itself: the same numbers
+        # as before the per-spell rule existed, at every level.
+        for level in (20, 40, 60, 100):
+            self.assertEqual(
+                self._at(level, RITUAL_FLAME, "ritual flame"),
+                scale_spell_damage_range(self._caster(level), RITUAL_FLAME),
+            )
+
+    def _caster(self, level):
+        self.char1.db.level = level
+        return self.char1
+
+    def test_magic_missile_stays_well_below_divine_judgment_at_every_level(self):
+        from world.combat import SPELLS
+
+        for level in (15, 30, 60, 100):
+            mm = sum(self._at(level, SPELLS["magic arrow"]["damage_range"], "magic arrow"))
+            dj = sum(self._at(level, SPELLS["divine judgment"]["damage_range"], "divine judgment"))
+            self.assertLess(mm, dj, level)
+
+    def test_an_npc_caster_is_still_never_scaled(self):
+        from world.combat import AutoStatNPC
+
+        npc = create.create_object(AutoStatNPC, key="a hedge wizard", location=self.room1)
+        npc.db.level = 60
+        self.assertEqual(scale_spell_damage_range(npc, (4, 6), spell_name="magic arrow"), (4, 6))

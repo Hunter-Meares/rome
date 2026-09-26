@@ -162,8 +162,9 @@ RACES = {
         ),
         "traits": ["Flight", "Keen Senses"],
         "abilities": [
+            "Innate Flight - take to the air at will, free ('fly' / 'land'); moving between rooms costs a quarter of the stamina",
             "Aerial Assault - bonus attacks from above",
-            "Skyward Scout - traverse terrain faster, spot hidden foes",
+            "Skyward Scout - spot hidden foes",
         ],
         "stat_mods": {"max_hp": -5, "max_mp": 0, "max_sp": 20, "virtus": 0, "agilitas": 2, "ingenium": 2, "vigor": 0},
     },
@@ -299,7 +300,7 @@ CLASSES = {
         # level-1 replacement, but chargen was never updated to match
         # - every new Augur kept starting with a full-strength heal no
         # other class's role even permits them to keep learning.
-        "starting_spells": ["bane"],
+        "starting_spells": ["magic arrow"],
     },
     "medicus": {
         "display": "Medicus (Light - Healer/Support)",

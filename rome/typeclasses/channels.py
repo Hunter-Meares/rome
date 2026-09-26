@@ -116,3 +116,24 @@ class Channel(DefaultChannel):
     """
 
     pass
+
+    def access(self, accessing_obj, access_type="listen", default=False, no_superuser_bypass=False, **kwargs):
+        """
+        A character held in a magical sleep (world/concentration.py) can't
+        speak - channels included. Channel commands don't run through the
+        in-game command mixin that stops a sleeper's other commands, so the
+        'send' check is where it has to be enforced.
+        """
+        if access_type == "send":
+            sessions = getattr(accessing_obj, "sessions", None)
+            for session in (sessions.all() if sessions else []):
+                puppet = getattr(session, "puppet", None)
+                if puppet is not None and "Asleep" in (puppet.db.conditions or {}):
+                    return False
+        return super().access(
+            accessing_obj,
+            access_type=access_type,
+            default=default,
+            no_superuser_bypass=no_superuser_bypass,
+            **kwargs,
+        )

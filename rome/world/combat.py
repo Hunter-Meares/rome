@@ -51,6 +51,14 @@ from evennia.utils import utils as evennia_utils
 from evennia.contrib.rpg.health_bar import display_meter
 from typeclasses.objects import ObjectParent
 from world.box_display import box_border, box_line, box_blank
+from world import concentration, wards
+from world.concentration import (
+    asleep_blocks,
+    invisible_hides_from,
+    is_flying,
+    is_invisible,
+    reveal_on_offense,
+)
 
 """
 ----------------------------------------------------------------------------
@@ -280,12 +288,12 @@ DEF_DOWN_MOD = -15
 HARMFUL_CONDITIONS = frozenset({
     "Poisoned", "Cursed", "Frightened", "Marked for Death", "Silenced",
     "Paralyzed", "Accuracy Down", "Damage Down", "Defense Down",
-    "Sanctuary Broken",
+    "Sanctuary Broken", "Asleep", "Slowed", "Confused",
 })
 BENEFICIAL_CONDITIONS = frozenset({
     "Regeneration", "Haste", "Accuracy Up", "Damage Up", "Defense Up",
     "Death Ward", "Invisible", "Illusory Duplicate", "Shielded",
-    "Ambush", "Riposte Ready",
+    "Ambush", "Riposte Ready", "Sees Invisible",
 })
 
 # ----------------------------------------------------------------------------
@@ -1322,7 +1330,7 @@ class CombatRules:
 
         return damage_value
 
-    def apply_damage(self, defender, damage, attacker=None, announce_threshold=True):
+    def apply_damage(self, defender, damage, attacker=None, announce_threshold=True, melee=False):
         """
         Applies damage to a target, reducing their HP by the damage
         amount to a minimum of 0. Characters with db.invincible = True
@@ -1362,6 +1370,12 @@ class CombatRules:
         # edge case might otherwise slip past one of those guards.
         if defender.db.pacifist:
             return
+
+        # Any damage at all wakes a magically sleeping target - the whole
+        # price of the Sleep spell (world/concentration.py). Checked before
+        # the wards below so even a blow that's absorbed still rouses them.
+        if damage > 0 and asleep_blocks(defender):
+            concentration.wake_sleeper(defender, reason="damage")
 
         # Rite of the Entrails' whole promise is "extra damage from
         # ALL sources" - but this used to live as a special case
@@ -1403,6 +1417,16 @@ class CombatRules:
                 "|Y%s's protective ward absorbs the blow entirely!|n" % defender
             )
             return
+
+        # Temporary HP (False Life, Aid, Armor of Agathys - world/wards.py)
+        # soaks a hit before real HP is touched; a warded melee target also
+        # lashes back at the attacker.
+        if damage > 0:
+            damage = wards.absorb_with_temp_hp(
+                self, defender, damage, attacker=attacker, melee=melee
+            )
+            if damage <= 0:
+                return
 
         defender.db.hp -= damage
         if defender.db.hp <= 0:
@@ -1522,6 +1546,9 @@ class CombatRules:
             # True, there is nothing left for at_defeat to meaningfully
             # do - bail out before any of that fires a second time.
             return
+        # A defeated caster lets go of everything they were holding.
+        if defeated.db.concentrations:
+            concentration.end_all_concentrations(defeated, reason="death")
         display_name = defeated.db.base_name or defeated.key
         if defeated.location:
             defeated.location.msg_contents("%s has been defeated!" % display_name)
@@ -1730,6 +1757,10 @@ class CombatRules:
             # already treats them all as real participants in this
             # kill for XP/gold, so pacifism eligibility follows suit.
             for contributor in player_damage:
+                # Someone the Confusion spell sent into a blind rage isn't
+                # a killer by choice - it never counts against pacifism.
+                if concentration.is_confused(contributor):
+                    continue
                 contributor.db.has_ever_killed_player = True
             if total_damage > 0:
                 for contributor, dealt in player_damage.items():
@@ -1737,7 +1768,8 @@ class CombatRules:
                     if share > 0:
                         self.award_kill_xp(contributor, share)
             elif attacker and getattr(attacker, "account", None):
-                attacker.db.has_ever_killed_player = True
+                if not concentration.is_confused(attacker):
+                    attacker.db.has_ever_killed_player = True
                 self.award_kill_xp(attacker, pvp_pool)
 
         # --- Gold reward, derived from xp_reward rather than a
@@ -1997,6 +2029,9 @@ class CombatRules:
         reduction = religion_bonus(defeated, "pluto", "death_xp_penalty_reduction")
         actual_loss = int(normal_loss * (1 - reduction))
         defeated.db.xp = current_xp - actual_loss
+        # Remembered so a Medicus's Blessing of Asclepius can give it back
+        # (resurrect(restore_lost_xp=True)); the riddle-solve return never does.
+        defeated.db.death_xp_lost = actual_loss
 
         defeated.msg(
             "|mYou feel your spirit torn from your body, dragged toward a dark river...|n"
@@ -2053,13 +2088,19 @@ class CombatRules:
         if underworld_entrance:
             character.move_to(underworld_entrance[0], quiet=False, move_type="teleport")
 
-    def resurrect(self, character):
+    def resurrect(self, character, restore_lost_xp=False):
         """
         Brings a dead character back to the world of the living - fully
         heals them, clears is_dead, and returns them somewhere sensible
         for their experience level. Used by both the Underworld
         riddle-solve return path and Medicus's Blessing of Asclepius
         spell (spell_resurrect below).
+
+        restore_lost_xp: True only for the Blessing of Asclepius - a
+        Medicus pulling you back waives the half-XP death penalty and
+        gives back what dying took (db.death_xp_lost, recorded by
+        handle_player_defeat). Solving the riddle yourself, or any other
+        return, keeps the penalty. The record is cleared either way.
 
         Level 5 and below return to the holding cells beneath the
         Colosseum, same as always - still early enough in the escape
@@ -2083,6 +2124,8 @@ class CombatRules:
         character.db.mp = character.db.max_mp
         character.db.sp = character.db.max_sp
         character.db.sp_low_warned = False
+        lost_xp = character.db.death_xp_lost or 0
+        character.db.death_xp_lost = None
         # Second line of defense alongside handle_player_defeat's own
         # clearing - a clean slate on the way back to life either way,
         # so nothing carried into death (or somehow reapplied while
@@ -2111,6 +2154,12 @@ class CombatRules:
         if destination:
             character.move_to(destination, quiet=False, move_type="teleport")
         character.msg(arrival_msg)
+        if restore_lost_xp and lost_xp > 0:
+            character.db.xp = (character.db.xp or 0) + lost_xp
+            character.msg(
+                "|GThe Blessing of Asclepius mends more than your body - the progress "
+                "you lost in dying is restored to you.|n"
+            )
 
         from world.religion import credit_pluto_resurrection
         credit_pluto_resurrection(character)
@@ -2156,6 +2205,9 @@ class CombatRules:
                     % (attacker, defender)
                 )
             return
+
+        # Striking anyone ends the attacker's invisibility outright.
+        reveal_on_offense(attacker)
 
         # Tracks who this attacker most recently went after. Used by
         # summoned allies (Augur's familiar, Haruspex's Lemures,
@@ -2246,7 +2298,7 @@ class CombatRules:
         # the one place a basic attack's wound-band crossing gets
         # announced, and it's correctly post-damage since it fires
         # from inside apply_damage() itself.
-        self.apply_damage(defender, damage_value, attacker=attacker)
+        self.apply_damage(defender, damage_value, attacker=attacker, melee=True)
 
         for condition in inflict_condition:
             self.add_condition(defender, attacker, condition[0], condition[1])
@@ -2710,6 +2762,34 @@ class CombatRules:
                 )
             character.db.combat_turnhandler.turn_end_check(character)
 
+        # Asleep (world/concentration.py) - a sleeper can't act. Normally
+        # a slept target is pulled out of the fight entirely, but one who
+        # gets dragged back in (someone else starts a fight with them)
+        # must still lose every turn until the damage wakes them. Slowed
+        # loses every other turn.
+        if (
+            self.is_in_combat(character)
+            and character.db.combat_actionsleft
+            and "Asleep" in self.get_conditions(character)
+        ):
+            character.db.combat_actionsleft = 0
+            if character.location:
+                character.location.msg_contents("%s is fast asleep and can't act!" % character)
+            character.db.combat_turnhandler.turn_end_check(character)
+        if (
+            self.is_in_combat(character)
+            and character.db.combat_actionsleft
+            and "Slowed" in self.get_conditions(character)
+        ):
+            character.db.slow_lost_turn = not character.db.slow_lost_turn
+            if character.db.slow_lost_turn:
+                character.db.combat_actionsleft = 0
+                if character.location:
+                    character.location.msg_contents(
+                        "%s moves as if through deep water, and loses the turn!" % character
+                    )
+                character.db.combat_turnhandler.turn_end_check(character)
+
         # Real, confirmed live gap found by direct player question
         # ("what did hex do? I'm not seeing any effect from
         # frightened") - Frightened's actual enforcement lived
@@ -2964,7 +3044,9 @@ class CombatRules:
         from world.religion import credit_apollo_heal
         credit_apollo_heal(caster)
 
-        if self.is_in_combat(caster):
+        # free_action (Healing Word): a murmured word costs no action, so it
+        # can be cast on top of whatever the turn is spent on.
+        if self.is_in_combat(caster) and not kwargs.get("free_action"):
             self.spend_action(caster, 1, action_name="cast")
 
     def spell_cure_condition(self, caster, spell_name, targets, cost, **kwargs):
@@ -3017,7 +3099,7 @@ class CombatRules:
                     "can't reach them until Charon has come for them." % target.key
                 )
                 continue
-            self.resurrect(target)
+            self.resurrect(target, restore_lost_xp=True)
             spell_msg += " %s is pulled back from the realm of the dead!" % target.key
             revived_any = True
 
@@ -3088,7 +3170,9 @@ class CombatRules:
         own convention for effect-application spells, not a gap.
         """
         spell_msg = "%s casts %s!" % (caster, spell_name)
-        min_damage, max_damage = scale_spell_damage_range(caster, kwargs.get("damage_range", (15, 25)))
+        min_damage, max_damage = scale_spell_damage_range(
+            caster, kwargs.get("damage_range", (15, 25)), spell_name=spell_name
+        )
         drain_percent = kwargs.get("drain_percent", 0.5)
         ingenium_bonus = ((caster.db.ingenium or 10) - 10) // 2
         total_drained = 0
@@ -3143,7 +3227,9 @@ class CombatRules:
         way as spell_vampiric above.
         """
         hp_cost = kwargs.get("hp_cost", 15)
-        min_damage, max_damage = scale_spell_damage_range(caster, kwargs.get("damage_range", (35, 50)))
+        min_damage, max_damage = scale_spell_damage_range(
+            caster, kwargs.get("damage_range", (35, 50)), spell_name=spell_name
+        )
         ingenium_bonus = ((caster.db.ingenium or 10) - 10) // 2
 
         if caster.db.hp <= hp_cost:
@@ -3204,12 +3290,16 @@ class CombatRules:
         ingenium_bonus = ((caster.db.ingenium or 10) - 10) // 2
         severe_chance = kwargs.get("severe_chance", 20)
         if randint(1, 100) <= severe_chance:
-            min_damage, max_damage = scale_spell_damage_range(caster, kwargs.get("severe_damage_range", (60, 90)))
+            min_damage, max_damage = scale_spell_damage_range(
+                caster, kwargs.get("severe_damage_range", (60, 90)), spell_name=spell_name
+            )
             spell_msg = "|rDeath itself answers %s's call - a withering blow tears through %s!|n" % (
                 caster, target
             )
         else:
-            min_damage, max_damage = scale_spell_damage_range(caster, kwargs.get("damage_range", (25, 40)))
+            min_damage, max_damage = scale_spell_damage_range(
+                caster, kwargs.get("damage_range", (25, 40)), spell_name=spell_name
+            )
             spell_msg = "%s's curse lashes into %s." % (caster, target)
         damage = randint(min_damage, max_damage) + ingenium_bonus
 
@@ -3285,6 +3375,13 @@ class CombatRules:
             # lands, same as before. See resists_condition's own
             # comment for the full reasoning.
             if target != caster and not self.is_ally(caster, target):
+                # A pacifist can never be attacked - which has to include
+                # being paralysed, silenced or frightened by a passer-by.
+                if target.db.pacifist:
+                    caster.location.msg_contents(
+                        "The spell can find no purchase on %s." % target
+                    )
+                    continue
                 if self.resists_condition(caster, target):
                     caster.location.msg_contents(
                         "%s resists the effect!" % target
@@ -3318,7 +3415,9 @@ class CombatRules:
         spell_msg = "%s casts %s!" % (caster, spell_name)
 
         atkname_single, atkname_plural = kwargs.get("attack_name", ("The spell", "spells"))
-        min_damage, max_damage = scale_spell_damage_range(caster, kwargs.get("damage_range", (10, 20)))
+        min_damage, max_damage = scale_spell_damage_range(
+            caster, kwargs.get("damage_range", (10, 20)), spell_name=spell_name
+        )
         accuracy = kwargs.get("accuracy", 0)
         attack_count = kwargs.get("attack_count", 1)
         # Two separate bonuses from the same stat: full-strength for
@@ -3346,7 +3445,7 @@ class CombatRules:
         for fighter in to_attack:
             attack_value = randint(1, 100) + accuracy + ingenium_accuracy
             defense_value = self.get_defense(caster, fighter)
-            if attack_value >= defense_value:
+            if kwargs.get("auto_hit") or attack_value >= defense_value:
                 spell_dmg = randint(min_damage, max_damage) + ingenium_bonus
                 total_hits[fighter] += 1
                 total_damage[fighter] += spell_dmg
@@ -3843,7 +3942,7 @@ class CombatRules:
         if "Ambush" in self.get_conditions(user):
             del self.get_conditions(user)["Ambush"]
 
-        self.apply_damage(target, bonus_damage + agilitas_bonus, attacker=user)
+        self.apply_damage(target, bonus_damage + agilitas_bonus, attacker=user, melee=True)
         user.db.sp -= cost
         user.location.msg_contents(
             "%s finds an opening and strikes %s from the shadows!" % (user, target)
@@ -3935,7 +4034,9 @@ class CombatRules:
             damage = randint(min_damage, max_damage) + agilitas_bonus
             # announce_threshold=False - skill_msg below already shows
             # this target's post-hit wound phrase inline.
-            self.apply_damage(target, damage, attacker=user, announce_threshold=False)
+            self.apply_damage(
+                target, damage, attacker=user, announce_threshold=False, melee=True
+            )
             total_damage += damage
             skill_msg += " %s takes |r%i|n damage - %s %s!" % (
                 target, damage, target, self.hp_status_phrase(target)
@@ -4115,7 +4216,7 @@ class CombatRules:
 
         agilitas_bonus = ((user.db.agilitas or 10) - 10) // 2
         damage = randint(min_damage, max_damage) + agilitas_bonus
-        self.apply_damage(target, damage, attacker=user)
+        self.apply_damage(target, damage, attacker=user, melee=True)
 
         user.db.sp -= cost
         user.location.msg_contents(
@@ -4147,7 +4248,7 @@ class CombatRules:
         min_damage, max_damage = kwargs.get("damage_range", (30, 45))
         virtus_bonus = ((user.db.virtus or 10) - 10) // 2
         damage = randint(min_damage, max_damage) + virtus_bonus
-        self.apply_damage(target, damage, attacker=user)
+        self.apply_damage(target, damage, attacker=user, melee=True)
 
         user.db.sp -= cost
         user.location.msg_contents(
@@ -4171,7 +4272,7 @@ class CombatRules:
         min_damage, max_damage = kwargs.get("damage_range", (35, 55))
         virtus_bonus = ((user.db.virtus or 10) - 10) // 2
         damage = randint(min_damage, max_damage) + virtus_bonus
-        self.apply_damage(target, damage, attacker=user)
+        self.apply_damage(target, damage, attacker=user, melee=True)
 
         user.db.sp -= cost
         user.location.msg_contents(
@@ -4796,15 +4897,6 @@ SPELLS = {
         "conditions": [("Illusory Duplicate", 2)],
         "classes": ["augur"],
     },
-    "omen of doom": {
-        "spellfunc": COMBAT_RULES.spell_add_condition,
-        "level_required": 45,
-        "desc": "Curses an enemy with lowered accuracy and damage at once.",
-        "target": "otherchar",
-        "cost": 7,
-        "conditions": [("Accuracy Down", 4), ("Damage Down", 4)],
-        "classes": ["augur"],
-    },
     "enchant weapon": {
         "spellfunc": COMBAT_RULES.spell_add_condition,
         "level_required": 45,
@@ -4917,24 +5009,6 @@ SPELLS = {
         "damage_range": (25, 35),
         "classes": ["augur"],
     },
-    "bane": {
-        "spellfunc": COMBAT_RULES.spell_add_condition,
-        "level_required": 1,
-        # Replaces Cure Wounds as Augur's level-1 spell - see that
-        # entry's own comment for the full reasoning. A real, classic
-        # low-level curse (not a heal, not raw damage) actually fits
-        # "buffs, predictive effects, and short-range battlefield
-        # control" - an ill omen read against a target, souring their
-        # next few strikes, mirrors Auspice/Favour of the Sky's own
-        # shape (a short Accuracy swing) but aimed at an enemy instead
-        # of the caster/an ally, giving a level-1 Augur a real
-        # class-appropriate option from the very start.
-        "desc": "Reads an ill omen against a target, souring their aim for a short time.",
-        "target": "otherchar",
-        "cost": 3,
-        "conditions": [("Accuracy Down", 3)],
-        "classes": ["augur"],
-    },
     "birdsight": {
         "spellfunc": COMBAT_RULES.spell_scry,
         "level_required": 30,
@@ -4953,14 +5027,148 @@ SPELLS = {
         "conditions": [("Damage Up", 4)],
         "classes": ["augur"],
     },
-    "omen of weakness": {
-        "spellfunc": COMBAT_RULES.spell_add_condition,
-        "level_required": 20,
-        "desc": "Lowers an enemy's defense for a short time.",
+    "magic arrow": {
+        "spellfunc": COMBAT_RULES.spell_attack,
+        "level_required": 1,
+        # Augur's level-1 spell (replaces Bane, one of three stat debuffs
+        # that duplicated the Haruspex's whole lane). Small at first, never
+        # misses, and - like every damaging spell - scales with the
+        # caster's level from the level it's learned at.
+        "desc": "A glowing arrow of pure force that never misses. Small at first, but it grows with the caster's level like every damaging spell.",
+        "target": "otherchar",
+        "cost": 2,
+        "noncombat_spell": False,
+        "auto_hit": True,
+        "attack_name": ("A glowing arrow of force", "glowing arrows of force"),
+        "damage_range": (4, 6),
+        "classes": ["augur"],
+    },
+    "sleep": {
+        "spellfunc": concentration.spell_sleep,
+        "level_required": 10,
+        "desc": "Puts one enemy into a magical sleep, ending their fight. A concentration spell: it drains your MP for as long as you hold it. The sleeper can't speak, cast, use skills or move; any damage wakes them.",
         "target": "otherchar",
         "cost": 5,
-        "conditions": [("Defense Down", 4)],
+        "drain_percent": 0.02,
+        "manages_reveal": True,
+        "no_fight_start": True,
+        "npc_cast": False,
         "classes": ["augur"],
+    },
+    "see invisibility": {
+        "spellfunc": COMBAT_RULES.spell_add_condition,
+        "level_required": 20,
+        "desc": "Opens the target's eyes to the unseen for a few minutes, so an invisible caster can't hide from them. Not a concentration spell.",
+        "target": "anychar",
+        "cost": 6,
+        "conditions": [("Sees Invisible", 8)],
+        "classes": ["augur"],
+    },
+    "fly": {
+        "spellfunc": concentration.spell_fly,
+        "level_required": 30,
+        "desc": "Lifts the caster into the air. While flying, moving between rooms costs a quarter of the usual stamina. A concentration spell: it drains your MP until you 'land'. Works in and out of combat.",
+        "target": "self",
+        "cost": 8,
+        "drain_percent": 0.01,
+        "npc_cast": False,
+        "classes": ["augur"],
+    },
+    "invisibility": {
+        "spellfunc": concentration.spell_invisibility,
+        "level_required": 42,
+        "desc": "Makes the caster truly unseen - invisible to everyone who can't see through it, and overlooked by wilderness ambushes. A concentration spell. It breaks the instant you attack or cast anything hostile; cast mid-fight it ends the fight for you.",
+        "target": "self",
+        "cost": 10,
+        "drain_percent": 0.02,
+        "npc_cast": False,
+        "classes": ["augur"],
+    },
+    "slow": {
+        "spellfunc": COMBAT_RULES.spell_add_condition,
+        "level_required": 45,
+        "desc": "Drags an enemy's movements to a crawl - they lose every other turn for a short time.",
+        "target": "otherchar",
+        "cost": 9,
+        "conditions": [("Slowed", 4)],
+        "classes": ["augur"],
+    },
+    "confusion": {
+        "spellfunc": concentration.spell_confusion,
+        "level_required": 65,
+        "desc": "Scatters an enemy's wits for three to five minutes: they wander off through random rooms and lash out at whoever's nearby. Cast mid-fight it ends the fight for them. Not a concentration spell.",
+        "target": "otherchar",
+        "cost": 14,
+        "manages_reveal": True,
+        "no_fight_start": True,
+        "npc_cast": False,
+        "classes": ["augur"],
+    },
+    "inflict wounds": {
+        "spellfunc": COMBAT_RULES.spell_attack,
+        "level_required": 10,
+        "desc": "A withering touch of necrotic force - the Haruspex's first damage spell, ten levels before Ritual Flame.",
+        "target": "otherchar",
+        "cost": 3,
+        "noncombat_spell": False,
+        "attack_name": ("A withering touch", "withering touches"),
+        "damage_range": (11, 17),
+        "classes": ["haruspex"],
+    },
+    "false life": {
+        "spellfunc": wards.spell_temp_hp,
+        "level_required": 12,
+        "desc": "Wraps the caster in borrowed vitality: temporary hit points, a fifth of their maximum, that soak damage before real HP is touched and fade after ten minutes. Scales with level.",
+        "target": "self",
+        "cost": 5,
+        "hp_percent": 0.20,
+        "npc_cast": False,
+        "classes": ["haruspex"],
+    },
+    "armor of agathys": {
+        "spellfunc": wards.spell_temp_hp,
+        "level_required": 28,
+        "desc": "A ward of killing cold: a quarter of the caster's maximum HP as temporary hit points, and anyone who strikes the caster in melee while it holds is lashed with cold damage. Both scale with level.",
+        "target": "self",
+        "cost": 8,
+        "hp_percent": 0.25,
+        "thorns_range": (5, 9),
+        "npc_cast": False,
+        "classes": ["haruspex"],
+    },
+    "aid": {
+        "spellfunc": wards.spell_temp_hp,
+        "level_required": 15,
+        "desc": "Shields up to three allies with temporary hit points - a sixth of each one's own maximum - that soak damage before real HP is touched and fade after ten minutes.",
+        "target": "anychar",
+        "cost": 6,
+        "max_targets": 3,
+        "hp_percent": 0.15,
+        "npc_cast": False,
+        "classes": ["medicus"],
+    },
+    "healing word": {
+        "spellfunc": COMBAT_RULES.spell_healing,
+        "level_required": 12,
+        "desc": "A murmured word of mending that costs no action - cast it before you act and it doesn't use up your turn. A small heal that scales with the target's own health.",
+        "target": "anychar",
+        "cost": 3,
+        "heal_percent": 0.10,
+        "free_action": True,
+        "cooldown": 3,
+        "npc_cast": False,
+        "classes": ["medicus"],
+    },
+    "flame of vesta": {
+        "spellfunc": concentration.spell_flame_of_vesta,
+        "level_required": 35,
+        "desc": "Kindles the hearth-fire of Vesta about the caster. A concentration spell (a heavy drain on your MP): each few seconds it scorches every enemy in your fight until you release it.",
+        "target": "none",
+        "cost": 10,
+        "drain_percent": 0.03,
+        "aura_damage_range": (4, 7),
+        "npc_cast": False,
+        "classes": ["medicus"],
     },
     "cure wounds": {
         "spellfunc": COMBAT_RULES.spell_healing,
@@ -5039,7 +5247,7 @@ SPELLS = {
     "blessing of asclepius": {
         "spellfunc": COMBAT_RULES.spell_resurrect,
         "level_required": 80,
-        "desc": "Mythic tier. Resurrects a dead ally, wherever they are.",
+        "desc": "Mythic tier. Resurrects a dead ally, wherever they are - and waives the half-XP death penalty, restoring the progress they lost in dying.",
         "target": "deadchar",
         "cost": 18,
         "classes": ["medicus"],
@@ -5093,15 +5301,6 @@ SPELLS = {
         "damage_range": (20, 30),
         "classes": ["medicus"],
     },
-    "bless": {
-        "spellfunc": COMBAT_RULES.spell_add_condition,
-        "level_required": 15,
-        "desc": "Grants an ally a temporary accuracy boost.",
-        "target": "anychar",
-        "cost": 5,
-        "conditions": [("Accuracy Up", 4)],
-        "classes": ["medicus"],
-    },
     "guardian spirit": {
         "spellfunc": COMBAT_RULES.spell_add_condition,
         "level_required": 20,
@@ -5109,15 +5308,6 @@ SPELLS = {
         "target": "anychar",
         "cost": 6,
         "conditions": [("Defense Up", 4)],
-        "classes": ["medicus"],
-    },
-    "divine favor": {
-        "spellfunc": COMBAT_RULES.spell_add_condition,
-        "level_required": 35,
-        "desc": "Grants an ally both an accuracy and a damage boost at once.",
-        "target": "anychar",
-        "cost": 7,
-        "conditions": [("Accuracy Up", 4), ("Damage Up", 4)],
         "classes": ["medicus"],
     },
     "purify": {
@@ -5483,7 +5673,7 @@ SKILLS = {
         "cost": 0,
         "level_required": 95,
         "classes": ["gladiator"],
-        "desc": "Mythic tier. A passive trait building on Double Strike - if that follow-up strike also lands, there's a real chance of a third, lighter strike still.",
+        "desc": "A passive trait building on Double Strike - if that follow-up strike also lands, there's a real chance of a third, lighter strike still.",
     },
     "hold the line": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -6272,9 +6462,15 @@ def weapon_base_average(level):
 SPELL_DAMAGE_ANCHOR_LEVEL = 20
 
 
-def scale_spell_damage_range(caster, damage_range):
+def scale_spell_damage_range(caster, damage_range, spell_name=None):
     """
     Grows a damaging spell's authored (min, max) with the caster's level.
+
+    Every damaging spell scales from the level it's learned at: a spell's
+    authored range is what it does at its own unlock level (capped at
+    SPELL_DAMAGE_ANCHOR_LEVEL), so a level-1 spell like Magic Arrow grows
+    from level 1 rather than sitting flat until level 20. Without a
+    `spell_name` the anchor is the shared level-20 one (the original rule).
 
     A real player report (Sep 18) - "ritual flame does 40 damage, my melee
     does 50... no magic really scaled" - was confirmed: spell damage was a
@@ -6294,7 +6490,12 @@ def scale_spell_damage_range(caster, damage_range):
     if not getattr(caster, "account", None):
         return damage_range
     level = min(caster.db.level or 1, MAX_LEVEL)
-    factor = max(1.0, weapon_base_average(level) / weapon_base_average(SPELL_DAMAGE_ANCHOR_LEVEL))
+    anchor = SPELL_DAMAGE_ANCHOR_LEVEL
+    if spell_name:
+        unlock = SPELLS.get(spell_name, {}).get("level_required")
+        if unlock:
+            anchor = max(1, min(unlock, SPELL_DAMAGE_ANCHOR_LEVEL))
+    factor = max(1.0, weapon_base_average(level) / weapon_base_average(anchor))
     low, high = damage_range
     return (max(1, round(low * factor)), max(1, round(high * factor)))
 
@@ -6502,6 +6703,8 @@ class HostileNPC(AutoStatNPC):
                 if data.get("level_required", 1) > level:
                     continue
                 if data.get("combat_spell") is False:
+                    continue
+                if data.get("npc_cast") is False:
                     continue
                 target_type = data.get("target")
                 if target_type not in ("otherchar", "anychar", "self"):
@@ -7076,7 +7279,7 @@ class CombatCharacter(ContribRPCharacter):
         casual, unverified recog still isn't. (3) Otherwise, defer to
         the contrib's normal sdesc/mask/recog behavior.
         """
-        if wizinvis_hides_from(self, looker):
+        if wizinvis_hides_from(self, looker) or invisible_hides_from(self, looker):
             return "Someone"
 
         if looker is not None:
@@ -7101,7 +7304,9 @@ class CombatCharacter(ContribRPCharacter):
         already knows to look (matches real wizinvis behavior in
         other codebases: hidden from casual notice, not truly gone).
         """
-        if access_type == "view" and wizinvis_hides_from(self, accessing_obj):
+        if access_type == "view" and (
+            wizinvis_hides_from(self, accessing_obj) or invisible_hides_from(self, accessing_obj)
+        ):
             return False
         return super().access(accessing_obj, access_type=access_type, default=default, **kwargs)
 
@@ -7199,6 +7404,13 @@ class CombatCharacter(ContribRPCharacter):
             lines.append(format_earned_title(self.db.active_earned_title))
         if self.db.custom_title:
             lines.append(format_custom_title(self.db.custom_title))
+        # State markers, same as in a room's character list: (asleep),
+        # (flying), and (invis) for a looker who can see through it.
+        from world.visibility import state_tags
+
+        tags = state_tags(self, looker).strip()
+        if tags:
+            lines.append(tags)
         if lines:
             return "%s\n%s" % ("\n".join(lines), appearance)
         return appearance
@@ -7335,6 +7547,9 @@ class CombatCharacter(ContribRPCharacter):
         if self.rules.is_in_combat(self):
             self.msg("You can't exit a room while in combat!")
             return False
+        if move_type == "move" and asleep_blocks(self):
+            self.msg(concentration.ASLEEP_MESSAGE)
+            return False
         if self.db.hp <= 0 and not self.db.is_dead and not kwargs.get("force_move"):
             self.msg("You can't move, you've been defeated!")
             return False
@@ -7396,6 +7611,11 @@ class CombatCharacter(ContribRPCharacter):
         if (self.db.level or 0) > 100:
             return True
         if self.db.is_dead:
+            return True
+
+        # Flight (Harpies, or an Augur's Fly): only every fourth step costs
+        # anything - a 75% discount.
+        if is_flying(self) and not concentration.flight_pays_this_step(self):
             return True
 
         current_sp = self.db.sp or 0
@@ -7525,6 +7745,7 @@ class CombatCharacter(ContribRPCharacter):
         if self.has_account:
             from world.analytics import start_session
             start_session(self, self.account)
+        concentration.prune_removed_spells(self)
 
         pet = self.db.active_companion
         if pet and pet.pk and pet.db.is_purchased_pet and pet.location is None:
@@ -7547,6 +7768,8 @@ class CombatCharacter(ContribRPCharacter):
         reliably find via the account.
         """
         super().at_post_unpuppet(account=account, session=session, **kwargs)
+        # Every concentration ends on logout (combat never ends one).
+        concentration.end_all_concentrations(self, reason="logout")
         if account:
             from world.analytics import end_session
             end_session(self, account)
@@ -7753,7 +7976,7 @@ class CombatTurnHandler(DefaultScript):
         else:
             self.db.fighters = []
             for thing in self.obj.contents:
-                if thing.db.hp and not thing.db.pacifist:
+                if thing.db.hp and not thing.db.pacifist and not is_invisible(thing):
                     self.db.fighters.append(thing)
             # 'fight all' - group fighters by party membership, so a
             # group of allies correctly counts as one side rather
@@ -8294,6 +8517,7 @@ class CmdFight(Command):
         if not self.rules.try_break_sanctuary(caller, target):
             return
 
+        reveal_on_offense(caller)
         if here.db.combat_turnhandler:
             here.msg_contents("%s joins the fight!" % caller)
             here.db.combat_turnhandler.join_fight(caller)
@@ -8331,13 +8555,16 @@ class CmdFight(Command):
         if arg == "all":
             fighters = []
             for thing in here.contents:
-                if thing.db.hp and not thing.db.pacifist:
+                if thing.db.hp and not thing.db.pacifist and not (
+                    thing != caller and is_invisible(thing)
+                ):
                     if thing != caller and not self.rules.try_break_sanctuary(caller, thing):
                         continue
                     fighters.append(thing)
             if len(fighters) <= 1:
                 caller.msg("There's nobody here to fight!")
                 return
+            reveal_on_offense(caller)
             if here.db.combat_turnhandler:
                 here.msg_contents("%s joins the fight!" % caller)
                 here.db.combat_turnhandler.join_fight(caller)
@@ -8367,7 +8594,10 @@ class CmdFight(Command):
         # attack/powerattack. Multiple candidates now requires an
         # explicit name, or 'fight all' for a real brawl - no more
         # accidentally sweeping a room full of bystanders by default.
-        possible = [thing for thing in here.contents if thing != caller and thing.db.hp]
+        possible = [
+            thing for thing in here.contents
+            if thing != caller and thing.db.hp and not invisible_hides_from(thing, caller)
+        ]
         if len(possible) == 0:
             caller.msg("There's nobody here to fight!")
             return
@@ -8425,6 +8655,8 @@ def find_combat_target(caller, search_text, candidates=None):
     """
     if candidates is None:
         candidates = caller.location.contents
+    # An invisible character can't be singled out by anyone who can't see them.
+    candidates = [c for c in candidates if not invisible_hides_from(c, caller)]
 
     search_text = search_text.strip()
 
@@ -9205,6 +9437,12 @@ class CmdRest(Command):
             return
         if caller.db.resting:
             caller.msg("You're already resting.")
+            return
+        if caller.db.concentrations:
+            caller.msg(
+                "You can't settle into rest while you're holding a spell - let it go first "
+                "('effects' shows what you're holding, 'release' lets go)."
+            )
             return
         if caller.db.hp >= caller.db.max_hp and caller.db.mp >= caller.db.max_mp and caller.db.sp >= caller.db.max_sp:
             caller.msg("You're already at full HP, MP, and SP.")
@@ -11235,6 +11473,7 @@ class CmdLearn(Command):
 
     def func(self):
         caller = self.caller
+        concentration.prune_removed_spells(caller)
         args = self.args.lower().strip(" ")
 
         if not args or len(args) < 3:
@@ -11343,6 +11582,10 @@ class CmdCast(MuxCommand):
 
     def func(self):
         caller = self.caller
+
+        # Any spell dropped from the rework is quietly swapped/refunded the
+        # first time its owner touches magic again.
+        concentration.prune_removed_spells(caller)
 
         if caller.db.is_dead:
             caller.msg("The dead have no power to cast spells - only to be released from where they wait.")
@@ -11490,7 +11733,10 @@ class CmdCast(MuxCommand):
             target_candidates = [t for t in prefilter if not t.attributes.has("max_hp")]
         if spelldata["target"] in ["anychar", "otherchar"]:
             prefilter = caller.location.contents
-            target_candidates = [t for t in prefilter if t.attributes.has("max_hp")]
+            target_candidates = [
+                t for t in prefilter
+                if t.attributes.has("max_hp") and not invisible_hides_from(t, caller)
+            ]
         # "deadchar" (Blessing of Asclepius) has no room to search - a
         # dead ally is in the Underworld, nowhere near the caster. Use
         # global_search below instead of a candidate list.
@@ -11627,18 +11873,30 @@ class CmdCast(MuxCommand):
             caller.msg("You can't specify the same target more than once!")
             return
 
+        # Casting anything at an enemy is an attack: it ends the caster's
+        # invisibility. (Sleep and Confusion validate first and reveal
+        # themselves - a refused cast isn't an attack.)
+        if spelldata["target"] == "otherchar" and not spelldata.get("manages_reveal"):
+            reveal_on_offense(caller)
+
         # See start_combat_from_offensive_action's own docstring - an
         # offensive spell cast outside combat is what starts the
         # fight now, rather than landing as a free hit against a
         # target with no CombatTurnHandler ever created. A no-op for
         # every non-offensive cast (self/ally/no target, or already
         # in combat), so this can't affect the vast majority of casts.
-        self.rules.start_combat_from_offensive_action(caller, spell_targets)
+        # Sleep and Confusion end a fight rather than start one.
+        if not spelldata.get("no_fight_start"):
+            self.rules.start_combat_from_offensive_action(caller, spell_targets)
 
         try:
-            spelldata["spellfunc"](
+            result = spelldata["spellfunc"](
                 caller, spell_to_cast, spell_targets, spelldata["cost"], **kwargs
             )
+            if result is False:
+                # The spell refused (already active, invalid target...) and
+                # said why - no MP, XP or cooldown for a cast that didn't happen.
+                return
             self.rules.award_cast_xp(caller, spelldata["cost"])
             if spelldata["cooldown"] > 0:
                 self.rules.get_cooldowns(caller)[spell_to_cast] = spelldata["cooldown"]
@@ -11795,7 +12053,10 @@ class CmdUseSkill(MuxCommand):
 
         target_candidates = []
         if skilldata["target"] in ["anychar", "otherchar"]:
-            target_candidates = [t for t in user.location.contents if t.attributes.has("max_hp")]
+            target_candidates = [
+                t for t in user.location.contents
+                if t.attributes.has("max_hp") and not invisible_hides_from(t, user)
+            ]
 
         # No explicit target given for an offensive skill - same
         # sensible default as CmdCast: auto-target the lone enemy for
@@ -11889,6 +12150,8 @@ class CmdUseSkill(MuxCommand):
         # See the identical fix/comment in CmdCast above - an
         # offensive skill used outside combat is what starts the
         # fight now, same as an offensive spell.
+        if skilldata["target"] == "otherchar":
+            reveal_on_offense(user)
         self.rules.start_combat_from_offensive_action(user, skill_targets)
 
         try:
@@ -12120,6 +12383,7 @@ class CmdSpellInfo(Command):
 
     def func(self):
         caller = self.caller
+        concentration.prune_removed_spells(caller)
 
         if not self.args:
             # _format_ability_list includes every spell open to this
@@ -12158,6 +12422,17 @@ class CmdSpellInfo(Command):
         level_required = data.get("level_required", 1)
         usage = _usage_line("cast", spell, data["target"])
         usable_when = _combat_usability_line(data)
+        held_line = ""
+        if data.get("drain_percent") is not None:
+            word = concentration.drain_word(data["drain_percent"])
+            held_line = (
+                "  Held: concentration - a %s drain on your MP every %i seconds until you "
+                "release it ('effects' shows the cost, 'release' lets go)\n" % (
+                    word, concentration.CONCENTRATION_TICK
+                )
+                if data["drain_percent"]
+                else ""
+            )
 
         caller.msg(
             "|w%s|n\n"
@@ -12165,8 +12440,10 @@ class CmdSpellInfo(Command):
             "  Classes: %s\n"
             "  Requires level: %d\n"
             "  Usable: %s\n"
+            "%s"
             "  Usage: %s\n"
-            "  %s" % (spell.title(), data["cost"], class_str, level_required, usable_when, usage, desc)
+            "  %s" % (spell.title(), data["cost"], class_str, level_required, usable_when,
+                      held_line, usage, desc)
         )
 
 

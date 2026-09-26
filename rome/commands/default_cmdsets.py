@@ -41,6 +41,7 @@ from world import pacifism
 from world import gathering
 from world import craft_commands
 from world import food
+from world import concentration
 # world/craft_commands.py's CmdSimpleCraft replaces the crafting
 # contrib's own CmdCraft entirely (a real design choice, not an
 # oversight - see CmdSimpleCraft's own docstring: it auto-detects
@@ -213,6 +214,11 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(craft_commands.CmdLearnRecipe())
         self.add(food.CmdEat())
         self.add(food.CmdDrink())
+        self.add(concentration.CmdFly())
+        self.add(concentration.CmdRelease())
+        self.add(concentration.CmdLand())
+        self.add(concentration.CmdVisible())
+        self.add(concentration.CmdEffects())
         self.add(tutorial.CmdJourney())
         self.add(CmdNoInput())
 

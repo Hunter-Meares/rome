@@ -73,6 +73,109 @@ def _format_stat_mods(mods):
     return ", ".join(parts) if parts else "No core stat bonuses."
 
 
+# Extra "how it actually plays" text for each spell added in the caster
+# rework, shown under the spell's own stats in its help topic (the stats
+# themselves - level, cost, usage - come straight from SPELLS so they can't
+# drift). 'fly' is deliberately absent: it's also a command, and a command's
+# help shadows a topic of the same name (see world.concentration.CmdFly).
+NEW_SPELL_HELP = {
+    "magic arrow": (
+        "Augur's first spell. It never misses, so even at level 1 it always "
+        "does something - and like every damaging spell it grows with your "
+        "level from the moment you learn it, so it stays useful as a cheap, "
+        "reliable filler long after you've learned bigger spells. Ingenium "
+        "adds to its damage."
+    ),
+    "sleep": (
+        "Puts one enemy - or player - into a magical sleep and takes them out "
+        "of the fight at once. This is a |wconcentration|n spell: you hold it, "
+        "and holding it drains your MP every few seconds (see 'help "
+        "concentration'). The sleeper can't speak, cast, use skills, or move "
+        "until the spell is released - but |wany damage wakes them|n, so it's "
+        "for slipping past or setting up, not for a free kill. Release it "
+        "yourself ('release sleep') or it ends when your MP runs out, you log "
+        "out, or after ten minutes. A target with strong Ingenium can resist "
+        "it. Won't work on an ally, in a no-fighting place, or on someone "
+        "who has laid down arms for good ('help pacifism'). Sleepers show "
+        "'(asleep)' next to their name."
+    ),
+    "see invisibility": (
+        "The only way a player can see an invisible caster (gods always can). "
+        "For a few minutes the target - you or an ally - sees through the "
+        "Invisibility spell: invisible characters appear in the room again, "
+        "tagged '(invis)', and can be targeted. Not a concentration spell - it "
+        "just runs out."
+    ),
+    "invisibility": (
+        "Makes you truly unseen. Anyone who can't see through it can't see, "
+        "target or attack you, and any word or action of yours shows as "
+        "'Someone' instead of your name - speech, movement, everything. "
+        "Wilderness ambushes don't find you either. A |wconcentration|n spell "
+        "(a moderate drain on your MP - 'help concentration'). |wIt ends the "
+        "instant you attack or cast anything hostile|n, with no lingering "
+        "bonus; cast in the middle of a fight it ends the fight for you, "
+        "since nobody can see you to keep fighting. Only gods and anyone "
+        "under 'See Invisibility' can see you. Let it go yourself with "
+        "'visible'. This is different from Veil of Night, which just makes "
+        "you harder to hit for a short time."
+    ),
+    "slow": (
+        "Drags an enemy's movements to a crawl: for a short time they lose "
+        "every other turn. A target with strong Ingenium can resist it. Won't "
+        "work on someone who has laid down arms for good."
+    ),
+    "confusion": (
+        "Scatters an enemy's wits for three to five real minutes. They wander "
+        "off through random rooms and lash out at whoever's nearby - friend or "
+        "foe, player or creature - until it passes. Cast in the middle of a "
+        "fight it ends the fight for them. Not a concentration spell; you "
+        "don't hold it. It works on players too, but a confused player's "
+        "random blows never count against them (they can't earn the "
+        "'has killed a player' mark that bars pacifism). A target with strong "
+        "Ingenium can resist it. Won't work on an ally or a pacifist."
+    ),
+    "inflict wounds": (
+        "The Haruspex's first damage spell - a withering touch, ten levels "
+        "before Ritual Flame. Cheap, reliable, and it grows with your level "
+        "like every damaging spell."
+    ),
+    "false life": (
+        "Wraps you in |wtemporary hit points|n: a fifth of your maximum HP as "
+        "a ward that soaks damage before your real HP is touched. It isn't "
+        "healing, doesn't stack (a weaker ward never replaces a stronger one), "
+        "and fades after ten minutes. Because it's a share of your own max "
+        "HP, it scales with your level. 'effects' shows it."
+    ),
+    "armor of agathys": (
+        "A stronger ward of killing cold: a quarter of your max HP as "
+        "temporary hit points, and |wanyone who strikes you in melee while it "
+        "holds is lashed with cold damage|n (the harder you level, the harder "
+        "it lashes). Spells and ranged attacks don't trigger the cold. It "
+        "fades after ten minutes or once the ward is spent."
+    ),
+    "aid": (
+        "Shields up to three allies - or you - with temporary hit points: a "
+        "sixth of each one's own max HP, soaking damage before real HP and "
+        "fading after ten minutes. Not healing, and it doesn't stack. Scales "
+        "with each target's level through their max HP. 'effects' shows it."
+    ),
+    "healing word": (
+        "A murmured word of mending that costs no action - cast it before you "
+        "act and it doesn't use up your turn. A small heal (a tenth of the "
+        "target's max HP) that scales with their health; it can't be cast "
+        "again for a few turns. Different from Field Dressing, which is a "
+        "larger heal that takes your action."
+    ),
+    "flame of vesta": (
+        "Kindles the hearth-fire of Vesta about you. A |wconcentration|n "
+        "spell with a heavy drain on your MP (see 'help concentration'): every "
+        "few seconds it scorches every enemy in your fight, until you "
+        "'release vesta', run dry, or log out. It only burns while you're in "
+        "a fight. Damage scales with your level."
+    ),
+}
+
+
 def create_all_help_entries():
     from world.racial_abilities import RACIAL_ABILITIES
 
@@ -80,7 +183,8 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "pacifism", "godpacifism", "gathering", "crafting", "faber", "herbalist", "food", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming", "trivia", "pets", "buypet", "row", "socials"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "pacifism", "godpacifism", "gathering", "crafting", "faber", "herbalist", "food", "concentration", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming", "trivia", "pets", "buypet", "row", "socials"]
+        + list(NEW_SPELL_HELP.keys())
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
         + list(RACIAL_ABILITIES.keys())
     )
@@ -332,7 +436,10 @@ def create_all_help_entries():
             "directly from anywhere in the world of the living - but only "
             "once Charon has actually ferried you across, roughly 15 "
             "minutes after you die. The wait is real, not a formality; a "
-            "Medicus can't reach you before Charon arrives.\n\n"
+            "Medicus can't reach you before Charon arrives. |wIt also waives "
+            "the XP penalty|n: the progress you lost in dying is handed back "
+            "to you in full. (Solving the riddle yourself does not - that "
+            "way back keeps the penalty.)\n\n"
             "Once you're alive again: level 5-and-under characters wake in "
             "the holding cells, same as any early death. Level 6+ "
             "characters instead wake in the Temple of Jupiter Optimus "
@@ -1239,6 +1346,99 @@ def create_all_help_entries():
             "Herbalist trainer, costs more herbs\n\n"
             "Herbalist has its own skill (separate from Faber's) that "
             "only improves by actually attempting Herbalist recipes."
+        ),
+        db_lock_storage="view:all()",
+    )
+
+    # --- The spells added in the caster rework ---
+    from world.combat import SPELLS, _combat_usability_line, _usage_line
+
+    for spell_name, extra in NEW_SPELL_HELP.items():
+        data = SPELLS[spell_name]
+        classes = ", ".join(c.capitalize() for c in data.get("classes", [])) or "any class"
+        held = ""
+        if data.get("drain_percent"):
+            from world.concentration import drain_word
+
+            held = "Held: a %s drain on your MP until released\n" % drain_word(data["drain_percent"])
+        HelpEntry.objects.create(
+            db_key=spell_name,
+            db_help_category="Spells",
+            db_entrytext=(
+                "|w%s|n - a %s spell, level %d\n"
+                "Cost: %s MP\n"
+                "Usable: %s\n"
+                "%s"
+                "Usage: %s\n\n"
+                "%s\n\n"
+                "%s"
+                % (
+                    spell_name.title(),
+                    classes,
+                    data.get("level_required", 1),
+                    data["cost"],
+                    _combat_usability_line(data),
+                    held,
+                    _usage_line("cast", spell_name, data["target"]),
+                    extra,
+                    "See also: 'spellinfo %s', 'help concentration'." % spell_name
+                    if data.get("drain_percent")
+                    else "See also: 'spellinfo %s'." % spell_name,
+                )
+            ),
+            db_lock_storage="view:all()",
+        )
+
+    HelpEntry.objects.create(
+        db_key="concentration",
+        db_help_category="General",
+        db_entrytext=(
+            "|wConcentration Spells & Effects|n\n\n"
+            "Some spells don't fire once and finish - you |Whold|n them. Casting "
+            "costs MP as usual, and then holding the spell drains a little more MP "
+            "every few seconds until you let it go, run dry, or log out. You can "
+            "hold several at once (flight and invisibility together, say) and each "
+            "adds its own drain, so the more you hold, the sooner they all give out "
+            "together. Concentration is never broken by fighting - cast and hold "
+            "them in or out of combat.\n\n"
+            "|wThe commands:|n\n"
+            "  |Weffects|n          - everything affecting you: buffs, afflictions, "
+            "each spell you're holding with how heavy its drain is, and how long "
+            "your MP will last\n"
+            "  |Wrelease|n          - let go of a held spell ('release <name>', "
+            "'release all')\n"
+            "  |Wland|n / |Wvisible|n - shortcuts for letting go of flight / "
+            "invisibility\n"
+            "  |Wfly|n              - Harpies only: take to the air for free\n"
+            "You can't |Wrest|n while holding a spell - let it go first, or the "
+            "drain would mean nothing.\n\n"
+            "|wThe spells:|n\n"
+            "  |wFly|n (Augur) - moving between rooms costs a quarter of the usual "
+            "stamina. Harpies fly by nature, no spell and no drain.\n"
+            "  |wInvisibility|n (Augur) - nobody who can't see through it can see, "
+            "target or hear the name of the caster (they show as 'Someone'), and "
+            "wilderness ambushes pass you by. It breaks the instant you attack or "
+            "cast anything hostile. Cast mid-fight, it ends the fight for you. Only "
+            "gods, and anyone under |wSee Invisibility|n (Augur), can see you - "
+            "and see you tagged '(invis)' in the room.\n"
+            "  |wSleep|n (Augur) - puts an enemy to sleep and ends their fight. "
+            "They can't speak, cast, use skills or move, and any damage wakes "
+            "them. You hold it - release it to wake them, or they wake when your MP "
+            "runs out. Sleepers show '(asleep)' in the room.\n"
+            "  |wFlame of Vesta|n (Medicus) - a heavy-drain aura that scorches every "
+            "enemy in your fight until you release it.\n\n"
+            "Two related spells aren't held: |wConfusion|n (Augur) scatters an "
+            "enemy's wits for three to five minutes - they wander through random "
+            "rooms and lash out at whoever's near, and cast mid-fight it ends the "
+            "fight for them. |wSlow|n makes an enemy lose every other turn. Neither "
+            "works on someone who has laid down arms for good (see 'help "
+            "pacifism'), and a confused player's random blows never count against "
+            "them.\n\n"
+            "|wWards|n (temporary hit points) from |wFalse Life|n, |wArmor of "
+            "Agathys|n (Haruspex) and |wAid|n (Medicus) soak damage before your "
+            "real HP and fade after ten minutes; Agathys also lashes anyone who "
+            "strikes you in melee. All scale with your level. 'effects' shows "
+            "them."
         ),
         db_lock_storage="view:all()",
     )

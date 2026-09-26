@@ -26,10 +26,12 @@ same mistake still gets found by a god-only teleport.
 from evennia.objects.objects import DefaultRoom
 from evennia.utils.utils import delay
 
+from world.visibility import InvisibleAwareRoom
+
 from .objects import ObjectParent
 
 
-class Room(ObjectParent, DefaultRoom):
+class Room(InvisibleAwareRoom, ObjectParent, DefaultRoom):
     """
     Rooms are like any Object, except their location is None
     (which is default). They also use basetype_setup() to

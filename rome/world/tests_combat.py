@@ -4026,18 +4026,15 @@ class TestAugurKitNoLongerOverlapsMedicusAndHaruspex(CombatTestBase):
     def test_cure_wounds_is_medicus_only_now(self):
         self.assertEqual(SPELLS["cure wounds"]["classes"], ["medicus"])
 
-    def test_bane_exists_for_augur_and_is_not_a_heal(self):
-        self.assertIn("bane", SPELLS)
-        self.assertEqual(SPELLS["bane"]["classes"], ["augur"])
-        self.assertIsNot(SPELLS["bane"]["spellfunc"], COMBAT_RULES.spell_healing)
+    def test_magic_missile_is_augurs_level_one_spell_and_not_a_heal(self):
+        self.assertIn("magic arrow", SPELLS)
+        self.assertEqual(SPELLS["magic arrow"]["classes"], ["augur"])
+        self.assertEqual(SPELLS["magic arrow"]["level_required"], 1)
+        self.assertIsNot(SPELLS["magic arrow"]["spellfunc"], COMBAT_RULES.spell_healing)
 
-    def test_bane_applies_accuracy_down(self):
-        self.char1.db.mp = 10
-        with patch("world.combat.randint", return_value=100):
-            COMBAT_RULES.spell_add_condition(
-                self.char1, "bane", [self.char2], 3, conditions=[("Accuracy Down", 3)]
-            )
-        self.assertIn("Accuracy Down", self.char2.db.conditions)
+    def test_the_augurs_three_duplicate_stat_debuffs_are_gone(self):
+        for removed in ("bane", "omen of weakness", "omen of doom"):
+            self.assertNotIn(removed, SPELLS)
 
     def test_wrath_of_olympus_never_out_damages_haruspexs_own_level_90_spell(self):
         """
@@ -4493,7 +4490,7 @@ class TestConditionResistance(CombatTestBase):
         self.char1.db.mp = 10
         with patch("world.combat.randint", return_value=1):  # guaranteed resist
             COMBAT_RULES.spell_add_condition(
-                self.char1, "bane", [self.char2], 3, conditions=[("Accuracy Down", 3)]
+                self.char1, "grave chill", [self.char2], 3, conditions=[("Accuracy Down", 3)]
             )
         self.assertNotIn("Accuracy Down", self.char2.db.conditions)
 
