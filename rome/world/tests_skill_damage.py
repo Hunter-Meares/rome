@@ -122,8 +122,8 @@ class TestSkillsHitForTheWeaponTimesTheMultiplier(SkillDamageBase):
             for name, data in SKILLS.items():
                 if "weapon_multiplier" not in data or data.get("max_targets", 1) > 1:
                     continue
-                if name in ("gory finish", "thundering maul", "backstab"):
-                    continue  # execute / two-hander / opener: covered separately
+                if name in ("gory finish", "thundering maul", "backstab", "assassinate"):
+                    continue  # execute / two-hander / openers: covered separately
                 self.assertGreaterEqual(self._hit(name), basic, name)
 
     def test_it_now_beats_a_basic_attack_at_high_level_where_the_flat_range_did_not(self):

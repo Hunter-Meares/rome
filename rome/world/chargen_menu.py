@@ -351,7 +351,7 @@ CLASSES = {
         "starting_spells": ["mark of decay"],
     },
     "speculator": {
-        "display": "Speculator (Medium - Rogue/Scout)",
+        "display": "Speculator (Medium - Rogue/Assassin)",
         "color": "|114",
         "quote": '"You never saw me. That\'s rather the point."',
         "theme": "Spies and scouts for commanders - masters of infiltration, intelligence, and assassination.",
@@ -376,7 +376,7 @@ CLASSES = {
         "starting_skills": ["sneak"],
     },
     "venator": {
-        "display": "Venator (Medium - Ranger/Hunter)",
+        "display": "Venator (Medium - Ranger/Scout)",
         "color": "|321",
         "quote": '"The frontier doesn\'t care how brave you are. It only cares if you\'re paying attention."',
         "theme": "Frontier hunters and trackers who patrol the wild boundaries of the empire.",
@@ -398,7 +398,7 @@ CLASSES = {
             "CALIGAE",
         ],
         "starting_spells": [],
-        "starting_skills": ["mark"],
+        "starting_skills": ["quarry"],
     },
     "gladiator": {
         "display": "Gladiator (Medium - Arena Fighter)",

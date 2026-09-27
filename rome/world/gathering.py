@@ -92,6 +92,7 @@ from evennia.prototypes.spawner import spawn
 # this module's own docstring for why a single flat chance was wrong.
 WILDERNESS_SPOT_CHANCE = 0.3
 FIXED_NODE_SPOT_CHANCE = 0.6
+FORAGER_SPOT_BONUS = 0.3  # added while the Venator's Forager's Eye is up
 
 SPOT_MESSAGES = {
     "timber": (
@@ -184,6 +185,8 @@ def announce_gather_spot(character):
         return
     uses_wilderness_chance = location.db.gather_uses_wilderness_chance or location.ndb.gather_resource is not None
     chance = WILDERNESS_SPOT_CHANCE if uses_wilderness_chance else FIXED_NODE_SPOT_CHANCE
+    if "Forager's Eye" in (character.db.conditions or {}):
+        chance = min(0.95, chance + FORAGER_SPOT_BONUS)  # the Venator's Forager's Eye
     if random.random() < chance:
         character.ndb.gather_spot = resource
         character.msg(SPOT_MESSAGES.get(resource, "You spot something worth gathering here."))

@@ -386,7 +386,7 @@ class TestRidersInGeneral(MartialBase):
         expected = {
             "reckless swing": "Bleeding", "thundering maul": "Sundered",
             "fury of the frontier": "Bleeding", "shield bash": "Disarmed",
-            "gladius cleave": "Sundered", "shattering blow": "Sundered",
+            "shattering blow": "Sundered", "feint": "Bleeding", "disarming strike": "Disarmed",
             "finishing blow": "Grappled", "rapid volley": "Bleeding", "backstab": "Bleeding",
             "headbutt": "Stunned",
         }
@@ -489,7 +489,9 @@ class TestMartialHelp(MartialBase):
     def test_the_new_skills_have_help_with_their_real_stats(self):
         from evennia.help.models import HelpEntry
 
-        for name in ("headbutt", "dirt kick", "goad", "sentinel", "parry", "shield block", "barbed guard"):
+        from world.help_setup import NEW_SKILL_HELP
+
+        for name in NEW_SKILL_HELP:
             text = HelpEntry.objects.get(db_key=name).db_entrytext
             self.assertIn("level %d" % SKILLS[name]["level_required"], text, name)
             self.assertIn("Cost: %s SP" % SKILLS[name]["cost"], text, name)
@@ -594,10 +596,10 @@ class TestSmiteAndScalingDebuffs(MartialBase):
 
 
 class TestGoad(MartialBase):
-    def test_goad_is_a_level_20_legionary_taunt_monsters_never_use(self):
+    def test_goad_is_a_level_10_legionary_taunt_monsters_never_use(self):
         data = SKILLS["goad"]
         self.assertEqual(data["classes"], ["legionary"])
-        self.assertEqual(data["level_required"], 20)
+        self.assertEqual(data["level_required"], 10)
         self.assertEqual(data["conditions"][0][0], "Goaded")
         self.assertIs(data["npc_cast"], False)
 
@@ -936,3 +938,965 @@ class TestCritChancePerStrike(MartialBase):
         self.assertEqual(table["polearm"], (5, 9.0))
         self.assertEqual(table["heavy_weapon"], (5, 9.0))
         self.assertEqual(table["staff"], (5, 9.0))
+
+
+class TestSpeculatorSkills(MartialBase):
+    def setUp(self):
+        super().setUp()
+        self.char1.db.player_class = "speculator"
+
+    def test_the_new_speculator_lineup(self):
+        expected = {"slip away": 30, "fast hands": 40, "pilfer": 50, "uncanny dodge": 55,
+                    "elusive footwork": 65, "assassinate": 70}
+        for name, level in expected.items():
+            self.assertEqual(SKILLS[name]["classes"], ["speculator"], name)
+            self.assertEqual(SKILLS[name]["level_required"], level, name)
+            self.assertIs(SKILLS[name]["npc_cast"], False, name)
+
+    def test_the_two_defensive_ones_are_passives_that_cost_no_action(self):
+        for name in ("uncanny dodge", "elusive footwork"):
+            self.assertEqual(SKILLS[name]["cost"], 0)
+            self.assertIs(SKILLS[name]["skillfunc"].__func__, COMBAT_RULES.skill_passive_info.__func__)
+
+    # --- Slip Away ---
+    def test_slip_away_is_a_guaranteed_free_escape(self):
+        handler = self._fight()
+        self.char1.db.xp = 500
+        with patch("world.combat.randint", return_value=100):  # a roll that would fail a normal flee
+            self.assertIsNot(SKILLS["slip away"]["skillfunc"](self.char1, "slip away", [self.char1], 6), False)
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
+        self.assertEqual(self.char1.db.xp, 500)  # no XP penalty
+
+    def test_slip_away_is_refused_when_grappled_or_out_of_a_fight(self):
+        self.assertIs(SKILLS["slip away"]["skillfunc"](self.char1, "slip away", [self.char1], 6), False)
+        self._fight()
+        self.char1.db.conditions = {"Grappled": [3, self.char2]}
+        self.assertIs(SKILLS["slip away"]["skillfunc"](self.char1, "slip away", [self.char1], 6), False)
+        self.assertTrue(COMBAT_RULES.is_in_combat(self.char1))
+
+    # --- Fast Hands ---
+    def test_fast_hands_makes_an_item_free_in_a_fight(self):
+        self._fight()
+        self.char1.db.combat_actionsleft = 1
+        self.char1.db.hp = 50
+        tonic = create.create_object("typeclasses.objects.Object", key="a tonic", location=self.char1,
+                                     attributes=[("item_func", "heal"), ("item_kwargs", {"healing_range": (10, 10)})])
+        self.char1.db.conditions = {"Fast Hands": [4, self.char1]}
+        COMBAT_RULES.use_item(self.char1, tonic, self.char1)
+        self.assertEqual(self.char1.db.combat_actionsleft, 1)  # the action is still there
+        self.assertEqual(self.char1.db.hp, 60)
+
+    def test_without_fast_hands_an_item_still_costs_the_action(self):
+        self._fight()
+        self.char1.db.combat_actionsleft = 1
+        self.char1.db.hp = 50
+        tonic = create.create_object("typeclasses.objects.Object", key="a tonic", location=self.char1,
+                                     attributes=[("item_func", "heal"), ("item_kwargs", {"healing_range": (10, 10)})])
+        COMBAT_RULES.use_item(self.char1, tonic, self.char1)
+        self.assertNotEqual(self.char1.db.combat_actionsleft, 1)
+
+    # --- Uncanny Dodge & Evasion ---
+    def test_uncanny_dodge_halves_a_physical_blow_then_rests(self):
+        self.char2.db.skills_known = ["uncanny dodge"]
+        before = self.char2.db.hp
+        COMBAT_RULES.apply_damage(self.char2, 100, attacker=self.char1, melee=True)
+        self.assertEqual(before - self.char2.db.hp, 50)
+        self.assertEqual(COMBAT_RULES.get_cooldowns(self.char2)["uncanny dodge"], 4)
+        mid = self.char2.db.hp
+        COMBAT_RULES.apply_damage(self.char2, 100, attacker=self.char1, melee=True)
+        self.assertEqual(mid - self.char2.db.hp, 100)  # on cooldown: takes it in full
+
+    def test_uncanny_dodge_does_not_soften_a_spell_and_needs_the_skill(self):
+        self.char2.db.skills_known = ["uncanny dodge"]
+        before = self.char2.db.hp
+        COMBAT_RULES.apply_damage(self.char2, 100, attacker=self.char1, melee=False)
+        self.assertEqual(before - self.char2.db.hp, 100)
+        self.char2.db.skills_known = []
+        before = self.char2.db.hp
+        COMBAT_RULES.apply_damage(self.char2, 100, attacker=self.char1, melee=True)
+        self.assertEqual(before - self.char2.db.hp, 100)
+
+    def test_a_stunned_speculator_cannot_dodge(self):
+        self.char2.db.skills_known = ["uncanny dodge"]
+        self.char2.db.conditions = {"Stunned": [2, self.char1]}
+        before = self.char2.db.hp
+        COMBAT_RULES.apply_damage(self.char2, 100, attacker=self.char1, melee=True)
+        self.assertEqual(before - self.char2.db.hp, 100)
+
+    def test_elusive_footwork_halves_area_damage_only(self):
+        self.char2.db.skills_known = ["elusive footwork"]
+        third = create.create_object("typeclasses.characters.Character", key="Third", location=self.room1)
+        third.db.max_hp = third.db.hp = 100000
+        third.db.conditions = {}
+        data = dict(SKILLS["earth-shaking slam"])
+        kwargs = {k: v for k, v in data.items() if k in ("weapon_multiplier", "damage_range")}
+        with patch("world.combat.randint", side_effect=lambda lo, hi: hi):
+            data["skillfunc"](self.char1, "earth-shaking slam", [self.char2, third], 11, **kwargs)
+        self.assertEqual(100000 - third.db.hp, 130)
+        self.assertEqual(100000 - self.char2.db.hp, 65)   # halved
+        self.char2.db.hp = 100000
+        with patch("world.combat.randint", side_effect=lambda lo, hi: hi):
+            data["skillfunc"](self.char1, "finishing blow", [self.char2], 8, **{
+                k: v for k, v in SKILLS["finishing blow"].items() if k in ("weapon_multiplier", "damage_range")})
+        self.assertEqual(100000 - self.char2.db.hp, 160)  # a single-target blow is not halved
+
+    # --- Assassinate ---
+    def test_assassinate_needs_the_hiding_sneak_and_vanish_leave(self):
+        self.assertIs(SKILLS["assassinate"]["skillfunc"](
+            self.char1, "assassinate", [self.char2], 12,
+            weapon_multiplier=2.5, damage_range=(60, 90)), False)
+        self.assertEqual(self.char2.db.hp, 100000)
+
+    def test_from_hiding_it_is_a_guaranteed_critical_at_two_and_a_half_times(self):
+        self.char1.db.conditions = {"Invisible": [3, self.char1]}
+        SKILLS["assassinate"]["skillfunc"](
+            self.char1, "assassinate", [self.char2], 12, weapon_multiplier=2.5, damage_range=(60, 90))
+        # weapon 100 x crit 2.0 x 2.5
+        self.assertEqual(100000 - self.char2.db.hp, 500)
+        self.assertNotIn("Invisible", self.char1.db.conditions)  # the hiding is spent
+
+    def test_sneak_and_vanish_really_leave_the_state_assassinate_needs(self):
+        self.assertEqual(SKILLS["sneak"]["conditions"][0][0], "Invisible")
+        self.assertEqual(SKILLS["vanish"]["conditions"][0][0], "Invisible")
+
+    # --- Pilfer ---
+    def _pilfer(self, target=None, rolls=1):
+        target = target or self.char2
+        with patch("world.combat.randint", return_value=rolls):
+            return SKILLS["pilfer"]["skillfunc"](self.char1, "pilfer", [target], 5)
+
+    def test_a_successful_pilfer_moves_a_tenth_of_a_players_purse(self):
+        self.char2.db.gold = 1000
+        self.char1.db.gold = 0
+        self._pilfer()
+        self.assertEqual(self.char1.db.gold, 100)
+        self.assertEqual(self.char2.db.gold, 900)
+
+    def test_the_take_is_capped_by_the_thiefs_level(self):
+        self.char2.db.gold = 100000
+        self.char1.db.level = 30
+        self.char1.db.gold = 0
+        self._pilfer()
+        self.assertEqual(self.char1.db.gold, 25 + 5 * 30)
+
+    def test_the_victim_is_told_something_was_taken_but_not_who(self):
+        self.char2.db.gold = 1000
+        with patch.object(self.char2, "msg") as told:
+            self._pilfer()
+        text = " ".join(str(c) for c in told.call_args_list)
+        self.assertIn("lighter", text)
+        self.assertNotIn("Char,", text)
+
+    def test_a_nimble_target_is_hard_to_rob(self):
+        self.char2.db.gold = 1000
+        self.char1.db.agilitas, self.char2.db.agilitas = 10, 30
+        self.char1.db.gold = 0
+        self._pilfer(rolls=20)  # 35 + 3*(10-30) = -25 -> 5% chance; a roll of 20 fails
+        self.assertEqual(self.char1.db.gold, 0)
+        self.assertEqual(self.char2.db.gold, 1000)
+
+    def test_a_clumsy_target_is_easy(self):
+        self.char2.db.gold = 1000
+        self.char1.db.agilitas, self.char2.db.agilitas = 18, 10
+        self.char1.db.gold = 0
+        self._pilfer(rolls=55)  # 35 + 24 = 59%
+        self.assertGreater(self.char1.db.gold, 0)
+
+    def test_a_target_is_only_tried_once_per_half_hour(self):
+        self.char2.db.gold = 1000
+        self._pilfer()
+        self.assertIs(self._pilfer(), False)
+
+    def test_it_never_works_on_a_pacifist_a_god_an_ally_or_an_empty_purse(self):
+        self.char2.db.gold = 1000
+        self.char2.db.pacifist = True
+        self.assertIs(self._pilfer(), False)
+        self.char2.db.pacifist = False
+        self.char2.db.level = 106
+        self.assertIs(self._pilfer(), False)
+        self.char2.db.level = 30
+        self.char2.db.gold = 3
+        self.assertIs(self._pilfer(), False)
+        self.char2.db.gold = 1000
+        self.char1.db.party_leader = self.char1
+        self.char1.db.party_members = [self.char1, self.char2]
+        self.char2.db.party_leader = self.char1
+        self.assertIs(self._pilfer(), False)
+
+    def test_a_refused_pilfer_costs_nothing(self):
+        self.char2.db.pacifist = True
+        before = self.char1.db.sp
+        self._pilfer()
+        self.assertEqual(before, self.char1.db.sp)
+
+    def test_an_npc_yields_half_of_its_kill_gold_and_pilfer_never_starts_a_fight(self):
+        from world.combat import HostileNPC
+
+        npc = create.create_object(HostileNPC, key="a merchant guard", location=self.room1,
+                                   attributes=[("xp_reward", 60)])
+        self.char1.db.gold = 0
+        self._pilfer(target=npc)
+        self.assertEqual(self.char1.db.gold, 10)  # 60 xp -> 20 gold -> half
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
+
+    def test_pilfer_is_flagged_so_the_command_never_starts_a_fight_or_reveals_you_early(self):
+        self.assertTrue(SKILLS["pilfer"]["no_fight_start"])
+        self.assertTrue(SKILLS["pilfer"]["manages_reveal"])
+        self.assertIs(SKILLS["pilfer"]["combat_spell"], False)
+
+
+class TestVenatorSkills(MartialBase):
+    def setUp(self):
+        super().setUp()
+        self.char1.db.player_class = "venator"
+        self.char1.db.wielded_weapon = _weapon(self.char1, 100, 100, category="ranged")
+
+    def test_the_new_venator_lineup(self):
+        expected = {"quarry": 1, "forager's eye": 25, "aimed shot": 45, "pathfinder": 55, "bestial fury": 75}
+        for name, level in expected.items():
+            self.assertEqual(SKILLS[name]["classes"], ["venator"], name)
+            self.assertEqual(SKILLS[name]["level_required"], level, name)
+            self.assertIs(SKILLS[name]["npc_cast"], False, name)
+        self.assertNotIn("mark", SKILLS)
+
+    # --- Quarry ---
+    def test_quarry_boosts_only_the_hunters_own_blows_against_it(self):
+        self._fight()
+        SKILLS["quarry"]["skillfunc"](self.char1, "quarry", [self.char2], 4)
+        self.assertIn("Quarry", self.char2.db.conditions)
+        before = self.char2.db.hp
+        COMBAT_RULES.apply_damage(self.char2, 100, attacker=self.char1)
+        self.assertEqual(before - self.char2.db.hp, 120)
+        before = self.char2.db.hp
+        third = create.create_object("typeclasses.characters.Character", key="Third", location=self.room1)
+        COMBAT_RULES.apply_damage(self.char2, 100, attacker=third)
+        self.assertEqual(before - self.char2.db.hp, 100)  # someone else's blow: no bonus
+
+    def test_marking_a_new_quarry_drops_the_old_one(self):
+        third = create.create_object("typeclasses.characters.Character", key="Third", location=self.room1)
+        third.db.hp = third.db.max_hp = 100
+        third.db.conditions = {}
+        self.room1.scripts.add(CombatTurnHandler)
+        SKILLS["quarry"]["skillfunc"](self.char1, "quarry", [self.char2], 4)
+        SKILLS["quarry"]["skillfunc"](self.char1, "quarry", [third], 4)
+        self.assertNotIn("Quarry", self.char2.db.conditions)
+        self.assertIn("Quarry", third.db.conditions)
+
+    def test_quarry_ends_with_the_fight_and_is_never_a_debuff_on_an_ally(self):
+        self._fight()
+        SKILLS["quarry"]["skillfunc"](self.char1, "quarry", [self.char2], 4)
+        COMBAT_RULES.combat_cleanup(self.char2)
+        self.assertNotIn("Quarry", self.char2.db.conditions)
+        self.assertIs(SKILLS["quarry"]["skillfunc"](self.char1, "quarry", [self.char1], 4), False)
+
+    def test_quarry_is_a_fight_only_skill_that_never_starts_one(self):
+        self.assertIs(SKILLS["quarry"]["noncombat_spell"], False)
+        self.assertTrue(SKILLS["quarry"]["no_fight_start"])
+
+    def test_a_player_who_knew_mark_now_knows_quarry(self):
+        from world import concentration as conc
+
+        self.char1.db.skills_known = ["mark", "keen eye"]
+        self.char1.db.cooldowns = {"mark": 2}
+        conc.prune_renamed_skills(self.char1)
+        self.assertEqual(sorted(self.char1.db.skills_known), ["keen eye", "quarry"])
+        self.assertEqual(self.char1.db.cooldowns.get("quarry"), 2)
+        conc.prune_renamed_skills(self.char1)  # idempotent
+        self.assertEqual(self.char1.db.skills_known.count("quarry"), 1)
+
+    def test_a_new_venator_starts_with_quarry(self):
+        from world.chargen_menu import CLASSES
+
+        self.assertEqual(CLASSES["venator"]["starting_skills"], ["quarry"])
+
+    # --- Aimed Shot ---
+    def test_aimed_shot_needs_a_ranged_weapon_and_costs_the_turn(self):
+        self.char1.db.wielded_weapon = _weapon(self.char1, 100, 100, category="light_blade")
+        self.assertIs(SKILLS["aimed shot"]["skillfunc"](self.char1, "aimed shot", [self.char1], 6), False)
+        self.char1.db.wielded_weapon = _weapon(self.char1, 100, 100, category="ranged")
+        SKILLS["aimed shot"]["skillfunc"](self.char1, "aimed shot", [self.char1], 6)
+        self.assertIn("Aiming", self.char1.db.conditions)
+
+    def test_the_aimed_shot_cannot_miss_and_hits_two_and_a_half_times_then_is_spent(self):
+        self.char1.db.conditions = {"Aiming": [3, self.char1]}
+        with patch("world.combat.randint", side_effect=lambda lo, hi: hi):
+            COMBAT_RULES.resolve_attack(self.char1, self.char2, attack_value=0, defense_value=999)
+        self.assertEqual(100000 - self.char2.db.hp, int(100 * 2.5))
+        self.assertNotIn("Aiming", self.char1.db.conditions)
+
+    def test_the_shot_after_the_aimed_one_is_ordinary(self):
+        self.char1.db.conditions = {"Aiming": [3, self.char1]}
+        with patch("world.combat.randint", side_effect=lambda lo, hi: hi):
+            COMBAT_RULES.resolve_attack(self.char1, self.char2, attack_value=999, defense_value=0)
+            self.char2.db.hp = 100000
+            COMBAT_RULES.resolve_attack(self.char1, self.char2, attack_value=999, defense_value=0)
+        self.assertEqual(100000 - self.char2.db.hp, 100)
+
+    def test_an_aimed_shot_cannot_be_parried(self):
+        self.char2.db.conditions = {"Parrying": [99, self.char2]}
+        self.char2.db.wielded_weapon = _weapon(self.char2, 50, 50)
+        self.char1.db.conditions = {"Aiming": [3, self.char1]}
+        with patch("world.combat.randint", return_value=1):  # a sure parry, if it were allowed
+            COMBAT_RULES.resolve_attack(self.char1, self.char2, attack_value=0, defense_value=999)
+        self.assertLess(self.char2.db.hp, 100000)
+
+    def test_an_aimed_skill_also_spends_the_aim(self):
+        self.char1.db.conditions = {"Aiming": [3, self.char1]}
+        data = dict(SKILLS["piercing shot"])
+        kwargs = {k: v for k, v in data.items() if k in ("weapon_multiplier", "damage_range")}
+        with patch("world.combat.randint", side_effect=lambda lo, hi: hi):
+            SKILLS["rapid volley"]["skillfunc"](
+                self.char1, "rapid volley", [self.char2], 8,
+                **{k: v for k, v in SKILLS["rapid volley"].items() if k in ("weapon_multiplier", "damage_range")})
+        self.assertNotIn("Aiming", self.char1.db.conditions)
+
+    # --- Pathfinder ---
+    def test_pathfinder_makes_every_other_step_free(self):
+        self.char1.db.conditions = {"Pathfinding": [20, self.char1]}
+        start = self.char1.db.sp
+        for _ in range(8):
+            self.assertTrue(self.char1._check_and_pay_movement_sp("move"))
+        self.assertEqual(self.char1.db.sp, start - 4)
+
+    def test_flight_is_the_better_discount_when_both_apply(self):
+        from world import concentration as conc
+
+        self.char1.db.conditions = {"Pathfinding": [20, self.char1]}
+        conc.begin_concentration(self.char1, "fly", "fly", 0.01)
+        start = self.char1.db.sp
+        for _ in range(8):
+            self.char1._check_and_pay_movement_sp("move")
+        self.assertEqual(self.char1.db.sp, start - 2)
+
+    # --- Forager's Eye ---
+    def test_foragers_eye_raises_the_chance_to_spot_a_resource(self):
+        from world import gathering
+
+        self.room1.db.gather_resource = "timber"
+        self.room1.db.gather_uses_wilderness_chance = True  # the plain 30% chance
+        with patch("world.gathering.random.random", return_value=0.5):
+            gathering.announce_gather_spot(self.char1)
+            plain = self.char1.ndb.gather_spot
+            self.char1.db.conditions = {"Forager's Eye": [20, self.char1]}
+            gathering.announce_gather_spot(self.char1)
+            with_eye = self.char1.ndb.gather_spot
+        self.assertIsNone(plain)          # 0.5 is not under 0.30
+        self.assertEqual(with_eye, "timber")  # 0.5 is under 0.30 + 0.30
+
+    # --- Bestial Fury ---
+    def _pet(self):
+        from world.combat import SummonedAlly
+
+        pet = create.create_object(SummonedAlly, key="a hunting hound", location=self.room1)
+        pet.db.hp = pet.db.max_hp = 500
+        pet.db.instance_owner = self.char1
+        self.char1.db.active_companion = pet
+        return pet
+
+    def test_it_needs_a_companion_and_costs_nothing_if_refused(self):
+        before = self.char1.db.sp
+        self.assertIs(SKILLS["bestial fury"]["skillfunc"](self.char1, "bestial fury", [], 9), False)
+        self.assertEqual(before, self.char1.db.sp)
+
+    def test_a_frenzied_companion_attacks_twice_each_turn(self):
+        pet = self._pet()
+        self.room1.ndb.pending_fighters = [self.char1, self.char2]
+        self.room1.scripts.add(CombatTurnHandler)
+        SKILLS["bestial fury"]["skillfunc"](self.char1, "bestial fury", [], 9)
+        self.assertIn("Frenzied", pet.db.conditions)
+        self.char1.db.combat_last_target = self.char2
+        pet.db.combat_actionsleft = 1
+        with patch.object(COMBAT_RULES, "resolve_attack") as strike, patch.object(COMBAT_RULES, "spend_action"):
+            pet.at_turn_start()
+        self.assertEqual(strike.call_count, 2)
+
+    def test_an_ordinary_companion_attacks_once(self):
+        pet = self._pet()
+        self.room1.ndb.pending_fighters = [self.char1, self.char2]
+        self.room1.scripts.add(CombatTurnHandler)
+        self.char1.db.combat_last_target = self.char2
+        pet.db.combat_actionsleft = 1
+        with patch.object(COMBAT_RULES, "resolve_attack") as strike, patch.object(COMBAT_RULES, "spend_action"):
+            pet.at_turn_start()
+        self.assertEqual(strike.call_count, 1)
+
+    def test_the_frenzy_is_worth_more_than_the_attack_it_costs(self):
+        # Three extra companion attacks for one lost personal attack.
+        self.assertEqual(SKILLS["bestial fury"]["cost"], 9)
+        self.assertIn("three extra attacks", SKILLS["bestial fury"]["desc"])
+
+
+class TestOverlapCleanup(MartialBase):
+    def test_no_speculator_or_venator_skill_is_a_caster_debuff_any_more(self):
+        casters = {"Accuracy Down", "Damage Down", "Defense Down", "Cursed", "Frightened"}
+        for name, data in SKILLS.items():
+            if not ({"speculator", "venator"} & set(data.get("classes", []))):
+                continue
+            for cond, _ in data.get("conditions", []):
+                self.assertNotIn(cond, casters, name)
+
+    def test_the_debuff_skills_became_real_strikes_with_martial_riders(self):
+        for name, effect in (("precision strike", "Disarmed"), ("crippling strike", "Sundered")):
+            data = SKILLS[name]
+            self.assertIs(data["skillfunc"].__func__, COMBAT_RULES.skill_attack.__func__, name)
+            self.assertEqual(data["rider"]["effect"], effect, name)
+            self.assertGreater(data["weapon_multiplier"], 1.0, name)
+        self.assertEqual(SKILLS["snare"]["rider"]["effect"], "Bleeding")
+        self.assertGreater(SKILLS["snare"]["weapon_multiplier"], 1.0)
+
+    def test_entangle_is_now_a_net_that_grapples(self):
+        self.assertEqual(SKILLS["entangle"]["conditions"], [("Grappled", 3)])
+
+    def test_poison_is_the_speculators_alone_among_the_scouts(self):
+        for name, data in SKILLS.items():
+            if "venator" in data.get("classes", []):
+                self.assertNotIn("Poisoned", [c for c, _ in data.get("conditions", [])], name)
+        self.assertEqual(SKILLS["poisoned blade"]["classes"], ["speculator"])
+
+    def test_the_class_labels_match_what_each_actually_is(self):
+        from world.chargen_menu import CLASSES
+
+        self.assertIn("Rogue/Assassin", CLASSES["speculator"]["display"])
+        self.assertIn("Ranger/Scout", CLASSES["venator"]["display"])
+
+
+class TestBackstabOpensAFight(MartialBase):
+    def test_backstab_can_start_the_fight_and_lands_at_once(self):
+        from world.combat import CmdUseSkill
+
+        self.char1.db.player_class = "speculator"
+        self.char1.db.skills_known = ["backstab"]
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
+        before = self.char2.db.hp
+        with patch("world.combat.randint", side_effect=lambda lo, hi: hi):
+            self.call(CmdUseSkill(), "backstab = Char2", caller=self.char1)
+        self.assertTrue(COMBAT_RULES.is_in_combat(self.char1))
+        self.assertGreater(before - self.char2.db.hp, 0)
+
+    def test_backstab_is_no_longer_flagged_combat_only(self):
+        self.assertNotIn("noncombat_spell", SKILLS["backstab"])
+        self.assertIn("open a fight", SKILLS["backstab"]["desc"])
+
+    def test_backstab_still_needs_a_target_that_has_not_acted(self):
+        self._fight()
+        self.char2.db.combat_lastaction = "attack"
+        before = self.char2.db.hp
+        SKILLS["backstab"]["skillfunc"](self.char1, "backstab", [self.char2], 6, weapon_multiplier=2.0, bonus_damage=20)
+        self.assertEqual(self.char2.db.hp, before)
+
+
+class TestAreaTargetsFillFromTheFight(MartialBase):
+    def setUp(self):
+        super().setUp()
+        from world.combat import HostileNPC
+
+        self.char2.location = self.room2  # keep the arithmetic to the goblins
+        self.goblins = []
+        for n in range(1, 4):
+            g = create.create_object(HostileNPC, key="goblin %d" % n, location=self.room1)
+            g.db.hp = g.db.max_hp = 50
+            self.goblins.append(g)
+
+    def _start(self, count):
+        for extra in self.goblins[count:]:
+            extra.location = self.room2
+        handler = self.room1.scripts.add(CombatTurnHandler)
+        handler.db.turn = handler.db.fighters.index(self.char1)
+        self.char1.db.combat_actionsleft = 1
+        self.char1.db.player_class = "venator"
+        self.char1.db.skills_known = ["rapid volley"]
+        self.char1.db.spells_known = ["soul rot"]
+        self.char1.db.sp = self.char1.db.mp = 100
+        return handler
+
+    def _targets_used(self, command, arg, count, table, name):
+        from unittest.mock import MagicMock
+
+        self._start(count)
+        spy = MagicMock(return_value=None)
+        with patch.dict(table[name], {("skillfunc" if table is SKILLS else "spellfunc"): spy}):
+            self.call(command(), arg, caller=self.char1)
+        return spy.call_args[0][2]
+
+    def test_a_three_target_skill_takes_three_enemies_from_the_fight(self):
+        from world.combat import CmdUseSkill
+
+        targets = self._targets_used(CmdUseSkill, "rapid volley = goblin 1", 3, SKILLS, "rapid volley")
+        self.assertEqual(sorted(t.key for t in targets), ["goblin 1", "goblin 2", "goblin 3"])
+        self.assertEqual(targets[0].key, "goblin 1")  # the one you named comes first
+
+    def test_with_only_two_enemies_it_takes_two(self):
+        from world.combat import CmdUseSkill
+
+        targets = self._targets_used(CmdUseSkill, "rapid volley = goblin 2", 2, SKILLS, "rapid volley")
+        self.assertEqual(sorted(t.key for t in targets), ["goblin 1", "goblin 2"])
+
+    def test_with_one_enemy_it_takes_one(self):
+        from world.combat import CmdUseSkill
+
+        targets = self._targets_used(CmdUseSkill, "rapid volley = goblin 1", 1, SKILLS, "rapid volley")
+        self.assertEqual([t.key for t in targets], ["goblin 1"])
+
+    def test_naming_no_one_takes_up_to_three_as_before(self):
+        from world.combat import CmdUseSkill
+
+        targets = self._targets_used(CmdUseSkill, "rapid volley", 3, SKILLS, "rapid volley")
+        self.assertEqual(len(targets), 3)
+
+    def test_a_three_target_spell_fills_the_same_way(self):
+        targets = self._targets_used(CmdCast, "soul rot = goblin 3", 3, SPELLS, "soul rot")
+        self.assertEqual(sorted(t.key for t in targets), ["goblin 1", "goblin 2", "goblin 3"])
+        self.assertEqual(targets[0].key, "goblin 3")
+
+    def test_it_never_pulls_in_an_ally_or_a_bystander_who_is_not_in_the_fight(self):
+        from world.combat import CmdUseSkill, HostileNPC
+
+        ally = create.create_object("typeclasses.characters.Character", key="Ally", location=self.room1)
+        ally.db.hp = ally.db.max_hp = 100
+        self.char1.db.party_leader = self.char1
+        self.char1.db.party_members = [self.char1, ally]
+        ally.db.party_leader = self.char1
+        self._start(1)
+        bystander = create.create_object(HostileNPC, key="a passing vendor", location=self.room1)
+        bystander.db.hp = bystander.db.max_hp = 50
+        from unittest.mock import MagicMock
+
+        spy = MagicMock(return_value=None)
+        with patch.dict(SKILLS["rapid volley"], {"skillfunc": spy}):
+            self.call(CmdUseSkill(), "rapid volley = goblin 1", caller=self.char1)
+        names = {t.key for t in spy.call_args[0][2]}
+        self.assertNotIn("Ally", names)
+        self.assertNotIn("a passing vendor", names)
+
+    def test_a_physical_skill_skips_an_enemy_it_could_not_reach_but_a_spell_does_not(self):
+        from world.combat import CmdUseSkill
+
+        self._start(3)
+        self.goblins[2].db.combat_row = "back"
+        self.assertTrue(COMBAT_RULES.is_row_protected(self.goblins[2]))
+        from unittest.mock import MagicMock
+
+        spy = MagicMock(return_value=None)
+        with patch.dict(SKILLS["rapid volley"], {"skillfunc": spy}):
+            self.call(CmdUseSkill(), "rapid volley = goblin 1", caller=self.char1)
+        self.assertNotIn("goblin 3", {t.key for t in spy.call_args[0][2]})
+        self.char1.db.combat_actionsleft = 1
+        spy = MagicMock(return_value=None)
+        with patch.dict(SPELLS["soul rot"], {"spellfunc": spy}):
+            self.call(CmdCast(), "soul rot = goblin 1", caller=self.char1)
+        self.assertIn("goblin 3", {t.key for t in spy.call_args[0][2]})
+
+    def test_a_single_target_skill_is_untouched(self):
+        from world.combat import CmdUseSkill
+
+        targets = self._targets_used(CmdUseSkill, "rapid volley = goblin 1", 3, SKILLS, "rapid volley")
+        self.assertEqual(SKILLS["finishing blow"].get("max_targets", 1), 1)
+        self.assertGreater(len(targets), 1)
+
+
+class TestGroupBuffsPickThePartyThemselves(MartialBase):
+    """Owner request: type 'testudo' and it picks up to five allies if they exist."""
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.player_class = "legionary"
+        self.char1.db.skills_known = ["testudo"]
+        self.char1.db.spells_known = ["mass cure wounds"]
+        self.char1.db.sp = self.char1.db.mp = 100
+        self.allies = []
+
+    def _party(self, count, wounded=None):
+        members = [self.char1]
+        for n in range(count):
+            ally = create.create_object("typeclasses.characters.Character", key="Friend%d" % n, location=self.room1)
+            ally.db.hp = ally.db.max_hp = 100
+            ally.db.conditions = {}
+            members.append(ally)
+            ally.db.party_leader = self.char1
+        self.char1.db.party_leader = self.char1
+        self.char1.db.party_members = members
+        return members
+
+    def _skill_targets(self, arg="testudo"):
+        from unittest.mock import MagicMock
+
+        from world.combat import CmdUseSkill
+
+        spy = MagicMock(return_value=None)
+        with patch.dict(SKILLS["testudo"], {"skillfunc": spy}):
+            self.call(CmdUseSkill(), arg, caller=self.char1)
+        return spy.call_args[0][2]
+
+    def test_alone_it_is_just_you_as_before(self):
+        self.assertEqual(self._skill_targets(), [self.char1])
+
+    def test_it_picks_the_whole_party_here_including_you(self):
+        self._party(3)
+        self.assertEqual(len(self._skill_targets()), 4)
+
+    def test_it_stops_at_five_and_prefers_the_most_wounded(self):
+        members = self._party(6)
+        members[3].db.hp = 10
+        members[5].db.hp = 30
+        picked = self._skill_targets()
+        self.assertEqual(len(picked), 5)
+        self.assertIn(members[3], picked)
+        self.assertIn(members[5], picked)
+
+    def test_a_party_member_in_another_room_is_left_out(self):
+        members = self._party(2)
+        members[2].location = self.room2
+        picked = self._skill_targets()
+        self.assertNotIn(members[2], picked)
+        self.assertEqual(len(picked), 2)
+
+    def test_a_dead_party_member_is_left_out(self):
+        members = self._party(2)
+        members[1].db.is_dead = True
+        self.assertNotIn(members[1], self._skill_targets())
+
+    def test_naming_a_target_still_targets_only_that_one(self):
+        members = self._party(2)
+        picked = self._skill_targets("testudo = Friend0")
+        self.assertEqual([t.key for t in picked], ["Friend0"])
+
+    def test_the_party_keyword_still_works(self):
+        self._party(2)
+        self.assertEqual(len(self._skill_targets("testudo = party")), 3)
+
+    def test_a_group_spell_does_the_same(self):
+        from unittest.mock import MagicMock
+
+        self._party(3)
+        spy = MagicMock(return_value=None)
+        with patch.dict(SPELLS["mass cure wounds"], {"spellfunc": spy}):
+            self.call(CmdCast(), "mass cure wounds", caller=self.char1)
+        self.assertEqual(len(spy.call_args[0][2]), 4)
+
+    def test_a_single_target_heal_still_defaults_to_you(self):
+        from unittest.mock import MagicMock
+
+        self._party(3)
+        self.char1.db.spells_known = ["cure wounds"]
+        spy = MagicMock(return_value=None)
+        with patch.dict(SPELLS["cure wounds"], {"spellfunc": spy}):
+            self.call(CmdCast(), "cure wounds", caller=self.char1)
+        self.assertEqual(spy.call_args[0][2], [self.char1])
+
+    def test_the_descriptions_no_longer_tell_you_to_type_equals_party(self):
+        for name in ("testudo", "rally", "last stand"):
+            self.assertNotIn("= party", SKILLS[name]["desc"], name)
+            self.assertIn("automatically", SKILLS[name]["desc"], name)
+
+
+class TestFightingRetreat(MartialBase):
+    def setUp(self):
+        super().setUp()
+        self.char1.db.player_class = "legionary"
+        self.allies = []
+        for n in range(2):
+            a = create.create_object("typeclasses.characters.Character", key="Comrade%d" % n, location=self.room1)
+            a.db.hp = a.db.max_hp = 100
+            a.db.conditions = {}
+            a.db.party_leader = self.char1
+            self.allies.append(a)
+        self.char1.db.party_leader = self.char1
+        self.char1.db.party_members = [self.char1] + self.allies
+        self.handler = self.room1.scripts.add(CombatTurnHandler)  # sweeps everyone in the room in
+
+    def _retreat(self, targets):
+        return SKILLS["fighting retreat"]["skillfunc"](self.char1, "fighting retreat", targets, 10)
+
+    def test_it_is_a_level_50_legionary_group_skill(self):
+        data = SKILLS["fighting retreat"]
+        self.assertEqual((data["classes"], data["level_required"], data["max_targets"]), (["legionary"], 50, 5))
+        self.assertEqual(data["target"], "anychar")
+        self.assertIs(data["npc_cast"], False)
+
+    def test_the_whole_party_breaks_away_at_once(self):
+        for member in [self.char1] + self.allies:
+            self.assertTrue(COMBAT_RULES.is_in_combat(member))
+        self._retreat([self.char1] + self.allies)
+        for member in [self.char1] + self.allies:
+            self.assertFalse(COMBAT_RULES.is_in_combat(member))
+
+    def test_nobody_loses_experience(self):
+        for member in [self.char1] + self.allies:
+            member.db.xp = 500
+        with patch("world.combat.randint", return_value=100):  # would fail an ordinary flee
+            self._retreat([self.char1] + self.allies)
+        for member in [self.char1] + self.allies:
+            self.assertEqual(member.db.xp, 500)
+
+    def test_naming_only_some_keeps_the_rest_in_the_fight(self):
+        self._retreat(self.allies)
+        for ally in self.allies:
+            self.assertFalse(COMBAT_RULES.is_in_combat(ally))
+        self.assertTrue(COMBAT_RULES.is_in_combat(self.char1))
+
+    def test_a_grappled_or_stunned_ally_cannot_be_pulled_out(self):
+        self.allies[0].db.conditions = {"Grappled": [3, self.char2]}
+        self.allies[1].db.conditions = {"Stunned": [2, self.char2]}
+        self._retreat([self.char1] + self.allies)
+        self.assertTrue(COMBAT_RULES.is_in_combat(self.allies[0]))
+        self.assertTrue(COMBAT_RULES.is_in_combat(self.allies[1]))
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
+
+    def test_it_is_refused_outside_a_fight_and_costs_nothing(self):
+        for member in [self.char1] + self.allies:
+            COMBAT_RULES.force_disengage(member)
+        before = self.char1.db.sp
+        self.assertIs(self._retreat([self.char1] + self.allies), False)
+        self.assertEqual(before, self.char1.db.sp)
+
+    def test_it_is_refused_when_no_one_can_move(self):
+        for member in [self.char1] + self.allies:
+            member.db.conditions = {"Grappled": [3, self.char2]}
+        before = self.char1.db.sp
+        self.assertIs(self._retreat([self.char1] + self.allies), False)
+        self.assertEqual(before, self.char1.db.sp)
+
+    def test_typing_it_with_no_target_picks_the_party_automatically(self):
+        from unittest.mock import MagicMock
+
+        from world.combat import CmdUseSkill
+
+        self.char1.db.skills_known = ["fighting retreat"]
+        self.handler.db.turn = self.handler.db.fighters.index(self.char1)
+        self.char1.db.combat_actionsleft = 1
+        spy = MagicMock(return_value=None)
+        with patch.dict(SKILLS["fighting retreat"], {"skillfunc": spy}):
+            self.call(CmdUseSkill(), "fighting retreat", caller=self.char1)
+        self.assertEqual({t.key for t in spy.call_args[0][2]}, {"Char", "Comrade0", "Comrade1"})
+
+
+class TestOverlapFixPass(MartialBase):
+    """Sep 27 consolidation: Provoke/Goad, Cleave/Shattering Blow, Gladiator and War Cry."""
+
+    def test_provoke_is_gone_and_its_owners_get_goad(self):
+        from world import concentration as conc
+
+        self.assertNotIn("provoke", SKILLS)
+        self.char1.db.skills_known = ["provoke", "hold the line"]
+        conc.prune_renamed_skills(self.char1)
+        self.assertEqual(sorted(self.char1.db.skills_known), ["goad", "hold the line"])
+
+    def test_favor_became_crowds_surge(self):
+        from world import concentration as conc
+
+        self.assertNotIn("favor", SKILLS)
+        self.char1.db.skills_known = ["favor"]
+        conc.prune_renamed_skills(self.char1)
+        self.assertEqual(self.char1.db.skills_known, ["crowd's surge"])
+
+    def test_cleave_is_a_pure_area_attack_and_shattering_blow_the_armor_breaker(self):
+        self.assertNotIn("rider", SKILLS["gladius cleave"])
+        self.assertEqual(SKILLS["gladius cleave"]["max_targets"], 3)
+        rider = SKILLS["shattering blow"]["rider"]
+        self.assertEqual((rider["effect"], rider["chance"], rider["both"]), ("Sundered", 100, True))
+
+    def test_shattering_blow_breaks_body_armor_and_shield_together(self):
+        self._armor(self.char2)
+        self._armor(self.char2, slot="worn_shield", reduction=0, defense=8)
+        self.assertTrue(self._rider("Sundered", both=True))
+        self.assertTrue(martial.is_sundered(self.char2, "worn_armor"))
+        self.assertTrue(martial.is_sundered(self.char2, "worn_shield"))
+
+    def test_an_ordinary_sunder_after_another_still_ends_with_both_broken(self):
+        self._armor(self.char2)
+        self._armor(self.char2, slot="worn_shield", reduction=0, defense=8)
+        self._rider("Sundered")
+        self._rider("Sundered")
+        self.assertTrue(martial.is_sundered(self.char2, "worn_armor"))
+        self.assertTrue(martial.is_sundered(self.char2, "worn_shield"))
+        self.assertFalse(self._rider("Sundered"))  # nothing left to cleave
+
+    def test_a_sundered_shield_no_longer_blocks_and_body_armor_stops_reducing(self):
+        self._armor(self.char2)
+        self.char2.db.combat_sundered = "both"
+        with patch("world.combat.randint", return_value=50):
+            reduced = COMBAT_RULES.get_damage(self.char1, self.char2)
+        self.char2.db.combat_sundered = None
+        with patch("world.combat.randint", return_value=50):
+            full = COMBAT_RULES.get_damage(self.char1, self.char2)
+        self.assertGreater(reduced, full)
+
+    def test_feint_and_disarming_strike_are_weapon_strikes_with_martial_riders(self):
+        for name, effect in (("feint", "Bleeding"), ("disarming strike", "Disarmed")):
+            data = SKILLS[name]
+            self.assertIs(data["skillfunc"].__func__, COMBAT_RULES.skill_attack.__func__, name)
+            self.assertEqual(data["rider"]["effect"], effect, name)
+            self.assertGreater(data["weapon_multiplier"], 1.0, name)
+
+    def test_weapon_flourish_raises_crit_chance_instead_of_accuracy(self):
+        self.assertEqual(SKILLS["weapon flourish"]["conditions"], [("Keen Edge", 3)])
+        base, _ = martial.crit_profile(self.char1)
+        self.char1.db.conditions = {"Keen Edge": [3, self.char1]}
+        boosted, _ = martial.crit_profile(self.char1)
+        self.assertEqual(boosted - base, martial.KEEN_EDGE_CRIT_BONUS)
+
+    def test_no_gladiator_skill_is_a_caster_buff_or_debuff_twin(self):
+        casters = {"Accuracy Down", "Accuracy Up", "Damage Down"}
+        for name, data in SKILLS.items():
+            if data.get("classes") != ["gladiator"]:
+                continue
+            for cond, _ in data.get("conditions", []):
+                self.assertNotIn(cond, casters - {"Damage Up"}, name)
+
+    def test_war_cry_goads_up_to_three_enemies(self):
+        data = SKILLS["war cry"]
+        self.assertEqual(data["conditions"], [("Goaded", 2)])
+        self.assertEqual(data["max_targets"], 3)
+
+    def test_crowds_surge_grants_one_extra_action_in_a_fight(self):
+        handler = self._fight()
+        self.char1.db.combat_actionsleft = 1
+        sp = self.char1.db.sp
+        self.assertIsNot(
+            SKILLS["crowd's surge"]["skillfunc"](self.char1, "crowd's surge", [self.char1], 10),
+            False,
+        )
+        self.assertEqual(self.char1.db.combat_actionsleft, 2)
+        self.assertEqual(self.char1.db.sp, sp - 10)
+        handler.stop()
+
+    def test_crowds_surge_is_refused_outside_a_fight(self):
+        sp = self.char1.db.sp
+        self.assertIs(
+            SKILLS["crowd's surge"]["skillfunc"](self.char1, "crowd's surge", [self.char1], 10),
+            False,
+        )
+        self.assertEqual(self.char1.db.sp, sp)
+
+    def test_damage_up_and_down_scale_with_the_blow(self):
+        self.char1.db.wielded_weapon = _weapon(self.char1, 200, 200)
+        with patch("world.combat.randint", return_value=50):
+            plain = COMBAT_RULES.get_damage(self.char1, self.char2)
+            self.char1.db.conditions = {"Damage Up": [3, self.char1]}
+            up = COMBAT_RULES.get_damage(self.char1, self.char2)
+            self.char1.db.conditions = {"Damage Down": [3, self.char2]}
+            down = COMBAT_RULES.get_damage(self.char1, self.char2)
+        self.assertGreater(up - plain, 5)
+        self.assertLess(down - plain, -5)
+        self.assertAlmostEqual(up - plain, plain * 0.15, delta=plain * 0.03)
+
+
+class TestAgilitasAndPhysicalContests(MartialBase):
+    """A physical skill's effect is the USER's fighting stat against the target's resist stat."""
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.level = self.char2.db.level = 10
+        self.char1.db.ingenium = 10
+
+    def test_a_grab_uses_the_users_agilitas_not_ingenium(self):
+        self.char1.db.agilitas = 20
+        self.char2.db.agilitas = 10
+        with patch("world.combat.randint", return_value=8):
+            self.assertTrue(COMBAT_RULES.resists_condition(self.char1, self.char2, condition="Grappled"))
+            self.assertFalse(
+                COMBAT_RULES.resists_condition(
+                    self.char1, self.char2, condition="Grappled", attacker_stat="agilitas"
+                )
+            )
+
+    def test_a_nimble_target_escapes_more_often(self):
+        self.char2.db.agilitas = 20
+        with patch("world.combat.randint", return_value=30):
+            self.assertTrue(
+                COMBAT_RULES.resists_condition(
+                    self.char1, self.char2, condition="Blinded", attacker_stat="agilitas"
+                )
+            )
+            self.char2.db.agilitas = 10
+            self.assertFalse(
+                COMBAT_RULES.resists_condition(
+                    self.char1, self.char2, condition="Blinded", attacker_stat="agilitas"
+                )
+            )
+
+    def test_mind_effects_ignore_the_physical_stat(self):
+        self.char1.db.virtus = 20
+        self.char2.db.ingenium = 10
+        with patch("world.combat.randint", return_value=8):
+            self.assertTrue(
+                COMBAT_RULES.resists_condition(
+                    self.char1, self.char2, condition="Goaded", attacker_stat="virtus"
+                )
+            )
+
+    def test_monsters_keep_their_old_odds(self):
+        from world.combat import HostileNPC
+
+        npc = create.create_object(HostileNPC, key="a brute", location=self.room1)
+        npc.db.level = 10
+        npc.db.agilitas = 20
+        npc.db.ingenium = 10
+        self.char2.db.agilitas = 10
+        with patch("world.combat.randint", return_value=8):
+            self.assertTrue(
+                COMBAT_RULES.resists_condition(
+                    npc, self.char2, condition="Grappled", attacker_stat="agilitas"
+                )
+            )
+
+    def test_snare_is_sprung_free_of_with_agilitas(self):
+        self.assertEqual(SKILLS["snare"]["rider"]["resist"], "agilitas")
+        self.char2.db.agilitas = 20
+        self.char2.db.vigor = 10
+        rider = {"effect": "Bleeding", "chance": 100, "duration": 4, "resist": "agilitas"}
+        with patch("world.combat.randint", return_value=25):
+            self.assertFalse(martial.apply_rider(COMBAT_RULES, self.char1, self.char2, rider, 100,
+                                                 attacker_stat="agilitas"))
+        rider.pop("resist")
+        with patch("world.combat.randint", return_value=25):
+            self.assertTrue(martial.apply_rider(COMBAT_RULES, self.char1, self.char2, rider, 100,
+                                                attacker_stat="agilitas"))
+
+    def test_use_skill_passes_each_classs_contest_stat(self):
+        from world.combat import CLASS_CONTEST_STAT, CmdUseSkill
+
+        self.assertEqual(CLASS_CONTEST_STAT["legionary"], "virtus")
+        self.assertEqual(CLASS_CONTEST_STAT["venator"], "agilitas")
+        self.char1.db.skills_known = ["entangle"]
+        self._fight()
+        self.char1.db.combat_actionsleft = 1
+        seen = {}
+
+        def spy(user, name, targets, cost, **kwargs):
+            seen.update(kwargs)
+
+        with patch.dict(SKILLS["entangle"], {"skillfunc": spy}):
+            self.call(CmdUseSkill(), "entangle = Char2", caller=self.char1)
+        self.assertEqual(seen.get("contest_stat"), "agilitas")
+
+    def test_piercing_shot_can_now_miss_a_nimble_target(self):
+        data = SKILLS["piercing shot"]
+        before = self.char2.db.hp
+        with patch.object(COMBAT_RULES, "get_defense", return_value=999):
+            data["skillfunc"](self.char1, "piercing shot", [self.char2], data["cost"],
+                              **{k: v for k, v in data.items()
+                                 if k not in ("skillfunc", "target", "cost", "classes", "desc", "level_required")})
+        self.assertEqual(self.char2.db.hp, before)
+
+    def test_reckless_abandon_still_exposes_the_user_when_it_misses(self):
+        data = SKILLS["reckless abandon"]
+        before = self.char2.db.hp
+        with patch.object(COMBAT_RULES, "get_defense", return_value=999):
+            data["skillfunc"](self.char1, "reckless abandon", [self.char2], data["cost"],
+                              **{k: v for k, v in data.items()
+                                 if k not in ("skillfunc", "target", "cost", "classes", "desc", "level_required")})
+        self.assertEqual(self.char2.db.hp, before)
+        self.assertIn("Defense Down", self.char1.db.conditions)
+
+    def test_thundering_maul_can_miss(self):
+        maul = _weapon(self.char1, 100, 100, "heavy_weapon")
+        maul.db.two_handed = True
+        self.char1.db.wielded_weapon = maul
+        data = SKILLS["thundering maul"]
+        before = self.char2.db.hp
+        with patch.object(COMBAT_RULES, "get_defense", return_value=999):
+            data["skillfunc"](self.char1, "thundering maul", [self.char2], data["cost"],
+                              **{k: v for k, v in data.items()
+                                 if k not in ("skillfunc", "target", "cost", "classes", "desc", "level_required")})
+        self.assertEqual(self.char2.db.hp, before)

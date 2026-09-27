@@ -289,6 +289,10 @@ ACC_UP_MOD = 25
 ACC_DOWN_MOD = -25
 DMG_UP_MOD = 5
 DMG_DOWN_MOD = -5
+# Damage Up/Down (Sep 27): a flat +/-5 vanished against a level-60 weapon hit of
+# ~110 - so they are now the larger of that flat figure and this share of the hit.
+DMG_UP_PERCENT = 0.15
+DMG_DOWN_PERCENT = 0.15
 DEF_UP_MOD = 15
 DEF_DOWN_MOD = -15
 
@@ -304,13 +308,14 @@ HARMFUL_CONDITIONS = frozenset({
     "Poisoned", "Cursed", "Frightened", "Marked for Death", "Silenced",
     "Paralyzed", "Accuracy Down", "Damage Down", "Defense Down",
     "Sanctuary Broken", "Asleep", "Slowed", "Confused",
-    "Bleeding", "Stunned", "Blinded", "Disarmed", "Grappled", "Goaded",
+    "Bleeding", "Stunned", "Blinded", "Disarmed", "Grappled", "Goaded", "Quarry",
 })
 BENEFICIAL_CONDITIONS = frozenset({
     "Regeneration", "Haste", "Accuracy Up", "Damage Up", "Defense Up",
     "Death Ward", "Invisible", "Illusory Duplicate", "Shielded",
     "Ambush", "Riposte Ready", "Sees Invisible", "Raging", "Sentinel",
     "Parrying", "Shield Block", "Barbed Guard",
+    "Fast Hands", "Aiming", "Forager's Eye", "Pathfinding", "Frenzied", "Keen Edge",
 })
 
 # ----------------------------------------------------------------------------
@@ -385,8 +390,18 @@ BLOCK_MAX_CHANCE = 45
 # Barbed Guard (Legionary): fraction of every physical blow taken that is
 # thrown back at the attacker.
 BARBED_GUARD_REFLECT = 0.25
+# Pilfer (Speculator): see CombatRules.skill_pilfer.
+PILFER_COOLDOWN_SECONDS = 1800      # per target
+PILFER_MIN_PLAYER_GOLD = 10
+PILFER_PLAYER_SHARE = 0.10          # at most a tenth of the victim's purse...
+PILFER_PLAYER_CAP_BASE = 25         # ...and never more than this + this per thief level
+PILFER_PLAYER_CAP_PER_LEVEL = 5
 # Stances that last the whole fight and vanish with it.
 FIGHT_LONG_STANCES = ("Parrying", "Shield Block")
+# Speculator/Venator additions (Sep 27):
+UNCANNY_DODGE_COOLDOWN = 4      # own turns between the passive halving a blow
+QUARRY_DAMAGE_MULTIPLIER = 1.2  # the Venator's damage against their marked quarry
+AIMED_SHOT_MULTIPLIER = 2.5     # the shot after Aimed Shot: unavoidable, this much harder
 
 # Sanctuary (Medicus mythic-tier spell). A higher-level attacker has
 # this percent chance to break through and drag a Sanctuary'd
@@ -454,6 +469,20 @@ CONDITION_RESIST_STAT = {
     "Blinded": "agilitas",
     "Disarmed": "agilitas",
     "Grappled": "agilitas",
+}
+
+# A physical skill's effect (Sep 27, owner request: defender Agilitas should
+# count wherever it makes sense) is a contest of the USER's fighting stat against
+# the target's resisting stat (CONDITION_RESIST_STAT), instead of the user's
+# Ingenium against it - a brute's grab is a Virtus roll, a rogue's snare an
+# Agilitas one. Only the body/reflex conditions in CONDITION_RESIST_STAT are
+# contested this way; mind effects (Goaded, Frightened...) stay Ingenium.
+CLASS_CONTEST_STAT = {
+    "legionary": "virtus",
+    "barbarian": "virtus",
+    "gladiator": "agilitas",
+    "speculator": "agilitas",
+    "venator": "agilitas",
 }
 
 # Weapon categories long/far enough to strike into the back row
@@ -1114,7 +1143,9 @@ class CombatRules:
                     "|rWith no one left to shield you, you're pulled into the front row!|n"
                 )
 
-    def resists_condition(self, caster, target, condition=None):
+    def resists_condition(
+        self, caster, target, condition=None, attacker_stat=None, resist_stat=None
+    ):
         """
         Rolls whether `target` resists a debuff `caster` is trying to
         inflict on them - see CONDITION_RESIST_BASE's own comment for
@@ -1127,8 +1158,20 @@ class CombatRules:
         # `condition` (a condition name) picks which target stat resists it -
         # see CONDITION_RESIST_STAT; no condition (or a mind effect) uses
         # Ingenium.
-        target_ingenium = getattr(target.db, CONDITION_RESIST_STAT.get(condition, "ingenium")) or 10
-        caster_ingenium = caster.db.ingenium or 10
+        # `resist_stat` overrides which target stat resists (a Snare is sprung
+        # free of with Agilitas, not Vigor); `attacker_stat` is the physical
+        # skill user's own contesting stat (CLASS_CONTEST_STAT) - a real
+        # player's body/reflex effect only, so monsters keep their old odds.
+        target_stat = resist_stat or CONDITION_RESIST_STAT.get(condition, "ingenium")
+        target_ingenium = getattr(target.db, target_stat) or 10
+        if (
+            attacker_stat
+            and getattr(caster, "account", None)
+            and (condition in CONDITION_RESIST_STAT or resist_stat)
+        ):
+            caster_ingenium = getattr(caster.db, attacker_stat) or 10
+        else:
+            caster_ingenium = caster.db.ingenium or 10
         chance = CONDITION_RESIST_BASE + (target_ingenium - caster_ingenium) * (
             CONDITION_RESIST_STAT_MULTIPLIER
         )
@@ -1339,12 +1382,12 @@ class CombatRules:
 
         # A piece of armor cleaved through (Sundered) stops helping for the
         # rest of the fight - see world/martial.py.
-        if defender.db.worn_armor and defender.db.combat_sundered != "worn_armor":
+        if defender.db.worn_armor and not martial.is_sundered(defender, "worn_armor"):
             defense_value += defender.db.worn_armor.db.defense_modifier
             if not self.is_armor_proficient(defender, defender.db.worn_armor):
                 defense_value += NONPROFICIENT_ARMOR_DEFENSE_PENALTY
 
-        if defender.db.worn_shield and defender.db.combat_sundered != "worn_shield":
+        if defender.db.worn_shield and not martial.is_sundered(defender, "worn_shield"):
             defense_value += defender.db.worn_shield.db.defense_modifier
             if not self.is_armor_proficient(defender, defender.db.worn_shield):
                 defense_value += NONPROFICIENT_ARMOR_DEFENSE_PENALTY
@@ -1401,7 +1444,7 @@ class CombatRules:
         if (
             defender.db.worn_armor
             and not ignore_armor
-            and defender.db.combat_sundered != "worn_armor"
+            and not martial.is_sundered(defender, "worn_armor")
         ):
             reduction = defender.db.worn_armor.db.damage_reduction
             if not self.is_armor_proficient(defender, defender.db.worn_armor):
@@ -1413,9 +1456,9 @@ class CombatRules:
         damage_value -= ((defender.db.vigor or 10) - 10) // 3
 
         if "Damage Up" in self.get_conditions(attacker):
-            damage_value += DMG_UP_MOD
+            damage_value += max(DMG_UP_MOD, int(damage_value * DMG_UP_PERCENT))
         if "Damage Down" in self.get_conditions(attacker):
-            damage_value += DMG_DOWN_MOD
+            damage_value += min(DMG_DOWN_MOD, -int(damage_value * DMG_DOWN_PERCENT))
         if "Sanctuary Broken" in self.get_conditions(attacker):
             damage_value = int(damage_value * 0.5)
 
@@ -1501,6 +1544,26 @@ class CombatRules:
         # A Raging barbarian shrugs off a share of every physical blow.
         if melee and damage > 0 and "Raging" in self.get_conditions(defender):
             damage = int(damage * (1 - RAGE_MELEE_RESISTANCE))
+        # A Venator's marked quarry takes extra from the Venator's own blows.
+        if attacker is not None and damage > 0:
+            quarry = self.get_conditions(defender).get("Quarry")
+            if quarry and quarry[1] == attacker:
+                damage = int(damage * QUARRY_DAMAGE_MULTIPLIER)
+        # Uncanny Dodge (Speculator, passive - no action to spend): every few
+        # turns a physical blow is halved without the Speculator lifting a finger.
+        if (
+            melee and damage > 0 and getattr(defender, "account", None)
+            and "uncanny dodge" in (defender.db.skills_known or [])
+            and not martial.is_incapacitated(defender)
+        ):
+            cooldowns = self.get_cooldowns(defender)
+            if (cooldowns.get("uncanny dodge") or 0) <= 0:
+                cooldowns["uncanny dodge"] = UNCANNY_DODGE_COOLDOWN
+                damage //= 2
+                if defender.location:
+                    defender.location.msg_contents(
+                        "|c%s twists aside at the last instant - the blow only glances!|n" % defender
+                    )
 
         old_hp = defender.db.hp or 0
 
@@ -2280,6 +2343,14 @@ class CombatRules:
 
         return True
 
+    def _has_evasion(self, character):
+        """The Speculator's passive Evasion: halves damage from area attacks."""
+        return bool(
+            getattr(character, "account", None)
+            and "elusive footwork" in (character.db.skills_known or [])
+            and not martial.is_incapacitated(character)
+        )
+
     def _defensive_block(self, attacker, defender, marked=False):
         """
         True if `defender` turns this physical blow aside with a Parry (needs a
@@ -2297,7 +2368,7 @@ class CombatRules:
             if needs == "weapon" and not martial.wielded_weapon(defender):
                 continue
             if needs == "shield" and (
-                not defender.db.worn_shield or defender.db.combat_sundered == "worn_shield"
+                not defender.db.worn_shield or martial.is_sundered(defender, "worn_shield")
             ):
                 continue
             edge = (getattr(defender.db, stat) or 10) - (getattr(attacker.db, stat) or 10)
@@ -2471,12 +2542,13 @@ class CombatRules:
         # this hit lands regardless of the normal accuracy roll, then
         # is consumed. Checked on the DEFENDER, since it's about them
         # having been marked, not about the attacker's own skill.
+        aimed = "Aiming" in self.get_conditions(attacker)
         if "Marked for Death" in self.get_conditions(defender):
             attacker.location.msg_contents(
                 "|Y%s's mark seals %s's fate - the strike cannot be evaded!|n"
                 % (attacker, defender)
             )
-        elif attack_value < defense_value:
+        elif attack_value < defense_value and not aimed:
             attacker.location.msg_contents(
                 messages["miss"] % (attacker_display, attackers_weapon, defender_display)
             )
@@ -2485,7 +2557,8 @@ class CombatRules:
         # Parry / Shield Block: a landed blow can still be turned aside - but not
         # a strike that "cannot be evaded" (Marked for Death).
         if self._defensive_block(
-            attacker, defender, marked=("Marked for Death" in self.get_conditions(defender))
+            attacker, defender,
+            marked=("Marked for Death" in self.get_conditions(defender)) or aimed,
         ):
             return
 
@@ -2502,6 +2575,14 @@ class CombatRules:
             if crit > 1:
                 damage_value = int(damage_value * crit)
                 martial.announce_crit(attacker)
+
+        if aimed:
+            # Aimed Shot: the patient shot lands unavoidably and hits far harder.
+            del self.get_conditions(attacker)["Aiming"]
+            damage_value = int(damage_value * AIMED_SHOT_MULTIPLIER)
+            attacker.location.msg_contents(
+                "|Y%s lets fly - the aimed shot cannot be avoided!|n" % attacker
+            )
 
         if damage_value > 0:
             attacker.location.msg_contents(
@@ -2631,7 +2712,7 @@ class CombatRules:
         # A stun or a grapple is a hold of the fight itself: it ends with it.
         held = character.db.conditions
         if held:
-            for name in ("Stunned", "Grappled", "Stun Immunity") + FIGHT_LONG_STANCES:
+            for name in ("Stunned", "Grappled", "Stun Immunity", "Quarry") + FIGHT_LONG_STANCES:
                 held.pop(name, None)
 
     def is_in_combat(self, character):
@@ -3143,7 +3224,7 @@ class CombatRules:
         if item.db.item_uses:
             self.spend_item_use(item, user)
 
-        if self.is_in_combat(user):
+        if self.is_in_combat(user) and "Fast Hands" not in self.get_conditions(user):
             self.spend_action(user, 1, action_name="item")
 
     def itemfunc_heal(self, item, user, target, **kwargs):
@@ -3714,6 +3795,8 @@ class CombatRules:
                 total_damage[fighter] += spell_dmg
 
         for fighter in targets:
+            if len(targets) > 1 and total_damage[fighter] and self._has_evasion(fighter):
+                total_damage[fighter] //= 2  # Evasion halves damage from area attacks
             if total_hits[fighter] == 0:
                 spell_msg += " The spell misses %s!" % fighter
             else:
@@ -4081,7 +4164,10 @@ class CombatRules:
             # See spell_add_condition's identical guard - resistance
             # only ever applies to a genuinely hostile application.
             if target != user and not self.is_ally(user, target):
-                if self.resists_condition(user, target, condition=conditions[0][0]):
+                if self.resists_condition(
+                    user, target, condition=conditions[0][0],
+                    attacker_stat=kwargs.get("contest_stat"),
+                ):
                     user.location.msg_contents("%s resists the effect!" % target)
                     continue
             hostile = target != user and not self.is_ally(user, target)
@@ -4119,7 +4205,8 @@ class CombatRules:
         nothing.
         """
         user.msg(
-            "%s triggers automatically on your own attacks - there's "
+            kwargs.get("passive_text")
+            or "%s triggers automatically on your own attacks - there's "
             "nothing to activate." % skill_name.title()
         )
 
@@ -4186,7 +4273,7 @@ class CombatRules:
             user.msg("You need a weapon in your hand to %s." % skill_name)
             return False
         if requires == "shield" and (
-            not user.db.worn_shield or user.db.combat_sundered == "worn_shield"
+            not user.db.worn_shield or martial.is_sundered(user, "worn_shield")
         ):
             user.msg("You need a sound shield on your arm to %s." % skill_name)
             return False
@@ -4197,6 +4284,225 @@ class CombatRules:
         user.location.msg_contents("%s takes up a %s stance!" % (user, skill_name))
         for name, duration in conditions:
             self.add_condition(user, user, name, duration)
+        if self.is_in_combat(user):
+            self.spend_action(user, 1, action_name="skill")
+
+    def skill_fighting_retreat(self, user, skill_name, targets, cost, **kwargs):
+        """
+        The Legionary's Fighting Retreat: sounds the order to fall back, and up to
+        five allies (your party here, picked automatically) break away from the
+        fight at once - guaranteed, and with none of the experience an ordinary
+        'disengage' costs. Someone who is grappled, stunned or asleep can't
+        be pulled out and stays in the fight.
+        """
+        if not self.is_in_combat(user):
+            user.msg("There's no fight to fall back from.")
+            return False
+        moving = []
+        stuck = []
+        for ally in targets:
+            if ally is None or not ally.pk or not self.is_in_combat(ally):
+                continue
+            if "Grappled" in self.get_conditions(ally) or martial.is_incapacitated(ally):
+                stuck.append(ally)
+            else:
+                moving.append(ally)
+        if not moving:
+            user.msg("None of them can break away from this fight.")
+            return False
+        user.db.sp -= cost
+        user.location.msg_contents(
+            "|y%s bellows the order - the line falls back, shields locked, in good order!|n" % user
+        )
+        for ally in stuck:
+            user.location.msg_contents("%s is held fast and can't fall back!" % ally)
+        # The caller last: leaving the fight can end their own turn.
+        for ally in sorted(moving, key=lambda a: a is user):
+            self.force_disengage(ally)
+
+    def skill_action_surge(self, user, skill_name, targets, cost, **kwargs):
+        """
+        The Gladiator's Crowd's Surge (D&D's Action Surge): a burst of adrenaline
+        that gives one extra action this turn. Deliberately free itself - it spends
+        no action and adds one - so it's a real second attack, not a trade.
+        """
+        if not self.is_in_combat(user):
+            user.msg("There's no crowd to play to - the surge only comes in a fight.")
+            return False
+        user.db.sp -= cost
+        user.db.combat_actionsleft = (user.db.combat_actionsleft or 0) + 1
+        user.location.msg_contents(
+            "|Y%s plays to the crowd - it roars, and %s surges with a second burst of action!|n"
+            % (user, user)
+        )
+
+    def skill_slip_away(self, user, skill_name, targets, cost, **kwargs):
+        """
+        The Speculator's Cunning Action: a guaranteed, free escape from a fight -
+        no roll and no XP loss, unlike 'disengage'. Refused while Grappled.
+        """
+        if not self.is_in_combat(user):
+            user.msg("There's no fight to slip away from.")
+            return False
+        if "Grappled" in self.get_conditions(user):
+            user.msg("|rYou're held fast - there's no slipping away while you're grappled!|n")
+            return False
+        user.db.sp -= cost
+        user.location.msg_contents(
+            "%s throws a handful of confusion and slips out of the fight!" % user
+        )
+        self.force_disengage(user)
+
+    def skill_assassinate(self, user, skill_name, targets, cost, **kwargs):
+        """
+        The Speculator's Assassinate: a strike from hiding. Needs the hidden state
+        Sneak or Vanish leaves (the 'Invisible' condition - nearly invisible, harder
+        to hit); it can't miss, is a guaranteed critical hit, and ends the hiding.
+        """
+        target = targets[0]
+        conditions = self.get_conditions(user)
+        if "Invisible" not in conditions:
+            user.msg("You have to be hidden to assassinate - use 'sneak' or 'vanish' first.")
+            return False
+        if self.is_row_protected(target, attacker=user):
+            user.msg("%s is shielded by someone standing in front of them." % target.key)
+            return False
+        damage = self._skill_damage(
+            user, target,
+            {"weapon_multiplier": kwargs.get("weapon_multiplier"), "damage_range": kwargs.get("damage_range"),
+             "guaranteed_crit": True},
+            (40, 60), "agilitas",
+        )
+        del conditions["Invisible"]
+        user.db.sp -= cost
+        self.apply_damage(target, damage, attacker=user, melee=True)
+        user.location.msg_contents(
+            "|r%s strikes from the shadows - a killing blow lands on %s for %i damage!|n"
+            % (user, target, damage)
+        )
+        if target.db.hp <= 0:
+            self.at_defeat(target, attacker=user)
+        if self.is_in_combat(user):
+            self.spend_action(user, 1, action_name="skill")
+
+    def skill_pilfer(self, user, skill_name, targets, cost, **kwargs):
+        """
+        The Speculator's Pilfer: lift some gold from an NPC or another player. Out
+        of combat only. A contested roll: the thief's Agilitas against the mark's,
+        so a nimble target is hard to rob. A player loses at most a tenth of their
+        purse (and never more than a level-scaled cap); an NPC yields half of what
+        its defeat would pay. Failure gets you caught. One try per target per half
+        hour. Never against a pacifist, a god, a party member, or in a place that
+        forbids violence.
+        """
+        target = targets[0]
+        now = time.time()
+        if target is user or self.is_ally(user, target):
+            user.msg("You can't rob your own.")
+            return False
+        if target.db.pacifist or target.db.invincible or (target.db.level or 0) > 100 or target.db.is_dead:
+            user.msg("%s is beyond your grasping fingers." % target.key)
+            return False
+        if is_no_combat_zone(user.location):
+            user.msg("Something about this place stays your hand - you can't rob anyone here.")
+            return False
+        log = user.db.pilfer_log or {}
+        key = str(target.id)
+        if now - (log.get(key) or 0) < PILFER_COOLDOWN_SECONDS:
+            user.msg("You've tried %s too recently - they'd be watching for you." % target.key)
+            return False
+        is_player = bool(getattr(target, "account", None))
+        if is_player:
+            purse = target.db.gold or 0
+            if purse < PILFER_MIN_PLAYER_GOLD:
+                user.msg("%s is carrying nothing worth taking." % target.key)
+                return False
+            chance = max(5, min(70, 35 + 3 * ((user.db.agilitas or 10) - (target.db.agilitas or 10))))
+        else:
+            purse = (
+                max(1, target.db.xp_reward // GOLD_PER_XP_DIVISOR)
+                if target.db.xp_reward else 3 + (target.db.level or 1)
+            )
+            chance = max(10, min(85, 55 + 3 * ((user.db.agilitas or 10) - (target.db.agilitas or 10))))
+
+        user.db.sp -= cost
+        log[key] = now
+        user.db.pilfer_log = log
+        if randint(1, 100) <= chance:
+            if is_player:
+                cap = PILFER_PLAYER_CAP_BASE + PILFER_PLAYER_CAP_PER_LEVEL * (user.db.level or 1)
+                amount = max(1, min(int(purse * PILFER_PLAYER_SHARE), cap))
+                target.db.gold = purse - amount
+                target.msg("|rYou feel a light touch - your purse is %d gold lighter!|n" % amount)
+            else:
+                amount = max(1, int(purse * 0.5))
+            user.db.gold = (user.db.gold or 0) + amount
+            user.msg("|gYour fingers find %s's purse - you slip away with %d gold.|n" % (target, amount))
+            return
+        user.msg("|r%s catches your hand in their purse!|n" % target)
+        if is_player:
+            target.msg("|r%s's hand is in your purse - you catch them at it!|n" % user)
+        if hasattr(target, "_gather_actions"):
+            self.start_combat_from_offensive_action(target, [user])
+
+    def skill_quarry(self, user, skill_name, targets, cost, **kwargs):
+        """
+        The Venator's Quarry (D&D's Hunter's Mark): pick one enemy - the Venator's
+        own blows against it deal extra for the rest of the fight. Only one quarry
+        at a time; marking a new one drops the old.
+        """
+        target = targets[0]
+        if target is user or self.is_ally(user, target):
+            user.msg("Your quarry has to be an enemy.")
+            return False
+        handler = user.db.combat_turnhandler
+        for fighter in list((handler.db.fighters or []) if handler and handler.pk else []):
+            held = (fighter.db.conditions or {}) if fighter is not None and fighter.pk else {}
+            if held.get("Quarry") and held["Quarry"][1] == user:
+                del held["Quarry"]
+        user.db.sp -= cost
+        user.location.msg_contents("|y%s marks %s as their quarry.|n" % (user, target))
+        self.add_condition(target, user, "Quarry", 99)
+        if self.is_in_combat(user):
+            self.spend_action(user, 1, action_name="skill")
+
+    def skill_aimed_shot(self, user, skill_name, targets, cost, **kwargs):
+        """
+        The Venator's Aimed Shot (D&D's Sharpshooter): spend the turn taking careful
+        aim with a ranged weapon; the next basic attack or attack skill can't miss
+        and hits AIMED_SHOT_MULTIPLIER times as hard.
+        """
+        weapon = martial.wielded_weapon(user)
+        if not weapon or weapon.db.weapon_category != "ranged":
+            user.msg("You need a ranged weapon in your hands to take aim.")
+            return False
+        if "Aiming" in self.get_conditions(user):
+            user.msg("You're already lined up on your shot.")
+            return False
+        user.db.sp -= cost
+        user.location.msg_contents("%s slows their breathing and takes careful aim..." % user)
+        self.add_condition(user, user, "Aiming", 3)
+        if self.is_in_combat(user):
+            self.spend_action(user, 1, action_name="skill")
+
+    def skill_bestial_fury(self, user, skill_name, targets, cost, **kwargs):
+        """
+        The Venator's Bestial Fury: spend your action to send your companion into a
+        frenzy - it attacks twice a turn for a few turns, which is a real gain over
+        the single attack you gave up.
+        """
+        pet = user.db.active_companion
+        if not pet or not pet.pk or not pet.db.hp or pet.location != user.location:
+            user.msg("You have no companion at your side to whip into a frenzy.")
+            return False
+        if "Frenzied" in self.get_conditions(pet):
+            user.msg("%s is already in a frenzy." % pet.key)
+            return False
+        user.db.sp -= cost
+        user.location.msg_contents(
+            "|r%s lets out a wild cry - %s goes into a savage frenzy!|n" % (user, pet)
+        )
+        self.add_condition(pet, user, "Frenzied", 3)
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
 
@@ -4221,11 +4527,8 @@ class CombatRules:
         target = targets[0]
 
         if not self.is_in_combat(user):
-            user.msg(
-                "There's no fight to exploit an opening in - use 'ambush' if you "
-                "want to start one."
-            )
-            return
+            user.msg("You can't start a fight here.")
+            return False
 
         if target.db.combat_lastaction != "null":
             user.msg("%s is already in the fight - there's no opening left to exploit." % target.key)
@@ -4249,7 +4552,10 @@ class CombatRules:
         if target.db.hp <= 0:
             self.at_defeat(target, attacker=user)
         else:
-            martial.apply_rider(self, user, target, kwargs.get("rider"), damage)
+            martial.apply_rider(
+                self, user, target, kwargs.get("rider"), damage,
+                attacker_stat=kwargs.get("contest_stat"),
+            )
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -4323,6 +4629,26 @@ class CombatRules:
         low, high = kwargs.get("damage_range", default_range)
         return randint(low, high) + ((getattr(user.db, stat) or 10) - 10) // 2
 
+    def _skill_lands(self, user, target, skill_name):
+        """
+        The hit roll for a physical damage skill that has none of its own (Piercing
+        Shot, Thundering Maul, Reckless Abandon - they used to always connect):
+        the same roll skill_attack makes, the target's defense being their
+        Agilitas and armor modifiers. Returns (landed, message).
+        """
+        agilitas_accuracy = ((user.db.agilitas or 10) - 10) * ACCURACY_STAT_MULTIPLIER
+        attack_value = randint(1, 100) + agilitas_accuracy
+        if "Blinded" in self.get_conditions(user):
+            attack_value += martial.BLINDED_ACCURACY_MOD
+        aimed = "Aiming" in self.get_conditions(user)
+        if attack_value < self.get_defense(user, target) and not aimed:
+            return False, "%s's %s misses %s!" % (user, skill_name, target)
+        if self._defensive_block(user, target, marked=aimed):
+            return False, "%s turns the blow aside!" % target
+        if aimed:
+            del self.get_conditions(user)["Aiming"]
+        return True, ""
+
     def skill_attack(self, user, skill_name, targets, cost, **kwargs):
         """
         Generic SP-costing direct damage skill - the skill-system
@@ -4361,13 +4687,21 @@ class CombatRules:
             if "Blinded" in self.get_conditions(user):
                 attack_value += martial.BLINDED_ACCURACY_MOD
             defense_value = self.get_defense(user, target)
-            if attack_value < defense_value:
+            aimed = "Aiming" in self.get_conditions(user)
+            if attack_value < defense_value and not aimed:
                 skill_msg += " %s misses %s!" % (skill_name, target)
                 continue
-            if self._defensive_block(user, target):
+            if self._defensive_block(user, target, marked=aimed):
                 skill_msg += " %s turns the blow aside!" % target
                 continue
             damage = self._skill_damage(user, target, kwargs, (min_damage, max_damage), "agilitas")
+            if aimed:
+                del self.get_conditions(user)["Aiming"]
+                damage = int(damage * AIMED_SHOT_MULTIPLIER)
+                skill_msg += " The aimed shot cannot be avoided!"
+                aimed = False
+            if len(targets) > 1 and self._has_evasion(target):
+                damage //= 2  # Evasion: a Speculator halves damage from area attacks
             # announce_threshold=False - skill_msg below already shows
             # this target's post-hit wound phrase inline.
             self.apply_damage(
@@ -4395,7 +4729,10 @@ class CombatRules:
         # A landed hit may carry a rider (world/martial.py): bleeding, a
         # cleaved piece of armor, a stun... real players' skills only.
         for target, damage in riders_to_apply:
-            martial.apply_rider(self, user, target, kwargs.get("rider"), damage)
+            martial.apply_rider(
+                self, user, target, kwargs.get("rider"), damage,
+                attacker_stat=kwargs.get("contest_stat"),
+            )
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -4409,6 +4746,13 @@ class CombatRules:
         that's the entire point of the skill.
         """
         target = targets[0]
+        landed, miss_text = self._skill_lands(user, target, skill_name)
+        if not landed:
+            user.db.sp -= cost
+            user.location.msg_contents(miss_text)
+            if self.is_in_combat(user):
+                self.spend_action(user, 1, action_name="skill")
+            return
         damage = self._skill_damage(
             user, target, kwargs, (20, 30), "agilitas", ignore_armor=True
         )
@@ -4587,6 +4931,13 @@ class CombatRules:
             return
 
         target = targets[0]
+        landed, miss_text = self._skill_lands(user, target, skill_name)
+        if not landed:
+            user.db.sp -= cost
+            user.location.msg_contents(miss_text)
+            if self.is_in_combat(user):
+                self.spend_action(user, 1, action_name="skill")
+            return
         damage = self._skill_damage(user, target, kwargs, (30, 45), "virtus")
         self.apply_damage(target, damage, attacker=user, melee=True)
 
@@ -4598,7 +4949,10 @@ class CombatRules:
         if target.db.hp <= 0:
             self.at_defeat(target, attacker=user)
         else:
-            martial.apply_rider(self, user, target, kwargs.get("rider"), damage)
+            martial.apply_rider(
+                self, user, target, kwargs.get("rider"), damage,
+                attacker_stat=kwargs.get("contest_stat"),
+            )
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -4611,6 +4965,15 @@ class CombatRules:
         genuine risk/reward tradeoff, not just a bigger number.
         """
         target = targets[0]
+        landed, miss_text = self._skill_lands(user, target, skill_name)
+        if not landed:
+            # the exposure is the price of swinging, hit or miss
+            user.db.sp -= cost
+            user.location.msg_contents(miss_text)
+            self.add_condition(user, user, "Defense Down", 3)
+            if self.is_in_combat(user):
+                self.spend_action(user, 1, action_name="skill")
+            return
         damage = self._skill_damage(user, target, kwargs, (35, 55), "virtus")
         self.apply_damage(target, damage, attacker=user, melee=True)
 
@@ -5766,11 +6129,11 @@ SKILLS = {
         "skillfunc": COMBAT_RULES.skill_add_condition,
         "target": "otherchar",
         "cost": 5,
-        "level_required": 20,
+        "level_required": 10,
         "conditions": [("Goaded", 3)],
         "npc_cast": False,
         "classes": ["legionary"],
-        "desc": "Taunts an enemy into fixating on you (D&D's Compelled Duel). For a few turns a monster can attack no one but you - unless you're out of its reach in the back row - and a player who strikes anyone else suffers a big accuracy penalty. The tank's way of protecting the party. A target with strong Ingenium can resist.",
+        "desc": "Taunts an enemy into fixating on you (D&D's Compelled Duel - and the Legionary's only taunt; the old Provoke, a mere accuracy debuff, was folded into it). For a few turns a monster can attack no one but you - unless you're out of its reach in the back row - and a player who strikes anyone else suffers a big accuracy penalty. The tank's way of protecting the party. A target with strong Ingenium can resist.",
     },
     "sentinel": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -5781,6 +6144,17 @@ SKILLS = {
         "npc_cast": False,
         "classes": ["legionary"],
         "desc": "A guardian's stance (D&D's Sentinel): for a few turns, any enemy who attacks one of your allies takes a free strike from you, once per turn, at no cost to your action. Works against basic attacks and physical skills, not spells.",
+    },
+    "fighting retreat": {
+        "skillfunc": COMBAT_RULES.skill_fighting_retreat,
+        "target": "anychar",
+        "cost": 10,
+        "level_required": 50,
+        "max_targets": 5,
+        "noncombat_spell": False,
+        "npc_cast": False,
+        "classes": ["legionary"],
+        "desc": "The Legionary's orderly withdrawal: with no target named, up to five members of your party who are in the fight break away at once - guaranteed, and without the experience an ordinary 'disengage' costs. Name specific allies to pull out only them and keep yourself in the fight. Anyone grappled, stunned or asleep can't be pulled out.",
     },
     "parry": {
         "skillfunc": COMBAT_RULES.skill_stance,
@@ -5818,6 +6192,111 @@ SKILLS = {
         "classes": ["legionary"],
         "desc": "Turns your guard into a wall of spikes: for a few turns a quarter of every physical blow you take is thrown back at whoever struck you. Spells are not reflected.",
     },
+    "slip away": {
+        "skillfunc": COMBAT_RULES.skill_slip_away,
+        "target": "self",
+        "cost": 6,
+        "level_required": 30,
+        "noncombat_spell": False,
+        "npc_cast": False,
+        "classes": ["speculator"],
+        "desc": "The Rogue's Cunning Action: a guaranteed escape from a fight - no roll, and none of the experience loss an ordinary 'disengage' costs. Impossible while you're grappled.",
+    },
+    "fast hands": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "self",
+        "cost": 5,
+        "level_required": 40,
+        "conditions": [("Fast Hands", 4)],
+        "npc_cast": False,
+        "classes": ["speculator"],
+        "desc": "The Thief's sleight of hand: for a few turns, using an item - a potion, a scroll, a meal - costs you no action.",
+    },
+    "pilfer": {
+        "skillfunc": COMBAT_RULES.skill_pilfer,
+        "target": "otherchar",
+        "cost": 5,
+        "level_required": 50,
+        "combat_spell": False,
+        "manages_reveal": True,
+        "no_fight_start": True,
+        "npc_cast": False,
+        "classes": ["speculator"],
+        "desc": "Lifts gold from an NPC or another player, out of combat. A contest of your Agilitas against theirs, so a nimble mark is hard to rob; you can be caught. A player loses at most a tenth of their purse, never more than a level-scaled amount; an NPC yields half of what defeating it would pay. One try per target every half hour. Never a pacifist, a god, a party member, or anyone in a place that forbids violence.",
+    },
+    "uncanny dodge": {
+        "skillfunc": COMBAT_RULES.skill_passive_info,
+        "target": "none",
+        "cost": 0,
+        "level_required": 55,
+        "passive_text": "Uncanny Dodge works on its own - there's nothing to activate.",
+        "npc_cast": False,
+        "classes": ["speculator"],
+        "desc": "A passive: every few turns, a physical blow that would hit you is halved automatically, with no action spent. (Using an action to dodge a later blow would only trade one attack for another, so this simply happens.)",
+    },
+    "elusive footwork": {
+        "skillfunc": COMBAT_RULES.skill_passive_info,
+        "target": "none",
+        "cost": 0,
+        "level_required": 65,
+        "passive_text": "Elusive Footwork works on its own - there's nothing to activate.",
+        "npc_cast": False,
+        "classes": ["speculator"],
+        "desc": "A passive: damage from area attacks - anything striking more than one target - is halved against you. A Speculator slips the edge of a blast a sturdier fighter takes in full.",
+    },
+    "assassinate": {
+        "skillfunc": COMBAT_RULES.skill_assassinate,
+        "target": "otherchar",
+        "cost": 12,
+        "level_required": 70,
+        "damage_range": (60, 90),
+        "weapon_multiplier": 2.5,
+        "npc_cast": False,
+        "classes": ["speculator"],
+        "desc": "A strike from hiding. You must be concealed - use Sneak or Vanish first, which leave you nearly invisible - and then Assassinate cannot miss, is a guaranteed critical hit, and hits 2.5 times your normal blow. The hiding ends. It's what makes Sneak and Vanish worth a turn.",
+    },
+    "forager's eye": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "self",
+        "cost": 5,
+        "level_required": 25,
+        "conditions": [("Forager's Eye", 20)],
+        "combat_spell": False,
+        "npc_cast": False,
+        "classes": ["venator"],
+        "desc": "A ranger's eye for the wild. For about ten minutes, timber and herbs in the wilderness are much easier to spot.",
+    },
+    "aimed shot": {
+        "skillfunc": COMBAT_RULES.skill_aimed_shot,
+        "target": "self",
+        "cost": 6,
+        "level_required": 45,
+        "noncombat_spell": False,
+        "npc_cast": False,
+        "classes": ["venator"],
+        "desc": "The Sharpshooter's patience: spend the turn taking careful aim with a ranged weapon, and your next attack - a basic shot or an attack skill - cannot be avoided and hits two and a half times as hard.",
+    },
+    "pathfinder": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "self",
+        "cost": 6,
+        "level_required": 55,
+        "conditions": [("Pathfinding", 20)],
+        "combat_spell": False,
+        "npc_cast": False,
+        "classes": ["venator"],
+        "desc": "The Ranger's Land's Stride. For about ten minutes, every other step you walk costs no stamina.",
+    },
+    "bestial fury": {
+        "skillfunc": COMBAT_RULES.skill_bestial_fury,
+        "target": "none",
+        "cost": 9,
+        "level_required": 75,
+        "noncombat_spell": False,
+        "npc_cast": False,
+        "classes": ["venator"],
+        "desc": "Spend your action to send your companion into a savage frenzy: for three turns it attacks twice each turn - three extra attacks for the one you gave up.",
+    },
     "sneak": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
         "target": "self",
@@ -5853,9 +6332,8 @@ SKILLS = {
         "bonus_damage": 20,
         "weapon_multiplier": 2.0,
         "rider": {"effect": "Bleeding", "chance": 50, "duration": 4, "share": 0.2},
-        "noncombat_spell": False,
         "classes": ["speculator"],
-        "desc": "Bonus damage against a target who hasn't yet acted in the fight. Requires being already in combat - does not stack with Ambush. May leave a bleeding wound.",
+        "desc": "Bonus damage against a target who hasn't yet acted in the fight. It can open a fight itself. Does not stack with Ambush. May leave a bleeding wound.",
     },
     "field report": {
         "skillfunc": COMBAT_RULES.skill_field_report,
@@ -5866,22 +6344,26 @@ SKILLS = {
         "desc": "Reveals a target's current HP and active conditions to the user's whole party at once.",
     },
     "precision strike": {
-        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "skillfunc": COMBAT_RULES.skill_attack,
         "target": "otherchar",
         "cost": 5,
         "level_required": 25,
-        "conditions": [("Accuracy Down", 3)],
+        "damage_range": (15, 25),
+        "weapon_multiplier": 1.3,
+        "rider": {"effect": "Disarmed", "chance": 50, "duration": 2},
         "classes": ["speculator"],
-        "desc": "Lowers a target's accuracy for a short time.",
+        "desc": "A precise cut at the weapon hand. It may knock the target's weapon from their grip for two turns (once an Accuracy Down debuff, which was a caster curse - now a real strike).",
     },
     "crippling strike": {
-        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "skillfunc": COMBAT_RULES.skill_attack,
         "target": "otherchar",
         "cost": 6,
         "level_required": 35,
-        "conditions": [("Defense Down", 3)],
+        "damage_range": (18, 28),
+        "weapon_multiplier": 1.4,
+        "rider": {"effect": "Sundered", "chance": 50},
         "classes": ["speculator"],
-        "desc": "Lowers a target's defense for a short time.",
+        "desc": "A strike at the gaps in a foe's armor. It may cleave through one piece of it for the rest of the fight (once a Defense Down debuff, which was a caster curse - now a real strike).",
     },
     "smoke and shadow": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -5909,14 +6391,19 @@ SKILLS = {
         "classes": ["speculator"],
         "desc": "Mythic tier. A blade meant for one throat alone - the user's next attack against the marked target cannot miss and deals heavy bonus damage.",
     },
-    "mark": {
-        "skillfunc": COMBAT_RULES.skill_add_condition,
+    "quarry": {
+        # Replaces the Venator's Mark (an Accuracy Down debuff - a caster curse,
+        # and a twin of the Speculator's Precision Strike). D&D's Hunter's Mark:
+        # a damage bonus against one chosen enemy, not a debuff.
+        "skillfunc": COMBAT_RULES.skill_quarry,
         "target": "otherchar",
         "cost": 4,
         "level_required": 1,
-        "conditions": [("Accuracy Down", 3)],
+        "noncombat_spell": False,
+        "no_fight_start": True,
+        "npc_cast": False,
         "classes": ["venator"],
-        "desc": "Marks a target as prey, lowering their accuracy for a short time.",
+        "desc": "Marks one enemy as your quarry (D&D's Hunter's Mark). For the rest of the fight your own blows against it deal 20% more damage. Only one quarry at a time - marking another drops the first.",
     },
     "keen eye": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -5932,9 +6419,9 @@ SKILLS = {
         "target": "otherchar",
         "cost": 5,
         "level_required": 10,
-        "conditions": [("Defense Down", 3)],
+        "conditions": [("Grappled", 3)],
         "classes": ["venator"],
-        "desc": "A thrown cord, a snare line, a well-placed trip - whatever the moment calls for. Lowers a target's defense for a short time.",
+        "desc": "A thrown cord, a snare line, a well-placed trip: the target is Grappled for a few turns and can't break away from the fight. Slipped with Agilitas.",
     },
     "track": {
         "skillfunc": COMBAT_RULES.skill_track,
@@ -5968,13 +6455,15 @@ SKILLS = {
         "desc": "A quick volley of shots, striking up to three targets at once. Arrows may leave bleeding wounds.",
     },
     "snare": {
-        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "skillfunc": COMBAT_RULES.skill_attack,
         "target": "otherchar",
         "cost": 6,
         "level_required": 40,
-        "conditions": [("Poisoned", 4)],
+        "damage_range": (12, 20),
+        "weapon_multiplier": 1.1,
+        "rider": {"effect": "Bleeding", "chance": 100, "duration": 4, "share": 0.3, "resist": "agilitas"},
         "classes": ["venator"],
-        "desc": "A hidden trap poisons whatever springs it.",
+        "desc": "A hidden spiked trap that catches whatever springs it: a hit that leaves a bleeding wound (once a poison trap - poison is the Speculator's own).",
     },
     "call of the wild": {
         "skillfunc": COMBAT_RULES.skill_call_of_the_wild,
@@ -6004,13 +6493,15 @@ SKILLS = {
         "desc": "Mythic tier. A hunt Artemis herself would envy - a devastating volley striking up to five targets at once.",
     },
     "feint": {
-        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "skillfunc": COMBAT_RULES.skill_attack,
         "target": "otherchar",
         "cost": 4,
         "level_required": 1,
-        "conditions": [("Accuracy Down", 3)],
+        "damage_range": (10, 16),
+        "weapon_multiplier": 1.3,
+        "rider": {"effect": "Bleeding", "chance": 40, "duration": 3, "share": 0.2},
         "classes": ["gladiator"],
-        "desc": "A theatrical feint that draws the crowd's eye and leaves the target's guard down - lowers their accuracy for a short time.",
+        "desc": "A theatrical feint that draws the crowd's eye and opens the target's guard: a real strike that may leave a bleeding wound (once an Accuracy Down debuff, a caster's curse).",
     },
     "weapon mastery": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -6026,18 +6517,20 @@ SKILLS = {
         "target": "self",
         "cost": 4,
         "level_required": 10,
-        "conditions": [("Accuracy Up", 3)],
+        "conditions": [("Keen Edge", 3)],
         "classes": ["gladiator"],
-        "desc": "A flashy display of weapon control - grants a temporary accuracy boost.",
+        "desc": "A flashy display of weapon control that finds the weak points: for a few turns your critical-hit chance is 15 points higher. (Once an Accuracy Up buff - Weapon Mastery's own sibling, and a caster's blessing.)",
     },
     "disarming strike": {
-        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "skillfunc": COMBAT_RULES.skill_attack,
         "target": "otherchar",
         "cost": 6,
         "level_required": 15,
-        "conditions": [("Damage Down", 3)],
+        "damage_range": (14, 22),
+        "weapon_multiplier": 1.3,
+        "rider": {"effect": "Disarmed", "chance": 60, "duration": 2},
         "classes": ["gladiator"],
-        "desc": "A precise strike aimed at the weapon hand - lowers a target's outgoing damage for a short time.",
+        "desc": "A precise strike aimed at the weapon hand: a real blow that will often knock the target's weapon from their grip for two turns (once a Damage Down debuff, a caster's curse).",
     },
     "second wind": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -6057,7 +6550,7 @@ SKILLS = {
         "damage_range": (30, 45),
         "weapon_multiplier": 2.0,
         "classes": ["gladiator"],
-        "desc": "A cinematic execute - only works against a target already below 20% HP, but hits hard when it does.",
+        "desc": "A finishing strike - usable only on a target already below 20% health. It cannot miss and hits for twice your weapon damage (and can crit), but it is not an instant kill.",
     },
     "riposte": {
         "skillfunc": COMBAT_RULES.skill_riposte,
@@ -6086,14 +6579,17 @@ SKILLS = {
         "classes": ["gladiator"],
         "desc": "A heavy, direct strike aimed to end a fight quickly. May grapple the target so they can't break away for a few turns.",
     },
-    "favor": {
-        "skillfunc": COMBAT_RULES.skill_add_condition,
+    "crowd's surge": {
+        # Replaces Favor (Damage Up + Accuracy Up together, which made Weapon
+        # Mastery and Weapon Flourish redundant from level 70). D&D's Action Surge.
+        "skillfunc": COMBAT_RULES.skill_action_surge,
         "target": "self",
-        "cost": 8,
+        "cost": 10,
         "level_required": 70,
-        "conditions": [("Damage Up", 4), ("Accuracy Up", 4)],
+        "noncombat_spell": False,
+        "npc_cast": False,
         "classes": ["gladiator"],
-        "desc": "The crowd rises to their feet - grants both an accuracy and a damage boost at once.",
+        "desc": "The crowd rises to its feet and you surge with it (D&D's Action Surge): one extra action this turn - a free second attack, or a potion, on top of your normal one. Costs no action itself.",
     },
     "glory": {
         "skillfunc": COMBAT_RULES.skill_attack,
@@ -6134,15 +6630,6 @@ SKILLS = {
         "classes": ["legionary"],
         "desc": "A heavy shield strike, driving a target back. May knock the target's weapon from their hand for two turns.",
     },
-    "provoke": {
-        "skillfunc": COMBAT_RULES.skill_add_condition,
-        "target": "otherchar",
-        "cost": 4,
-        "level_required": 10,
-        "conditions": [("Accuracy Down", 3)],
-        "classes": ["legionary"],
-        "desc": "Draws a target's focus and rattles their guard - lowers their accuracy for a short time.",
-    },
     "gladius cleave": {
         "skillfunc": COMBAT_RULES.skill_attack,
         "target": "otherchar",
@@ -6151,9 +6638,8 @@ SKILLS = {
         "max_targets": 3,
         "damage_range": (14, 22),
         "weapon_multiplier": 1.2,
-        "rider": {"effect": "Sundered", "chance": 35},
         "classes": ["legionary"],
-        "desc": "A close-range cleave, striking up to three enemies in front of you at once. May cleave through one piece of each target's armor for the rest of the fight.",
+        "desc": "A close-range cleave, striking up to three enemies in front of you at once - the Legionary's area attack. (Armor-breaking belongs to Shattering Blow.)",
     },
     "shield wall": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -6172,7 +6658,7 @@ SKILLS = {
         "max_targets": 5,
         "conditions": [("Defense Up", 3)],
         "classes": ["legionary"],
-        "desc": "Forms a shield wall - grants up to five allies (use '= party' to hit your whole group at once) a temporary defense boost.",
+        "desc": "Forms a shield wall - grants up to five allies - your party, picked automatically - a temporary defense boost.",
     },
     "rally": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -6182,7 +6668,7 @@ SKILLS = {
         "max_targets": 5,
         "conditions": [("Regeneration", 3)],
         "classes": ["legionary"],
-        "desc": "A legionary's discipline steadies the whole unit - grants up to five allies (use '= party' for your whole group) a heal-over-time.",
+        "desc": "A legionary's discipline steadies the whole unit - grants up to five allies - your party, picked automatically - a heal-over-time.",
     },
     "unbreakable": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -6200,9 +6686,9 @@ SKILLS = {
         "level_required": 75,
         "damage_range": (28, 40),
         "weapon_multiplier": 1.7,
-        "rider": {"effect": "Sundered", "chance": 60},
+        "rider": {"effect": "Sundered", "chance": 100, "both": True},
         "classes": ["legionary"],
-        "desc": "A heavy strike aimed to break through even the sturdiest guard. Often cleaves through a piece of the target's armor for the rest of the fight.",
+        "desc": "A heavy strike that breaks through even the sturdiest guard: a landed blow always cleaves through the target's body armor AND their shield, leaving both useless for the rest of the fight.",
     },
     "last stand": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -6212,7 +6698,7 @@ SKILLS = {
         "max_targets": 5,
         "conditions": [("Defense Up", 5)],
         "classes": ["legionary"],
-        "desc": "Mythic tier. The line that will not break, no matter the cost - grants up to five allies (use '= party') a powerful, long-lasting defense boost.",
+        "desc": "Mythic tier. The line that will not break, no matter the cost - grants up to five allies - your party, picked automatically - a powerful, long-lasting defense boost.",
     },
     "rage of the north": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -6240,9 +6726,9 @@ SKILLS = {
         "cost": 7,
         "level_required": 15,
         "max_targets": 3,
-        "conditions": [("Accuracy Down", 3)],
+        "conditions": [("Goaded", 2)],
         "classes": ["barbarian"],
-        "desc": "A roar that shakes nearby enemies' resolve - lowers the accuracy of up to three enemies at once (use '= enemies' to hit whoever's hostile in the room).",
+        "desc": "A roar that bellows challenge at up to three enemies at once (with no target named, the ones in your fight): for two turns they can think of nothing but you - a monster attacks no one else, and a player who strikes anyone else suffers a big accuracy penalty. A target with strong Ingenium can resist.",
     },
     "thundering maul": {
         "skillfunc": COMBAT_RULES.skill_thundering_maul,
@@ -7601,6 +8087,9 @@ class SummonedAlly(DefaultCharacter):
 
         hp_before = target.db.hp or 0
         COMBAT_RULES.resolve_attack(self, target)
+        # Bestial Fury (the Venator's skill): a frenzied companion strikes twice.
+        if "Frenzied" in (self.db.conditions or {}) and target.pk and (target.db.hp or 0) > 0:
+            COMBAT_RULES.resolve_attack(self, target)
         COMBAT_RULES.spend_action(self, 1, action_name="attack")
         self._try_signature_move(target, hp_before)
 
@@ -8076,6 +8565,12 @@ class CombatCharacter(ContribRPCharacter):
         # anything - a 75% discount.
         if is_flying(self) and not concentration.flight_pays_this_step(self):
             return True
+        if (
+            "Pathfinding" in (self.db.conditions or {})
+            and not is_flying(self)  # flight is the stronger discount; they don't stack
+            and not martial.pathfinder_pays_this_step(self)
+        ):
+            return True  # the Venator's Pathfinder: every other step is free
 
         current_sp = self.db.sp or 0
         if current_sp < MOVEMENT_SP_COST:
@@ -9093,6 +9588,53 @@ def _key_or_alias_matches(obj, search_lower):
     if any(word.startswith(search_lower) for word in key_lower.split()):
         return True
     return any(alias.lower().startswith(search_lower) for alias in obj.aliases.all())
+
+
+def pick_party_targets(caster, max_targets):
+    """
+    The targets for a group buff or heal named with no target (owner request,
+    Sep 27): the caster's party members standing here, up to `max_targets`, most
+    wounded first, the caster included. Alone, that's just the caster - the old
+    default. `= party` still works; this just makes it unnecessary.
+    """
+    from world.party import get_party_members
+
+    here = caster.location
+    members = [
+        m for m in get_party_members(caster)
+        if m is not None and m.pk and m.location == here and not m.db.is_dead
+        and m.attributes.has("max_hp")
+    ]
+    members.sort(key=lambda m: (m.db.hp or 0) / max(1, m.db.max_hp or 1))
+    return members[:max_targets] or [caster]
+
+
+def fill_area_targets(caster, chosen, max_targets, skip_row_protected=False):
+    """
+    Tops an area spell/skill's targets up to `max_targets` with the caster's other
+    enemies in the fight they're in (owner request, Sep 27): name one enemy - or
+    none - and a three-target attack takes three if three are there, two if two,
+    one if one. Only ever in combat and only from the fight's own fighters, so a
+    bystander in the room is never dragged in. Physical skills can pass
+    skip_row_protected so the fill never picks someone they couldn't reach anyway.
+    """
+    handler = caster.db.combat_turnhandler
+    if not handler or not handler.pk:
+        return list(chosen)
+    result = list(chosen)
+    for fighter in list(handler.db.fighters or []):
+        if len(result) >= max_targets:
+            break
+        if (
+            fighter is None or not fighter.pk or fighter is caster or fighter in result
+            or not fighter.db.hp or fighter.db.pacifist or COMBAT_RULES.is_ally(caster, fighter)
+            or invisible_hides_from(fighter, caster)
+        ):
+            continue
+        if skip_row_protected and COMBAT_RULES.is_row_protected(fighter, attacker=caster):
+            continue
+        result.append(fighter)
+    return result
 
 
 def find_combat_target(caller, search_text, candidates=None):
@@ -12320,9 +12862,17 @@ class CmdCast(MuxCommand):
                     match = find_combat_target(caller, target, candidates=target_candidates)
                 matched_targets.append(match)
         spell_targets = matched_targets
+        if (
+            spelldata["target"] == "otherchar" and spelldata["max_targets"] > 1
+            and None not in spell_targets and spell_targets != [caller]
+        ):
+            spell_targets = fill_area_targets(caller, spell_targets, spelldata["max_targets"])
 
         if len(spell_targets) == 0 and spelldata["target"] in ["self", "anychar"]:
-            spell_targets = [caller]
+            if spelldata["target"] == "anychar" and spelldata["max_targets"] > 1:
+                spell_targets = pick_party_targets(caller, spelldata["max_targets"])
+            else:
+                spell_targets = [caller]
 
         if spelldata["target"] in ["other", "otherchar"] and caller in spell_targets:
             caller.msg("You can't cast '%s' on yourself." % spell_to_cast)
@@ -12393,6 +12943,8 @@ class CmdUseSkill(MuxCommand):
 
     def func(self):
         user = self.caller
+
+        concentration.prune_renamed_skills(user)
 
         if user.db.is_dead:
             user.msg("The dead have no use for combat skills.")
@@ -12488,6 +13040,10 @@ class CmdUseSkill(MuxCommand):
         for key in skilldata:
             if key not in skilldata_opts:
                 kwargs[key] = skilldata[key]
+        class_stats = {CLASS_CONTEST_STAT.get(c) for c in skilldata.get("classes", [])}
+        class_stats.discard(None)
+        if len(class_stats) == 1:
+            kwargs.setdefault("contest_stat", class_stats.pop())
 
         if skilldata["cost"] > user.db.sp:
             user.msg("You don't have enough SP to use '%s'." % skill_to_use)
@@ -12594,9 +13150,19 @@ class CmdUseSkill(MuxCommand):
                 match = find_combat_target(user, target, candidates=target_candidates)
                 matched_targets.append(match)
         skill_targets = matched_targets
+        if (
+            skilldata["target"] == "otherchar" and skilldata["max_targets"] > 1
+            and None not in skill_targets and skill_targets != [user]
+        ):
+            skill_targets = fill_area_targets(
+                user, skill_targets, skilldata["max_targets"], skip_row_protected=True
+            )
 
         if len(skill_targets) == 0 and skilldata["target"] in ["self", "anychar"]:
-            skill_targets = [user]
+            if skilldata["target"] == "anychar" and skilldata["max_targets"] > 1:
+                skill_targets = pick_party_targets(user, skilldata["max_targets"])
+            else:
+                skill_targets = [user]
 
         if skilldata["target"] in ["other", "otherchar"] and user in skill_targets:
             user.msg("You can't use '%s' on yourself." % skill_to_use)
@@ -12612,9 +13178,10 @@ class CmdUseSkill(MuxCommand):
         # See the identical fix/comment in CmdCast above - an
         # offensive skill used outside combat is what starts the
         # fight now, same as an offensive spell.
-        if skilldata["target"] == "otherchar":
+        if skilldata["target"] == "otherchar" and not skilldata.get("manages_reveal"):
             reveal_on_offense(user)
-        self.rules.start_combat_from_offensive_action(user, skill_targets)
+        if not skilldata.get("no_fight_start"):
+            self.rules.start_combat_from_offensive_action(user, skill_targets)
 
         try:
             result = skilldata["skillfunc"](

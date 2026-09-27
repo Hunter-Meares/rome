@@ -210,7 +210,39 @@ NEW_SKILL_HELP = {
         "you're standing out of its reach in the back row - and a |wplayer who "
         "attacks anyone else suffers a big accuracy penalty|n. That's how a "
         "tank keeps a mob off the healers and casters. A target with strong "
-        "|wIngenium|n can resist it (it's a compulsion, a mind effect)."
+        "|wIngenium|n can resist it (it's a compulsion, a mind effect). Goad "
+        "is the Legionary's only taunt - the old Provoke was folded into it, "
+        "and anyone who knew Provoke was given Goad. The Barbarian's War Cry "
+        "goads up to three enemies at once, for a shorter time."
+    ),
+    "war cry": (
+        "The Barbarian's challenge. A roar at up to three enemies (name them, or "
+        "type it with no target and it picks the ones in your fight): for two "
+        "turns |wa monster can attack no one but you|n, and a |wplayer who strikes "
+        "anyone else suffers a big accuracy penalty|n - the same |wGoaded|n effect "
+        "as the Legionary's Goad, wider and shorter. A target with strong "
+        "|wIngenium|n can resist it. (It used to be an Accuracy Down debuff, "
+        "a caster's curse.)"
+    ),
+    "crowd's surge": (
+        "The Gladiator's showstopper (D&D's Action Surge). The crowd rises and "
+        "you surge with it: you gain |wone extra action this turn|n - a second "
+        "attack, a potion, another skill - on top of your normal one. Using it "
+        "costs no action of its own. It only works in a fight, and it replaces "
+        "the old Favor (a damage-and-accuracy buff that duplicated Weapon Mastery "
+        "and Weapon Flourish); anyone who knew Favor now knows Crowd's Surge."
+    ),
+    "weapon flourish": (
+        "The Gladiator's showy display of weapon control. For a few turns it "
+        "finds the weak points: your |wcritical-hit chance is 15 points higher|n "
+        "(see 'help critical hits'). It used to be an Accuracy Up buff, which "
+        "was a caster's blessing."
+    ),
+    "shattering blow": (
+        "The Legionary's armor-breaker. A landed blow |walways cleaves through "
+        "both the target's body armor and their shield|n, leaving them useless "
+        "for the rest of the fight (see 'help martial effects'). It is the only "
+        "reliable Sunder - the Gladius Cleave is now a plain three-target attack."
     ),
     "sentinel": (
         "The Legionary's guardian stance (D&D's Sentinel). For a few turns, "
@@ -249,6 +281,88 @@ NEW_SKILL_HELP = {
         "Pair it with Goad and monsters that must attack you hurt themselves "
         "doing it. Not to be confused with the Gladiator's Riposte, which is a "
         "counter-attack, not a reflection."
+    ),
+    "slip away": (
+        "The Speculator's Cunning Action: a |wguaranteed escape|n from a fight. "
+        "No roll, and none of the experience an ordinary 'disengage' costs - it "
+        "simply takes you out. You can't slip away while you're |wgrappled|n. "
+        "Use it on your own turn, in a fight."
+    ),
+    "fast hands": (
+        "The Speculator's sleight of hand. For a few turns, |wusing an item - a "
+        "potion, a scroll, a meal - costs you no action|n, so you can drink "
+        "and still attack in the same turn."
+    ),
+    "pilfer": (
+        "The Speculator's light fingers. Out of combat, lift gold from an NPC "
+        "|wor another player|n. It's a contest of your |wAgilitas|n against "
+        "theirs: a nimble mark is hard to rob, and a failure gets you |wcaught|n "
+        "(a hostile creature then fights you). A player loses at most a tenth of "
+        "their purse, and never more than a level-scaled cap - and they're told "
+        "something was taken, though not who unless they catch you. An NPC yields "
+        "half of what defeating it would pay. One try per target every half hour. "
+        "It never works on a pacifist, a god, a party member, or anyone in a "
+        "place that forbids violence."
+    ),
+    "uncanny dodge": (
+        "A Speculator passive - nothing to activate. Every few turns, a |wphysical "
+        "blow that would hit you is halved|n automatically. Why a passive: "
+        "spending your action to dodge a later blow would just trade one attack "
+        "for another, so this happens on its own, at no cost to your turn."
+    ),
+    "elusive footwork": (
+        "A Speculator passive - nothing to activate. |wDamage from area "
+        "attacks|n (anything that strikes more than one target: Necrotic Storm, "
+        "Earth-Shaking Slam, Wrath of Olympus...) |wis halved against you|n. A "
+        "Speculator slips the edge of a blast that a sturdier fighter takes in full."
+    ),
+    "assassinate": (
+        "A strike from hiding. You must be |wconcealed|n first - the Speculator's "
+        "Sneak and Vanish leave you 'nearly invisible', harder to hit for a few "
+        "turns, and Assassinate is what that hiding is for. Then the strike "
+        "|wcannot miss|n, is a |wguaranteed critical hit|n, and hits two and a half "
+        "times your normal blow. The hiding ends. (Backstab, by contrast, needs "
+        "the target not to have acted yet.)"
+    ),
+    "quarry": (
+        "The Venator's Hunter's Mark, and its first skill. Choose |wone "
+        "enemy|n as your quarry: for the rest of the fight |wyour own blows "
+        "against it deal 20% more damage|n. Only one quarry at a time - marking "
+        "another drops the first. (It replaces the old Mark, an Accuracy Down "
+        "debuff that duplicated a caster curse; anyone who knew Mark now has "
+        "Quarry.)"
+    ),
+    "forager's eye": (
+        "The Venator's eye for the wild. For about |wten minutes|n, timber and "
+        "herbs in the wilderness are |wmuch easier to spot|n while you walk. "
+        "Not usable in a fight."
+    ),
+    "aimed shot": (
+        "The Venator's patience. Needs a |wranged weapon|n. You spend the turn "
+        "taking careful aim; your |wnext|n attack - a basic shot or an attack "
+        "skill - |wcannot be avoided|n and hits two and a half times as hard. "
+        "Worth it when the shot matters more than the turn."
+    ),
+    "pathfinder": (
+        "The Venator's Land's Stride. For about |wten minutes|n, every other "
+        "step you walk costs no stamina. Flight (the Harpy's or the Augur's) "
+        "is stronger while it lasts; the two don't stack. Not usable in a fight."
+    ),
+    "bestial fury": (
+        "The Venator's Beast Master trick. You spend your action - and in "
+        "return your |wcompanion goes into a frenzy and attacks twice each turn "
+        "for three turns|n: three extra attacks for the one you gave up. Needs "
+        "your companion at your side."
+    ),
+    "fighting retreat": (
+        "The Legionary's orderly withdrawal. Type |wfighting retreat|n with no "
+        "target and up to |wfive members of your party|n who are in the fight - "
+        "you included - |wbreak away at once|n: guaranteed, and with none of the "
+        "experience an ordinary 'disengage' costs. To pull out only some of "
+        "them and stay in the fight yourself, name them ('fighting retreat = "
+        "Marcus, Livia'). Anyone who is |wgrappled, stunned or asleep|n can't "
+        "be pulled out and stays where they are. Use it on your own turn, in a "
+        "fight."
     ),
     "dirt kick": (
         "The Gladiator's arena dirty trick: a kick of sand into the eyes. The "
@@ -1497,15 +1611,21 @@ def create_all_help_entries():
             "effect that no spell copies. |wBleeding|n and |wStunned|n are shrugged "
             "off with |wVigor|n (toughness); |wBlinded|n, |wGrappled|n and |wDisarmed|n "
             "have to actually catch you, so you slip them with |wAgilitas|n "
-            "(reflexes). They end when the fight does (except a bleeding wound, "
-            "which lingers).\n\n"
+            "(reflexes) - and the warrior inflicting them pushes with their own "
+            "fighting stat (|wVirtus|n for a Legionary or Barbarian, |wAgilitas|n for "
+            "a Gladiator, Speculator or Venator), not their Ingenium. A trap like "
+            "Snare is sprung free of with Agilitas too. Taunts (Goaded) are mind "
+            "effects and stay an Ingenium contest. Skills that strike also have to "
+            "hit first: your target's Agilitas and armor make that harder. They "
+            "end when the fight does (except a bleeding wound, which "
+            "lingers).\n\n"
             "  |wBleeding|n  - a wound that costs HP every turn. |wAny healing stops "
             "it|n - a spell, a potion, food. (Unlike poison, which a heal "
             "doesn't touch.)\n"
             "  |wSundered|n  - the blow cleaves through one random piece of worn "
             "armor - the body armor or the shield - and it stops helping for the rest "
-            "of the fight. The item isn't harmed. No effect on someone wearing "
-            "neither.\n"
+            "of the fight (Shattering Blow breaks both). The item isn't harmed. No "
+            "effect on someone wearing neither.\n"
             "  |wDisarmed|n  - the target's weapon is knocked from their hand for a "
             "couple of turns; they fight with bare fists.\n"
             "  |wGrappled|n  - held fast: the target can't disengage or flee.\n"

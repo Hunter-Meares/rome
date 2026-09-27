@@ -1018,6 +1018,37 @@ FREE_REPLACEMENTS = {"bane": "magic arrow"}
 RENAMED_SPELLS = {"vigor": "renew spirit"}
 
 
+# Skills that still exist under a new form: a player who knew the old one gets
+# the new one in its place, free. The Venator's Mark (an Accuracy Down debuff)
+# became Quarry (a damage bonus on one chosen enemy).
+RENAMED_SKILLS = {"mark": "quarry", "provoke": "goad", "favor": "crowd's surge"}
+
+
+def prune_renamed_skills(character):
+    """Idempotent; swaps any renamed skill in a character's skill list."""
+    known = character.db.skills_known
+    changed = []
+    if known:
+        for old, new in RENAMED_SKILLS.items():
+            if old in known:
+                fresh = [name for name in known if name != old]
+                if new not in fresh:
+                    fresh.append(new)
+                character.db.skills_known = sorted(fresh)
+                known = character.db.skills_known
+                changed.append((old, new))
+    cooldowns = character.db.cooldowns
+    if cooldowns:
+        for old, new in RENAMED_SKILLS.items():
+            if old in cooldowns:
+                cooldowns[new] = cooldowns.pop(old)
+    for old, new in changed:
+        character.msg(
+            "|yYour skill '%s' has been reworked into '%s' - see 'skillinfo %s'.|n" % (old, new, new)
+        )
+    return changed
+
+
 def _rename_spells(character):
     known = character.db.spells_known
     changed = []
@@ -1051,6 +1082,7 @@ def prune_removed_spells(character):
     from world.combat import SPELLS, compute_learn_cost
 
     _rename_spells(character)
+    prune_renamed_skills(character)
     known = character.db.spells_known
     if not known:
         return 0

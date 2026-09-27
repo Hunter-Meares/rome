@@ -53,6 +53,7 @@ CRIT_PROFILES = {
     "staff": (5, 2.0),
 }
 UNARMED_CRIT = (5, 2.0)
+KEEN_EDGE_CRIT_BONUS = 15  # extra percentage points while a Gladiator's Weapon Flourish is up
 CRIT_PER_AGILITAS = 0.5   # extra percentage points per point of Agilitas over 10
 CRIT_MAX_CHANCE = 30
 
@@ -105,6 +106,8 @@ def crit_profile(attacker):
         profile = UNARMED_CRIT
     chance, multiplier = profile
     chance += max(0, (attacker.db.agilitas or 10) - 10) * CRIT_PER_AGILITAS
+    if "Keen Edge" in (attacker.db.conditions or {}):
+        chance += KEEN_EDGE_CRIT_BONUS  # the Gladiator's Weapon Flourish
     return min(CRIT_MAX_CHANCE, chance), multiplier
 
 
@@ -140,6 +143,16 @@ def stop_bleeding(character, quiet=False):
     return False
 
 
+def pathfinder_pays_this_step(character):
+    """The Venator's Pathfinder: only every second step costs stamina."""
+    steps = (character.db.pathfinder_steps or 0) + 1
+    if steps >= 2:
+        character.db.pathfinder_steps = 0
+        return True
+    character.db.pathfinder_steps = steps
+    return False
+
+
 def is_incapacitated(character):
     """Asleep (Sleep spell) or Stunned - unable to act at all."""
     conditions = character.db.conditions or {}
@@ -155,25 +168,41 @@ def incapacitated_message(character):
     )
 
 
-def _sunder(rules, target):
-    """Cleave through one random worn piece of armor for the rest of the fight."""
+def is_sundered(character, slot):
+    """True if the piece worn in `slot` has been cleaved through this fight."""
+    held = character.db.combat_sundered
+    return held == slot or held == "both"
+
+
+def _sunder(rules, target, both=False):
+    """
+    Cleave through one random worn piece of armor for the rest of the fight - or,
+    with `both` (Shattering Blow), every piece worn: the body armor AND the shield.
+    """
     options = [
         slot for slot in ("worn_armor", "worn_shield")
-        if getattr(target.db, slot) and target.db.combat_sundered != slot
+        if getattr(target.db, slot) and not is_sundered(target, slot)
     ]
     if not options:
         return False
-    slot = choice(options)
-    target.db.combat_sundered = slot
-    item = getattr(target.db, slot)
-    target.location.msg_contents(
-        "|rThe blow cleaves clean through %s's %s - it hangs useless for the rest of the fight!|n"
-        % (target, item.key)
-    )
+    if both:
+        chosen = options
+        already = [s for s in ("worn_armor", "worn_shield") if is_sundered(target, s)]
+        target.db.combat_sundered = "both" if len(chosen) + len(already) == 2 else chosen[0]
+    else:
+        chosen = [choice(options)]
+        already = [s for s in ("worn_armor", "worn_shield") if is_sundered(target, s)]
+        target.db.combat_sundered = "both" if already else chosen[0]
+    for slot in chosen:
+        item = getattr(target.db, slot)
+        target.location.msg_contents(
+            "|rThe blow cleaves clean through %s's %s - it hangs useless for the rest of the fight!|n"
+            % (target, item.key)
+        )
     return True
 
 
-def apply_rider(rules, user, target, rider, damage=0):
+def apply_rider(rules, user, target, rider, damage=0, attacker_stat=None):
     """
     Inflicts a skill's rider effect on `target` after a landed hit. `rider` is a
     SKILLS-entry dict: {"effect", "chance" (percent, default 100), "duration"
@@ -192,9 +221,12 @@ def apply_rider(rules, user, target, rider, damage=0):
     duration = rider.get("duration", 2)
 
     if effect == "Sundered":
-        return _sunder(rules, target)
+        return _sunder(rules, target, both=rider.get("both", False))
 
-    if rules.resists_condition(user, target, condition=effect):
+    if rules.resists_condition(
+        user, target, condition=effect, attacker_stat=attacker_stat,
+        resist_stat=rider.get("resist"),
+    ):
         target.location.msg_contents("%s shrugs off the %s!" % (target, effect.lower()))
         return False
 

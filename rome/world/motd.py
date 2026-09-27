@@ -32,20 +32,18 @@ from evennia import CmdSet
 from commands.command import Command
 from world.box_display import box_border, box_line, box_paragraph, box_blank
 
-RECENT_UPDATES_DATE = "2026-09-26"
+RECENT_UPDATES_DATE = "2026-09-27"
 
 RECENT_UPDATES_TEXT = (
-    "The casters have been reworked. Augurs gain Magic Arrow, Sleep, See "
-    "Invisibility, Fly, Invisibility and Confusion; Haruspex gain Inflict "
-    "Wounds, False Life, Armor of Agathys and Slow; Medicus gain Healing "
-    "Word, Aid and Flame of Vesta. Vigor now resists body effects (poison, "
-    "slow, paralysis) as Ingenium resists mind ones. Some spells are held by concentration "
-    "and drain your MP until you let go - 'effects' shows what's on you, "
-    "'release' lets go, and 'help concentration' explains it all. Harpies "
-    "now fly for free with 'fly'. Bane, Omen of Weakness, Omen of Doom, "
-    "Bless and Divine Favor are retired - you're swapped or refunded "
-    "automatically. Crafting, pacifism and 'journey' are covered in the "
-    "help files."
+    "The warriors have new tricks. Skills now cause real martial effects - "
+    "bleeding, stuns, disarms, sundered armor - and weapons can land critical "
+    "hits. New: Goad and War Cry taunts, Parry, Shield Block, Barbed Guard, "
+    "Crowd's Surge, and Speculator/Venator skills like Pilfer, Slip Away, "
+    "Quarry and Aimed Shot. Provoke and Favor are retired (you're swapped "
+    "automatically). A skill's effect now pits your own Virtus or Agilitas "
+    "against your target's, and a few strikes can miss a nimble foe. The "
+    "casters were reworked too - 'help concentration' and 'help martial "
+    "effects' explain it all."
 )
 
 # The box's own interior width, between its left/right borders and

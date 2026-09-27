@@ -2557,7 +2557,8 @@ class TestSkillAndSpellAnnouncementOrdering(CombatTestBase):
     def test_skill_reckless_abandon_announces_before_condition(self):
         captured = self._capture()
         self.char1.db.sp = 10
-        COMBAT_RULES.skill_reckless_abandon(self.char1, "reckless abandon", [self.char2], 6)
+        with patch("world.combat.randint", return_value=100):  # the swing lands
+            COMBAT_RULES.skill_reckless_abandon(self.char1, "reckless abandon", [self.char2], 6)
         self._assert_announcement_before_condition(captured, "devastating strike")
 
     def test_skill_pack_tactics_announces_before_condition(self):

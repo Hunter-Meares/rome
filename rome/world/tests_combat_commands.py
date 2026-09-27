@@ -940,7 +940,7 @@ class TestCmdUseSkillNamedTargeting(CombatCommandTestBase):
 
     def setUp(self):
         super().setUp()
-        self.char1.db.skills_known = ["mark"]
+        self.char1.db.skills_known = ["goad"]
         self.char1.permissions.remove("Developer")
 
     def test_skill_on_named_enemy_by_real_name_succeeds(self):
@@ -952,13 +952,13 @@ class TestCmdUseSkillNamedTargeting(CombatCommandTestBase):
         # pinned to a guaranteed-landing roll since resistance isn't
         # what this test is checking.
         with patch("world.combat.randint", return_value=100):
-            self.call(CmdUseSkill(), "mark = Char2", caller=self.char1)
+            self.call(CmdUseSkill(), "goad = Char2", caller=self.char1)
 
-        self.assertIn("Accuracy Down", self.char2.db.conditions)
+        self.assertIn("Goaded", self.char2.db.conditions)
 
     def test_skill_without_enough_sp_rejected(self):
         self.char1.db.sp = 0
-        result = self.call(CmdUseSkill(), "mark = Char2", caller=self.char1)
+        result = self.call(CmdUseSkill(), "goad = Char2", caller=self.char1)
         self.assertIn("enough SP", result)
 
     def test_skill_unknown_rejected(self):
@@ -1016,14 +1016,14 @@ class TestCmdCastAndCmdUseSkillStartARealFightOutOfCombat(CombatCommandTestBase)
 
     def setUp(self):
         super().setUp()
-        self.char1.db.skills_known = ["mark"]
+        self.char1.db.skills_known = ["goad"]
         self.char1.permissions.remove("Developer")
 
     def test_using_an_offensive_skill_out_of_combat_starts_a_real_fight(self):
         self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
         self.assertFalse(COMBAT_RULES.is_in_combat(self.char2))
 
-        self.call(CmdUseSkill(), "mark = Char2", caller=self.char1)
+        self.call(CmdUseSkill(), "goad = Char2", caller=self.char1)
 
         self.assertTrue(COMBAT_RULES.is_in_combat(self.char1))
         self.assertTrue(COMBAT_RULES.is_in_combat(self.char2))
@@ -1075,7 +1075,7 @@ class TestCmdCastAndCmdUseSkillDefaultToTheCurrentOpponent(CombatCommandTestBase
 
     def setUp(self):
         super().setUp()
-        self.char1.db.skills_known = ["mark"]
+        self.char1.db.skills_known = ["goad"]
         self.char1.permissions.remove("Developer")
 
     def test_defaults_to_combat_last_target_when_more_than_one_enemy_present(self):
@@ -1093,10 +1093,10 @@ class TestCmdCastAndCmdUseSkillDefaultToTheCurrentOpponent(CombatCommandTestBase
         self.char1.db.combat_last_target = self.char2
 
         with patch("world.combat.randint", return_value=100):
-            self.call(CmdUseSkill(), "mark", caller=self.char1)
+            self.call(CmdUseSkill(), "goad", caller=self.char1)
 
-        self.assertIn("Accuracy Down", self.char2.db.conditions)
-        self.assertNotIn("Accuracy Down", third.db.conditions)
+        self.assertIn("Goaded", self.char2.db.conditions)
+        self.assertNotIn("Goaded", third.db.conditions)
 
     def test_still_asks_for_a_name_with_no_current_target_and_multiple_enemies(self):
         third = create.create_object(
@@ -1112,7 +1112,7 @@ class TestCmdCastAndCmdUseSkillDefaultToTheCurrentOpponent(CombatCommandTestBase
         third.db.combat_side = "solo_join_%d" % id(third)
         self.char1.db.combat_last_target = None
 
-        result = self.call(CmdUseSkill(), "mark", caller=self.char1)
+        result = self.call(CmdUseSkill(), "goad", caller=self.char1)
 
         self.assertIn("More than one possible target", result)
 
@@ -1204,8 +1204,12 @@ class TestSkillInfoAndSpellInfoListing(CombatCommandTestBase):
         self.assertIn("Usable: Any time", result)
 
     def test_a_combat_only_skill_says_so(self):
-        result = self.call(CmdSkillInfo(), "backstab", caller=self.char1)
+        result = self.call(CmdSkillInfo(), "parry", caller=self.char1)
         self.assertIn("Usable: In combat only", result)
+
+    def test_backstab_can_open_a_fight_so_it_is_usable_any_time(self):
+        result = self.call(CmdSkillInfo(), "backstab", caller=self.char1)
+        self.assertIn("Usable: Any time", result)
 
     def test_a_noncombat_only_skill_says_so(self):
         result = self.call(CmdSkillInfo(), "track", caller=self.char1)

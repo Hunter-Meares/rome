@@ -127,7 +127,7 @@ def consume(caller, args, verb):
         else:
             caller.msg("You finish %s." % item)
             item.delete()
-        if in_combat:
+        if in_combat and "Fast Hands" not in (caller.db.conditions or {}):
             COMBAT_RULES.spend_action(caller, 1, action_name="item")
 
     if "hp" in gained:
