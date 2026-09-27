@@ -35,15 +35,14 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-27"
 
 RECENT_UPDATES_TEXT = (
-    "More warrior work. Legionary's defenses got a real shake-up (Shield "
-    "Wall is gone, Unbreakable now grants real immunity, Last Stand is a "
-    "one-time save), Barbarian's Earth-Shaking Slam is now Whirlwind, and "
-    "Speculators can dual-wield daggers ('offhand'), plant a real hidden "
-    "trap ('snare'), and reach the back row directly with Circle Stab or "
-    "hamstring a target's escape. Sneak now only works outside a fight; "
-    "Vanish is the mid-fight version. A few skills that used to always hit "
-    "a protected back-row target now correctly can't, unless you're "
-    "wielding a reach weapon."
+    "New: 'duel' lets you challenge another player to a real, mutually "
+    "agreed fight - the same stakes as any other, just started by consent "
+    "instead of ambush. Pilfer now works against any NPC (not just a "
+    "combat-capable one) and pays a small amount of XP on a successful "
+    "theft - a caught attempt is a different story, and a clean one "
+    "leaves no trace at all. Boss NPCs across the world also got real, "
+    "hand-picked signature moves - some fights just got a lot more "
+    "dangerous."
 )
 
 # The box's own interior width, between its left/right borders and

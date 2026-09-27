@@ -309,15 +309,17 @@ NEW_SKILL_HELP = {
         "and still attack in the same turn."
     ),
     "pilfer": (
-        "The Speculator's light fingers. Out of combat, lift gold from an NPC "
-        "|wor another player|n. It's a contest of your |wAgilitas|n against "
-        "theirs: a nimble mark is hard to rob, and a failure gets you |wcaught|n "
-        "(a hostile creature then fights you). A player loses at most a tenth of "
-        "their purse, and never more than a level-scaled cap - and they're told "
-        "something was taken, though not who unless they catch you. An NPC yields "
-        "half of what defeating it would pay. One try per target every half hour. "
-        "It never works on a pacifist, a god, a party member, or anyone in a "
-        "place that forbids violence."
+        "The Speculator's light fingers. Out of combat, lift gold from |wany "
+        "NPC|n - not just a combat-capable one - |wor another player|n. It's a "
+        "contest of your |wAgilitas|n against theirs: a nimble mark is hard to "
+        "rob, and a failure gets you |wcaught|n (a hostile creature then fights "
+        "you). A player loses at most a tenth of their purse, and never more "
+        "than a level-scaled cap - and they're told something was taken, though "
+        "not who unless they catch you. An NPC yields half of what defeating it "
+        "would pay. A successful theft grants a small amount of XP, and is "
+        "never witnessed by anyone - only getting caught in the act is. One "
+        "try per target every half hour. It never works on a pacifist, a god, "
+        "a party member, or anyone in a place that forbids violence."
     ),
     "uncanny dodge": (
         "A Speculator passive - nothing to activate. Every few turns, a |wphysical "

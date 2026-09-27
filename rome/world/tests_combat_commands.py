@@ -2674,3 +2674,112 @@ class TestCmdForceSearchesGlobally(CombatCommandTestBase):
     def test_still_refuses_with_no_target_or_command(self):
         result = self.call(CmdForce(), "", caller=self.char1)
         self.assertIn("must provide a target", result.lower())
+
+
+class TestPilferCanTargetACivilianNPC(CombatCommandTestBase):
+    """
+    Sep 27, owner request: Pilfer should work against any NPC, not just a
+    combat-capable one with real HP - the generic skill-target search
+    (CmdUseSkill) normally requires db.max_hp to even list something as a
+    candidate, which a plain flavor NPC never has. Pilfer's own SKILLS
+    entry opts out of that via "target_any_character".
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.skills_known = ["pilfer"]
+        self.char1.db.player_class = "speculator"
+        self.char1.db.agilitas = 30
+
+    def test_skill_pilfer_by_name_finds_a_civilian_npc(self):
+        from typeclasses.characters import Character
+
+        vendor = create.create_object(Character, key="a wine merchant", location=self.room1)
+        self.char1.db.gold = 0
+        with patch("world.combat.randint", return_value=1):
+            self.call(CmdUseSkill(), "pilfer = wine merchant", caller=self.char1)
+        self.assertGreater(self.char1.db.gold, 0)
+
+
+class TestCmdDuel(CombatCommandTestBase):
+    """
+    The Sep 27 duel/consent mechanic: a real fight, sanctioned by mutual
+    agreement, exempt from whatever crime detection the legal system
+    eventually builds on top of db.combat_duel_partner.
+    """
+
+    def test_challenge_then_accept_starts_a_real_fight(self):
+        from world.combat import CmdDuel
+
+        self.call(CmdDuel(), "Char2", caller=self.char1)
+        self.assertEqual(self.char2.db.duel_challenge, self.char1)
+
+        self.call(CmdDuel(), "accept", caller=self.char2)
+
+        self.assertTrue(COMBAT_RULES.is_in_combat(self.char1))
+        self.assertTrue(COMBAT_RULES.is_in_combat(self.char2))
+        self.assertEqual(self.char1.db.combat_duel_partner, self.char2)
+        self.assertEqual(self.char2.db.combat_duel_partner, self.char1)
+
+    def test_decline_starts_nothing(self):
+        from world.combat import CmdDuel
+
+        self.call(CmdDuel(), "Char2", caller=self.char1)
+        self.call(CmdDuel(), "decline", caller=self.char2)
+
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char2))
+        self.assertIsNone(self.char2.db.duel_challenge)
+
+    def test_accepting_with_no_pending_challenge_fails(self):
+        from world.combat import CmdDuel
+
+        result = self.call(CmdDuel(), "accept", caller=self.char1)
+        self.assertIn("don't have a pending", result)
+
+    def test_cannot_challenge_yourself(self):
+        from world.combat import CmdDuel
+
+        result = self.call(CmdDuel(), "Char", caller=self.char1)
+        self.assertIn("can't duel yourself", result)
+
+    def test_cannot_challenge_an_npc(self):
+        from world.combat import CmdDuel, HostileNPC
+
+        npc = create.create_object(HostileNPC, key="a brute", location=self.room1)
+        npc.db.hp = 50
+        result = self.call(CmdDuel(), "brute", caller=self.char1)
+        self.assertIn("only duel another player", result)
+
+    def test_cannot_challenge_a_pacifist_or_be_one(self):
+        from world.combat import CmdDuel
+
+        self.char2.db.pacifist = True
+        result = self.call(CmdDuel(), "Char2", caller=self.char1)
+        self.assertIn("laid down arms", result)
+
+    def test_cannot_accept_while_already_in_a_fight(self):
+        from world.combat import CmdDuel
+
+        self.call(CmdDuel(), "Char2", caller=self.char1)
+        self.char1.db.combat_turnhandler = create.create_script(
+            CombatTurnHandler, obj=self.room1, autostart=False
+        )
+        result = self.call(CmdDuel(), "accept", caller=self.char2)
+        self.assertIn("already in a fight", result)
+
+    def test_declining_lets_a_fresh_challenge_happen_later(self):
+        from world.combat import CmdDuel
+
+        self.call(CmdDuel(), "Char2", caller=self.char1)
+        self.call(CmdDuel(), "decline", caller=self.char2)
+        self.call(CmdDuel(), "Char2", caller=self.char1)
+        self.assertEqual(self.char2.db.duel_challenge, self.char1)
+
+    def test_duel_partner_flag_is_cleared_when_the_fight_ends(self):
+        from world.combat import CmdDuel
+
+        self.call(CmdDuel(), "Char2", caller=self.char1)
+        self.call(CmdDuel(), "accept", caller=self.char2)
+        COMBAT_RULES.combat_cleanup(self.char1)
+        self.assertIsNone(self.char1.db.combat_duel_partner)

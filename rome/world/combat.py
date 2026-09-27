@@ -449,6 +449,11 @@ PILFER_MIN_PLAYER_GOLD = 10
 PILFER_PLAYER_SHARE = 0.10          # at most a tenth of the victim's purse...
 PILFER_PLAYER_CAP_BASE = 25         # ...and never more than this + this per thief level
 PILFER_PLAYER_CAP_PER_LEVEL = 5
+# A small amount of XP on a successful theft (Sep 27, owner request) -
+# deliberately scaled off the THIEF's own level curve, not the mark's
+# wealth, so robbing a rich target doesn't become a disproportionate XP
+# farm. Independent of award_cast_xp, which only ever fires in combat.
+PILFER_XP_PERCENT = 0.01
 # Stances that last the whole fight and vanish with it.
 FIGHT_LONG_STANCES = ("Parrying", "Shield Block")
 # Speculator/Venator additions (Sep 27):
@@ -4653,6 +4658,8 @@ class CombatRules:
                 amount = max(1, int(purse * 0.5))
             user.db.gold = (user.db.gold or 0) + amount
             user.msg("|gYour fingers find %s's purse - you slip away with %d gold.|n" % (target, amount))
+            xp = max(1, round(PILFER_XP_PERCENT * self.xp_for_level(user.db.level or 1)))
+            self.award_xp(user, xp)
             return
         user.msg("|r%s catches your hand in their purse!|n" % target)
         if is_player:
@@ -6491,8 +6498,15 @@ SKILLS = {
         "manages_reveal": True,
         "no_fight_start": True,
         "npc_cast": False,
+        # Sep 27, owner request: pilfer works against ANY character, not just
+        # combat-capable ones with real HP (see CmdUseSkill's own use of this
+        # flag) - a shopkeeper or a passerby is just as valid a mark as a
+        # monster. A successful pilfer against a genuinely hostile NPC (one
+        # with real combat stats) can still trigger a fight on a miss, exactly
+        # as before - this only widens WHO can be targeted, not what happens.
+        "target_any_character": True,
         "classes": ["speculator"],
-        "desc": "Lifts gold from an NPC or another player, out of combat. A contest of your Agilitas against theirs, so a nimble mark is hard to rob; you can be caught. A player loses at most a tenth of their purse, never more than a level-scaled amount; an NPC yields half of what defeating it would pay. One try per target every half hour. Never a pacifist, a god, a party member, or anyone in a place that forbids violence.",
+        "desc": "Lifts gold from anyone - any NPC, not just a combat-capable one, or another player - out of combat. A contest of your Agilitas against theirs, so a nimble mark is hard to rob; you can be caught. A player loses at most a tenth of their purse, never more than a level-scaled amount; an NPC yields half of what defeating it would pay. A successful theft is never witnessed - by definition, nobody saw it - but getting caught is. Also grants a small amount of XP on success. One try per target every half hour. Never a pacifist, a god, a party member, or anyone in a place that forbids violence.",
     },
     "uncanny dodge": {
         "skillfunc": COMBAT_RULES.skill_passive_info,
@@ -9940,6 +9954,138 @@ class CmdFight(Command):
             )
             return
         self._start_duel(possible[0])
+
+
+class CmdDuel(Command):
+    """
+    Challenge another player to a sanctioned duel.
+
+    Usage:
+      duel <name>
+      duel accept
+      duel decline
+
+    A duel is a real fight, with the exact same stakes as any other -
+    it just starts by mutual agreement instead of one side attacking
+    the other. That's the one thing that matters once Rome's crime
+    laws are in effect (see 'help crime'): a duel both sides agreed to
+    is never assault or murder, no matter how it ends. Nothing about
+    the fight itself is different or safer.
+
+    Challenging someone doesn't start anything on its own - only once
+    they type 'duel accept' does the fight actually begin, immediately,
+    for both of you. 'duel decline' turns it down with no consequence
+    either way.
+    """
+
+    key = "duel"
+    help_category = "combat"
+    rules = COMBAT_RULES
+    combat_handler_class = CombatTurnHandler
+
+    def func(self):
+        caller = self.caller
+        args = self.args.strip() if self.args else ""
+
+        if not args:
+            caller.msg("Usage: duel <name>, duel accept, duel decline")
+            return
+
+        subcmd = args.lower()
+        if subcmd == "accept":
+            self.do_accept()
+        elif subcmd == "decline":
+            self.do_decline()
+        else:
+            self.do_challenge(args)
+
+    def do_challenge(self, target_name):
+        caller = self.caller
+        here = caller.location
+
+        if caller.db.is_dead:
+            caller.msg("You are dead. The living's quarrels are no longer yours.")
+            return
+        if caller.db.pacifist:
+            caller.msg("You've laid down arms for good - you can't duel anyone.")
+            return
+        if is_no_combat_zone(here):
+            caller.msg("Something about this place forbids it - you can't duel here.")
+            return
+
+        target = find_combat_target(caller, target_name, candidates=here.contents if here else [])
+        if not target:
+            return
+        if target == caller:
+            caller.msg("You can't duel yourself.")
+            return
+        if not getattr(target, "account", None):
+            caller.msg("You can only duel another player - use 'fight' for anything else.")
+            return
+        if target.db.pacifist:
+            caller.msg("%s has laid down arms for good - there's no dueling them." % target.key)
+            return
+        if self.rules.is_in_combat(caller) or self.rules.is_in_combat(target):
+            caller.msg(
+                "%s is already in a fight." % target.key
+                if self.rules.is_in_combat(target) else "You're already in a fight."
+            )
+            return
+
+        target.db.duel_challenge = caller
+        target.msg(
+            "|y%s challenges you to a duel!|n Type 'duel accept' or 'duel decline'." % caller.key
+        )
+        caller.msg("You challenge %s to a duel." % target.key)
+
+    def do_accept(self):
+        caller = self.caller
+        challenger = caller.db.duel_challenge
+        if not challenger or not challenger.pk:
+            caller.msg("You don't have a pending duel challenge.")
+            return
+        caller.db.duel_challenge = None
+
+        if challenger.location != caller.location:
+            caller.msg("%s isn't here anymore." % challenger.key)
+            return
+        if caller.db.pacifist or challenger.db.pacifist:
+            caller.msg("One of you has laid down arms for good - the duel can't happen.")
+            return
+        if self.rules.is_in_combat(caller) or self.rules.is_in_combat(challenger):
+            caller.msg("One of you is already in a fight.")
+            return
+
+        here = caller.location
+        here.msg_contents(
+            "|y%s accepts %s's challenge - a sanctioned duel begins!|n" % (caller, challenger)
+        )
+        here.ndb.pending_fighters = [caller, challenger]
+        here.scripts.add(self.combat_handler_class)
+
+        # Stamped AFTER the fight actually starts, not before -
+        # initialize_for_combat calls combat_cleanup on every fighter as
+        # its own first step (a fresh start for each new fight), which
+        # would silently wipe this if it were set any earlier. Prefixed
+        # combat_ so that SAME cleanup clears it again once the fight
+        # ends, the same way every other combat_* attribute is - a
+        # sanctioned duel is sanctioned for exactly this one fight, never
+        # a standing exemption for later. See this attribute's own
+        # purpose: the future crime system reads it to tell a mutually
+        # agreed duel apart from an actual assault.
+        caller.db.combat_duel_partner = challenger
+        challenger.db.combat_duel_partner = caller
+
+    def do_decline(self):
+        caller = self.caller
+        challenger = caller.db.duel_challenge
+        if not challenger:
+            caller.msg("You don't have a pending duel challenge.")
+            return
+        caller.db.duel_challenge = None
+        caller.msg("You decline the duel.")
+        if challenger.pk:
+            challenger.msg("%s declines your challenge." % caller.key)
 
 
 def _key_or_alias_matches(obj, search_lower):
@@ -13555,10 +13701,24 @@ class CmdUseSkill(MuxCommand):
 
         target_candidates = []
         if skilldata["target"] in ["anychar", "otherchar"]:
-            target_candidates = [
-                t for t in user.location.contents
-                if t.attributes.has("max_hp") and not invisible_hides_from(t, user)
-            ]
+            # target_any_character (Pilfer, Sep 27): a plain, non-combat
+            # civilian NPC never gets db.max_hp at all - the usual gate on
+            # every other skill/spell, meant to keep scenery objects and
+            # non-character items out of the candidate list. Pilfer doesn't
+            # need HP or any combat stat to function, so it opts into the
+            # broader, typeclass-based check instead - still real characters
+            # only, just not restricted to combat-capable ones.
+            if skilldata.get("target_any_character"):
+                target_candidates = [
+                    t for t in user.location.contents
+                    if t.is_typeclass("typeclasses.characters.Character", exact=False)
+                    and not invisible_hides_from(t, user)
+                ]
+            else:
+                target_candidates = [
+                    t for t in user.location.contents
+                    if t.attributes.has("max_hp") and not invisible_hides_from(t, user)
+                ]
 
         # No explicit target given for an offensive skill - same
         # sensible default as CmdCast: auto-target the lone enemy for
@@ -14013,6 +14173,7 @@ class BattleCmdSet(CharacterCmdSet):
     def at_cmdset_creation(self):
         super().at_cmdset_creation()
         self.add(CmdFight())
+        self.add(CmdDuel())
         self.add(CmdAttack())
         self.add(CmdAutoAttack())
         self.add(CmdCombatRow())

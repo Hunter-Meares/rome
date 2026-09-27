@@ -1145,6 +1145,25 @@ class TestSpeculatorSkills(MartialBase):
         self.assertTrue(SKILLS["pilfer"]["manages_reveal"])
         self.assertIs(SKILLS["pilfer"]["combat_spell"], False)
 
+    def test_a_successful_pilfer_grants_a_small_amount_of_xp(self):
+        self.char2.db.gold = 1000
+        self.char1.db.xp = 0
+        self.char1.db.level = 50
+        self._pilfer()
+        self.assertGreater(self.char1.db.xp, 0)
+
+    def test_pilfer_can_target_a_civilian_npc_with_no_combat_stats_at_all(self):
+        from typeclasses.characters import Character
+
+        vendor = create.create_object(Character, key="a wine merchant", location=self.room1)
+        self.char1.db.gold = 0
+        # No max_hp, no xp_reward, no level - a plain flavor NPC.
+        self._pilfer(target=vendor, rolls=1)
+        self.assertGreater(self.char1.db.gold, 0)
+
+    def test_pilfer_target_any_character_flag_is_set(self):
+        self.assertTrue(SKILLS["pilfer"]["target_any_character"])
+
 
 class TestVenatorSkills(MartialBase):
     def setUp(self):
