@@ -489,7 +489,7 @@ class TestMartialHelp(MartialBase):
     def test_the_new_skills_have_help_with_their_real_stats(self):
         from evennia.help.models import HelpEntry
 
-        for name in ("headbutt", "dirt kick", "goad", "sentinel"):
+        for name in ("headbutt", "dirt kick", "goad", "sentinel", "parry", "shield block", "barbed guard"):
             text = HelpEntry.objects.get(db_key=name).db_entrytext
             self.assertIn("level %d" % SKILLS[name]["level_required"], text, name)
             self.assertIn("Cost: %s SP" % SKILLS[name]["cost"], text, name)
@@ -745,3 +745,194 @@ class TestRageResistance(MartialBase):
             self.char1, "ferocity", [self.char1], 8, conditions=SKILLS["ferocity"]["conditions"]
         )
         self.assertIn("Raging", self.char1.db.conditions)
+
+
+class TestParryAndShieldBlock(MartialBase):
+    def setUp(self):
+        super().setUp()
+        self.char2.db.wielded_weapon = _weapon(self.char2, 50, 50)  # the defender (char2) has a weapon
+        self.char2.db.player_class = "gladiator"
+
+    def _chance_needed(self, name, stat_defender, stat_attacker, stat="agilitas"):
+        """The exact percent chance, found by bisecting on a forced roll."""
+        setattr(self.char2.db, stat, stat_defender)
+        setattr(self.char1.db, stat, stat_attacker)
+        self.char2.db.conditions = {name: [99, self.char2]}
+        if name == "Shield Block":
+            self._armor(self.char2, "worn_shield", reduction=0, defense=5)
+        best = 0
+        for roll in range(1, 101):
+            with patch("world.combat.randint", return_value=roll):
+                if COMBAT_RULES._defensive_block(self.char1, self.char2):
+                    best = roll
+        return best
+
+    def test_the_skills_are_where_the_owner_put_them(self):
+        parry, block, guard = SKILLS["parry"], SKILLS["shield block"], SKILLS["barbed guard"]
+        self.assertEqual((parry["classes"], parry["level_required"]), (["gladiator"], 35))
+        self.assertEqual((block["classes"], block["level_required"]), (["legionary"], 30))
+        self.assertEqual((guard["classes"], guard["level_required"]), (["legionary"], 65))
+        for data in (parry, block):
+            self.assertEqual(data["cooldown"], 0)          # no cooldown
+            self.assertEqual(data["conditions"][0][1], 99)  # lasts the whole fight
+            self.assertIs(data["noncombat_spell"], False)   # a fight stance
+        self.assertEqual(parry["requires"], "weapon")
+        self.assertEqual(block["requires"], "shield")
+        for data in (parry, block, guard):
+            self.assertIs(data["npc_cast"], False)
+
+    def test_the_parry_chance_is_base_plus_two_per_agilitas_over_the_attacker(self):
+        self.assertEqual(self._chance_needed("Parrying", 10, 10), 15)
+        self.assertEqual(self._chance_needed("Parrying", 18, 10), 15 + 16)
+        self.assertEqual(self._chance_needed("Parrying", 18, 18), 15)
+
+    def test_a_nimbler_attacker_beats_the_parry_more_often(self):
+        even = self._chance_needed("Parrying", 14, 14)
+        nimbler = self._chance_needed("Parrying", 14, 18)
+        self.assertLess(nimbler, even)
+        self.assertEqual(nimbler, 15 - 8)
+
+    def test_the_chance_is_clamped(self):
+        self.assertEqual(self._chance_needed("Parrying", 10, 60), 5)
+        self.assertEqual(self._chance_needed("Parrying", 60, 10), 45)
+
+    def test_shield_block_is_opposed_virtus_not_agilitas(self):
+        self.assertEqual(self._chance_needed("Shield Block", 16, 10, stat="virtus"), 15 + 12)
+        self.assertEqual(self._chance_needed("Shield Block", 10, 16, stat="virtus"), 5)  # 3%, floored
+        self.assertEqual(self._chance_needed("Shield Block", 10, 12, stat="virtus"), 15 - 4)
+
+    def test_a_parried_blow_does_no_damage_at_all(self):
+        self.char2.db.conditions = {"Parrying": [99, self.char2]}
+        before = self.char2.db.hp
+        with patch("world.combat.randint", return_value=1):
+            COMBAT_RULES.resolve_attack(self.char1, self.char2, attack_value=999, defense_value=0)
+        self.assertEqual(self.char2.db.hp, before)
+
+    def test_a_blow_that_beats_the_parry_lands_normally(self):
+        self.char2.db.conditions = {"Parrying": [99, self.char2]}
+        before = self.char2.db.hp
+        with patch("world.combat.randint", side_effect=lambda lo, hi: hi):
+            COMBAT_RULES.resolve_attack(self.char1, self.char2, attack_value=999, defense_value=0)
+        self.assertEqual(before - self.char2.db.hp, 100)
+
+    def test_a_physical_skill_can_be_parried_too(self):
+        self.char2.db.conditions = {"Parrying": [99, self.char2]}
+        data = dict(SKILLS["finishing blow"])
+        kwargs = {k: v for k, v in data.items() if k in ("weapon_multiplier", "damage_range")}
+        before = self.char2.db.hp
+        with patch("world.combat.randint", return_value=1):
+            data["skillfunc"](self.char1, "finishing blow", [self.char2], 8, **kwargs)
+        self.assertEqual(self.char2.db.hp, before)
+
+    def test_a_disarmed_gladiator_cannot_parry(self):
+        self.char2.db.conditions = {"Parrying": [99, self.char2], "Disarmed": [2, self.char1]}
+        self.assertFalse(COMBAT_RULES._defensive_block(self.char1, self.char2))
+
+    def test_a_missing_or_cleaved_shield_cannot_block(self):
+        self.char2.db.conditions = {"Shield Block": [99, self.char2]}
+        with patch("world.combat.randint", return_value=1):
+            self.assertFalse(COMBAT_RULES._defensive_block(self.char1, self.char2))  # no shield
+            self._armor(self.char2, "worn_shield", reduction=0, defense=5)
+            self.assertTrue(COMBAT_RULES._defensive_block(self.char1, self.char2))
+            self.char2.db.combat_sundered = "worn_shield"
+            self.assertFalse(COMBAT_RULES._defensive_block(self.char1, self.char2))
+
+    def test_an_unevadable_strike_and_an_incapacitated_defender_are_never_blocked(self):
+        self.char2.db.conditions = {"Parrying": [99, self.char2], "Marked for Death": [3, self.char1]}
+        with patch("world.combat.randint", return_value=1):
+            self.assertFalse(COMBAT_RULES._defensive_block(self.char1, self.char2, marked=True))
+            self.char2.db.conditions = {"Parrying": [99, self.char2], "Stunned": [2, self.char1]}
+            self.assertFalse(COMBAT_RULES._defensive_block(self.char1, self.char2))
+
+    def test_taking_up_a_stance_needs_its_gear_and_costs_nothing_if_refused(self):
+        self.char1.db.wielded_weapon = None
+        before = self.char1.db.sp
+        self.assertIs(SKILLS["parry"]["skillfunc"](
+            self.char1, "parry", [self.char1], 6, conditions=[("Parrying", 99)], requires="weapon"), False)
+        self.assertIs(SKILLS["shield block"]["skillfunc"](
+            self.char1, "shield block", [self.char1], 6, conditions=[("Shield Block", 99)], requires="shield"), False)
+        self.assertEqual(self.char1.db.sp, before)
+        self.assertNotIn("Parrying", self.char1.db.conditions)
+
+    def test_the_stance_is_taken_once_and_lasts_until_the_fight_ends(self):
+        self.char1.db.wielded_weapon = _weapon(self.char1, 10, 10)
+        kwargs = {"conditions": [("Parrying", 99)], "requires": "weapon"}
+        SKILLS["parry"]["skillfunc"](self.char1, "parry", [self.char1], 6, **kwargs)
+        self.assertIn("Parrying", self.char1.db.conditions)
+        self.assertIs(SKILLS["parry"]["skillfunc"](self.char1, "parry", [self.char1], 6, **kwargs), False)
+        COMBAT_RULES.combat_cleanup(self.char1)
+        self.assertNotIn("Parrying", self.char1.db.conditions)
+        self.assertNotIn("Shield Block", self.char1.db.conditions)
+
+
+class TestBarbedGuard(MartialBase):
+    def _guarded(self):
+        self.char2.db.conditions = {"Barbed Guard": [4, self.char2]}
+
+    def test_a_quarter_of_a_physical_blow_is_thrown_back(self):
+        self._guarded()
+        before = self.char1.db.hp
+        COMBAT_RULES.apply_damage(self.char2, 100, attacker=self.char1, melee=True)
+        self.assertEqual(before - self.char1.db.hp, 25)
+        self.assertEqual(100000 - self.char2.db.hp, 100)  # the guard doesn't lessen the blow
+
+    def test_a_spell_is_not_reflected(self):
+        self._guarded()
+        before = self.char1.db.hp
+        COMBAT_RULES.apply_damage(self.char2, 100, attacker=self.char1, melee=False)
+        self.assertEqual(before, self.char1.db.hp)
+
+    def test_it_reflects_what_the_target_is_actually_hit_for_after_a_rage(self):
+        self.char2.db.conditions = {"Barbed Guard": [4, self.char2], "Raging": [4, self.char2]}
+        before = self.char1.db.hp
+        COMBAT_RULES.apply_damage(self.char2, 100, attacker=self.char1, melee=True)
+        self.assertEqual(before - self.char1.db.hp, int(65 * 0.25))
+
+    def test_a_blow_soaked_by_a_ward_is_still_thrown_back(self):
+        self._guarded()
+        wards_module = __import__("world.wards", fromlist=["grant_temp_hp"])
+        wards_module.grant_temp_hp(self.char2, 500)
+        before = self.char1.db.hp
+        COMBAT_RULES.apply_damage(self.char2, 100, attacker=self.char1, melee=True)
+        self.assertEqual(before - self.char1.db.hp, 25)
+
+    def test_a_fully_absorbed_blow_reflects_nothing(self):
+        self._guarded()
+        self.char2.db.conditions["Shielded"] = [4, self.char2]
+        before = self.char1.db.hp
+        COMBAT_RULES.apply_damage(self.char2, 100, attacker=self.char1, melee=True)
+        self.assertEqual(before, self.char1.db.hp)
+
+    def test_two_guards_do_not_ping_pong_forever(self):
+        self._guarded()
+        self.char1.db.conditions = {"Barbed Guard": [4, self.char1]}
+        COMBAT_RULES.apply_damage(self.char2, 100, attacker=self.char1, melee=True)
+        self.assertGreater(self.char1.db.hp, 99000)
+
+    def test_a_reflected_blow_can_finish_the_attacker(self):
+        self._guarded()
+        self.char1.db.hp = 10
+        with patch.object(COMBAT_RULES, "at_defeat") as defeated:
+            COMBAT_RULES.apply_damage(self.char2, 100, attacker=self.char1, melee=True)
+        defeated.assert_called_once_with(self.char1, attacker=self.char2)
+
+    def test_it_lasts_a_few_turns_not_the_whole_fight(self):
+        self.assertEqual(SKILLS["barbed guard"]["conditions"][0], ("Barbed Guard", 4))
+        self.assertEqual(SKILLS["barbed guard"]["level_required"], 65)
+
+
+class TestCritChancePerStrike(MartialBase):
+    def test_the_numbers_a_player_can_be_told(self):
+        table = {}
+        for category in ("light_blade", "heavy_blade", "ranged", "polearm", "heavy_weapon", "staff"):
+            self.char1.db.wielded_weapon = _weapon(self.char1, 10, 10, category=category)
+            self.char1.db.agilitas = 10
+            base = martial.crit_profile(self.char1)[0]
+            self.char1.db.agilitas = 18
+            table[category] = (base, martial.crit_profile(self.char1)[0])
+        self.assertEqual(table["light_blade"], (10, 14.0))
+        self.assertEqual(table["heavy_blade"], (8, 12.0))
+        self.assertEqual(table["ranged"], (8, 12.0))
+        self.assertEqual(table["polearm"], (5, 9.0))
+        self.assertEqual(table["heavy_weapon"], (5, 9.0))
+        self.assertEqual(table["staff"], (5, 9.0))

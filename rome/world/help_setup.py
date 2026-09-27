@@ -220,6 +220,36 @@ NEW_SKILL_HELP = {
         "physical skills (not spells), and a reaction never triggers another "
         "one. Pair it with 'Goad' and a party of two or three holds a line."
     ),
+    "parry": (
+        "The Gladiator's duelist stance. Take it up once and it lasts |wthe "
+        "whole fight|n - no cooldown, nothing more to spend. Every blow aimed at "
+        "you, a basic attack or a physical skill, has a chance to be turned "
+        "aside |wcompletely|n (no damage). The chance is |w15%|n plus |w2% for "
+        "every point of your Agilitas above the attacker's|n (2% less for every "
+        "point below), never under 5% or over 45% - so a nimbler enemy gets "
+        "through your parry more often, and a slow one hardly at all. You need a "
+        "weapon in your hand: a disarmed gladiator can't parry. A strike that "
+        "cannot be evaded (Marked for Death) can't be parried, and a stunned or "
+        "sleeping fighter can't parry at all."
+    ),
+    "shield block": (
+        "The Legionary's shield stance. Take it up once and it lasts |wthe whole "
+        "fight|n, no cooldown. Each blow aimed at you, a basic attack or a "
+        "physical skill, may be caught on your shield entirely: |w15%|n plus |w2% "
+        "for every point of your Virtus above the attacker's|n, never under 5% or "
+        "over 45%. It only works while you |wwear a shield|n - and a shield "
+        "cleaved through by a Sunder stops blocking for the rest of the fight. "
+        "Like Parry, it can't stop an unevadable strike, and you can't block "
+        "while stunned or asleep."
+    ),
+    "barbed guard": (
+        "The Legionary's wall of spikes. For a few turns, |wa quarter of every "
+        "physical blow you take is thrown back at whoever struck you|n - it "
+        "doesn't lessen the blow, it punishes it. Spells are not reflected. "
+        "Pair it with Goad and monsters that must attack you hurt themselves "
+        "doing it. Not to be confused with the Gladiator's Riposte, which is a "
+        "counter-attack, not a reflection."
+    ),
     "dirt kick": (
         "The Gladiator's arena dirty trick: a kick of sand into the eyes. The "
         "target is |wBlinded|n for a few turns - a big drop to their accuracy, "

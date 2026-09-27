@@ -310,6 +310,7 @@ BENEFICIAL_CONDITIONS = frozenset({
     "Regeneration", "Haste", "Accuracy Up", "Damage Up", "Defense Up",
     "Death Ward", "Invisible", "Illusory Duplicate", "Shielded",
     "Ambush", "Riposte Ready", "Sees Invisible", "Raging", "Sentinel",
+    "Parrying", "Shield Block", "Barbed Guard",
 })
 
 # ----------------------------------------------------------------------------
@@ -372,6 +373,20 @@ ILLUSION_ACCURACY_PENALTY = -30
 GOAD_OFFTARGET_PENALTY = -30
 # Raging (Barbarian's Ferocity): fraction of physical (weapon) damage shrugged off.
 RAGE_MELEE_RESISTANCE = 0.35
+# Parry (Gladiator) and Shield Block (Legionary): a stance that lasts the whole
+# fight; each incoming physical blow has a chance to be turned aside entirely -
+# BLOCK_BASE_CHANCE, plus BLOCK_PER_STAT_POINT for each point the defender's stat
+# (Agilitas to parry, Virtus to block) is above the ATTACKER's same stat, and
+# minus that for each below, clamped. So a nimbler attacker beats a parry.
+BLOCK_BASE_CHANCE = 15
+BLOCK_PER_STAT_POINT = 2
+BLOCK_MIN_CHANCE = 5
+BLOCK_MAX_CHANCE = 45
+# Barbed Guard (Legionary): fraction of every physical blow taken that is
+# thrown back at the attacker.
+BARBED_GUARD_REFLECT = 0.25
+# Stances that last the whole fight and vanish with it.
+FIGHT_LONG_STANCES = ("Parrying", "Shield Block")
 
 # Sanctuary (Medicus mythic-tier spell). A higher-level attacker has
 # this percent chance to break through and drag a Sanctuary'd
@@ -1511,12 +1526,17 @@ class CombatRules:
         # Temporary HP (False Life, Aid, Armor of Agathys - world/wards.py)
         # soaks a hit before real HP is touched; a warded melee target also
         # lashes back at the attacker.
+        reflect_base = damage
         if damage > 0:
             damage = wards.absorb_with_temp_hp(
                 self, defender, damage, attacker=attacker, melee=melee
             )
             if damage <= 0:
+                if melee and "Barbed Guard" in self.get_conditions(defender):
+                    self._reflect_damage(defender, attacker, reflect_base)
                 return
+        if melee and reflect_base > 0 and "Barbed Guard" in self.get_conditions(defender):
+            self._reflect_damage(defender, attacker, reflect_base)
 
         defender.db.hp -= damage
         if defender.db.hp <= 0:
@@ -2260,6 +2280,63 @@ class CombatRules:
 
         return True
 
+    def _defensive_block(self, attacker, defender, marked=False):
+        """
+        True if `defender` turns this physical blow aside with a Parry (needs a
+        weapon in hand; Agilitas against the attacker's Agilitas) or a Shield
+        Block (needs a shield that hasn't been cleaved; Virtus against Virtus).
+        A blow that can't be evaded (Marked for Death) and a defender who is
+        stunned or asleep are never blocked. One roll per stance, per blow.
+        """
+        conditions = defender.db.conditions or {}
+        if marked or martial.is_incapacitated(defender):
+            return False
+        for name, stat, needs in (("Parrying", "agilitas", "weapon"), ("Shield Block", "virtus", "shield")):
+            if name not in conditions:
+                continue
+            if needs == "weapon" and not martial.wielded_weapon(defender):
+                continue
+            if needs == "shield" and (
+                not defender.db.worn_shield or defender.db.combat_sundered == "worn_shield"
+            ):
+                continue
+            edge = (getattr(defender.db, stat) or 10) - (getattr(attacker.db, stat) or 10)
+            chance = max(
+                BLOCK_MIN_CHANCE,
+                min(BLOCK_MAX_CHANCE, BLOCK_BASE_CHANCE + edge * BLOCK_PER_STAT_POINT),
+            )
+            if randint(1, 100) <= chance:
+                if defender.location:
+                    defender.location.msg_contents(
+                        "|c%s %s %s's blow - no damage!|n"
+                        % (
+                            defender,
+                            "deftly parries" if name == "Parrying" else "catches on their shield",
+                            attacker,
+                        )
+                    )
+                return True
+        return False
+
+    def _reflect_damage(self, defender, attacker, taken):
+        """Barbed Guard: throws a share of a physical blow back at whoever struck."""
+        if (
+            attacker is None or attacker is defender or not attacker.pk
+            or (attacker.db.hp or 0) <= 0 or taken <= 0
+        ):
+            return
+        reflected = int(taken * BARBED_GUARD_REFLECT)
+        if reflected <= 0:
+            return
+        if defender.location:
+            defender.location.msg_contents(
+                "|c%s's barbed guard throws the blow back - %s takes |r%i|c damage!|n"
+                % (defender, attacker, reflected)
+            )
+        self.apply_damage(attacker, reflected, attacker=defender, announce_threshold=False)
+        if (attacker.db.hp or 0) <= 0:
+            self.at_defeat(attacker, attacker=defender)
+
     def _sentinel_reactions(self, attacker, defender):
         """
         D&D's Sentinel: while a Legionary's Sentinel stance is up, an enemy who
@@ -2405,6 +2482,13 @@ class CombatRules:
             )
             return
 
+        # Parry / Shield Block: a landed blow can still be turned aside - but not
+        # a strike that "cannot be evaded" (Marked for Death).
+        if self._defensive_block(
+            attacker, defender, marked=("Marked for Death" in self.get_conditions(defender))
+        ):
+            return
+
         computed_here = damage_value is None
         if damage_value is None:
             damage_value = self.get_damage(attacker, defender)
@@ -2547,7 +2631,7 @@ class CombatRules:
         # A stun or a grapple is a hold of the fight itself: it ends with it.
         held = character.db.conditions
         if held:
-            for name in ("Stunned", "Grappled", "Stun Immunity"):
+            for name in ("Stunned", "Grappled", "Stun Immunity") + FIGHT_LONG_STANCES:
                 held.pop(name, None)
 
     def is_in_combat(self, character):
@@ -4089,6 +4173,33 @@ class CombatRules:
             here.ndb.pending_fighters = [user, target]
             here.scripts.add(CombatTurnHandler)
 
+    def skill_stance(self, user, skill_name, targets, cost, **kwargs):
+        """
+        A fight-long defensive stance - Gladiator's Parry (needs a weapon in
+        hand) and Legionary's Shield Block (needs an uncleaved shield). Returns
+        False, spending nothing, if the requirement isn't met or the stance is
+        already up.
+        """
+        requires = kwargs.get("requires")
+        conditions = kwargs.get("conditions", [])
+        if requires == "weapon" and not martial.wielded_weapon(user):
+            user.msg("You need a weapon in your hand to %s." % skill_name)
+            return False
+        if requires == "shield" and (
+            not user.db.worn_shield or user.db.combat_sundered == "worn_shield"
+        ):
+            user.msg("You need a sound shield on your arm to %s." % skill_name)
+            return False
+        if conditions and conditions[0][0] in self.get_conditions(user):
+            user.msg("You're already in that stance.")
+            return False
+        user.db.sp -= cost
+        user.location.msg_contents("%s takes up a %s stance!" % (user, skill_name))
+        for name, duration in conditions:
+            self.add_condition(user, user, name, duration)
+        if self.is_in_combat(user):
+            self.spend_action(user, 1, action_name="skill")
+
     def skill_backstab(self, user, skill_name, targets, cost, **kwargs):
         """
         Deals bonus damage if the target hasn't yet acted at all in
@@ -4252,6 +4363,9 @@ class CombatRules:
             defense_value = self.get_defense(user, target)
             if attack_value < defense_value:
                 skill_msg += " %s misses %s!" % (skill_name, target)
+                continue
+            if self._defensive_block(user, target):
+                skill_msg += " %s turns the blow aside!" % target
                 continue
             damage = self._skill_damage(user, target, kwargs, (min_damage, max_damage), "agilitas")
             # announce_threshold=False - skill_msg below already shows
@@ -5667,6 +5781,42 @@ SKILLS = {
         "npc_cast": False,
         "classes": ["legionary"],
         "desc": "A guardian's stance (D&D's Sentinel): for a few turns, any enemy who attacks one of your allies takes a free strike from you, once per turn, at no cost to your action. Works against basic attacks and physical skills, not spells.",
+    },
+    "parry": {
+        "skillfunc": COMBAT_RULES.skill_stance,
+        "target": "self",
+        "cost": 6,
+        "level_required": 35,
+        "conditions": [("Parrying", 99)],
+        "requires": "weapon",
+        "cooldown": 0,
+        "noncombat_spell": False,
+        "npc_cast": False,
+        "classes": ["gladiator"],
+        "desc": "A duelist's stance: for the whole fight - no cooldown, nothing more to spend - each blow aimed at you, basic attack or physical skill, has a chance to be turned aside completely. The chance is 15%, plus 2 for every point of your Agilitas above the attacker's (and minus 2 for every point below), never under 5% or over 45%: a nimbler foe beats your parry more often. Needs a weapon in your hand; a disarmed gladiator can't parry.",
+    },
+    "shield block": {
+        "skillfunc": COMBAT_RULES.skill_stance,
+        "target": "self",
+        "cost": 6,
+        "level_required": 30,
+        "conditions": [("Shield Block", 99)],
+        "requires": "shield",
+        "cooldown": 0,
+        "noncombat_spell": False,
+        "npc_cast": False,
+        "classes": ["legionary"],
+        "desc": "Locks your shield up in a guarding stance for the whole fight - no cooldown. Each blow aimed at you, basic attack or physical skill, has a chance to be caught on the shield entirely: 15%, plus 2 for every point of your Virtus above the attacker's (minus 2 for every point below), never under 5% or over 45%. Only works while you wear a shield - one cleaved through (Sundered) stops blocking.",
+    },
+    "barbed guard": {
+        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "target": "self",
+        "cost": 9,
+        "level_required": 65,
+        "conditions": [("Barbed Guard", 4)],
+        "npc_cast": False,
+        "classes": ["legionary"],
+        "desc": "Turns your guard into a wall of spikes: for a few turns a quarter of every physical blow you take is thrown back at whoever struck you. Spells are not reflected.",
     },
     "sneak": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -12467,9 +12617,11 @@ class CmdUseSkill(MuxCommand):
         self.rules.start_combat_from_offensive_action(user, skill_targets)
 
         try:
-            skilldata["skillfunc"](
+            result = skilldata["skillfunc"](
                 user, skill_to_use, skill_targets, skilldata["cost"], **kwargs
             )
+            if result is False:
+                return  # refused and said why - no XP or cooldown
             self.rules.award_cast_xp(user, skilldata["cost"])
             if skilldata["cooldown"] > 0:
                 self.rules.get_cooldowns(user)[skill_to_use] = skilldata["cooldown"]
