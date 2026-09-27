@@ -1396,6 +1396,8 @@ ARENA_FIGHTER_MASTER = {
     "level": 100,
     "xp_reward": 7571,
     "respawn_delay": 300,
+    "elite_combatant": True,  # signature-move pass, Sep 27
+    "boss_signature": ("skill", "glory"),
     "tags": [("arena_fighter", "npc_role")],
     "locks": "puppet:false()",
 }
@@ -2807,6 +2809,12 @@ SEWER_BOSS_DROWNED_SENTINEL = {
     "level": 25,
     "xp_reward": 600,
     "respawn_delay": 900,
+    # Signature-move pass (Sep 27) - previously the most mechanically bare
+    # named boss in the game (no gear, no AI beyond the generic pool); see
+    # equip_sewer_boss/SEWER_BOSS_GEAR (world/combat.py) for its new gear
+    # (a real two-handed waraxe, needed for this signature move).
+    "elite_combatant": True,
+    "boss_signature": ("skill", "thundering maul"),
     "tags": [("sewer_npc", "npc_role"), ("sewer_boss", "npc_role")],
     "locks": "puppet:false()",
 }
@@ -3230,6 +3238,8 @@ GERMANIA_BOSS_STORMCALLER_CHAMPION = {
     "level": 46,
     "xp_reward": 2200,
     "respawn_delay": 1200,
+    "elite_combatant": True,  # signature-move pass, Sep 27
+    "boss_signature": ("skill", "war cry"),
     "tags": [("germania_npc", "npc_role"), ("germania_boss", "npc_role")],
     "locks": "puppet:false()",
 }
@@ -3611,6 +3621,8 @@ AMBER_BOSS_SKALLA_HALF_DROWNED = {
     "level": 55,
     "xp_reward": 2431,
     "respawn_delay": 900,
+    "elite_combatant": True,  # signature-move pass, Sep 27
+    "boss_signature": ("skill", "quarry"),
     "tags": [("amber_coast_npc", "npc_role"), ("amber_coast_leader", "npc_role")],
     "locks": "puppet:false()",
 }
@@ -3737,6 +3749,8 @@ AMBER_BOSS_BERHTWIN_OAKENSHIELD = {
     "level": 58,
     "xp_reward": 2689,
     "respawn_delay": 900,
+    "elite_combatant": True,  # signature-move pass, Sep 27 - already wields a real two-handed waraxe
+    "boss_signature": ("skill", "thundering maul"),
     "tags": [("amber_coast_npc", "npc_role"), ("amber_coast_leader", "npc_role")],
     "locks": "puppet:false()",
 }
@@ -3847,6 +3861,8 @@ AMBER_BOSS_WULFHILD_THE_SWORN = {
     "level": 60,
     "xp_reward": 2868,
     "respawn_delay": 900,
+    "elite_combatant": True,  # signature-move pass, Sep 27
+    "boss_signature": ("spell", "armor of agathys"),
     "tags": [("amber_coast_npc", "npc_role"), ("amber_coast_leader", "npc_role")],
     "locks": "puppet:false()",
 }
@@ -3954,6 +3970,8 @@ AMBER_BOSS_INGVAR_COINWARD = {
     "level": 63,
     "xp_reward": 3147,
     "respawn_delay": 900,
+    "elite_combatant": True,  # signature-move pass, Sep 27
+    "boss_signature": ("skill", "finishing blow"),
     "tags": [("amber_coast_npc", "npc_role"), ("amber_coast_leader", "npc_role")],
     "locks": "puppet:false()",
 }
@@ -3974,6 +3992,8 @@ AMBER_BOSS_HERTHA_SEA_NIX = {
     "level": 68,
     "xp_reward": 3638,
     "respawn_delay": 1200,
+    "elite_combatant": True,  # signature-move pass, Sep 27
+    "boss_signature": ("skill", "ferocity"),
     "tags": [("amber_coast_npc", "npc_role"), ("amber_coast_boss", "npc_role")],
     "locks": "puppet:false()",
 }
@@ -4030,6 +4050,8 @@ AMBER_GUARDIAN_VEILED_WAGON = {
     "level": 63,
     "xp_reward": 3147,
     "respawn_delay": 1200,
+    "elite_combatant": True,  # signature-move pass, Sep 27
+    "boss_signature": ("spell", "slow"),
     "tags": [("amber_coast_npc", "npc_role"), ("amber_coast_boss", "npc_role")],
     "locks": "puppet:false()",
 }
@@ -4136,6 +4158,8 @@ AMBER_BOSS_ORMSTOOTH = {
     "level": 71,
     "xp_reward": 3949,
     "respawn_delay": 1800,
+    "elite_combatant": True,  # signature-move pass, Sep 27
+    "boss_signature": ("skill", "reckless abandon"),
     "tags": [("amber_coast_npc", "npc_role"), ("amber_coast_boss", "npc_role")],
     "locks": "puppet:false()",
 }

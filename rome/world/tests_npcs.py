@@ -237,6 +237,87 @@ class TestHostileNPCGatherActions(EvenniaTest):
         self.assertNotIn("cure wounds", names)
 
 
+class TestBossSignatureMoves(EvenniaTest):
+    """
+    The Sep 27 boss-signature-move pass: db.boss_signature lets one
+    hand-picked NPC favor a specific existing spell/skill over the
+    generic random pool _gather_actions() builds - deliberately able to
+    bypass a move's own npc_cast: False (see BOSS_SIGNATURE_CHANCE's own
+    comment in world/combat.py for why that's intentional here).
+    """
+
+    def _npc(self, player_class="barbarian", level=60):
+        npc = create.create_object(HostileNPC, key="boss", location=self.room1)
+        npc.db.player_class = player_class
+        npc.db.level = level
+        npc.db.hp = npc.db.max_hp = 500
+        npc.db.mp = npc.db.sp = 100
+        return npc
+
+    def test_no_signature_move_falls_back_to_the_random_pool(self):
+        npc = self._npc()
+        actions = npc._gather_actions()
+        with patch("world.combat.randint", return_value=0):
+            kind, name, target_is_self = npc._pick_action(actions)
+        self.assertEqual((kind, name, target_is_self), actions[0])
+
+    def test_signature_move_fires_on_a_hit_and_bypasses_npc_cast_false(self):
+        npc = self._npc(player_class="venator", level=60)
+        npc.db.boss_signature = ("skill", "quarry")  # npc_cast: False
+        actions = npc._gather_actions()
+        self.assertNotIn(("skill", "quarry", False), actions)  # confirms the bypass is doing real work
+        # randint(1, 100) hits BOSS_SIGNATURE_CHANCE; the separate
+        # randint(0, len(actions)-1) fallback call still needs an in-range value.
+        with patch("world.combat.randint", side_effect=lambda lo, hi: 1 if hi == 100 else 0):
+            kind, name, target_is_self = npc._pick_action(actions)
+        self.assertEqual((kind, name), ("skill", "quarry"))
+
+    def test_signature_move_skipped_on_a_miss(self):
+        npc = self._npc(player_class="venator", level=60)
+        npc.db.boss_signature = ("skill", "quarry")
+        actions = npc._gather_actions()
+        with patch("world.combat.randint", side_effect=lambda lo, hi: hi if hi != 100 else 100):
+            kind, name, target_is_self = npc._pick_action(actions)
+        self.assertNotEqual(name, "quarry")
+
+    def test_signature_move_unaffordable_falls_back(self):
+        npc = self._npc(player_class="venator", level=60)
+        npc.db.sp = 0  # quarry costs 4
+        npc.db.boss_signature = ("skill", "quarry")
+        actions = npc._gather_actions()
+        with patch("world.combat.randint", side_effect=lambda lo, hi: 0 if hi == 100 else 0):
+            kind, name, target_is_self = npc._pick_action(actions)
+        self.assertNotEqual(name, "quarry")
+
+    def test_signature_move_too_high_level_falls_back(self):
+        npc = self._npc(player_class="haruspex", level=10)
+        npc.db.boss_signature = ("spell", "armor of agathys")  # level_required 28
+        actions = npc._gather_actions()
+        with patch("world.combat.randint", side_effect=lambda lo, hi: 0 if hi == 100 else 0):
+            kind, name, target_is_self = npc._pick_action(actions)
+        self.assertNotEqual(name, "armor of agathys")
+
+    def test_every_assigned_boss_signature_move_is_real_and_in_reach(self):
+        from world.combat import SPELLS, SKILLS
+
+        bosses = {
+            "the Drowned Sentinel": ("barbarian", 25, "skill", "thundering maul"),
+            "Skalla Half-Drowned": ("venator", 55, "skill", "quarry"),
+            "Berhtwin Oakenshield": ("barbarian", 58, "skill", "thundering maul"),
+            "Wulfhild the Sworn": ("haruspex", 60, "spell", "armor of agathys"),
+            "Ingvar Coin-Ward": ("gladiator", 63, "skill", "finishing blow"),
+            "the Veiled Wagon's guardian": ("haruspex", 63, "spell", "slow"),
+            "Hertha Sea-Nix": ("barbarian", 68, "skill", "ferocity"),
+            "Ormstooth, the Unclaimed": ("barbarian", 71, "skill", "reckless abandon"),
+            "Vidrik Storm-Marked": ("barbarian", 46, "skill", "war cry"),
+            "the Arena Master": ("gladiator", 100, "skill", "glory"),
+        }
+        for boss_name, (player_class, level, kind, name) in bosses.items():
+            data = (SPELLS if kind == "spell" else SKILLS)[name]
+            self.assertIn(player_class, data.get("classes", []), boss_name)
+            self.assertLessEqual(data.get("level_required", 1), level, boss_name)
+
+
 class TestHostileNPCTurnAI(EvenniaTest):
     def test_no_opponent_does_nothing(self):
         from world.combat import CombatTurnHandler

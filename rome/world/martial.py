@@ -93,9 +93,24 @@ def wielded_weapon(character):
     return character.db.wielded_weapon
 
 
+def is_player_grade(character):
+    """
+    True for a real player, OR a hand-picked boss NPC explicitly flagged
+    db.elite_combatant (Sep 27, owner-approved "signature moves for named
+    bosses" pass - see rome_mud_todo.md). Every mechanic that's deliberately
+    real-players-only (crits, a skill's own weapon-multiplier damage
+    scaling, martial riders like Bleed/Stun/Disarm/Sunder) checks this
+    instead of a bare account check, so ONE explicitly-flagged boss can
+    genuinely land its signature move's real effect without silently
+    reopening any of this for the rest of the game's NPC roster - setting
+    the flag is a deliberate, per-object choice, never a class/type default.
+    """
+    return bool(getattr(character, "account", None) or character.db.elite_combatant)
+
+
 def crit_profile(attacker):
     """(chance percent, multiplier) for this attacker, or None if they can't crit."""
-    if not getattr(attacker, "account", None) or not crits_enabled():
+    if not is_player_grade(attacker) or not crits_enabled():
         return None
     weapon = wielded_weapon(attacker)
     if weapon is not None:
@@ -210,7 +225,7 @@ def apply_rider(rules, user, target, rider, damage=0, attacker_stat=None):
     Only real players' skills carry riders, and only against living, non-pacifist
     targets.
     """
-    if not rider or not getattr(user, "account", None):
+    if not rider or not is_player_grade(user):
         return False
     if target is None or not target.pk or (target.db.hp or 0) <= 0 or target.db.pacifist:
         return False

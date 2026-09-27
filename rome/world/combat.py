@@ -4841,7 +4841,7 @@ class CombatRules:
         `damage_range` plus half the relevant stat's bonus.
         """
         multiplier = kwargs.get("weapon_multiplier")
-        if multiplier and getattr(user, "account", None):
+        if multiplier and martial.is_player_grade(user):
             base = self.get_damage(user, target, ignore_armor=ignore_armor)
             crit = martial.roll_crit(user, guaranteed=kwargs.get("guaranteed_crit", False))
             if crit > 1:
@@ -7894,6 +7894,20 @@ class AutoStatNPC(DefaultCharacter):
             self.attributes.add(key, value)
 
 
+# A hand-picked boss's own real signature move (Sep 27, owner-approved
+# "review the bosses and give them a few signature moves that already exist
+# in the game" pass - see rome_mud_todo.md for the full roster and reasoning).
+# Deliberately NOT a blanket change to _gather_actions' random pool - every
+# ordinary NPC keeps exactly the behavior it always had; only an NPC this
+# session explicitly stamped db.boss_signature on ever reaches this branch
+# at all. Also deliberately bypasses a signature move's own npc_cast: False
+# (Quarry, Slow, Armor of Agathys and others carry that flag specifically to
+# keep the WIDE, random monster population from stumbling into a still-new
+# player skill by accident - a boss's own hand-picked signature is the
+# opposite of an accident, so it's exempted here on purpose).
+BOSS_SIGNATURE_CHANCE = 50  # percent, checked once per turn
+
+
 class HostileNPC(AutoStatNPC):
     """
     Base typeclass for NPCs meant to genuinely fight back - Ludus
@@ -7980,6 +7994,30 @@ class HostileNPC(AutoStatNPC):
                 actions.append((source_name, name, target_type == "self"))
 
         return actions
+
+    def _pick_action(self, actions):
+        """
+        Which of this NPC's eligible actions to take this turn - see
+        BOSS_SIGNATURE_CHANCE's own comment above for the full reasoning.
+        Falls back to the plain random pool (exactly this NPC's pre-Sep-27
+        behavior) whenever there's no signature move, the chance roll
+        misses, or the signature move currently isn't actually affordable/
+        high-enough-level for this NPC (checked directly against SPELLS/
+        SKILLS rather than trusting db.boss_signature blindly, in case a
+        boss's own level or MP/SP ever changes out from under it).
+        """
+        signature = self.db.boss_signature
+        if signature and randint(1, 100) <= BOSS_SIGNATURE_CHANCE:
+            kind, name = signature
+            data = (SPELLS if kind == "spell" else SKILLS).get(name)
+            if data:
+                resource = self.db.mp if kind == "spell" else self.db.sp
+                if (
+                    data["cost"] <= (resource or 0)
+                    and data.get("level_required", 1) <= (self.db.level or 1)
+                ):
+                    return kind, name, data.get("target") == "self"
+        return actions[randint(0, len(actions) - 1)]
 
     def _use_ability(self, kind, name, target):
         """Invokes a chosen spell/skill exactly as CmdCast/CmdUseSkill would."""
@@ -8070,7 +8108,7 @@ class HostileNPC(AutoStatNPC):
             opponent = goad[1]
 
         actions = self._gather_actions()
-        kind, name, target_is_self = actions[randint(0, len(actions) - 1)]
+        kind, name, target_is_self = self._pick_action(actions)
 
         if kind == "attack":
             COMBAT_RULES.resolve_attack(self, opponent)
@@ -8169,6 +8207,35 @@ ARENA_FIGHTER_GEAR = {
     "a Cyclops arena champion": ("BROADSWORD", "PLATEMAIL", "SCUTUM"),
     "the Arena Master": ("WARAXE", "PLATEMAIL", None),
 }
+
+
+SEWER_BOSS_GEAR = {
+    # The Cloaca Maxima's own capstone (Sep 27) - the "before/after" boss of
+    # the signature-move pass, per the boss audit: no gear at all previously,
+    # unlike every Arena Fighter/Amber Coast NPC. Same shape as ARENA_
+    # FIGHTER_GEAR/AMBER_COAST_GEAR - equip_sewer_boss below mirrors
+    # equip_arena_fighter exactly. WARAXE (two-handed) so its signature move,
+    # Thundering Maul, actually has the weapon it needs.
+    "the Drowned Sentinel": ("WARAXE", "SCALEMAIL", None),
+}
+
+
+def equip_sewer_boss(npc):
+    """Gives a named sewer boss real, mechanically-active gear - identical
+    mechanism to equip_arena_fighter, just its own small table."""
+    gear = SEWER_BOSS_GEAR.get(npc.key)
+    if not gear:
+        return
+
+    weapon_proto, armor_proto, shield_proto = gear
+    level = npc.db.level or 1
+
+    npc.db.wielded_weapon = spawn_leveled_weapon(weapon_proto, level, location=npc)
+    npc.db.worn_armor = spawn_leveled_armor(armor_proto, level, location=npc)
+    if shield_proto:
+        shield = spawn(shield_proto)[0]
+        shield.move_to(npc, quiet=True)
+        npc.db.worn_shield = shield
 
 
 def equip_arena_fighter(npc):
@@ -8321,6 +8388,7 @@ class RespawningNPC(HostileNPC):
         self.db.respawn_home = self.location
         equip_arena_fighter(self)
         equip_amber_coast_npc(self)
+        equip_sewer_boss(self)
 
 
 class SummonedAlly(DefaultCharacter):
