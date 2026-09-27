@@ -6,6 +6,7 @@ Crits are random, so under the test runner they are off unless a test here turns
 them on (martial.CRITS_IN_TESTS) - hundreds of other tests assert exact damage.
 """
 
+import time
 from unittest.mock import patch
 
 from evennia.utils import create
@@ -1028,10 +1029,10 @@ class TestSpeculatorSkills(MartialBase):
         third = create.create_object("typeclasses.characters.Character", key="Third", location=self.room1)
         third.db.max_hp = third.db.hp = 100000
         third.db.conditions = {}
-        data = dict(SKILLS["earth-shaking slam"])
+        data = dict(SKILLS["whirlwind"])
         kwargs = {k: v for k, v in data.items() if k in ("weapon_multiplier", "damage_range")}
         with patch("world.combat.randint", side_effect=lambda lo, hi: hi):
-            data["skillfunc"](self.char1, "earth-shaking slam", [self.char2, third], 11, **kwargs)
+            data["skillfunc"](self.char1, "whirlwind", [self.char2, third], 11, **kwargs)
         self.assertEqual(100000 - third.db.hp, 130)
         self.assertEqual(100000 - self.char2.db.hp, 65)   # halved
         self.char2.db.hp = 100000
@@ -1341,8 +1342,6 @@ class TestOverlapCleanup(MartialBase):
             self.assertIs(data["skillfunc"].__func__, COMBAT_RULES.skill_attack.__func__, name)
             self.assertEqual(data["rider"]["effect"], effect, name)
             self.assertGreater(data["weapon_multiplier"], 1.0, name)
-        self.assertEqual(SKILLS["snare"]["rider"]["effect"], "Bleeding")
-        self.assertGreater(SKILLS["snare"]["weapon_multiplier"], 1.0)
 
     def test_entangle_is_now_a_net_that_grapples(self):
         self.assertEqual(SKILLS["entangle"]["conditions"], [("Grappled", 3)])
@@ -1584,7 +1583,7 @@ class TestGroupBuffsPickThePartyThemselves(MartialBase):
         self.assertEqual(spy.call_args[0][2], [self.char1])
 
     def test_the_descriptions_no_longer_tell_you_to_type_equals_party(self):
-        for name in ("testudo", "rally", "last stand"):
+        for name in ("testudo", "rally"):
             self.assertNotIn("= party", SKILLS[name]["desc"], name)
             self.assertIn("automatically", SKILLS[name]["desc"], name)
 
@@ -1841,17 +1840,16 @@ class TestAgilitasAndPhysicalContests(MartialBase):
             )
 
     def test_snare_is_sprung_free_of_with_agilitas(self):
-        self.assertEqual(SKILLS["snare"]["rider"]["resist"], "agilitas")
+        self.char1.db.location = self.room1
+        self.char2.db.pacifist = False
         self.char2.db.agilitas = 20
         self.char2.db.vigor = 10
-        rider = {"effect": "Bleeding", "chance": 100, "duration": 4, "resist": "agilitas"}
-        with patch("world.combat.randint", return_value=25):
-            self.assertFalse(martial.apply_rider(COMBAT_RULES, self.char1, self.char2, rider, 100,
-                                                 attacker_stat="agilitas"))
-        rider.pop("resist")
-        with patch("world.combat.randint", return_value=25):
-            self.assertTrue(martial.apply_rider(COMBAT_RULES, self.char1, self.char2, rider, 100,
-                                                attacker_stat="agilitas"))
+        with patch("world.combat.randint", return_value=25):  # would resist an Agilitas contest
+            self.assertTrue(
+                COMBAT_RULES.resists_condition(
+                    self.char1, self.char2, condition="Snared", attacker_stat="agilitas"
+                )
+            )
 
     def test_use_skill_passes_each_classs_contest_stat(self):
         from world.combat import CLASS_CONTEST_STAT, CmdUseSkill
@@ -1859,7 +1857,8 @@ class TestAgilitasAndPhysicalContests(MartialBase):
         self.assertEqual(CLASS_CONTEST_STAT["legionary"], "virtus")
         self.assertEqual(CLASS_CONTEST_STAT["venator"], "agilitas")
         self.char1.db.skills_known = ["entangle"]
-        self._fight()
+        handler = self._fight()
+        handler.db.turn = handler.db.fighters.index(self.char1)
         self.char1.db.combat_actionsleft = 1
         seen = {}
 
@@ -1900,3 +1899,183 @@ class TestAgilitasAndPhysicalContests(MartialBase):
                               **{k: v for k, v in data.items()
                                  if k not in ("skillfunc", "target", "cost", "classes", "desc", "level_required")})
         self.assertEqual(self.char2.db.hp, before)
+
+
+class TestRowProtectionOnDebuffSkills(MartialBase):
+    """
+    Sep 27, owner verification request: physical debuff skills (skill_
+    add_condition, otherchar target) split the same way spell_attack and
+    skill_attack already do - a shouted/willed effect (Goad, War Cry,
+    Intimidating Roar) reaches a protected back row like a spell does; one
+    that represents actually touching the target (Dirt Kick, Poisoned
+    Blade, Entangle - "requires_contact") is blocked by it, same
+    reach-aware check skill_attack uses (a bow or spear still gets through).
+    """
+
+    def _protect(self, target):
+        self._fight()
+        target.db.combat_row = "back"
+        guard = create.create_object(
+            "typeclasses.characters.Character", key="Guard", location=self.room1
+        )
+        guard.db.hp = guard.db.max_hp = 100
+        guard.db.conditions = {}
+        guard.db.combat_side = target.db.combat_side
+        guard.db.combat_row = "front"
+        target.db.combat_turnhandler.db.fighters.append(guard)
+
+    def test_a_shout_reaches_a_protected_back_row(self):
+        self._protect(self.char2)
+        data = SKILLS["goad"]
+        with patch.object(COMBAT_RULES, "resists_condition", return_value=False):
+            data["skillfunc"](self.char1, "goad", [self.char2], data["cost"], **{
+                k: v for k, v in data.items() if k not in ("skillfunc", "target", "cost", "classes", "desc", "level_required")
+            })
+        self.assertIn("Goaded", self.char2.db.conditions)
+
+    def test_dirt_kick_cannot_reach_a_protected_back_row(self):
+        self._protect(self.char2)
+        data = SKILLS["dirt kick"]
+        with patch.object(COMBAT_RULES, "resists_condition", return_value=False):
+            data["skillfunc"](self.char1, "dirt kick", [self.char2], data["cost"], **{
+                k: v for k, v in data.items() if k not in ("skillfunc", "target", "cost", "classes", "desc", "level_required")
+            })
+        self.assertNotIn("Blinded", self.char2.db.conditions)
+
+    def test_a_ranged_weapon_still_lets_entangle_through(self):
+        self._protect(self.char2)
+        self.char1.db.wielded_weapon = _weapon(self.char1, 20, 20, "ranged")
+        data = SKILLS["entangle"]
+        with patch.object(COMBAT_RULES, "resists_condition", return_value=False):
+            data["skillfunc"](self.char1, "entangle", [self.char2], data["cost"], **{
+                k: v for k, v in data.items() if k not in ("skillfunc", "target", "cost", "classes", "desc", "level_required")
+            })
+        self.assertIn("Grappled", self.char2.db.conditions)
+
+
+class TestBackstabFlankRule(MartialBase):
+    """
+    Backstab's targeting is the literal inverse of is_row_protected (Sep 27,
+    owner request): a rear approach reaches a back-row target directly, but
+    a front-row target with a living ally covering their back is safe from
+    it - the mirror image of the normal "someone standing in front of you"
+    rule. A target with no ally at all (an ordinary solo fight) is NOT
+    protected either.
+    """
+
+    def _ally_of(self, target, row):
+        ally = create.create_object(
+            "typeclasses.characters.Character", key="Ally", location=self.room1
+        )
+        ally.db.hp = ally.db.max_hp = 100
+        ally.db.conditions = {}
+        ally.db.combat_side = target.db.combat_side
+        ally.db.combat_row = row
+        target.db.combat_turnhandler.db.fighters.append(ally)
+        return ally
+
+    def test_a_solo_target_is_not_protected(self):
+        self._fight()
+        self.assertFalse(COMBAT_RULES.is_backstab_protected(self.char2))
+
+    def test_a_back_row_target_is_never_protected(self):
+        self._fight()
+        self.char2.db.combat_row = "back"
+        self._ally_of(self.char2, "front")
+        self.assertFalse(COMBAT_RULES.is_backstab_protected(self.char2))
+
+    def test_a_front_row_target_with_someone_behind_is_protected(self):
+        self._fight()
+        self.char2.db.combat_row = "front"
+        self._ally_of(self.char2, "back")
+        self.assertTrue(COMBAT_RULES.is_backstab_protected(self.char2))
+
+    def test_a_front_row_target_with_no_one_behind_is_not_protected(self):
+        self._fight()
+        self.char2.db.combat_row = "front"
+        self._ally_of(self.char2, "front")
+        self.assertFalse(COMBAT_RULES.is_backstab_protected(self.char2))
+
+    def test_backstab_itself_is_refused_against_a_covered_target(self):
+        self._fight()
+        self.char2.db.combat_row = "front"
+        self._ally_of(self.char2, "back")
+        self.char2.db.combat_lastaction = "null"
+        before = self.char2.db.hp
+        data = SKILLS["backstab"]
+        result = data["skillfunc"](self.char1, "backstab", [self.char2], data["cost"], **{
+            k: v for k, v in data.items()
+            if k not in ("skillfunc", "target", "cost", "classes", "desc", "level_required")
+        })
+        self.assertIs(result, False)
+        self.assertEqual(self.char2.db.hp, before)
+
+
+class TestSneakVanishStealth(MartialBase):
+    """
+    Sep 27, owner request: Sneak's evasion window extended (90s -> 15 real
+    minutes) and, along with Vanish, it now also grants a genuine but
+    narrower movement-stealth window (world.concentration.is_stealthed) -
+    room arrivals/departures/speech go unnamed and wilderness ambushes skip
+    it, but (deliberately, unlike real Invisibility) it does NOT hide the
+    holder from someone already looking at the room.
+    """
+
+    def test_sneak_grants_a_15_minute_stealth_window(self):
+        from world import concentration as conc
+
+        data = SKILLS["sneak"]
+        self.assertEqual(data["stealth_seconds"], 900)
+        self.assertFalse(conc.is_stealthed(self.char1))
+        data["skillfunc"](self.char1, "sneak", [self.char1], data["cost"],
+                          conditions=data["conditions"], stealth_seconds=data["stealth_seconds"])
+        self.assertTrue(conc.is_stealthed(self.char1))
+        self.assertGreater(self.char1.db.stealth_until - time.time(), 890)
+
+    def test_stealthed_does_not_hide_from_a_direct_look(self):
+        from world import concentration as conc
+
+        self.char1.db.stealth_until = time.time() + 100
+        self.assertTrue(conc.is_stealthed(self.char1))
+        self.assertFalse(conc.invisible_hides_from(self.char1, self.char2))
+        self.assertTrue(self.char1.access(self.char2, "view"))
+
+    def test_stealthed_hides_the_name_in_room_broadcasts(self):
+        from world import concentration as conc
+
+        self.char1.db.stealth_until = time.time() + 100
+        self.assertTrue(conc.stealth_hides_from(self.char1, self.char2))
+        self.assertFalse(conc.stealth_hides_from(self.char1, self.char1))
+
+    def test_a_god_and_sees_invisible_see_through_stealth_too(self):
+        from world import concentration as conc
+
+        self.char1.db.stealth_until = time.time() + 100
+        god = create.create_object("typeclasses.characters.Character", key="Jupiter", location=self.room1)
+        god.db.level = 106
+        self.assertFalse(conc.stealth_hides_from(self.char1, god))
+        self.char2.db.conditions = {"Sees Invisible": [3, self.char2]}
+        self.assertFalse(conc.stealth_hides_from(self.char1, self.char2))
+
+    def test_wilderness_ambush_skips_a_stealthed_mover(self):
+        from world.wilderness_rome import _is_unseen
+
+        self.assertFalse(_is_unseen(self.char1))
+        self.char1.db.stealth_until = time.time() + 100
+        self.assertTrue(_is_unseen(self.char1))
+
+    def test_attacking_breaks_stealth_immediately(self):
+        from world.concentration import reveal_on_offense, is_stealthed
+
+        self.char1.db.stealth_until = time.time() + 100
+        self.assertTrue(is_stealthed(self.char1))
+        reveal_on_offense(self.char1)
+        self.assertFalse(is_stealthed(self.char1))
+
+    def test_vanish_also_grants_a_short_stealth_window(self):
+        self._fight()
+        data = SKILLS["vanish"]
+        self.assertEqual(data["stealth_seconds"], 120)
+        data["skillfunc"](self.char1, "vanish", [self.char1], data["cost"],
+                          conditions=data["conditions"], stealth_seconds=data["stealth_seconds"])
+        self.assertGreater(self.char1.db.stealth_until - time.time(), 110)

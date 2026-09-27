@@ -224,6 +224,57 @@ def is_no_combat_zone(room):
 UNDERWORLD_ZONE_TAG = ("underworld_zone", "zone")
 
 
+def check_snare_trap(character):
+    """
+    Called from CombatCharacter.at_post_move on arrival - springs the first
+    live trap in this room that isn't the mover's own, or an ally's, or
+    wasted on a pacifist (see skill_place_snare's own docstring for the
+    full design). Expired traps are dropped lazily here rather than via any
+    scheduled cleanup - nothing else ever needs to know about one that's
+    already timed out.
+    """
+    if character.db.pacifist:
+        return
+    room = character.location
+    traps = room.db.snare_traps or []
+    if not traps:
+        return
+
+    now = time.time()
+    remaining = []
+    sprung = None
+    for trap in traps:
+        if trap["expires"] <= now:
+            continue
+        placer = trap["placer"]
+        if (
+            sprung is None
+            and placer is not None and placer.pk
+            and placer != character
+            and not COMBAT_RULES.is_ally(placer, character)
+        ):
+            sprung = trap
+            continue  # consumed - doesn't go back into the room
+        remaining.append(trap)
+    room.db.snare_traps = remaining
+
+    if not sprung:
+        return
+    placer = sprung["placer"]
+    if COMBAT_RULES.resists_condition(placer, character, condition="Snared", attacker_stat="agilitas"):
+        character.msg("|yThe ground shifts oddly underfoot - a hidden snare, but you dance clear of it!|n")
+        placer.msg("|ySomeone stumbled near your snare and slipped free of it.|n")
+        return
+
+    duration = randint(*SNARE_ROOT_SECONDS)
+    character.db.snared_until = now + duration
+    character.msg(
+        "|rYour foot catches fast in a hidden snare - you can't leave this room "
+        "for a few minutes!|n"
+    )
+    placer.msg("|YSomeone has been caught in your snare!|n")
+
+
 def is_in_underworld(room):
     """True if room is part of the Underworld."""
     if not room:
@@ -309,6 +360,7 @@ HARMFUL_CONDITIONS = frozenset({
     "Paralyzed", "Accuracy Down", "Damage Down", "Defense Down",
     "Sanctuary Broken", "Asleep", "Slowed", "Confused",
     "Bleeding", "Stunned", "Blinded", "Disarmed", "Grappled", "Goaded", "Quarry",
+    "Hamstrung", "Exposed",
 })
 BENEFICIAL_CONDITIONS = frozenset({
     "Regeneration", "Haste", "Accuracy Up", "Damage Up", "Defense Up",
@@ -316,6 +368,7 @@ BENEFICIAL_CONDITIONS = frozenset({
     "Ambush", "Riposte Ready", "Sees Invisible", "Raging", "Sentinel",
     "Parrying", "Shield Block", "Barbed Guard",
     "Fast Hands", "Aiming", "Forager's Eye", "Pathfinding", "Frenzied", "Keen Edge",
+    "Unbreakable",
 })
 
 # ----------------------------------------------------------------------------
@@ -469,6 +522,8 @@ CONDITION_RESIST_STAT = {
     "Blinded": "agilitas",
     "Disarmed": "agilitas",
     "Grappled": "agilitas",
+    "Hamstrung": "agilitas",
+    "Snared": "agilitas",
 }
 
 # A physical skill's effect (Sep 27, owner request: defender Agilitas should
@@ -484,6 +539,33 @@ CLASS_CONTEST_STAT = {
     "speculator": "agilitas",
     "venator": "agilitas",
 }
+
+# Speculator dual wield (Sep 27, owner request): a second, off-hand strike a
+# dagger-wielding Speculator gets on every basic attack that lands, at a
+# fraction of a normal blow - the same shape as the Gladiator's Double Strike,
+# just tied to having a second blade in hand instead of a skill roll.
+OFFHAND_DAMAGE_MULTIPLIER = 0.5
+HAMSTRUNG_DEFENSE_MOD = -20  # Hamstring: a cut tendon makes you easier to hit too
+
+# The Speculator's Snare (Sep 27 redesign, owner request): a hidden trap left
+# in a room rather than an in-combat strike. It sits until sprung or until it
+# expires - real time, not turns, since nobody has to be nearby holding a
+# fight open for a trap to matter. The hold itself is deliberately just a
+# root (can't leave the room), not a stun - a snared fighter can still defend
+# themselves if found and attacked; only their feet are caught.
+SNARE_TRAP_LIFETIME = 60 * 60 * 3  # 3 real hours, unsprung
+SNARE_ROOT_SECONDS = (60 * 3, 60 * 5)  # 3-5 real minutes, once sprung
+
+# Legionary's Last Stand (mythic, passive): the one-time shield it grants on
+# the killing blow it saves the wearer from - a big buffer, since it only
+# ever fires once and needs to actually buy real time.
+LAST_STAND_SHIELD_SHARE = 0.35
+
+# Field Report (Sep 27 rework): a called-out weakness, same shape as Cursed
+# but its own condition - not a stacking exception to the "no martial skill
+# duplicates a caster debuff" rule (see CURSED_DAMAGE_MULTIPLIER for the
+# original), since it's a distinct condition a Haruspex curse never grants.
+EXPOSED_DAMAGE_MULTIPLIER = 1.15
 
 # Weapon categories long/far enough to strike into the back row
 # directly, bypassing row protection - see CombatRules.has_reach.
@@ -1093,6 +1175,35 @@ class CombatRules:
                 return True
         return False
 
+    def is_backstab_protected(self, defender):
+        """
+        Backstab's own targeting rule (Sep 27, owner request) - the literal
+        inverse of is_row_protected, since a backstab approaches from the
+        REAR rather than the front. A target already in the back row is
+        never protected from it - nothing stands behind them to block a
+        rear approach, regardless of what's in front. A target in the
+        front row IS protected, but only if a living ally of theirs is
+        standing in the back row, covering their blind side - the same
+        "someone has to actually be positioned there" logic is_row_
+        protected already uses, just facing the other way. A target with
+        no living ally at all (including an ordinary solo fight - the most
+        common case in this game) is NOT protected either - this is
+        deliberately not "no formation, no backstab"; it only ever kicks in
+        when there's someone specifically covering the target's back.
+        """
+        if (defender.db.combat_row or "front") == "back":
+            return False
+        turnhandler = defender.db.combat_turnhandler
+        if not turnhandler or not turnhandler.pk:
+            return False
+        fighters = turnhandler.db.fighters or []
+        for fighter in fighters:
+            if fighter is None or fighter is defender or not fighter.pk or not fighter.db.hp:
+                continue
+            if self.is_ally(defender, fighter) and (fighter.db.combat_row or "front") == "back":
+                return True
+        return False
+
     def _expose_back_row_if_front_row_wiped(self, defeated):
         """
         Called from at_defeat, right after the "has been defeated!"
@@ -1396,10 +1507,12 @@ class CombatRules:
             defense_value += DEF_UP_MOD
         if "Defense Down" in self.get_conditions(defender):
             defense_value += DEF_DOWN_MOD
+        if "Hamstrung" in self.get_conditions(defender):
+            defense_value += HAMSTRUNG_DEFENSE_MOD
 
         return defense_value
 
-    def get_damage(self, attacker, defender, ignore_armor=False):
+    def get_damage(self, attacker, defender, ignore_armor=False, weapon_override=None):
         """
         Damage roll for a basic weapon/unarmed attack. `ignore_armor`
         skips the defender's worn armor entirely (Piercing Shot). Factors in:
@@ -1416,8 +1529,8 @@ class CombatRules:
         result) funnels through there regardless of how it computed
         its raw number.
         """
-        if martial.wielded_weapon(attacker):
-            weapon = attacker.db.wielded_weapon
+        if weapon_override or martial.wielded_weapon(attacker):
+            weapon = weapon_override or attacker.db.wielded_weapon
             damage_value = randint(weapon.db.damage_range[0], weapon.db.damage_range[1])
             if not self.is_proficient(attacker, weapon):
                 damage_value = int(damage_value * NONPROFICIENT_DAMAGE_MULTIPLIER)
@@ -1541,6 +1654,10 @@ class CombatRules:
         # to match, so a basic attack isn't multiplied twice.
         if damage > 0 and "Cursed" in self.get_conditions(defender):
             damage = int(damage * CURSED_DAMAGE_MULTIPLIER)
+        # Speculator's Field Report: a called-out weakness, not a curse, but
+        # the same "extra damage from every source" shape.
+        if damage > 0 and "Exposed" in self.get_conditions(defender):
+            damage = int(damage * EXPOSED_DAMAGE_MULTIPLIER)
         # A Raging barbarian shrugs off a share of every physical blow.
         if melee and damage > 0 and "Raging" in self.get_conditions(defender):
             damage = int(damage * (1 - RAGE_MELEE_RESISTANCE))
@@ -1574,6 +1691,27 @@ class CombatRules:
             defender.location.msg_contents(
                 "|Y%s should have fallen, but a lingering ward holds them back "
                 "from death's door!|n" % defender
+            )
+            if announce_threshold:
+                self.announce_hp_threshold_change(defender, old_hp)
+            return
+
+        # Legionary's Last Stand (mythic, passive) - once per fight, a blow
+        # that would fell the Legionary instead leaves them at 1 HP with a
+        # heavy temp-HP shield. combat_laststand_used is a combat_ attribute,
+        # so combat_cleanup clears it and a fresh fight gets a fresh save.
+        if (
+            would_be_lethal
+            and "last stand" in (defender.db.skills_known or [])
+            and not defender.db.combat_laststand_used
+        ):
+            defender.db.combat_laststand_used = True
+            defender.db.hp = 1
+            wards.grant_temp_hp(
+                defender, max(1, round((defender.db.max_hp or 1) * LAST_STAND_SHIELD_SHARE))
+            )
+            defender.location.msg_contents(
+                "|Y%s refuses to fall - the line holds, one last time!|n" % defender
             )
             if announce_threshold:
                 self.announce_hp_threshold_change(defender, old_hp)
@@ -2635,6 +2773,44 @@ class CombatRules:
                         attacker, defender, damage_value=bonus_damage, bonus_attack_count=2
                     )
 
+        # Dual wield (Speculator, Sep 27): a landed basic swing (never a bonus
+        # swing of its own - no third weapon) brings the off-hand blade in
+        # right behind it, at a fraction of a normal blow.
+        if (
+            bonus_attack_count == 0 and damage_value > 0 and defender.db.hp > 0
+            and attacker.db.wielded_offhand and martial.wielded_weapon(attacker)
+        ):
+            self._offhand_strike(attacker, defender)
+
+    def _offhand_strike(self, attacker, defender):
+        """The second, lighter blade of a Speculator's dual wield - see
+        OFFHAND_DAMAGE_MULTIPLIER's own comment."""
+        weapon = attacker.db.wielded_offhand
+        attack_value = self.get_attack(attacker, defender)
+        defense_value = self.get_defense(attacker, defender)
+        if attack_value < defense_value:
+            attacker.location.msg_contents(
+                "%s's off-hand strike at %s goes wide!" % (attacker, defender)
+            )
+            return
+        if self._defensive_block(attacker, defender):
+            attacker.location.msg_contents("%s turns the off-hand strike aside!" % defender)
+            return
+        damage = self.get_damage(attacker, defender, weapon_override=weapon)
+        damage = int(damage * OFFHAND_DAMAGE_MULTIPLIER)
+        crit = martial.roll_crit(attacker)
+        if crit > 1 and damage > 0:
+            damage = int(damage * crit)
+            martial.announce_crit(attacker)
+        if damage > 0:
+            attacker.location.msg_contents(
+                "%s's off-hand %s finds %s for |r%i|n more damage!"
+                % (attacker, weapon.key, defender, damage)
+            )
+        self.apply_damage(defender, damage, attacker=attacker, announce_threshold=False, melee=True)
+        if defender.db.hp <= 0:
+            self.at_defeat(defender, attacker=attacker)
+
     # ------------------------------------------------------------------
     # COMBAT STATE HELPERS
     # ------------------------------------------------------------------
@@ -2712,7 +2888,7 @@ class CombatRules:
         # A stun or a grapple is a hold of the fight itself: it ends with it.
         held = character.db.conditions
         if held:
-            for name in ("Stunned", "Grappled", "Stun Immunity", "Quarry") + FIGHT_LONG_STANCES:
+            for name in ("Stunned", "Grappled", "Hamstrung", "Stun Immunity", "Quarry") + FIGHT_LONG_STANCES:
                 held.pop(name, None)
 
     def is_in_combat(self, character):
@@ -4163,19 +4339,40 @@ class CombatRules:
         for target in targets:
             # See spell_add_condition's identical guard - resistance
             # only ever applies to a genuinely hostile application.
-            if target != user and not self.is_ally(user, target):
+            hostile = target != user and not self.is_ally(user, target)
+            # Row protection (Sep 27, owner request/verification): by default
+            # a physical debuff skill is exempt, same as a spell (Goad, War
+            # Cry and the like are shouted or willed, not thrown or swung -
+            # nothing about them needs to physically reach the target). Only
+            # a skill that genuinely represents touching the target
+            # (kwargs["requires_contact"] - Dirt Kick, Poisoned Blade,
+            # Entangle) is blocked by it, using the same reach-aware check
+            # skill_attack uses (a bow or spear already bypasses it).
+            if hostile and kwargs.get("requires_contact") and self.is_row_protected(target, attacker=user):
+                user.location.msg_contents(
+                    "%s can't reach %s - someone else is still standing in the way!" % (user, target)
+                )
+                continue
+            if hostile:
                 if self.resists_condition(
                     user, target, condition=conditions[0][0],
                     attacker_stat=kwargs.get("contest_stat"),
                 ):
                     user.location.msg_contents("%s resists the effect!" % target)
                     continue
-            hostile = target != user and not self.is_ally(user, target)
             for condition in conditions:
                 extra = duration_bonus
                 if hostile and condition[0] in LEVEL_SCALED_DEBUFFS:
                     extra += debuff_level_bonus(user)
                 self.add_condition(target, user, condition[0], condition[1] + extra)
+            # Sneak's own movement-stealth window (world.concentration.
+            # is_stealthed) - a plain real-time flag, separate from the
+            # "Invisible" condition above (which stays a pure evasion buff
+            # for every other skill/spell that grants it - Veil of Night,
+            # faction Evasion/Cloak included). Only ever set on the user
+            # themself; a self-target skill's only real target anyway.
+            if target is user and kwargs.get("stealth_seconds"):
+                user.db.stealth_until = time.time() + kwargs["stealth_seconds"]
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -4352,6 +4549,24 @@ class CombatRules:
             "%s throws a handful of confusion and slips out of the fight!" % user
         )
         self.force_disengage(user)
+
+    def skill_vanish(self, user, skill_name, targets, cost, **kwargs):
+        """
+        The Speculator's Vanish (Sep 27 split from Sneak - see the SKILLS
+        entries' own comments): unlike Slip Away's plain exit, this leaves
+        the user hidden on the other side of it, exactly as if they'd
+        stepped out and cast Sneak in the same breath.
+        """
+        if not self.is_in_combat(user):
+            user.msg("Vanish only works in the middle of a fight - use 'sneak' beforehand instead.")
+            return False
+        duration = kwargs.get("conditions", [("Invisible", 4)])[0][1]
+        user.db.sp -= cost
+        user.location.msg_contents("%s melts out of the fight and vanishes from sight!" % user)
+        self.force_disengage(user)
+        self.add_condition(user, user, "Invisible", duration)
+        if kwargs.get("stealth_seconds"):
+            user.db.stealth_until = time.time() + kwargs["stealth_seconds"]
 
     def skill_assassinate(self, user, skill_name, targets, cost, **kwargs):
         """
@@ -4534,6 +4749,15 @@ class CombatRules:
             user.msg("%s is already in the fight - there's no opening left to exploit." % target.key)
             return
 
+        # Backstab's own targeting rule - see is_backstab_protected's own
+        # docstring. Deliberately NOT is_row_protected: a rear approach
+        # ignores the normal front-line block outright (a back-row target
+        # is always exposed to it), but a front-row target with an ally
+        # covering their back is safe from it specifically.
+        if self.is_backstab_protected(target):
+            user.msg("%s has someone covering their back - there's no opening to exploit." % target.key)
+            return False
+
         # Mutual exclusion with Ambush - consume it silently
         # if present, rather than letting both bonuses apply at once.
         if "Ambush" in self.get_conditions(user):
@@ -4562,25 +4786,23 @@ class CombatRules:
 
     def skill_field_report(self, user, skill_name, targets, cost, **kwargs):
         """
-        Reveals a target's current HP and active conditions to the
-        user's whole party at once - Speculator's Field Report.
+        The Speculator's Field Report (Sep 27 rework - see the SKILLS entry's
+        own comment for why). A real tactical debuff: "Exposed" is a
+        no-resist-roll, source-agnostic damage amplifier (see EXPOSED_DAMAGE_
+        MULTIPLIER in apply_damage) - a called-out weakness, not a curse, so
+        it lands automatically rather than fighting through Ingenium/Vigor
+        the way a hostile condition normally would (Deathmark's Marked for
+        Death is the identical precedent).
         """
-        from world.party import get_party_members
-
         target = targets[0]
-        conditions = list(self.get_conditions(target).keys())
-        condition_str = ", ".join(conditions) if conditions else "no conditions"
-
-        report = "|c[Field Report]|n %s - HP: %s/%s - %s" % (
-            target.key,
-            target.db.hp,
-            target.db.max_hp,
-            condition_str,
-        )
+        duration = kwargs.get("conditions", [("Exposed", 3)])[0][1]
 
         user.db.sp -= cost
-        for member in get_party_members(user):
-            member.msg(report)
+        user.location.msg_contents(
+            "|c[Field Report]|n %s calls out a weak point in %s's guard to the whole party!"
+            % (user, target)
+        )
+        self.add_condition(target, user, "Exposed", duration)
 
         if self.is_in_combat(user):
             self.spend_action(user, 1, action_name="skill")
@@ -4675,7 +4897,7 @@ class CombatRules:
         defeated_targets = []
         riders_to_apply = []
         for target in targets:
-            if self.is_row_protected(target, attacker=user):
+            if not kwargs.get("ignore_row_protection") and self.is_row_protected(target, attacker=user):
                 skill_msg += " %s can't reach %s - someone else is still standing in the way!" % (
                     user, target,
                 )
@@ -4746,6 +4968,9 @@ class CombatRules:
         that's the entire point of the skill.
         """
         target = targets[0]
+        if self.is_row_protected(target, attacker=user):
+            user.msg("%s is shielded by someone standing in front of them." % target.key)
+            return False
         landed, miss_text = self._skill_lands(user, target, skill_name)
         if not landed:
             user.db.sp -= cost
@@ -4840,6 +5065,41 @@ class CombatRules:
                 turnhandler.join_fight(companion, side=user.db.combat_side)
             self.spend_action(user, 1, action_name="skill")
 
+    def skill_place_snare(self, user, skill_name, targets, cost, **kwargs):
+        """
+        The Venator's Snare, redesigned (Sep 27) into a genuine placed trap
+        instead of an in-combat strike - see the SKILLS entry's own comment.
+
+        Lives entirely as plain data on the room (db.snare_traps, a list of
+        {"placer": obj, "expires": timestamp} dicts) rather than a spawned
+        object - simpler, and sidesteps ever having to actually hide an
+        object from room listings. Real time, not turns: nobody has to be
+        nearby holding a fight open for a trap sitting in an empty room to
+        mean anything. check_snare_trap (called from CombatCharacter.at_
+        post_move) is what actually springs it; this just lays it down.
+
+        Deliberately refused in a no-combat zone (the same rooms that refuse
+        a fight at all) - a trap in a temple or a holding cell has no honest
+        use. Real players only, and a pacifist can't lay one (matches every
+        other offensive skill's own pacifist guard).
+        """
+        if user.db.pacifist:
+            user.msg("You've laid down arms for good - you can't lay a snare.")
+            return False
+        if is_no_combat_zone(user.location):
+            user.msg("Something about this place forbids it - you can't lay a trap here.")
+            return False
+
+        traps = user.location.db.snare_traps or []
+        traps.append({"placer": user, "expires": time.time() + SNARE_TRAP_LIFETIME})
+        user.location.db.snare_traps = traps
+
+        user.db.sp -= cost
+        user.msg("You lay a hidden snare here, out of sight.")
+
+        if self.is_in_combat(user):
+            self.spend_action(user, 1, action_name="skill")
+
     def skill_track(self, user, skill_name, targets, cost, **kwargs):
         """
         Reveals who's present in a room reachable through one of the
@@ -4894,6 +5154,9 @@ class CombatRules:
         threshold_percent = kwargs.get("threshold_percent", 0.2)
         min_damage, max_damage = kwargs.get("damage_range", (30, 45))
 
+        if self.is_row_protected(target, attacker=user):
+            user.msg("%s is shielded by someone standing in front of them." % target.key)
+            return False
         if target.db.hp > target.db.max_hp * threshold_percent:
             user.msg(
                 "%s is still too strong for a finishing blow - wait until they're "
@@ -4931,6 +5194,9 @@ class CombatRules:
             return
 
         target = targets[0]
+        if self.is_row_protected(target, attacker=user):
+            user.msg("%s is shielded by someone standing in front of them." % target.key)
+            return False
         landed, miss_text = self._skill_lands(user, target, skill_name)
         if not landed:
             user.db.sp -= cost
@@ -4965,6 +5231,9 @@ class CombatRules:
         genuine risk/reward tradeoff, not just a bigger number.
         """
         target = targets[0]
+        if self.is_row_protected(target, attacker=user):
+            user.msg("%s is shielded by someone standing in front of them." % target.key)
+            return False
         landed, miss_text = self._skill_lands(user, target, skill_name)
         if not landed:
             # the exposure is the price of swinging, hit or miss
@@ -6121,6 +6390,7 @@ SKILLS = {
         "cost": 5,
         "level_required": 25,
         "conditions": [("Blinded", 3)],
+        "requires_contact": True,  # kicking sand needs to actually reach them
         "npc_cast": False,
         "classes": ["gladiator"],
         "desc": "An arena dirty trick - a kick of sand into the eyes. The target is Blinded for a few turns: a big drop to their accuracy, twice that of an ordinary Accuracy Down. Dodged with Agilitas.",
@@ -6302,9 +6572,15 @@ SKILLS = {
         "target": "self",
         "cost": 4,
         "level_required": 1,
-        "conditions": [("Invisible", 3)],
+        # 30 turns out of combat (NONCOMBAT_TURN_TIME=30s) = 15 real minutes -
+        # extended from 90 seconds (owner request, Sep 27). stealth_seconds
+        # keeps the movement-stealth window (world.concentration.is_stealthed)
+        # in step with it.
+        "conditions": [("Invisible", 30)],
+        "stealth_seconds": 900,
         "classes": ["speculator"],
-        "desc": "Turns the user nearly invisible, making them much harder to hit for a short time. Usable in or out of combat.",
+        "combat_spell": False,
+        "desc": "Turns the user nearly invisible, making them much harder to hit for 15 minutes, and lets them move and act unnoticed for the same stretch - room arrivals/departures go unnamed, and a wilderness ambush won't notice them at all. Doesn't hide them from someone already looking at the room they're standing in - that's the real Invisibility spell's job. Usable only outside a fight - use it to set up an ambush, not to escape one (see 'vanish' for that). Ends the instant its holder attacks.",
     },
     "ambush": {
         "skillfunc": COMBAT_RULES.skill_ambush,
@@ -6321,6 +6597,7 @@ SKILLS = {
         "cost": 4,
         "level_required": 8,
         "conditions": [("Poisoned", 4)],
+        "requires_contact": True,  # a coated blade still has to land the hit
         "classes": ["speculator"],
         "desc": "Coats the user's weapon, applying a poison curse to the target's next hit.",
     },
@@ -6333,15 +6610,40 @@ SKILLS = {
         "weapon_multiplier": 2.0,
         "rider": {"effect": "Bleeding", "chance": 50, "duration": 4, "share": 0.2},
         "classes": ["speculator"],
-        "desc": "Bonus damage against a target who hasn't yet acted in the fight. It can open a fight itself. Does not stack with Ambush. May leave a bleeding wound.",
+        "desc": "Bonus damage against a target who hasn't yet acted in the fight. It can open a fight itself. Does not stack with Ambush. May leave a bleeding wound. Reaches a back-row target directly - a rear approach ignores their front line - but not a front-row target with an ally covering their back.",
     },
     "field report": {
+        # Reworked (Sep 27, owner follow-up: "doesn't do anything 'look'
+        # doesn't already do") - a real tactical callout, not an info dump.
         "skillfunc": COMBAT_RULES.skill_field_report,
         "target": "otherchar",
         "cost": 3,
         "level_required": 20,
+        "conditions": [("Exposed", 3)],
         "classes": ["speculator"],
-        "desc": "Reveals a target's current HP and active conditions to the user's whole party at once.",
+        "desc": "Calls out a real weak point in the target's guard: for a few turns they take extra damage from EVERY source, not just the Speculator's own blows - the whole party benefits from the same read.",
+    },
+    "circle stab": {
+        "skillfunc": COMBAT_RULES.skill_attack,
+        "target": "otherchar",
+        "cost": 6,
+        "level_required": 30,
+        "damage_range": (16, 24),
+        "weapon_multiplier": 1.3,
+        "ignore_row_protection": True,
+        "classes": ["speculator"],
+        "desc": "Circles wide around the enemy line and strikes from the flank: reaches a target in the back row directly, bypassing row protection entirely - no reach weapon needed. Rows only ever protect the DEFENDER, so this isn't needed to hit an enemy front line; it's for cutting straight to whoever's hiding behind it.",
+    },
+    "hamstring": {
+        "skillfunc": COMBAT_RULES.skill_attack,
+        "target": "otherchar",
+        "cost": 6,
+        "level_required": 20,
+        "damage_range": (12, 20),
+        "weapon_multiplier": 1.2,
+        "rider": {"effect": "Hamstrung", "chance": 60, "duration": 3},
+        "classes": ["speculator"],
+        "desc": "A cut across the tendon: a real strike that may leave the target Hamstrung for a few turns - unable to disengage or flee, and easier to hit besides. Resisted with Agilitas.",
     },
     "precision strike": {
         "skillfunc": COMBAT_RULES.skill_attack,
@@ -6375,13 +6677,16 @@ SKILLS = {
         "desc": "A burst of evasion, making the user much harder to hit for a short time.",
     },
     "vanish": {
-        "skillfunc": COMBAT_RULES.skill_add_condition,
+        "skillfunc": COMBAT_RULES.skill_vanish,
         "target": "self",
         "cost": 8,
         "level_required": 60,
         "conditions": [("Invisible", 4)],
+        "stealth_seconds": 120,
         "classes": ["speculator"],
-        "desc": "A stronger, longer invisibility - usable mid-fight, not just before one.",
+        "noncombat_spell": False,
+        "npc_cast": False,
+        "desc": "Melts out of an active fight entirely - ends your part in it outright, like 'slip away' - and leaves you nearly invisible on the other side for a couple of minutes: harder to hit, moving and acting unnoticed. Usable only mid-fight (use 'sneak' beforehand instead). Ends the instant its holder attacks.",
     },
     "deathmark": {
         "skillfunc": COMBAT_RULES.skill_deathmark,
@@ -6420,6 +6725,7 @@ SKILLS = {
         "cost": 5,
         "level_required": 10,
         "conditions": [("Grappled", 3)],
+        "requires_contact": True,  # a thrown cord still needs a real line of reach - a bow or spear already has it
         "classes": ["venator"],
         "desc": "A thrown cord, a snare line, a well-placed trip: the target is Grappled for a few turns and can't break away from the fight. Slipped with Agilitas.",
     },
@@ -6455,15 +6761,16 @@ SKILLS = {
         "desc": "A quick volley of shots, striking up to three targets at once. Arrows may leave bleeding wounds.",
     },
     "snare": {
-        "skillfunc": COMBAT_RULES.skill_attack,
-        "target": "otherchar",
+        # Redesigned (Sep 27, owner request) - a genuine placed trap rather
+        # than an in-combat strike (see skill_place_snare's own docstring
+        # for the full mechanic and pushback).
+        "skillfunc": COMBAT_RULES.skill_place_snare,
+        "target": "none",
         "cost": 6,
         "level_required": 40,
-        "damage_range": (12, 20),
-        "weapon_multiplier": 1.1,
-        "rider": {"effect": "Bleeding", "chance": 100, "duration": 4, "share": 0.3, "resist": "agilitas"},
+        "npc_cast": False,
         "classes": ["venator"],
-        "desc": "A hidden spiked trap that catches whatever springs it: a hit that leaves a bleeding wound (once a poison trap - poison is the Speculator's own).",
+        "desc": "Lays a hidden trap in the room you're standing in. The next enemy who wanders through - not you, not your allies, never a pacifist - is held fast and can't leave the room for a few minutes, unless their own Agilitas gets them clear of it first. You're alerted the moment it springs. It fades away after 3 hours if nothing sets it off.",
     },
     "call of the wild": {
         "skillfunc": COMBAT_RULES.skill_call_of_the_wild,
@@ -6641,15 +6948,6 @@ SKILLS = {
         "classes": ["legionary"],
         "desc": "A close-range cleave, striking up to three enemies in front of you at once - the Legionary's area attack. (Armor-breaking belongs to Shattering Blow.)",
     },
-    "shield wall": {
-        "skillfunc": COMBAT_RULES.skill_add_condition,
-        "target": "self",
-        "cost": 6,
-        "level_required": 25,
-        "conditions": [("Defense Up", 4)],
-        "classes": ["legionary"],
-        "desc": "A stronger defensive stance than Hold the Line - grants a larger defense boost.",
-    },
     "testudo": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
         "target": "anychar",
@@ -6675,9 +6973,9 @@ SKILLS = {
         "target": "self",
         "cost": 10,
         "level_required": 60,
-        "conditions": [("Defense Up", 5)],
+        "conditions": [("Unbreakable", 4)],
         "classes": ["legionary"],
-        "desc": "A near-total defensive stance, held for longer than any lesser stance.",
+        "desc": "For a few turns, nothing can knock you down - immune to Stunned, Grappled, Disarmed and Blinded outright, no resist roll needed. (It used to be just another Defense Up stack, redundant with Hold the Line/Testudo/Last Stand.)",
     },
     "shattering blow": {
         "skillfunc": COMBAT_RULES.skill_attack,
@@ -6691,14 +6989,17 @@ SKILLS = {
         "desc": "A heavy strike that breaks through even the sturdiest guard: a landed blow always cleaves through the target's body armor AND their shield, leaving both useless for the rest of the fight.",
     },
     "last stand": {
-        "skillfunc": COMBAT_RULES.skill_add_condition,
-        "target": "anychar",
-        "cost": 14,
+        "skillfunc": COMBAT_RULES.skill_passive_info,
+        "target": "none",
+        "cost": 0,
         "level_required": 90,
-        "max_targets": 5,
-        "conditions": [("Defense Up", 5)],
+        "npc_cast": False,
         "classes": ["legionary"],
-        "desc": "Mythic tier. The line that will not break, no matter the cost - grants up to five allies - your party, picked automatically - a powerful, long-lasting defense boost.",
+        "passive_text": (
+            "Last Stand triggers on its own, once per fight, the moment a blow "
+            "would drop you to 0 HP - there's nothing to activate."
+        ),
+        "desc": "Mythic tier. The line that will not break: once per fight, a blow that would fell you instead leaves you standing at 1 HP with a heavy shield of temporary HP - a real save, not another Defense Up stack (that was Hold the Line/Testudo/Unbreakable's job already).",
     },
     "rage of the north": {
         "skillfunc": COMBAT_RULES.skill_add_condition,
@@ -6778,7 +7079,10 @@ SKILLS = {
         "classes": ["barbarian"],
         "desc": "A powerful, sustained defensive resolve that nothing seems able to shake.",
     },
-    "earth-shaking slam": {
+    "whirlwind": {
+        # Renamed from Earth-Shaking Slam (Sep 27, owner request) - a spinning
+        # sweep of the weapon fits an area attack better than a ground-slam
+        # image, and doesn't collide with anything else in the game.
         "skillfunc": COMBAT_RULES.skill_attack,
         "target": "otherchar",
         "cost": 11,
@@ -6787,7 +7091,7 @@ SKILLS = {
         "damage_range": (25, 38),
         "weapon_multiplier": 1.3,
         "classes": ["barbarian"],
-        "desc": "A ground-shaking slam striking up to three enemies at once.",
+        "desc": "A spinning sweep of the weapon, striking up to three enemies at once.",
     },
     "fury of the frontier": {
         "skillfunc": COMBAT_RULES.skill_attack,
@@ -7110,6 +7414,7 @@ def find_equipped_slot(character, item):
 # falling back to a flat, unlabeled list of names.
 EQUIPPED_SLOTS = (
     ("wielded_weapon", "Wielded (in hand)"),
+    ("wielded_offhand", "Wielded (off hand)"),
     ("worn_shield", "Shield"),
     ("worn_armor", "Worn (as armor)"),
     ("worn_head", "Worn (on head)"),
@@ -8498,6 +8803,9 @@ class CombatCharacter(ContribRPCharacter):
         if move_type == "move" and martial.is_incapacitated(self):
             self.msg(martial.incapacitated_message(self))
             return False
+        if move_type == "move" and (self.db.snared_until or 0) > time.time():
+            self.msg("|rYour foot is caught fast in a hidden snare - you can't leave this room yet!|n")
+            return False
         if self.db.hp <= 0 and not self.db.is_dead and not kwargs.get("force_move"):
             self.msg("You can't move, you've been defeated!")
             return False
@@ -8654,6 +8962,8 @@ class CombatCharacter(ContribRPCharacter):
         if self.db.quest_log:
             from world.quests import check_quest_visit
             check_quest_visit(self)
+        if self.has_account:
+            check_snare_trap(self)
         # A one-line nudge if someone here has a quest to offer (or is
         # waiting on a report) - real players only, so an NPC wandering
         # through a room never generates it. Deliberately outside the
@@ -9829,10 +10139,15 @@ class CmdCombatRow(Command):
     row with you. The moment your last front-row ally falls, you
     become reachable again.
 
-    This is a real, hard restriction in both directions - your own
-    attacks, spells, and skills can't reach an enemy who's protected
-    the same way either, so a fight with real tanks on both sides
-    means clearing the front line first.
+    This is a real, hard restriction in both directions for your own
+    basic attacks and any physical skill that represents actually
+    striking or touching a target - so a fight with real tanks on
+    both sides means clearing the front line first, unless you're
+    wielding a reach weapon (a polearm or a bow), which bypasses it
+    outright. Spells, and a handful of shouted or willed skills
+    (Goad, War Cry, Intimidating Roar - see 'help martial effects')
+    are never blocked by it at all - a taunt or a curse doesn't need
+    to physically reach anyone.
 
     Can be set any time, not just mid-fight, so you can position
     yourself before a fight even starts.
@@ -10178,6 +10493,9 @@ class CmdDisengage(Command):
             return
         if "Grappled" in (self.caller.db.conditions or {}):
             self.caller.msg("|rYou're held fast - you can't break away while you're grappled!|n")
+            return
+        if "Hamstrung" in (self.caller.db.conditions or {}):
+            self.caller.msg("|rYour leg won't hold you - you can't break away while you're hamstrung!|n")
             return
 
         roll = randint(1, 100)
@@ -11527,6 +11845,13 @@ def _try_wield_weapon(caller, weapon, rules):
         )
         return
 
+    if weapon.db.two_handed and caller.db.wielded_offhand:
+        caller.msg(
+            "You can't wield a two-handed weapon with a second blade in your "
+            "off hand - sheath it first."
+        )
+        return
+
     if not caller.db.wielded_weapon:
         caller.db.wielded_weapon = weapon
         caller.location.msg_contents("%s wields %s." % (caller, weapon))
@@ -11541,6 +11866,54 @@ def _try_wield_weapon(caller, weapon, rules):
         caller.msg(
             "|y(You aren't trained in this kind of weapon - you'll fight "
             "noticeably worse with it than with something you know.)|n"
+        )
+
+    if rules.is_in_combat(caller):
+        rules.spend_action(caller, 1, action_name="wield")
+
+
+def _try_wield_offhand(caller, weapon, rules):
+    """
+    The Speculator's dual wield (Sep 27, owner request): a second, short
+    blade in the off hand. Restricted to Speculators with a light blade
+    (dagger/gladius) already in their main hand - "dual-wielding daggers,"
+    not any two weapons at once - see OFFHAND_DAMAGE_MULTIPLIER's own
+    comment for the mechanical effect (an extra strike on every landed
+    basic attack).
+    """
+    if rules.is_in_combat(caller) and not rules.is_turn(caller):
+        caller.msg("You can only do that on your turn.")
+        return
+
+    if caller.db.pacifist:
+        caller.msg("You've laid down your arms for good - a pacifist can't wield a weapon.")
+        return
+
+    if (caller.db.player_class or "") != "speculator":
+        caller.msg("Only a Speculator's quick hands can fight with a blade in each.")
+        return
+
+    if weapon.db.two_handed or weapon.db.weapon_category != "light_blade":
+        caller.msg("Only a short blade - a dagger, a gladius - can go in your off hand.")
+        return
+
+    main = caller.db.wielded_weapon
+    if not main or main.db.two_handed or main.db.weapon_category != "light_blade":
+        caller.msg("You need a short blade in your main hand first to dual-wield.")
+        return
+
+    if caller.db.worn_shield:
+        caller.msg("You can't dual-wield while carrying a shield - doff it first.")
+        return
+
+    if not caller.db.wielded_offhand:
+        caller.db.wielded_offhand = weapon
+        caller.location.msg_contents("%s draws %s for their off hand." % (caller, weapon))
+    else:
+        old_weapon = caller.db.wielded_offhand
+        caller.db.wielded_offhand = weapon
+        caller.location.msg_contents(
+            "%s lowers %s and draws %s for their off hand." % (caller, old_weapon, weapon)
         )
 
     if rules.is_in_combat(caller):
@@ -11580,6 +11953,12 @@ def _try_don_armor(caller, armor):
             caller.msg(
                 "You can't carry a shield while wielding a two-handed "
                 "weapon - unwield it first."
+            )
+            return
+        if caller.db.wielded_offhand:
+            caller.msg(
+                "Your off hand is busy with a second blade - sheath it first "
+                "if you want to carry a shield instead."
             )
             return
 
@@ -11724,6 +12103,8 @@ def _equipped_items(caller):
     equipped = {}
     if caller.db.wielded_weapon:
         equipped[caller.db.wielded_weapon] = "wielded_weapon"
+    if caller.db.wielded_offhand:
+        equipped[caller.db.wielded_offhand] = "wielded_offhand"
     for attr_name in ARMOR_SLOT_ATTRS.values():
         item = getattr(caller.db, attr_name, None)
         if item:
@@ -11735,11 +12116,11 @@ def _unequip_item(caller, item, attr_name, rules):
     """The actual mechanical effect of removing one already-identified
     equipped item, whether it's the wielded weapon or a piece of
     armor."""
-    if attr_name == "wielded_weapon":
+    if attr_name in ("wielded_weapon", "wielded_offhand"):
         if rules.is_in_combat(caller) and not rules.is_turn(caller):
             caller.msg("You can only do that on your turn.")
             return
-        caller.db.wielded_weapon = None
+        setattr(caller.db, attr_name, None)
         caller.location.msg_contents("%s lowers %s." % (caller, item))
     else:
         if rules.is_in_combat(caller):
@@ -11787,6 +12168,41 @@ def _do_unequip(caller, args, rules):
     if not item:
         return
     _unequip_item(caller, item, equipped[item], rules)
+
+
+class CmdOffhand(Command):
+    """
+    Wield a second, short blade in your off hand.
+
+    Usage:
+      offhand <obj>
+
+    A Speculator's dual wield: with a dagger or gladius already in your
+    main hand, a second one in your off hand gets you an extra strike
+    (at reduced damage) on every basic attack that lands. Needs both
+    hands free of a shield, and isn't available to any other class.
+    """
+
+    key = "offhand"
+    aliases = ["dualwield"]
+    help_category = "combat"
+    rules = COMBAT_RULES
+
+    def func(self):
+        if not self.args:
+            self.caller.msg("Usage: offhand <obj>")
+            return
+        nofound_string = "You aren't carrying anything called '%s'." % self.args
+        carried = _carried_equippables(self.caller)
+        if carried:
+            nofound_string += " You're carrying: %s." % ", ".join(o.key for o in carried)
+        item = _search_carried_or_equipped(self.caller, self.args, self.caller.contents, nofound_string)
+        if not item:
+            return
+        if not item.is_typeclass("world.combat.CombatWeapon", exact=True):
+            self.caller.msg("That's not something you can wield!")
+            return
+        _try_wield_offhand(self.caller, item, self.rules)
 
 
 class CmdUnwield(Command):
@@ -13541,6 +13957,7 @@ class BattleCmdSet(CharacterCmdSet):
         self.add(CmdRecall())
         self.add(CmdCombatHelp())
         self.add(CmdWield())
+        self.add(CmdOffhand())
         self.add(CmdUnwield())
         self.add(CmdDon())
         self.add(CmdDoff())

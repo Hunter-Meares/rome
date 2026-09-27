@@ -389,10 +389,55 @@ def invisible_hides_from(character, looker):
     return "Sees Invisible" not in (looker.db.conditions or {})
 
 
+def is_stealthed(character):
+    """
+    A Sneak/Vanish-style movement stealth window (Sep 27, owner request) -
+    deliberately narrower than real invisibility (is_invisible above): it
+    hides a mover's name from room broadcasts (arrivals, departures,
+    speech/poses - anything that already goes through anonymize(), see
+    world/visibility.py) and keeps a wilderness ambush from noticing them,
+    but does NOT hide them from the room's own character listing - unlike
+    real Invisibility, this is about moving and acting unnoticed, not being
+    unseen while stood still and looked at directly. That distinction is
+    deliberate: folding this into is_invisible()/invisible_hides_from()
+    would also hide its holder from 'look' and get_display_name/access,
+    making a cheap, level-1 Speculator skill functionally outclass the
+    Augur's own, far more expensive concentration-drained Invisibility
+    spell. A plain future timestamp, not a condition or a concentration -
+    nothing to tick down, checked lazily wherever it matters.
+    """
+    if character is None or not hasattr(character, "db"):
+        return False
+    until = character.db.stealth_until
+    return bool(until and time.time() < until)
+
+
+def stealth_hides_from(character, looker):
+    """Same 'who sees through it' rules as invisible_hides_from, for the
+    lighter movement-stealth flag above - self, gods, and See Invisibility
+    still see straight through it."""
+    if character is None or looker is None or looker is character:
+        return False
+    if not is_stealthed(character):
+        return False
+    if not hasattr(looker, "db"):
+        return False
+    if (looker.db.level or 0) > 100:
+        return False
+    account = getattr(looker, "account", None)
+    if account and account.is_superuser:
+        return False
+    return "Sees Invisible" not in (looker.db.conditions or {})
+
+
 def reveal_on_offense(character):
-    """Invisibility ends the moment its holder attacks - no lingering bonus."""
+    """Invisibility (real or the lighter movement-stealth) ends the moment
+    its holder attacks - no lingering bonus."""
     if is_invisible(character):
         end_concentration(character, "invisibility", reason="attack")
+    if is_stealthed(character):
+        character.db.stealth_until = None
+        character.msg("|rYour stealthy approach ends the instant you strike.|n")
 
 
 def spell_invisibility(caster, spell_name, targets, cost, **kwargs):
@@ -925,9 +970,24 @@ class CmdEffects(Command):
         from world.combat import BENEFICIAL_CONDITIONS, HARMFUL_CONDITIONS
         from world.wards import get_temp_hp, temp_hp_seconds_left
 
+        import time
+
         caller = self.caller
         rules = _rules()
         lines = []
+
+        if (caller.db.snared_until or 0) > time.time():
+            remaining = int(caller.db.snared_until - time.time())
+            lines.append(
+                "|rSnared|n - can't leave this room for about %i more second%s"
+                % (remaining, "" if remaining == 1 else "s")
+            )
+
+        if (caller.db.stealth_until or 0) > time.time():
+            remaining = int(caller.db.stealth_until - time.time())
+            minutes, seconds = divmod(remaining, 60)
+            when = "%im %02is" % (minutes, seconds) if minutes else "%is" % seconds
+            lines.append("|cMoving unnoticed|n - about %s left" % when)
 
         conditions = rules.get_conditions(caller)
         if conditions:
@@ -1021,7 +1081,10 @@ RENAMED_SPELLS = {"vigor": "renew spirit"}
 # Skills that still exist under a new form: a player who knew the old one gets
 # the new one in its place, free. The Venator's Mark (an Accuracy Down debuff)
 # became Quarry (a damage bonus on one chosen enemy).
-RENAMED_SKILLS = {"mark": "quarry", "provoke": "goad", "favor": "crowd's surge"}
+RENAMED_SKILLS = {
+    "mark": "quarry", "provoke": "goad", "favor": "crowd's surge",
+    "shield wall": "hold the line", "earth-shaking slam": "whirlwind",
+}
 
 
 def prune_renamed_skills(character):

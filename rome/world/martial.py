@@ -223,6 +223,16 @@ def apply_rider(rules, user, target, rider, damage=0, attacker_stat=None):
     if effect == "Sundered":
         return _sunder(rules, target, both=rider.get("both", False))
 
+    # Legionary's Unbreakable (Sep 27): outright immunity to the four holds/
+    # blinds below, no resist roll needed - checked before the ordinary
+    # resist check so it's a hard stop, not just better odds.
+    if effect in ("Stunned", "Grappled", "Disarmed", "Blinded") and "Unbreakable" in (
+        target.db.conditions or {}
+    ):
+        if target.location:
+            target.location.msg_contents("%s is unbreakable - it can't take hold!" % target)
+        return False
+
     if rules.resists_condition(
         user, target, condition=effect, attacker_stat=attacker_stat,
         resist_stat=rider.get("resist"),

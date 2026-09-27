@@ -1727,12 +1727,12 @@ class TestCooldowns(CombatCommandTestBase):
         self.assertNotIn("renew spirit", self.char1.db.cooldowns)
 
     def test_skill_cooldown_enforced_the_same_way(self):
-        self.char1.db.skills_known = ["shield wall"]  # level_required 25
-        self.call(CmdUseSkill(), "shield wall", caller=self.char1)
-        self.assertEqual(self.char1.db.cooldowns.get("shield wall"), 2)
+        self.char1.db.skills_known = ["second wind"]  # level_required 20
+        self.call(CmdUseSkill(), "second wind", caller=self.char1)
+        self.assertEqual(self.char1.db.cooldowns.get("second wind"), 2)
 
         self.char1.db.sp = 20
-        result = self.call(CmdUseSkill(), "shield wall", caller=self.char1)
+        result = self.call(CmdUseSkill(), "second wind", caller=self.char1)
         self.assertIn("recovering", result)
 
 

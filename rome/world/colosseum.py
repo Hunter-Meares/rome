@@ -400,6 +400,10 @@ class CmdSneak(Command):
 
     Only usable in the Guard Checkpoint, beneath the Colosseum. Success
     is random - if you're spotted, you can simply try again.
+
+    (Looking for the Speculator's stealth skill of the same name? Use
+    'skill sneak' and 'skillinfo sneak' instead - this bare 'sneak'
+    command is this one specific escape, not that.)
     """
 
     key = "sneak"

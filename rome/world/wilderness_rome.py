@@ -286,11 +286,12 @@ def _schedule_encounter_cleanup(npc, in_seconds=ENCOUNTER_CLEANUP_SECONDS):
 
 
 def _is_unseen(character):
-    """True for someone under a real invisibility spell - the road's
-    ambushes don't spawn for them and can't find them (world/concentration.py)."""
-    from world.concentration import is_invisible
+    """True for someone under a real invisibility spell, or a Sneak/Vanish-
+    style movement stealth window - the road's ambushes don't spawn for
+    them and can't find them either way (world/concentration.py)."""
+    from world.concentration import is_invisible, is_stealthed
 
-    return is_invisible(character)
+    return is_invisible(character) or is_stealthed(character)
 
 
 def _aggro_on_sight(npc, caller, room):

@@ -244,6 +244,21 @@ NEW_SKILL_HELP = {
         "for the rest of the fight (see 'help martial effects'). It is the only "
         "reliable Sunder - the Gladius Cleave is now a plain three-target attack."
     ),
+    "unbreakable": (
+        "The Legionary's near-total defensive stance. For a few turns, "
+        "|wnothing can knock you down|n - immune outright to Stunned, "
+        "Grappled, Disarmed and Blinded, no resist roll needed at all. (It "
+        "used to be just another Defense Up stack, redundant with Hold the "
+        "Line, Testudo and Last Stand - this gives it its own real job.)"
+    ),
+    "last stand": (
+        "Mythic tier. The line that will not break: |wonce per fight|n, a "
+        "blow that would drop you to 0 HP instead leaves you standing at 1 "
+        "HP with a heavy shield of temporary HP - a real, one-time save, "
+        "not another Defense Up stack (Hold the Line, Testudo and "
+        "Unbreakable already cover that job). There's nothing to activate; "
+        "it triggers on its own."
+    ),
     "sentinel": (
         "The Legionary's guardian stance (D&D's Sentinel). For a few turns, "
         "|wany enemy who attacks one of your allies takes a free strike from "
@@ -316,6 +331,31 @@ NEW_SKILL_HELP = {
         "Earth-Shaking Slam, Wrath of Olympus...) |wis halved against you|n. A "
         "Speculator slips the edge of a blast that a sturdier fighter takes in full."
     ),
+    "vanish": (
+        "The Speculator's mid-fight escape-and-hide. Ends your part in the "
+        "current fight outright, exactly like 'slip away', then leaves you "
+        "with the same stealthy-approach effect Sneak grants (see 'help "
+        "sneak') for a couple of minutes - harder to hit, moving and "
+        "acting unnoticed, but still visible to anyone directly looking at "
+        "the room. Usable only mid-fight; use Sneak beforehand instead of "
+        "Vanish if you're not already fighting."
+    ),
+    "circle stab": (
+        "The Speculator's flanking strike. Circles wide around the enemy "
+        "line and reaches a target in the |wback row directly|n - it "
+        "bypasses row protection outright, no reach weapon needed (see "
+        "'help row'). Row protection only ever shields the target that "
+        "would otherwise be attacked, so a back-row Speculator could always "
+        "reach an enemy's exposed front line anyway; this is for cutting "
+        "straight past it to whoever's hiding safely behind it."
+    ),
+    "hamstring": (
+        "A cut across the tendon. A real weapon strike that may leave the "
+        "target |wHamstrung|n for a few turns: they can't disengage or flee, "
+        "and they're easier to hit besides. Resisted with |wAgilitas|n - a "
+        "cut tendon is a reflex effect, same family as Blinded, Grappled "
+        "and Disarmed (see 'help martial effects')."
+    ),
     "assassinate": (
         "A strike from hiding. You must be |wconcealed|n first - the Speculator's "
         "Sneak and Vanish leave you 'nearly invisible', harder to hit for a few "
@@ -323,6 +363,17 @@ NEW_SKILL_HELP = {
         "|wcannot miss|n, is a |wguaranteed critical hit|n, and hits two and a half "
         "times your normal blow. The hiding ends. (Backstab, by contrast, needs "
         "the target not to have acted yet.)"
+    ),
+    "snare": (
+        "The Venator's trap-setting, redesigned into a genuine placed trap "
+        "rather than a strike. Lays a hidden snare in the room you're "
+        "standing in - the next enemy who wanders through, never you, "
+        "never an ally, and never a pacifist, is caught |wheld fast, unable "
+        "to leave the room for a few minutes|n, unless their own |wAgilitas|n "
+        "springs them free first. You're alerted the instant it catches "
+        "someone. It fades away on its own after |wthree real hours|n if "
+        "nothing ever springs it. 'effects' shows how long you're held if "
+        "you're the one caught."
     ),
     "quarry": (
         "The Venator's Hunter's Mark, and its first skill. Choose |wone "

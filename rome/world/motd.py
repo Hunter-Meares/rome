@@ -35,15 +35,15 @@ from world.box_display import box_border, box_line, box_paragraph, box_blank
 RECENT_UPDATES_DATE = "2026-09-27"
 
 RECENT_UPDATES_TEXT = (
-    "The warriors have new tricks. Skills now cause real martial effects - "
-    "bleeding, stuns, disarms, sundered armor - and weapons can land critical "
-    "hits. New: Goad and War Cry taunts, Parry, Shield Block, Barbed Guard, "
-    "Crowd's Surge, and Speculator/Venator skills like Pilfer, Slip Away, "
-    "Quarry and Aimed Shot. Provoke and Favor are retired (you're swapped "
-    "automatically). A skill's effect now pits your own Virtus or Agilitas "
-    "against your target's, and a few strikes can miss a nimble foe. The "
-    "casters were reworked too - 'help concentration' and 'help martial "
-    "effects' explain it all."
+    "More warrior work. Legionary's defenses got a real shake-up (Shield "
+    "Wall is gone, Unbreakable now grants real immunity, Last Stand is a "
+    "one-time save), Barbarian's Earth-Shaking Slam is now Whirlwind, and "
+    "Speculators can dual-wield daggers ('offhand'), plant a real hidden "
+    "trap ('snare'), and reach the back row directly with Circle Stab or "
+    "hamstring a target's escape. Sneak now only works outside a fight; "
+    "Vanish is the mid-fight version. A few skills that used to always hit "
+    "a protected back-row target now correctly can't, unless you're "
+    "wielding a reach weapon."
 )
 
 # The box's own interior width, between its left/right borders and

@@ -63,6 +63,7 @@
         </div>
         <p class="lede" style="margin-top:12px;"><strong>Critical hits:</strong> a landed strike with any weapon, or bare fists, can be a critical hit for extra damage - light blades and bows fairly often for double, spears, axes and mauls rarely for triple, and a high Agilitas helps. Glory always crits. Monsters don't. <strong>Warrior effects:</strong> many damage skills can also leave <em>Bleeding</em> (any healing stops it), <em>Sunder</em> one piece of armor for the rest of the fight, <em>Disarm</em>, <em>Grapple</em> (no fleeing), <em>Stun</em> or <em>Blind</em>. A wound or a knockout is shrugged off with Vigor; dirt, a grab or a disarm is slipped with Agilitas; mind effects like sleep, fear and confusion are resisted with Ingenium.</p>
         <p class="lede" style="margin-top:12px;"><span class="tier-mythic">Mythic</span> tier (Level 90+) abilities are marked in gold below - the single most powerful ability each class or race will ever learn.</p>
+        <p class="lede" style="margin-top:12px;"><strong>Dual wield:</strong> a Speculator fighting with a dagger or gladius in each hand (see 'help offhand') gets a second, lighter strike on every basic attack that lands - the game's only class that can fight two-handed without a two-handed weapon.</p>
       </div>
     </section>
 
@@ -171,22 +172,24 @@
         <div class="table-wrap">
         <table class="ability-table">
           <tr><th>Level</th><th>Ability</th><th>Cost</th><th>Effect</th></tr>
-          <tr><td class="lvl">1</td><td>Sneak</td><td class="cost">SP</td><td>Turn nearly invisible, making yourself much harder to hit. Usable in or out of combat.</td></tr>
-          <tr><td class="lvl">5</td><td>Ambush</td><td class="cost">SP</td><td>Starts a fight with a burst from hiding, guaranteeing a bonus on your first successful attack. Only you and the target are drawn in.</td></tr>
-          <tr><td class="lvl">8</td><td>Poisoned Blade</td><td class="cost">SP</td><td>Coats your weapon, applying a poison curse to the target's next hit.</td></tr>
-          <tr><td class="lvl">15</td><td>Backstab</td><td class="cost">SP</td><td>Bonus damage against a target who hasn't yet acted in the fight. It can open a fight itself. May leave a bleeding wound.</td></tr>
-          <tr><td class="lvl">20</td><td>Field Report</td><td class="cost">SP</td><td>Reveals a target's current HP and conditions to your whole party at once.</td></tr>
-          <tr><td class="lvl">25</td><td>Precision Strike</td><td class="cost">SP</td><td>A precise cut at the weapon hand: a real strike that may knock the target's weapon from their grip for two turns.</td></tr>
-          <tr><td class="lvl">30</td><td>Slip Away</td><td class="cost">SP</td><td>The Rogue's Cunning Action: a guaranteed escape from a fight - no roll and none of the experience an ordinary disengage costs. Impossible while grappled.</td></tr>
-          <tr><td class="lvl">35</td><td>Crippling Strike</td><td class="cost">SP</td><td>A strike at the gaps in a foe's armor: a real strike that may cleave through one piece of it for the rest of the fight.</td></tr>
-          <tr><td class="lvl">40</td><td>Fast Hands</td><td class="cost">SP</td><td>For a few turns, using an item - a potion, a scroll, a meal - costs you no action.</td></tr>
-          <tr><td class="lvl">45</td><td>Smoke and Shadow</td><td class="cost">SP</td><td>A burst of evasion, making you much harder to hit for a short time.</td></tr>
-          <tr><td class="lvl">50</td><td>Pilfer</td><td class="cost">SP</td><td>Lifts gold from an NPC or another player, out of combat. A contest of your Agilitas against theirs; you can be caught. A player loses at most a tenth of their purse, never more than a level-scaled amount. One try per target every half hour.</td></tr>
+          <tr><td class="lvl">1</td><td>Sneak</td><td class="cost">4 SP</td><td>Turn nearly invisible for 15 minutes, and move and act unnoticed for the same stretch - room arrivals/departures go unnamed, and a wilderness ambush won't notice you. Doesn't hide you from someone already looking at your room. Usable only outside a fight - see Vanish for mid-fight.</td></tr>
+          <tr><td class="lvl">5</td><td>Ambush</td><td class="cost">5 SP</td><td>Starts a fight with a burst from hiding, guaranteeing a bonus on your first successful attack. Only you and the target are drawn in.</td></tr>
+          <tr><td class="lvl">8</td><td>Poisoned Blade</td><td class="cost">4 SP</td><td>Coats your weapon, applying a poison curse to the target's next hit.</td></tr>
+          <tr><td class="lvl">15</td><td>Backstab</td><td class="cost">6 SP</td><td>Bonus damage against a target who hasn't yet acted in the fight. It can open a fight itself. May leave a bleeding wound. Reaches a back-row target directly - not a front-row target with an ally covering their back.</td></tr>
+          <tr><td class="lvl">20</td><td>Field Report</td><td class="cost">3 SP</td><td>Calls out a real weak point in the target's guard: for a few turns they take extra damage from every source, not just your own blows - the whole party benefits.</td></tr>
+          <tr><td class="lvl">20</td><td>Hamstring</td><td class="cost">6 SP</td><td>A cut across the tendon: a real strike that may leave the target unable to flee and easier to hit for a few turns. Resisted with Agilitas.</td></tr>
+          <tr><td class="lvl">25</td><td>Precision Strike</td><td class="cost">5 SP</td><td>A precise cut at the weapon hand: a real strike that may knock the target's weapon from their grip for two turns.</td></tr>
+          <tr><td class="lvl">30</td><td>Slip Away</td><td class="cost">6 SP</td><td>The Rogue's Cunning Action: a guaranteed escape from a fight - no roll and none of the experience an ordinary disengage costs. Impossible while grappled.</td></tr>
+          <tr><td class="lvl">30</td><td>Circle Stab</td><td class="cost">6 SP</td><td>Circles wide and strikes from the flank: reaches a target in the back row directly, no reach weapon needed.</td></tr>
+          <tr><td class="lvl">35</td><td>Crippling Strike</td><td class="cost">6 SP</td><td>A strike at the gaps in a foe's armor: a real strike that may cleave through one piece of it for the rest of the fight.</td></tr>
+          <tr><td class="lvl">40</td><td>Fast Hands</td><td class="cost">5 SP</td><td>For a few turns, using an item - a potion, a scroll, a meal - costs you no action.</td></tr>
+          <tr><td class="lvl">45</td><td>Smoke and Shadow</td><td class="cost">6 SP</td><td>A burst of evasion, making you much harder to hit for a short time.</td></tr>
+          <tr><td class="lvl">50</td><td>Pilfer</td><td class="cost">5 SP</td><td>Lifts gold from an NPC or another player, out of combat. A contest of your Agilitas against theirs; you can be caught. A player loses at most a tenth of their purse, never more than a level-scaled amount. One try per target every half hour.</td></tr>
           <tr><td class="lvl">55</td><td>Uncanny Dodge</td><td class="cost">Passive</td><td>Passive: every few turns a physical blow that would hit you is halved automatically, with no action spent.</td></tr>
-          <tr><td class="lvl">60</td><td>Vanish</td><td class="cost">SP</td><td>A stronger, longer invisibility - usable mid-fight, not just before one.</td></tr>
+          <tr><td class="lvl">60</td><td>Vanish</td><td class="cost">8 SP</td><td>Melts out of an active fight entirely - ends your part in it, like Slip Away - and leaves you nearly invisible and moving unnoticed for a couple of minutes. Usable only mid-fight.</td></tr>
           <tr><td class="lvl">65</td><td>Elusive Footwork</td><td class="cost">Passive</td><td>Passive: damage from area attacks is halved against you.</td></tr>
-          <tr><td class="lvl">70</td><td>Assassinate</td><td class="cost">SP</td><td>A strike from hiding. Use Sneak or Vanish first, then Assassinate cannot miss, is a guaranteed critical hit, and hits two and a half times your normal blow. The hiding ends.</td></tr>
-          <tr><td class="lvl tier-mythic">90</td><td class="tier-mythic">Deathmark</td><td class="cost">SP</td><td>A blade meant for one throat alone - your next attack against the marked target cannot miss and deals heavy bonus damage.</td></tr>
+          <tr><td class="lvl">70</td><td>Assassinate</td><td class="cost">12 SP</td><td>A strike from hiding. Use Sneak or Vanish first, then Assassinate cannot miss, is a guaranteed critical hit, and hits two and a half times your normal blow. The hiding ends.</td></tr>
+          <tr><td class="lvl tier-mythic">90</td><td class="tier-mythic">Deathmark</td><td class="cost">10 SP</td><td>A blade meant for one throat alone - your next attack against the marked target cannot miss and deals heavy bonus damage.</td></tr>
         </table>
         </div>
       </div>
@@ -199,20 +202,20 @@
         <div class="table-wrap">
         <table class="ability-table">
           <tr><th>Level</th><th>Ability</th><th>Cost</th><th>Effect</th></tr>
-          <tr><td class="lvl">1</td><td>Quarry</td><td class="cost">SP</td><td>Marks one enemy as your quarry: for the rest of the fight your own blows against it deal 20% more damage. One quarry at a time.</td></tr>
-          <tr><td class="lvl">5</td><td>Keen Eye</td><td class="cost">SP</td><td>A hunter's focus - grants yourself a temporary accuracy boost.</td></tr>
-          <tr><td class="lvl">10</td><td>Entangle</td><td class="cost">SP</td><td>A thrown cord, a snare line, a well-placed trip: the target is Grappled for a few turns and can't break away from the fight. Slipped with Agilitas.</td></tr>
-          <tr><td class="lvl">15</td><td>Track</td><td class="cost">SP</td><td>Reveals who's present in an adjacent room, through a named exit, without entering it.</td></tr>
-          <tr><td class="lvl">20</td><td>Piercing Shot</td><td class="cost">SP</td><td>An armor-ignoring ranged strike.</td></tr>
-          <tr><td class="lvl">25</td><td>Forager's Eye</td><td class="cost">SP</td><td>For about ten minutes, timber and herbs in the wilderness are much easier to spot.</td></tr>
-          <tr><td class="lvl">30</td><td>Rapid Volley</td><td class="cost">SP</td><td>A quick volley of shots, striking up to three targets at once. Arrows may leave bleeding wounds.</td></tr>
-          <tr><td class="lvl">40</td><td>Snare</td><td class="cost">SP</td><td>A hidden spiked trap that catches whatever springs it: a hit that leaves a bleeding wound. The target's Agilitas lets them spring free.</td></tr>
-          <tr><td class="lvl">45</td><td>Aimed Shot</td><td class="cost">SP</td><td>Needs a ranged weapon. Spend the turn taking careful aim; your next attack cannot be avoided and hits two and a half times as hard.</td></tr>
-          <tr><td class="lvl">50</td><td>Call of the Wild</td><td class="cost">SP</td><td>Calls a beast companion to fight at your side - wolf, boar, or something greater, depending on your level.</td></tr>
-          <tr><td class="lvl">55</td><td>Pathfinder</td><td class="cost">SP</td><td>For about ten minutes, every other step you walk costs no stamina.</td></tr>
-          <tr><td class="lvl">70</td><td>Pack Tactics</td><td class="cost">SP</td><td>A damage boost, but only while an active beast companion is out fighting alongside you.</td></tr>
-          <tr><td class="lvl">75</td><td>Bestial Fury</td><td class="cost">SP</td><td>Spend your action to send your companion into a savage frenzy: for three turns it attacks twice each turn - three extra attacks for the one you gave up.</td></tr>
-          <tr><td class="lvl tier-mythic">90</td><td class="tier-mythic">Bane of the Wild Hunt</td><td class="cost">SP</td><td>A hunt Artemis herself would envy - a devastating volley striking up to five targets at once.</td></tr>
+          <tr><td class="lvl">1</td><td>Quarry</td><td class="cost">4 SP</td><td>Marks one enemy as your quarry: for the rest of the fight your own blows against it deal 20% more damage. One quarry at a time.</td></tr>
+          <tr><td class="lvl">5</td><td>Keen Eye</td><td class="cost">4 SP</td><td>A hunter's focus - grants yourself a temporary accuracy boost.</td></tr>
+          <tr><td class="lvl">10</td><td>Entangle</td><td class="cost">5 SP</td><td>A thrown cord, a snare line, a well-placed trip: the target is Grappled for a few turns and can't break away from the fight. Slipped with Agilitas.</td></tr>
+          <tr><td class="lvl">15</td><td>Track</td><td class="cost">3 SP</td><td>Reveals who's present in an adjacent room, through a named exit, without entering it.</td></tr>
+          <tr><td class="lvl">20</td><td>Piercing Shot</td><td class="cost">6 SP</td><td>An armor-ignoring ranged strike.</td></tr>
+          <tr><td class="lvl">25</td><td>Forager's Eye</td><td class="cost">5 SP</td><td>For about ten minutes, timber and herbs in the wilderness are much easier to spot.</td></tr>
+          <tr><td class="lvl">30</td><td>Rapid Volley</td><td class="cost">8 SP</td><td>A quick volley of shots, striking up to three targets at once. Arrows may leave bleeding wounds.</td></tr>
+          <tr><td class="lvl">40</td><td>Snare</td><td class="cost">6 SP</td><td>Lays a hidden trap in the room. The next enemy who wanders through - never an ally or a pacifist - is held fast and can't leave for a few minutes, unless their Agilitas frees them first. You're alerted the moment it springs. Fades after 3 hours unsprung.</td></tr>
+          <tr><td class="lvl">45</td><td>Aimed Shot</td><td class="cost">6 SP</td><td>Needs a ranged weapon. Spend the turn taking careful aim; your next attack cannot be avoided and hits two and a half times as hard.</td></tr>
+          <tr><td class="lvl">50</td><td>Call of the Wild</td><td class="cost">10 SP</td><td>Calls a beast companion to fight at your side - wolf, boar, or something greater, depending on your level.</td></tr>
+          <tr><td class="lvl">55</td><td>Pathfinder</td><td class="cost">6 SP</td><td>For about ten minutes, every other step you walk costs no stamina.</td></tr>
+          <tr><td class="lvl">70</td><td>Pack Tactics</td><td class="cost">6 SP</td><td>A damage boost, but only while an active beast companion is out fighting alongside you.</td></tr>
+          <tr><td class="lvl">75</td><td>Bestial Fury</td><td class="cost">9 SP</td><td>Spend your action to send your companion into a savage frenzy: for three turns it attacks twice each turn - three extra attacks for the one you gave up.</td></tr>
+          <tr><td class="lvl tier-mythic">90</td><td class="tier-mythic">Bane of the Wild Hunt</td><td class="cost">12 SP</td><td>A hunt Artemis herself would envy - a devastating volley striking up to five targets at once.</td></tr>
         </table>
         </div>
       </div>
@@ -225,19 +228,19 @@
         <div class="table-wrap">
         <table class="ability-table">
           <tr><th>Level</th><th>Ability</th><th>Cost</th><th>Effect</th></tr>
-          <tr><td class="lvl">1</td><td>Feint</td><td class="cost">SP</td><td>A theatrical feint that opens the target's guard: a real weapon strike that may leave a bleeding wound.</td></tr>
-          <tr><td class="lvl">5</td><td>Weapon Mastery</td><td class="cost">SP</td><td>Channels years of arena training into your next few strikes - a temporary damage boost.</td></tr>
-          <tr><td class="lvl">10</td><td>Weapon Flourish</td><td class="cost">SP</td><td>A flashy display of weapon control that finds the weak points - your critical-hit chance is 15 points higher for a few turns.</td></tr>
-          <tr><td class="lvl">15</td><td>Disarming Strike</td><td class="cost">SP</td><td>A precise strike aimed at the weapon hand: a real blow that will often knock the target's weapon from their grip for two turns.</td></tr>
-          <tr><td class="lvl">20</td><td>Second Wind</td><td class="cost">SP</td><td>The crowd's roar carries you through the pain - a short heal-over-time.</td></tr>
-          <tr><td class="lvl">25</td><td>Dirt Kick</td><td class="cost">SP</td><td>An arena dirty trick: sand in the eyes. The target is Blinded for a few turns - a big drop to their accuracy, twice an ordinary Accuracy Down. Dodged with Agilitas.</td></tr>
-          <tr><td class="lvl">30</td><td>Gory Finish</td><td class="cost">SP</td><td>A finishing strike - usable only on a target below 20% health. It cannot miss and hits for twice your weapon damage, but it is not an instant kill.</td></tr>
-          <tr><td class="lvl">35</td><td>Parry</td><td class="cost">SP</td><td>A duelist's stance that lasts the whole fight - no cooldown. Each blow aimed at you has a chance to be turned aside completely: 15%, plus 2% for every point of your Agilitas above the attacker's (minus 2% for every point below), never under 5% or over 45%. A nimbler foe beats your parry more often. Needs a weapon in hand.</td></tr>
-          <tr><td class="lvl">40</td><td>Riposte</td><td class="cost">SP</td><td>The next hit you take triggers an immediate counter-attack against whoever landed it.</td></tr>
+          <tr><td class="lvl">1</td><td>Feint</td><td class="cost">4 SP</td><td>A theatrical feint that opens the target's guard: a real weapon strike that may leave a bleeding wound.</td></tr>
+          <tr><td class="lvl">5</td><td>Weapon Mastery</td><td class="cost">5 SP</td><td>Channels years of arena training into your next few strikes - a temporary damage boost.</td></tr>
+          <tr><td class="lvl">10</td><td>Weapon Flourish</td><td class="cost">4 SP</td><td>A flashy display of weapon control that finds the weak points - your critical-hit chance is 15 points higher for a few turns.</td></tr>
+          <tr><td class="lvl">15</td><td>Disarming Strike</td><td class="cost">6 SP</td><td>A precise strike aimed at the weapon hand: a real blow that will often knock the target's weapon from their grip for two turns.</td></tr>
+          <tr><td class="lvl">20</td><td>Second Wind</td><td class="cost">6 SP</td><td>The crowd's roar carries you through the pain - a short heal-over-time.</td></tr>
+          <tr><td class="lvl">25</td><td>Dirt Kick</td><td class="cost">5 SP</td><td>An arena dirty trick: sand in the eyes. The target is Blinded for a few turns - a big drop to their accuracy, twice an ordinary Accuracy Down. Dodged with Agilitas.</td></tr>
+          <tr><td class="lvl">30</td><td>Gory Finish</td><td class="cost">8 SP</td><td>A finishing strike - usable only on a target below 20% health. It cannot miss and hits for twice your weapon damage, but it is not an instant kill.</td></tr>
+          <tr><td class="lvl">35</td><td>Parry</td><td class="cost">6 SP</td><td>A duelist's stance that lasts the whole fight - no cooldown. Each blow aimed at you has a chance to be turned aside completely: 15%, plus 2% for every point of your Agilitas above the attacker's (minus 2% for every point below), never under 5% or over 45%. A nimbler foe beats your parry more often. Needs a weapon in hand.</td></tr>
+          <tr><td class="lvl">40</td><td>Riposte</td><td class="cost">7 SP</td><td>The next hit you take triggers an immediate counter-attack against whoever landed it.</td></tr>
           <tr><td class="lvl">45</td><td>Double Strike</td><td class="cost">Passive</td><td>Landing a normal attack has a real chance to immediately follow up with a second, lighter strike. Nothing to activate - it triggers on its own.</td></tr>
-          <tr><td class="lvl">50</td><td>Finishing Blow</td><td class="cost">SP</td><td>A heavy, direct strike aimed to end a fight quickly. May grapple the target so they can't break away for a few turns.</td></tr>
-          <tr><td class="lvl">70</td><td>Crowd's Surge</td><td class="cost">SP</td><td>The crowd rises and you surge with it: one extra action this turn, on top of your normal one - a free second attack. Costs no action itself.</td></tr>
-          <tr><td class="lvl tier-mythic">90</td><td class="tier-mythic">Glory</td><td class="cost">SP</td><td>A strike worthy of a legend retold for generations - a massive damage finisher. Always a critical hit.</td></tr>
+          <tr><td class="lvl">50</td><td>Finishing Blow</td><td class="cost">8 SP</td><td>A heavy, direct strike aimed to end a fight quickly. May grapple the target so they can't break away for a few turns.</td></tr>
+          <tr><td class="lvl">70</td><td>Crowd's Surge</td><td class="cost">10 SP</td><td>The crowd rises and you surge with it: one extra action this turn, on top of your normal one - a free second attack. Costs no action itself.</td></tr>
+          <tr><td class="lvl tier-mythic">90</td><td class="tier-mythic">Glory</td><td class="cost">12 SP</td><td>A strike worthy of a legend retold for generations - a massive damage finisher. Always a critical hit.</td></tr>
           <tr><td class="lvl">95</td><td>Triple Strike</td><td class="cost">Passive</td><td>Builds on Double Strike - if that follow-up strike also lands, there's a real chance of a third, lighter strike still.</td></tr>
         </table>
         </div>
@@ -251,20 +254,19 @@
         <div class="table-wrap">
         <table class="ability-table">
           <tr><th>Level</th><th>Ability</th><th>Cost</th><th>Effect</th></tr>
-          <tr><td class="lvl">1</td><td>Hold the Line</td><td class="cost">SP</td><td>Plants your feet and draws every eye - a temporary defense boost.</td></tr>
-          <tr><td class="lvl">5</td><td>Shield Bash</td><td class="cost">SP</td><td>A heavy shield strike, driving a target back. May knock the target's weapon from their hand for two turns.</td></tr>
-          <tr><td class="lvl">10</td><td>Goad</td><td class="cost">SP</td><td>Taunts an enemy into fixating on you. For a few turns a monster can attack no one but you, and a player who strikes anyone else suffers a big accuracy penalty. The tank's way of protecting the party. Resisted with Ingenium.</td></tr>
-          <tr><td class="lvl">15</td><td>Gladius Cleave</td><td class="cost">SP</td><td>A close-range cleave, striking up to three enemies in front of you at once - the Legionary's area attack.</td></tr>
-          <tr><td class="lvl">25</td><td>Shield Wall</td><td class="cost">SP</td><td>A stronger defensive stance than Hold the Line.</td></tr>
-          <tr><td class="lvl">30</td><td>Shield Block</td><td class="cost">SP</td><td>A shield stance that lasts the whole fight - no cooldown. Each blow aimed at you has a chance to be caught on the shield entirely: 15%, plus 2% for every point of your Virtus above the attacker's, never under 5% or over 45%. Only works while you wear a shield; a shield cleaved through by a Sunder stops blocking.</td></tr>
-          <tr><td class="lvl">35</td><td>Testudo</td><td class="cost">SP, group</td><td>Forms a shield wall, granting up to five allies - your party, picked automatically - a temporary defense boost.</td></tr>
-          <tr><td class="lvl">45</td><td>Sentinel</td><td class="cost">SP</td><td>A guardian's stance: for a few turns, any enemy who attacks one of your allies takes a free strike from you, once per turn, at no cost to your action. Works against basic attacks and physical skills, not spells.</td></tr>
-          <tr><td class="lvl">45</td><td>Rally</td><td class="cost">SP, group</td><td>Steadies the whole unit, granting up to five allies - your party, picked automatically - a heal-over-time.</td></tr>
-          <tr><td class="lvl">50</td><td>Fighting Retreat</td><td class="cost">SP, group</td><td>The Legionary's orderly withdrawal: with no target named, up to five members of your party in the fight break away at once - guaranteed, and without the experience an ordinary disengage costs. Name specific allies to keep yourself in the fight. Anyone grappled, stunned or asleep can't be pulled out.</td></tr>
-          <tr><td class="lvl">60</td><td>Unbreakable</td><td class="cost">SP</td><td>A near-total defensive stance, held longer than any lesser stance.</td></tr>
-          <tr><td class="lvl">65</td><td>Barbed Guard</td><td class="cost">SP</td><td>Turns your guard into a wall of spikes: for a few turns a quarter of every physical blow you take is thrown back at whoever struck you. Spells are not reflected.</td></tr>
-          <tr><td class="lvl">75</td><td>Shattering Blow</td><td class="cost">SP</td><td>A heavy strike that breaks through even the sturdiest guard: a landed blow always cleaves through the target's body armor and their shield, leaving both useless for the rest of the fight.</td></tr>
-          <tr><td class="lvl tier-mythic">90</td><td class="tier-mythic">Last Stand</td><td class="cost">SP, group</td><td>The line that will not break, no matter the cost - a powerful, long-lasting defense boost for up to five allies.</td></tr>
+          <tr><td class="lvl">1</td><td>Hold the Line</td><td class="cost">4 SP</td><td>Plants your feet and draws every eye - a temporary defense boost.</td></tr>
+          <tr><td class="lvl">5</td><td>Shield Bash</td><td class="cost">5 SP</td><td>A heavy shield strike, driving a target back. May knock the target's weapon from their hand for two turns.</td></tr>
+          <tr><td class="lvl">10</td><td>Goad</td><td class="cost">5 SP</td><td>Taunts an enemy into fixating on you. For a few turns a monster can attack no one but you, and a player who strikes anyone else suffers a big accuracy penalty. The tank's way of protecting the party. Resisted with Ingenium.</td></tr>
+          <tr><td class="lvl">15</td><td>Gladius Cleave</td><td class="cost">7 SP</td><td>A close-range cleave, striking up to three enemies in front of you at once - the Legionary's area attack.</td></tr>
+          <tr><td class="lvl">30</td><td>Shield Block</td><td class="cost">6 SP</td><td>A shield stance that lasts the whole fight - no cooldown. Each blow aimed at you has a chance to be caught on the shield entirely: 15%, plus 2% for every point of your Virtus above the attacker's, never under 5% or over 45%. Only works while you wear a shield; a shield cleaved through by a Sunder stops blocking.</td></tr>
+          <tr><td class="lvl">35</td><td>Testudo</td><td class="cost">8 SP, group</td><td>Forms a shield wall, granting up to five allies - your party, picked automatically - a temporary defense boost.</td></tr>
+          <tr><td class="lvl">45</td><td>Sentinel</td><td class="cost">8 SP</td><td>A guardian's stance: for a few turns, any enemy who attacks one of your allies takes a free strike from you, once per turn, at no cost to your action. Works against basic attacks and physical skills, not spells.</td></tr>
+          <tr><td class="lvl">45</td><td>Rally</td><td class="cost">8 SP, group</td><td>Steadies the whole unit, granting up to five allies - your party, picked automatically - a heal-over-time.</td></tr>
+          <tr><td class="lvl">50</td><td>Fighting Retreat</td><td class="cost">10 SP, group</td><td>The Legionary's orderly withdrawal: with no target named, up to five members of your party in the fight break away at once - guaranteed, and without the experience an ordinary disengage costs. Name specific allies to keep yourself in the fight. Anyone grappled, stunned or asleep can't be pulled out.</td></tr>
+          <tr><td class="lvl">60</td><td>Unbreakable</td><td class="cost">10 SP</td><td>For a few turns, nothing can knock you down - immune outright to Stunned, Grappled, Disarmed and Blinded.</td></tr>
+          <tr><td class="lvl">65</td><td>Barbed Guard</td><td class="cost">9 SP</td><td>Turns your guard into a wall of spikes: for a few turns a quarter of every physical blow you take is thrown back at whoever struck you. Spells are not reflected.</td></tr>
+          <tr><td class="lvl">75</td><td>Shattering Blow</td><td class="cost">9 SP</td><td>A heavy strike that breaks through even the sturdiest guard: a landed blow always cleaves through the target's body armor and their shield, leaving both useless for the rest of the fight.</td></tr>
+          <tr><td class="lvl tier-mythic">90</td><td class="tier-mythic">Last Stand</td><td class="cost">Passive</td><td>Mythic tier. The line that will not break: once per fight, a blow that would fell you instead leaves you at 1 HP with a heavy shield of temporary HP.</td></tr>
         </table>
         </div>
       </div>
@@ -277,17 +279,17 @@
         <div class="table-wrap">
         <table class="ability-table">
           <tr><th>Level</th><th>Ability</th><th>Cost</th><th>Effect</th></tr>
-          <tr><td class="lvl">1</td><td>Rage of the North</td><td class="cost">SP</td><td>A berserker's rage - a damage boost, at the cost of your own defense for the same duration.</td></tr>
-          <tr><td class="lvl">5</td><td>Reckless Swing</td><td class="cost">SP</td><td>A wild, heavy swing with little regard for form. A landed hit may open a bleeding wound that costs HP each turn until it runs out or the target is healed.</td></tr>
-          <tr><td class="lvl">15</td><td>War Cry</td><td class="cost">SP</td><td>A roar that bellows challenge at up to three enemies at once: for two turns a monster can attack no one but you, and a player who strikes anyone else suffers a big accuracy penalty. Resisted with Ingenium.</td></tr>
-          <tr><td class="lvl">20</td><td>Thundering Maul</td><td class="cost">SP</td><td>A heavy two-handed strike. Requires an actual two-handed weapon in hand. May cleave through one piece of the target's armor, leaving it useless for the rest of the fight.</td></tr>
-          <tr><td class="lvl">30</td><td>Intimidating Roar</td><td class="cost">SP</td><td>A roar that leaves a single enemy too frightened to act for a short time.</td></tr>
-          <tr><td class="lvl">35</td><td>Headbutt</td><td class="cost">SP</td><td>A vicious headbutt that knocks the target senseless - they lose their next two turns and can't act, cast, use skills, speak or move. Unlike Sleep, damage does not wake them. Resisted with Vigor; a stunned target is then immune to stuns for a few turns.</td></tr>
-          <tr><td class="lvl">40</td><td>Ferocity</td><td class="cost">SP</td><td>A stronger, purer rage than Rage of the North - a bigger damage boost, without the defense cost, and a hard hide: while it lasts you shrug off over a third of every physical blow.</td></tr>
-          <tr><td class="lvl">50</td><td>Reckless Abandon</td><td class="cost">SP</td><td>A huge damage strike that leaves your own defense down afterward - real risk for real reward.</td></tr>
-          <tr><td class="lvl">65</td><td>Unstoppable</td><td class="cost">SP</td><td>A powerful, sustained defensive resolve that nothing seems able to shake.</td></tr>
-          <tr><td class="lvl">80</td><td>Earth-Shaking Slam</td><td class="cost">SP</td><td>A ground-shaking slam striking up to three enemies at once.</td></tr>
-          <tr><td class="lvl tier-mythic">90</td><td class="tier-mythic">Fury of the Frontier</td><td class="cost">SP</td><td>A storm of axe and fury the legions still tell campfire stories about - a massive multi-hit rage attack striking up to five enemies at once. Hits may leave bleeding wounds.</td></tr>
+          <tr><td class="lvl">1</td><td>Rage of the North</td><td class="cost">5 SP</td><td>A berserker's rage - a damage boost, at the cost of your own defense for the same duration.</td></tr>
+          <tr><td class="lvl">5</td><td>Reckless Swing</td><td class="cost">5 SP</td><td>A wild, heavy swing with little regard for form. A landed hit may open a bleeding wound that costs HP each turn until it runs out or the target is healed.</td></tr>
+          <tr><td class="lvl">15</td><td>War Cry</td><td class="cost">7 SP</td><td>A roar that bellows challenge at up to three enemies at once: for two turns a monster can attack no one but you, and a player who strikes anyone else suffers a big accuracy penalty. Resisted with Ingenium.</td></tr>
+          <tr><td class="lvl">20</td><td>Thundering Maul</td><td class="cost">8 SP</td><td>A heavy two-handed strike. Requires an actual two-handed weapon in hand. May cleave through one piece of the target's armor, leaving it useless for the rest of the fight.</td></tr>
+          <tr><td class="lvl">30</td><td>Intimidating Roar</td><td class="cost">6 SP</td><td>A roar that leaves a single enemy too frightened to act for a short time.</td></tr>
+          <tr><td class="lvl">35</td><td>Headbutt</td><td class="cost">9 SP</td><td>A vicious headbutt that knocks the target senseless - they lose their next two turns and can't act, cast, use skills, speak or move. Unlike Sleep, damage does not wake them. Resisted with Vigor; a stunned target is then immune to stuns for a few turns.</td></tr>
+          <tr><td class="lvl">40</td><td>Ferocity</td><td class="cost">8 SP</td><td>A stronger, purer rage than Rage of the North - a bigger damage boost, without the defense cost, and a hard hide: while it lasts you shrug off over a third of every physical blow.</td></tr>
+          <tr><td class="lvl">50</td><td>Reckless Abandon</td><td class="cost">9 SP</td><td>A huge damage strike that leaves your own defense down afterward - real risk for real reward.</td></tr>
+          <tr><td class="lvl">65</td><td>Unstoppable</td><td class="cost">10 SP</td><td>A powerful, sustained defensive resolve that nothing seems able to shake.</td></tr>
+          <tr><td class="lvl">80</td><td>Whirlwind</td><td class="cost">11 SP</td><td>A spinning sweep of the weapon, striking up to three enemies at once.</td></tr>
+          <tr><td class="lvl tier-mythic">90</td><td class="tier-mythic">Fury of the Frontier</td><td class="cost">14 SP</td><td>A storm of axe and fury the legions still tell campfire stories about - a massive multi-hit rage attack striking up to five enemies at once. Hits may leave bleeding wounds.</td></tr>
         </table>
         </div>
       </div>

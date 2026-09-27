@@ -89,9 +89,9 @@ class TestEveryDamagingSkillIsWeaponBased(EvenniaTest):
 
     def test_area_skills_rank_by_tier(self):
         m = lambda n: SKILLS[n]["weapon_multiplier"]
-        self.assertLess(m("gladius cleave"), m("earth-shaking slam"))
+        self.assertLess(m("gladius cleave"), m("whirlwind"))
         self.assertLess(m("rapid volley"), m("bane of the wild hunt"))
-        self.assertLess(m("earth-shaking slam"), m("fury of the frontier"))
+        self.assertLess(m("whirlwind"), m("fury of the frontier"))
 
     def test_the_legacy_flat_ranges_are_kept_for_npcs(self):
         for name, data in SKILLS.items():
@@ -156,10 +156,10 @@ class TestSkillsHitForTheWeaponTimesTheMultiplier(SkillDamageBase):
         target2 = create.create_object("typeclasses.characters.Character", key="Third", location=self.room1)
         target2.db.max_hp = target2.db.hp = 100000
         target2.db.conditions = {}
-        data = SKILLS["earth-shaking slam"]
+        data = SKILLS["whirlwind"]
         kwargs = {k: v for k, v in data.items() if k in ("weapon_multiplier", "damage_range")}
         with patch("world.combat.randint", side_effect=lambda lo, hi: hi):
-            data["skillfunc"](self.char1, "earth-shaking slam", [self.char2, target2], 11, **kwargs)
+            data["skillfunc"](self.char1, "whirlwind", [self.char2, target2], 11, **kwargs)
         self.assertEqual(100000 - self.char2.db.hp, 130)
         self.assertEqual(100000 - target2.db.hp, 130)
 

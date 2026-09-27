@@ -23,9 +23,9 @@ _COLOR_CODE = re.compile(r"\|[a-zA-Z0-9=\[\]!\*_/>]")
 
 
 def _hidden_from(character, looker):
-    from world.concentration import invisible_hides_from
+    from world.concentration import invisible_hides_from, stealth_hides_from
 
-    return invisible_hides_from(character, looker)
+    return invisible_hides_from(character, looker) or stealth_hides_from(character, looker)
 
 
 def state_tags(character, looker):
@@ -86,7 +86,8 @@ class InvisibleAwareRoom:
         from evennia.utils.utils import make_iter
 
         hidden = [
-            obj for obj in self.contents if obj.attributes.has("concentrations") and _is_invisible(obj)
+            obj for obj in self.contents
+            if (obj.attributes.has("concentrations") and _is_invisible(obj)) or _is_stealthed(obj)
         ]
         if not hidden or not isinstance(text, str):
             return super().msg_contents(
@@ -113,3 +114,9 @@ def _is_invisible(obj):
     from world.concentration import is_invisible
 
     return is_invisible(obj)
+
+
+def _is_stealthed(obj):
+    from world.concentration import is_stealthed
+
+    return is_stealthed(obj)
