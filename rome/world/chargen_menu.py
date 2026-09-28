@@ -205,6 +205,45 @@ RACES = {
 
 _RACE_ORDER = ["human", "minotaur", "centaur", "harpy", "nymph", "cyclops"]
 
+# Race-appropriate starting-gear substitutions (Sep 28, owner request - a
+# real Discord bug report: a Centaur spawning with sandals). Keyed by
+# race -> {original CLASSES starting_gear prototype name: replacement
+# prototype name (world/prototypes.py) or None to skip the slot outright}.
+# Only overrides the slots that are a genuine anatomical mismatch - torso
+# armor, arm/hand gear, and every weapon fit every race exactly the same
+# way a Human's would, so those are left completely untouched. A Centaur's
+# whole lower body IS the horse (no separate human leg or foot to wrap or
+# shoe - both slots get a real equivalent, same stats as what they
+# replace, not just an empty slot); a Harpy's legs are otherwise ordinary,
+# only their taloned feet need one.
+#
+# Deliberately scoped to CHARGEN ONLY - this does not stop a Centaur or
+# Harpy from later buying or looting ordinary human footwear/legwear and
+# wearing it anyway. Whether that should also be blocked is a separate,
+# bigger design question (touching every shop and loot table, not just
+# chargen) - not addressed here.
+#
+# Minotaur/Cyclops helms (horns, a single eye) were considered too, but
+# deliberately left as-is: unlike a horse's legs, a helm genuinely fitting
+# a horned or one-eyed head is a much softer, more debatable call, not a
+# hard anatomical impossibility - worth a real answer from the owner
+# before spending more new prototypes on it.
+RACE_GEAR_OVERRIDES = {
+    "centaur": {
+        "FEMINALIA": "CENTAUR_FLANK_WRAP",
+        "OCREA": "CENTAUR_FLANK_BARDING",
+        "OCREA_FERRATA": "CENTAUR_FLANK_BARDING_IRON",
+        "SOLEAE": "CENTAUR_HORSESHOES",
+        "CALIGAE": "CENTAUR_HORSESHOES_BRONZE",
+        "CALIGAE_FERRATAE": "CENTAUR_HORSESHOES_IRON",
+    },
+    "harpy": {
+        "SOLEAE": "HARPY_TALON_GUARD",
+        "CALIGAE": "HARPY_TALON_GUARD_BRONZE",
+        "CALIGAE_FERRATAE": "HARPY_TALON_GUARD_IRON",
+    },
+}
+
 
 def _leans_caster(stat_mods):
     """
@@ -969,6 +1008,9 @@ def _apply_race_and_class(character):
         CHARGEN_GEAR_LEVEL = 4
 
         for prototype_name in CLASSES[class_key]["starting_gear"]:
+            prototype_name = RACE_GEAR_OVERRIDES.get(race_key, {}).get(prototype_name, prototype_name)
+            if prototype_name is None:
+                continue
             try:
                 obj = spawn(prototype_name)[0]
                 # spawn()'s location kwarg is unreliable - move explicitly.

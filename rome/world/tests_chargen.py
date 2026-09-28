@@ -32,6 +32,7 @@ from world.chargen_menu import (
     menunode_end,
     menunode_choose_name,
     _format_starting_gear,
+    RACE_GEAR_OVERRIDES,
 )
 from world.combat import SPELLS, SKILLS
 
@@ -242,6 +243,30 @@ class TestRaceClassDataIntegrity(EvenniaTest):
                     % (class_key, prototype_name),
                 )
 
+    def test_every_race_gear_override_target_exists(self):
+        import world.prototypes as prototypes_module
+
+        for race_key, overrides in RACE_GEAR_OVERRIDES.items():
+            for original, replacement in overrides.items():
+                if replacement is None:
+                    continue
+                self.assertTrue(
+                    hasattr(prototypes_module, replacement),
+                    "Race '%s' override for '%s' references unknown prototype '%s'"
+                    % (race_key, original, replacement),
+                )
+
+    def test_every_race_gear_override_key_is_a_real_starting_gear_item(self):
+        """Every original prototype name a race override targets should
+        actually appear in at least one class's starting_gear - otherwise
+        the override can never fire and is dead data."""
+        all_starting_gear = {
+            name for pclass in CLASSES.values() for name in pclass.get("starting_gear", [])
+        }
+        for race_key, overrides in RACE_GEAR_OVERRIDES.items():
+            for original in overrides:
+                self.assertIn(original, all_starting_gear, (race_key, original))
+
 
 class TestApplyRaceAndClass(EvenniaTest):
     """
@@ -345,6 +370,59 @@ class TestApplyRaceAndClass(EvenniaTest):
         # any title set via the 'title' command.
         char.db.custom_title = "the Undefeated"
         self.assertEqual(char.db.custom_title, "the Undefeated")
+
+    def test_a_centaur_gets_no_human_legs_or_feet(self):
+        """
+        Sep 28, real Discord bug report: a Centaur spawning with sandals
+        made no sense. A Centaur's whole lower body IS the horse - both
+        the legs and feet slots should get a real, race-appropriate
+        equivalent instead, never the plain human item.
+        """
+        char = self.char1
+        char.db.race = "centaur"
+        char.db.player_class = "gladiator"  # OCREA / CALIGAE tier
+        _apply_race_and_class(char)
+
+        self.assertIn("flank barding", char.db.worn_legs.key)
+        self.assertIn("horseshoes", char.db.worn_feet.key)
+        self.assertNotIn("ocrea", char.db.worn_legs.key)
+        self.assertNotIn("caligae", char.db.worn_feet.key)
+
+    def test_a_centaurs_replacement_gear_keeps_the_same_stat_value(self):
+        """The substitution shouldn't quietly leave a Centaur with less
+        max_sp/vigor than a Human choosing the exact same class would get."""
+        centaur = self.char1
+        centaur.db.race = "centaur"
+        centaur.db.player_class = "augur"  # FEMINALIA / SOLEAE tier
+        _apply_race_and_class(centaur)
+
+        human = self.char2
+        human.db.race = "human"
+        human.db.player_class = "augur"
+        _apply_race_and_class(human)
+
+        self.assertEqual(centaur.db.worn_legs.db.resource_bonuses, human.db.worn_legs.db.resource_bonuses)
+        self.assertEqual(centaur.db.worn_feet.db.resource_bonuses, human.db.worn_feet.db.resource_bonuses)
+
+    def test_a_harpy_gets_talon_guards_not_sandals_but_keeps_ordinary_legs(self):
+        """A Harpy's legs are otherwise ordinary - only their taloned feet
+        need a real-world-inappropriate item swapped out."""
+        char = self.char1
+        char.db.race = "harpy"
+        char.db.player_class = "medicus"  # FEMINALIA / SOLEAE tier
+        _apply_race_and_class(char)
+
+        self.assertIn("talon-guard", char.db.worn_feet.key)
+        self.assertEqual(char.db.worn_legs.key, "a pair of simple feminalia leg-wraps")
+
+    def test_a_human_is_unaffected_by_any_race_override(self):
+        char = self.char1
+        char.db.race = "human"
+        char.db.player_class = "gladiator"
+        _apply_race_and_class(char)
+
+        self.assertEqual(char.db.worn_legs.key, "a pair of bronze ocrea greaves")
+        self.assertEqual(char.db.worn_feet.key, "a pair of studded caligae boots")
 
     def test_no_duplicate_starting_spells_on_repeated_apply(self):
         """

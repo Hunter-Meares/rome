@@ -468,6 +468,107 @@ CALIGAE_FERRATAE = {
     "key": "a pair of hobnailed caligae ferratae boots",
 }
 
+# --- Race-appropriate substitutes for FEMINALIA/OCREA/OCREA_FERRATA and
+# SOLEAE/CALIGAE/CALIGAE_FERRATAE (Sep 28, real Discord bug report: a
+# Centaur spawning with sandals). Same slot, same tier-for-tier stats as
+# the item they replace (see world.chargen_menu.RACE_GEAR_OVERRIDES for
+# the actual substitution table) - a Centaur or Harpy isn't meant to end
+# up with less max_hp/max_sp/vigor at chargen than a Human would, just a
+# piece of gear that actually fits their own body. A Centaur's entire
+# lower body IS the horse - there's no separate human leg or foot to wrap
+# or shoe, so both slots get a real equivalent. A Harpy's legs are
+# otherwise ordinary; only their taloned feet need one.
+
+CENTAUR_FLANK_WRAP = {
+    "prototype_parent": "BASEARMOR",
+    "price": 15,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "legs",
+    "resource_bonuses": {"max_sp": 5},
+    "key": "a simple woven flank-wrap",
+}
+
+CENTAUR_FLANK_BARDING = {
+    "prototype_parent": "BASEARMOR",
+    "price": 30,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "legs",
+    "resource_bonuses": {"max_sp": 10},
+    "key": "a set of bronze-studded flank barding",
+}
+
+CENTAUR_FLANK_BARDING_IRON = {
+    "prototype_parent": "BASEARMOR",
+    "price": 50,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "legs",
+    "resource_bonuses": {"max_sp": 20},
+    "key": "a set of iron-banded flank barding",
+}
+
+CENTAUR_HORSESHOES = {
+    "prototype_parent": "BASEARMOR",
+    "price": 15,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "feet",
+    "resource_bonuses": {"max_hp": 5},
+    "key": "a set of plain iron horseshoes",
+}
+
+CENTAUR_HORSESHOES_BRONZE = {
+    "prototype_parent": "BASEARMOR",
+    "price": 25,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "feet",
+    "stat_bonuses": {"vigor": 1},
+    "key": "a set of bronze-shod horseshoes",
+}
+
+CENTAUR_HORSESHOES_IRON = {
+    "prototype_parent": "BASEARMOR",
+    "price": 50,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "feet",
+    "stat_bonuses": {"vigor": 2},
+    "key": "a set of hobnailed iron horseshoes",
+}
+
+HARPY_TALON_GUARD = {
+    "prototype_parent": "BASEARMOR",
+    "price": 15,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "feet",
+    "resource_bonuses": {"max_hp": 5},
+    "key": "a pair of simple leather talon-guards",
+}
+
+HARPY_TALON_GUARD_BRONZE = {
+    "prototype_parent": "BASEARMOR",
+    "price": 25,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "feet",
+    "stat_bonuses": {"vigor": 1},
+    "key": "a pair of studded bronze talon-guards",
+}
+
+HARPY_TALON_GUARD_IRON = {
+    "prototype_parent": "BASEARMOR",
+    "price": 50,
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "armor_slot": "feet",
+    "stat_bonuses": {"vigor": 2},
+    "key": "a pair of hobnailed iron talon-guards",
+}
+
 # ----------------------------------------------------------------------------
 # PURELY COSMETIC CLOTHING - body-slot items with zero damage_reduction/
 # defense_modifier and no stat_bonuses/resource_bonuses at all, deliberately
