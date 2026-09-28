@@ -1692,6 +1692,42 @@ def create_all_help_entries():
         db_lock_storage="view:all()",
     )
 
+    HelpEntry.objects.create(
+        db_key="crime",
+        db_help_category="General",
+        db_entrytext=(
+            "|wCrime and the Law of Rome|n\n\n"
+            "Within Rome proper - the city itself, not the sewers, the "
+            "Colosseum, the wilderness, or anywhere beyond it - theft, "
+            "assault, and murder are real crimes with real consequences. "
+            "This is still an early piece of a larger system (guards, "
+            "jail, and execution aren't built yet), but detection already "
+            "works.\n\n"
+            "There's no trial and no guessing - the game already knows "
+            "what happened. What matters is who SAW it:\n\n"
+            "  |wAn NPC|n present when a crime happens is an automatic "
+            "witness - you're marked the instant it happens, no one has "
+            "to do anything.\n"
+            "  |wA fellow player|n present is not an automatic witness, "
+            "but they (or the victim themself) can type |waccuse <name>|n "
+            "afterward to confirm what they saw. There's no way to "
+            "falsely accuse someone - it only ever confirms something "
+            "that genuinely happened.\n"
+            "  |wA crime nobody saw|n - no NPC present, no one accuses in "
+            "time - is never flagged at all. Commit it somewhere truly "
+            "alone, and it stays that way.\n\n"
+            "A |wPilfer|n that succeeds is never witnessed by definition - "
+            "only getting caught in the act counts. A real fight between "
+            "two players is assault unless both sides agreed to it with "
+            "'duel' first (see 'help duel'). A killing marks the killer "
+            "|whomo sacer|n and is announced across Rome; a lesser crime "
+            "just marks you |wwanted|n. Killing someone already homo sacer "
+            "is never a new crime - they're already outside the law's own "
+            "protection."
+        ),
+        db_lock_storage="view:all()",
+    )
+
     # --- The spells added in the caster rework ---
     from world.combat import SPELLS, _combat_usability_line, _usage_line
 

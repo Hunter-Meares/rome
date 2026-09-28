@@ -2568,6 +2568,79 @@ class TestPacifistGearRestrictions(CombatCommandTestBase):
         self.assertEqual(self.char1.db.worn_armor, armor)
 
 
+class TestRaceIncompatibleArmorRefused(CombatCommandTestBase):
+    """
+    Sep 28 follow-up to the race-appropriate chargen gear fix - a direct
+    owner question: "what happens if a Centaur buys sandals?" Nothing in
+    the game currently sells or drops any accessory armor at all (this is
+    a defensive, forward-looking check, not a fix for something reachable
+    in live play today), but a Centaur or Harpy should never be able to
+    wear an anatomically human item regardless of how they got hold of one -
+    a future shop/loot/crafting addition, or an admin @create.
+    """
+
+    def _sandals(self):
+        return create.create_object(
+            "world.combat.CombatArmor",
+            key="a pair of simple leather soleae sandals",
+            location=self.char1,
+            attributes=[("armor_slot", "feet"), ("damage_reduction", 0), ("defense_modifier", 0)],
+        )
+
+    def test_a_centaur_cannot_wear_sandals(self):
+        self.char1.db.race = "centaur"
+        sandals = self._sandals()
+        result = self.call(CmdDon(), sandals.key, caller=self.char1)
+        self.assertIn("won't fit you", result)
+        self.assertIsNone(self.char1.db.worn_feet)
+
+    def test_a_harpy_cannot_wear_sandals(self):
+        self.char1.db.race = "harpy"
+        sandals = self._sandals()
+        result = self.call(CmdDon(), sandals.key, caller=self.char1)
+        self.assertIn("won't fit you", result)
+        self.assertIsNone(self.char1.db.worn_feet)
+
+    def test_a_centaur_cannot_wear_human_leg_greaves_either(self):
+        self.char1.db.race = "centaur"
+        greaves = create.create_object(
+            "world.combat.CombatArmor",
+            key="a pair of bronze ocrea greaves",
+            location=self.char1,
+            attributes=[("armor_slot", "legs"), ("damage_reduction", 0), ("defense_modifier", 0)],
+        )
+        self.call(CmdDon(), greaves.key, caller=self.char1)
+        self.assertIsNone(self.char1.db.worn_legs)
+
+    def test_a_human_can_still_wear_sandals(self):
+        self.char1.db.race = "human"
+        sandals = self._sandals()
+        self.call(CmdDon(), sandals.key, caller=self.char1)
+        self.assertEqual(self.char1.db.worn_feet, sandals)
+
+    def test_a_harpy_can_still_wear_ordinary_legs(self):
+        self.char1.db.race = "harpy"
+        legwraps = create.create_object(
+            "world.combat.CombatArmor",
+            key="a pair of simple feminalia leg-wraps",
+            location=self.char1,
+            attributes=[("armor_slot", "legs"), ("damage_reduction", 0), ("defense_modifier", 0)],
+        )
+        self.call(CmdDon(), legwraps.key, caller=self.char1)
+        self.assertEqual(self.char1.db.worn_legs, legwraps)
+
+    def test_a_centaurs_own_replacement_gear_is_unaffected(self):
+        self.char1.db.race = "centaur"
+        horseshoes = create.create_object(
+            "world.combat.CombatArmor",
+            key="a set of bronze-shod horseshoes",
+            location=self.char1,
+            attributes=[("armor_slot", "feet"), ("damage_reduction", 0), ("defense_modifier", 0)],
+        )
+        self.call(CmdDon(), horseshoes.key, caller=self.char1)
+        self.assertEqual(self.char1.db.worn_feet, horseshoes)
+
+
 class TestEvidenceBasedAliases(CombatCommandTestBase):
     """
     Regression coverage for aliases added from real player command
@@ -2698,6 +2771,26 @@ class TestPilferCanTargetACivilianNPC(CombatCommandTestBase):
         self.char1.db.gold = 0
         with patch("world.combat.randint", return_value=1):
             self.call(CmdUseSkill(), "pilfer = wine merchant", caller=self.char1)
+        self.assertGreater(self.char1.db.gold, 0)
+
+    def test_skill_pilfer_by_name_still_finds_a_real_hostile_npc_too(self):
+        """
+        Regression: a real combat NPC (HostileNPC/AutoStatNPC) is built
+        directly on the bare evennia.objects.objects.DefaultCharacter, not
+        this project's own typeclasses.characters.Character (that's
+        deliberate - see AutoStatNPC's own class line). The civilian-NPC
+        fix above must not accidentally narrow Pilfer's target search to
+        exclude every combat NPC in the game - caught by this suite's own
+        crime-system tests, not by the original civilian-NPC test, which
+        never exercised a HostileNPC target through the command at all.
+        """
+        from world.combat import HostileNPC
+
+        npc = create.create_object(HostileNPC, key="a sewer thug", location=self.room1,
+                                    attributes=[("xp_reward", 60)])
+        self.char1.db.gold = 0
+        with patch("world.combat.randint", return_value=1):
+            self.call(CmdUseSkill(), "pilfer = sewer thug", caller=self.char1)
         self.assertGreater(self.char1.db.gold, 0)
 
 

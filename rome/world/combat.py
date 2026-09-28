@@ -2056,6 +2056,10 @@ class CombatRules:
         # silently break this way again regardless of what gets
         # inserted above it in the future.
         if not defeated.db.xp_reward and getattr(defeated, "account", None):
+            # Captured now, before handle_player_defeat (called further
+            # down this same at_defeat) relocates the body to the Underworld
+            # or the holding cells - the crime, if any, happened HERE.
+            death_room = defeated.location
             defeated_level = defeated.db.level or 1
             pvp_pool = max(1, round(PVP_XP_REWARD_PERCENT * self.xp_for_level(defeated_level)))
             damage_log = defeated.db.damage_log or {}
@@ -2072,12 +2076,20 @@ class CombatRules:
             # dealt the killing blow - proportional-damage credit
             # already treats them all as real participants in this
             # kill for XP/gold, so pacifism eligibility follows suit.
+            # Crime detection (world/crime.py) piggybacks on this exact
+            # same loop and the same Confusion exemption - someone driven
+            # into a blind rage didn't choose to kill any more than they
+            # chose it for pacifism-eligibility purposes. log_crime is
+            # itself a no-op outside Rome proper, against a sanctioned
+            # duel, or if the defeated player is already homo sacer (see
+            # that module's own docstring for why killing one isn't itself
+            # a new crime).
+            from world import crime
             for contributor in player_damage:
-                # Someone the Confusion spell sent into a blind rage isn't
-                # a killer by choice - it never counts against pacifism.
                 if concentration.is_confused(contributor):
                     continue
                 contributor.db.has_ever_killed_player = True
+                crime.log_crime(contributor, defeated, "murder", death_room)
             if total_damage > 0:
                 for contributor, dealt in player_damage.items():
                     share = int(round(pvp_pool * (dealt / total_damage)))
@@ -2086,6 +2098,7 @@ class CombatRules:
             elif attacker and getattr(attacker, "account", None):
                 if not concentration.is_confused(attacker):
                     attacker.db.has_ever_killed_player = True
+                    crime.log_crime(attacker, defeated, "murder", death_room)
                 self.award_kill_xp(attacker, pvp_pool)
 
         # --- Gold reward, derived from xp_reward rather than a
@@ -4664,6 +4677,13 @@ class CombatRules:
         user.msg("|r%s catches your hand in their purse!|n" % target)
         if is_player:
             target.msg("|r%s's hand is in your purse - you catch them at it!|n" % user)
+            # Crime detection (world/crime.py) - manifest theft: caught in
+            # the act, witnessed automatically by the victim themself (and
+            # any NPC in the room), unlike a successful pilfer, which is by
+            # definition never witnessed at all. A no-op outside Rome
+            # proper, same as every other crime hook.
+            from world import crime
+            crime.log_crime(user, target, "theft", user.location)
         if hasattr(target, "_gather_actions"):
             self.start_combat_from_offensive_action(target, [user])
 
@@ -9319,6 +9339,25 @@ class CombatTurnHandler(DefaultScript):
             self.obj.ndb.pending_fighters = None
             # A real 1v1 duel - two clear sides.
             sides = {pending[0]: "A", pending[1]: "B"}
+            # Crime detection (world/crime.py): pending[0] is always the
+            # one who started this fight - CmdFight, CmdAttack, and every
+            # offensive skill/spell that opens combat all build
+            # pending_fighters as [initiator, target], never the reverse -
+            # so a genuine two-player fight is an assault by whoever
+            # opened it, UNLESS it's a sanctioned CmdDuel accept (which
+            # sets this same ndb flag right before creating this script,
+            # and only this ndb flag - db.combat_duel_partner isn't set
+            # until AFTER this method returns, since initialize_for_
+            # combat's own combat_cleanup call below would otherwise wipe
+            # it right back off - see CmdDuel.do_accept's own comment).
+            # log_crime is itself a no-op outside Rome proper or against
+            # anything that isn't two real players, so this never touches
+            # PvE or 'fight all'.
+            sanctioned = bool(self.obj.ndb.sanctioned_duel)
+            self.obj.ndb.sanctioned_duel = False
+            if not sanctioned:
+                from world import crime
+                crime.log_crime(pending[0], pending[1], "assault", self.obj)
         else:
             self.db.fighters = []
             for thing in self.obj.contents:
@@ -10060,6 +10099,12 @@ class CmdDuel(Command):
         here.msg_contents(
             "|y%s accepts %s's challenge - a sanctioned duel begins!|n" % (caller, challenger)
         )
+        # Read and cleared by CombatTurnHandler.at_script_creation's own
+        # crime-detection check, right as this fight is created - a plain
+        # ndb flag rather than db.combat_duel_partner (set below) because
+        # that attribute isn't safe to read until AFTER the script exists
+        # (see this method's own comment further down for why).
+        here.ndb.sanctioned_duel = True
         here.ndb.pending_fighters = [caller, challenger]
         here.scripts.add(self.combat_handler_class)
 
@@ -12134,11 +12179,46 @@ def _try_wield_offhand(caller, weapon, rules):
         rules.spend_action(caller, 1, action_name="wield")
 
 
+# Anatomically-inappropriate accessory items per race (Sep 28 follow-up to
+# world.chargen_menu.RACE_GEAR_OVERRIDES - a real owner question: "what
+# happens if a Centaur buys sandals?"). Nothing in the game today actually
+# SELLS or DROPS any accessory armor (checked: no shop stock, no loot
+# table, no recipe references head/arms/hands/legs/feet gear at all - it's
+# chargen-only for every race), so this can't currently happen in live
+# play. Still worth closing now, cheaply, so a future shop/loot/crafting
+# addition (or an admin @create) can't quietly reintroduce the exact bug
+# the chargen fix just closed. Matched by the item's own stable display
+# key, not a prototype tag (spawn()'s own prototype tag is unreliable for
+# dict-spawned objects - see world/bounties.py's own note on this exact
+# gotcha) - keep this set in sync with RACE_GEAR_OVERRIDES's own original
+# item list if either one ever changes.
+RACE_INCOMPATIBLE_ARMOR_KEYS = {
+    "centaur": {
+        "a pair of simple feminalia leg-wraps",
+        "a pair of bronze ocrea greaves",
+        "a pair of iron-banded ocrea ferrata greaves",
+        "a pair of simple leather soleae sandals",
+        "a pair of studded caligae boots",
+        "a pair of hobnailed caligae ferratae boots",
+    },
+    "harpy": {
+        "a pair of simple leather soleae sandals",
+        "a pair of studded caligae boots",
+        "a pair of hobnailed caligae ferratae boots",
+    },
+}
+
+
 def _try_don_armor(caller, armor):
     """The actual mechanical effect of donning armor - see
     _try_wield_weapon's own docstring for why this is split out."""
     if COMBAT_RULES.is_in_combat(caller):
         caller.msg("You can't don armor in a fight!")
+        return
+
+    incompatible = RACE_INCOMPATIBLE_ARMOR_KEYS.get(caller.db.race or "", ())
+    if armor.key in incompatible:
+        caller.msg("That's shaped for a body you don't have - it won't fit you at all.")
         return
 
     if caller.db.pacifist and (armor.db.damage_reduction or armor.db.defense_modifier):
@@ -13709,9 +13789,21 @@ class CmdUseSkill(MuxCommand):
             # broader, typeclass-based check instead - still real characters
             # only, just not restricted to combat-capable ones.
             if skilldata.get("target_any_character"):
+                # evennia.objects.objects.DefaultCharacter, not this
+                # project's own typeclasses.characters.Character - a real,
+                # confirmed gap found by the crime system's own tests:
+                # HostileNPC/AutoStatNPC (every combat monster in the game)
+                # is built directly on the bare DefaultCharacter, not this
+                # project's Character subclass (that's deliberate - see
+                # world.combat.AutoStatNPC's own class line), so the
+                # narrower check would have silently stopped Pilfer from
+                # ever targeting a real hostile NPC through this command,
+                # even though skill_pilfer's own logic has always handled
+                # one fine - only civilian/flavor NPCs were ever the gap
+                # this flag needed to close.
                 target_candidates = [
                     t for t in user.location.contents
-                    if t.is_typeclass("typeclasses.characters.Character", exact=False)
+                    if t.is_typeclass("evennia.objects.objects.DefaultCharacter", exact=False)
                     and not invisible_hides_from(t, user)
                 ]
             else:
