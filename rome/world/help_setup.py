@@ -434,7 +434,7 @@ def create_all_help_entries():
         list(RACES.keys())
         + list(CLASSES.keys())
         + list(STAT_HELP.keys())
-        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "pacifism", "godpacifism", "gathering", "crafting", "faber", "herbalist", "food", "concentration", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming", "trivia", "pets", "buypet", "row", "socials"]
+        + ["races", "classes", "corestats", "statup", "sp", "groupcombat", "gold", "bounty", "quest", "godbounty", "godquest", "religion", "godreligion", "titles", "pacifism", "godpacifism", "gathering", "crafting", "faber", "herbalist", "food", "concentration", "recall", "beyond the walls", "newbie", "trade", "achievements", "languages", "trainers", "pvp", "mailsystem", "factions", "targeting", "death", "dismiss", "roleplay", "description", "rules", "racial", "shortcuts", "beseech", "armor", "naming", "trivia", "pets", "buypet", "row", "socials", "crime"]
         + list(NEW_SPELL_HELP.keys())
         + list(NEW_SKILL_HELP.keys())
         + ["critical hits", "martial effects"]
@@ -1697,12 +1697,13 @@ def create_all_help_entries():
         db_help_category="General",
         db_entrytext=(
             "|wCrime and the Law of Rome|n\n\n"
-            "Within Rome proper - the city itself, not the sewers, the "
-            "Colosseum, the wilderness, or anywhere beyond it - theft, "
-            "assault, and murder are real crimes with real consequences. "
-            "This is still an early piece of a larger system (guards, "
-            "jail, and execution aren't built yet), but detection already "
-            "works.\n\n"
+            "Inside Rome's jurisdiction - the city itself, the Colosseum/"
+            "Ludus complex, and the Cloaca Maxima sewers, but not the "
+            "wilderness, Germania, or the Amber Coast - theft, assault, and "
+            "murder committed against another PLAYER are real crimes with "
+            "real consequences. Killing or stealing from the hostile NPCs "
+            "everyone grinds on is never a crime, anywhere, no matter where "
+            "it happens.\n\n"
             "There's no trial and no guessing - the game already knows "
             "what happened. What matters is who SAW it:\n\n"
             "  |wAn NPC|n present when a crime happens is an automatic "
@@ -1723,7 +1724,25 @@ def create_all_help_entries():
             "|whomo sacer|n and is announced across Rome; a lesser crime "
             "just marks you |wwanted|n. Killing someone already homo sacer "
             "is never a new crime - they're already outside the law's own "
-            "protection."
+            "protection. See |wwanted|n to see who Rome has currently "
+            "marked.\n\n"
+            "|wThe City Guard|n patrols Rome proper day and night, always "
+            "on the move - encountering one is coincidence, not pursuit. "
+            "Cross paths with one while wanted or homo sacer and they "
+            "attack on sight, gladly joined by every other guard nearby. "
+            "Their blows never actually kill you - once beaten down "
+            "you're seized, stripped of some gold (a condemned murderer "
+            "loses their weapon and armor outright too), and dragged to "
+            "the Carcer.\n\n"
+            "An ordinary sentence runs anywhere from a few minutes to a "
+            "full twelve hours, longer for worse or more repeated crimes, "
+            "and clears your wanted status the moment it's served. A "
+            "convicted murderer isn't sentenced at all - after a five-"
+            "minute wait (the executioner's approach is heard, then felt), "
+            "Rome puts them to death before the crowd, a real, public "
+            "broadcast, not private flavor. Nothing can be cast, used, "
+            "fought, or fled from inside the Carcer - not even against a "
+            "fellow prisoner."
         ),
         db_lock_storage="view:all()",
     )

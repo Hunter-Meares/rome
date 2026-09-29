@@ -4907,3 +4907,92 @@ WINE_FORTIFIED_FLASK = {
     "item_kwargs": {"to_cure": ["Frightened"]},
     "price": 22,
 }
+
+# ----------------------------------------------------------------------
+# City Guards - crime-and-punishment phase 2 (world/guards.py). Two
+# named flavors per level tier for variety ("make a variety of guards",
+# a direct request), gear applied by world.guards.equip_city_guard
+# (keyed by db.level, not by name - see that function's own docstring).
+# xp_reward/respawn_delay match this game's real level-25/50/75 curve
+# (cross-checked against existing NPCs already at these exact levels -
+# a level 25 barbarian brute at 600, a level 50 Amber Coast NPC at 2028,
+# a level 75 Arena Fighter at 4383), not guessed values.
+# ----------------------------------------------------------------------
+
+CITY_GUARD_RECRUIT = {
+    "key": "a City Guard recruit",
+    "aliases": ["recruit", "guard"],
+    "typeclass": "world.guards.CityGuard",
+    "desc": "A young recruit of the City Guard, still a little too eager to prove himself.",
+    "race": "human",
+    "player_class": "legionary",
+    "level": 25,
+    "xp_reward": 600,
+    "respawn_delay": 300,
+    "locks": "puppet:false()",
+}
+
+CITY_GUARD_VIGILE = {
+    "key": "a night watch vigile",
+    "aliases": ["vigile", "guard"],
+    "typeclass": "world.guards.CityGuard",
+    "desc": "A vigile of the night watch, walking his beat with the bored, practiced eye of someone who's seen every kind of trouble Rome has to offer.",
+    "race": "human",
+    "player_class": "legionary",
+    "level": 25,
+    "xp_reward": 600,
+    "respawn_delay": 300,
+    "locks": "puppet:false()",
+}
+
+CITY_GUARD_VETERAN = {
+    "key": "a City Guard veteran",
+    "aliases": ["veteran", "guard"],
+    "typeclass": "world.guards.CityGuard",
+    "desc": "A veteran of the City Guard, scarred and unhurried - the kind of soldier who's stopped more fights with a look than a blade.",
+    "race": "human",
+    "player_class": "legionary",
+    "level": 50,
+    "xp_reward": 2028,
+    "respawn_delay": 300,
+    "locks": "puppet:false()",
+}
+
+CITY_GUARD_SERGEANT = {
+    "key": "a City Guard sergeant",
+    "aliases": ["sergeant", "guard"],
+    "typeclass": "world.guards.CityGuard",
+    "desc": "A City Guard sergeant, barking orders at nothing in particular out of sheer habit, armor immaculate despite the grime of the streets.",
+    "race": "human",
+    "player_class": "legionary",
+    "level": 50,
+    "xp_reward": 2028,
+    "respawn_delay": 300,
+    "locks": "puppet:false()",
+}
+
+CITY_GUARD_CENTURION = {
+    "key": "a City Guard centurion",
+    "aliases": ["centurion", "guard"],
+    "typeclass": "world.guards.CityGuard",
+    "desc": "A centurion of the City Guard, plumed helm and all - the Republic's own answer to anyone who thinks Rome's laws are optional.",
+    "race": "human",
+    "player_class": "legionary",
+    "level": 75,
+    "xp_reward": 4383,
+    "respawn_delay": 300,
+    "locks": "puppet:false()",
+}
+
+CITY_GUARD_TRIBUNE = {
+    "key": "a Tribune of the Watch",
+    "aliases": ["tribune", "guard"],
+    "typeclass": "world.guards.CityGuard",
+    "desc": "A Tribune of the Watch, commanding the City Guard's patrols with the flat, unblinking authority of someone the state trusts completely.",
+    "race": "human",
+    "player_class": "legionary",
+    "level": 75,
+    "xp_reward": 4383,
+    "respawn_delay": 300,
+    "locks": "puppet:false()",
+}

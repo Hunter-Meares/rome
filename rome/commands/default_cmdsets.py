@@ -43,6 +43,7 @@ from world import craft_commands
 from world import food
 from world import concentration
 from world import crime
+from world import jail
 # world/craft_commands.py's CmdSimpleCraft replaces the crafting
 # contrib's own CmdCraft entirely (a real design choice, not an
 # oversight - see CmdSimpleCraft's own docstring: it auto-detects
@@ -221,6 +222,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(concentration.CmdVisible())
         self.add(concentration.CmdEffects())
         self.add(crime.CmdAccuse())
+        self.add(jail.CmdWanted())
         self.add(tutorial.CmdJourney())
         self.add(CmdNoInput())
 

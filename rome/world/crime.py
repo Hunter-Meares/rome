@@ -70,6 +70,14 @@ ROME_PROPER_ZONE_TAG = ("rome_proper_zone", "zone")
 COLOSSEUM_COMPLEX_ZONE_TAG = ("colosseum_complex_zone", "zone")
 SEWERS_ZONE_TAG = ("sewers", "zone")
 
+# Applied to a character the moment they're wanted OR homo sacer (see
+# flag_crime), removed the moment world/jail.py clears either flag
+# (an ordinary sentence served, or an execution completed) - lets
+# CmdWanted (world/jail.py) list every currently-wanted character via a
+# plain search_tag() instead of scanning every Character object in the
+# database.
+WANTED_CRIMINAL_TAG = ("wanted_criminal", "crime")
+
 # How long an unresolved crime_event stays accusable before it's pruned as
 # stale - a witnessed-by-a-player-only crime doesn't stay "reportable"
 # forever, matching the real, practical window an actual accusation would
@@ -204,6 +212,9 @@ def flag_crime(perpetrator, crime_type, room):
         )
     else:
         perpetrator.db.wanted = True
+
+    key, category = WANTED_CRIMINAL_TAG
+    perpetrator.tags.add(key, category=category)
 
 
 def log_crime(perpetrator, victim, crime_type, room):

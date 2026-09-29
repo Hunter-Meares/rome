@@ -1634,6 +1634,14 @@ class CombatRules:
         if defender.db.pacifist:
             return
 
+        # An imprisoned character (world/jail.py) is likewise untouchable
+        # in their cell - belt-and-suspenders no-op matching the pacifist
+        # check right above. The real gate is db.imprisoned never being
+        # put in a fight to begin with - see CmdFight/CmdChallenge/
+        # join_fight/'fight all', below.
+        if defender.db.imprisoned:
+            return
+
         # Any damage at all wakes a magically sleeping target - the whole
         # price of the Sleep spell (world/concentration.py). Checked before
         # the wards below so even a blow that's absorbed still rouses them.
@@ -1720,6 +1728,31 @@ class CombatRules:
             )
             if announce_threshold:
                 self.announce_hp_threshold_change(defender, old_hp)
+            return
+
+        # City Guard capture (world/guards.py, crime-and-punishment phase
+        # 2): a guard's blow against a wanted/homo-sacer target never
+        # actually kills them - it's meant to beat them down for capture,
+        # not settle the matter on the spot. Checked after Death Ward/
+        # Last Stand (a real defensive resource still gets first crack at
+        # saving the hit) but before ordinary damage resolution.
+        # Idempotent by design - fires on every blow that would otherwise
+        # be lethal, not just once, so a whole squad ganging up never
+        # accidentally finishes the target off - but guards.capture()
+        # itself is only ever called the first time, guarded by the
+        # db.imprisoned check right here.
+        if (
+            would_be_lethal
+            and attacker is not None
+            and attacker.db.is_city_guard
+            and (defender.db.wanted or defender.db.homo_sacer)
+        ):
+            defender.db.hp = 1
+            if announce_threshold:
+                self.announce_hp_threshold_change(defender, old_hp)
+            if not defender.db.imprisoned:
+                from world import guards
+                guards.capture(defender)
             return
 
         if "Shielded" in self.get_conditions(defender):
@@ -4461,6 +4494,12 @@ class CombatRules:
             return
         if target.db.pacifist:
             user.msg("%s has laid down arms for good - there's no fighting them." % target.key)
+            return
+        if user.db.imprisoned:
+            user.msg("You're shackled in your cell - there's no ambushing anyone.")
+            return
+        if target.db.imprisoned:
+            user.msg("%s is locked away in a cell - there's no reaching them." % target.key)
             return
         if not self.try_break_sanctuary(user, target):
             return
@@ -8902,6 +8941,9 @@ class CombatCharacter(ContribRPCharacter):
         if self.rules.is_in_combat(self):
             self.msg("You can't exit a room while in combat!")
             return False
+        if self.db.imprisoned and not kwargs.get("force_move"):
+            self.msg("You're shackled in your cell - there's no leaving.")
+            return False
         if move_type == "move" and martial.is_incapacitated(self):
             self.msg(martial.incapacitated_message(self))
             return False
@@ -9066,6 +9108,18 @@ class CombatCharacter(ContribRPCharacter):
             check_quest_visit(self)
         if self.has_account:
             check_snare_trap(self)
+        # Crime-and-punishment (world/guards.py): a wanted/homo-sacer
+        # player walking into a room a city guard already occupies is the
+        # other half of "encountering one is a coincidence" - the reverse
+        # direction (a guard wandering INTO a room with one already
+        # standing there) is covered by GuardPatrolScript.at_repeat
+        # itself. A no-op for anyone not currently wanted, and for an
+        # already-imprisoned character (check_guard_capture's own filter
+        # excludes them anyway, but the flag check here skips the
+        # room-contents scan entirely for the overwhelming common case).
+        if self.has_account and (self.db.wanted or self.db.homo_sacer) and not self.db.imprisoned:
+            from world.guards import check_guard_capture
+            check_guard_capture(self.location)
         # A one-line nudge if someone here has a quest to offer (or is
         # waiting on a report) - real players only, so an NPC wandering
         # through a room never generates it. Deliberately outside the
@@ -9361,7 +9415,7 @@ class CombatTurnHandler(DefaultScript):
         else:
             self.db.fighters = []
             for thing in self.obj.contents:
-                if thing.db.hp and not thing.db.pacifist and not is_invisible(thing):
+                if thing.db.hp and not thing.db.pacifist and not thing.db.imprisoned and not is_invisible(thing):
                     self.db.fighters.append(thing)
             # 'fight all' - group fighters by party membership, so a
             # group of allies correctly counts as one side rather
@@ -9784,8 +9838,9 @@ class CombatTurnHandler(DefaultScript):
         # Defense-in-depth, matching apply_damage's own no-op above -
         # every real call site (CmdFight, skill_ambush) already
         # refuses to send a pacifist here at all, but a pacifist must
-        # never end up in db.fighters no matter what calls this.
-        if character.db.pacifist:
+        # never end up in db.fighters no matter what calls this. Same
+        # reasoning for an imprisoned character (world/jail.py).
+        if character.db.pacifist or character.db.imprisoned:
             return
         self.db.fighters.insert(self.db.turn, character)
         self.db.turn += 1
@@ -9899,6 +9954,9 @@ class CmdFight(Command):
         if target.db.pacifist:
             caller.msg("%s has laid down arms for good - there's no fighting them." % target.key)
             return
+        if target.db.imprisoned:
+            caller.msg("%s is locked away in a cell - there's no reaching them." % target.key)
+            return
         if not self.rules.try_break_sanctuary(caller, target):
             return
 
@@ -9922,6 +9980,9 @@ class CmdFight(Command):
         if caller.db.pacifist:
             caller.msg("You've laid down arms for good - you can't start a fight.")
             return
+        if caller.db.imprisoned:
+            caller.msg("You're shackled in your cell - there's no fighting anyone.")
+            return
         if not caller.db.hp:
             caller.msg("You can't start a fight if you've been defeated!")
             return
@@ -9940,7 +10001,7 @@ class CmdFight(Command):
         if arg == "all":
             fighters = []
             for thing in here.contents:
-                if thing.db.hp and not thing.db.pacifist and not (
+                if thing.db.hp and not thing.db.pacifist and not thing.db.imprisoned and not (
                     thing != caller and is_invisible(thing)
                 ):
                     if thing != caller and not self.rules.try_break_sanctuary(caller, thing):
@@ -10048,6 +10109,9 @@ class CmdDuel(Command):
         if caller.db.pacifist:
             caller.msg("You've laid down arms for good - you can't duel anyone.")
             return
+        if caller.db.imprisoned:
+            caller.msg("You're shackled in your cell - there's no dueling anyone.")
+            return
         if is_no_combat_zone(here):
             caller.msg("Something about this place forbids it - you can't duel here.")
             return
@@ -10063,6 +10127,9 @@ class CmdDuel(Command):
             return
         if target.db.pacifist:
             caller.msg("%s has laid down arms for good - there's no dueling them." % target.key)
+            return
+        if target.db.imprisoned:
+            caller.msg("%s is locked away in a cell - there's no reaching them." % target.key)
             return
         if self.rules.is_in_combat(caller) or self.rules.is_in_combat(target):
             caller.msg(
@@ -10090,6 +10157,9 @@ class CmdDuel(Command):
             return
         if caller.db.pacifist or challenger.db.pacifist:
             caller.msg("One of you has laid down arms for good - the duel can't happen.")
+            return
+        if caller.db.imprisoned or challenger.db.imprisoned:
+            caller.msg("One of you is locked away in a cell - the duel can't happen.")
             return
         if self.rules.is_in_combat(caller) or self.rules.is_in_combat(challenger):
             caller.msg("One of you is already in a fight.")
@@ -10258,6 +10328,9 @@ class CmdAttack(Command):
     def func(self):
         if self.caller.db.is_dead:
             self.caller.msg("You are dead. You have no quarrel left to settle here.")
+            return
+        if self.caller.db.imprisoned:
+            self.caller.msg("You're shackled in your cell - there's no attacking anyone.")
             return
         if not self.rules.is_in_combat(self.caller):
             self.caller.msg("You can only do that in combat. (see: help fight)")
@@ -10960,6 +11033,10 @@ class CmdRecall(Command):
 
         if caller.db.is_dead or is_in_underworld(caller.location):
             caller.msg("You can't recall out of the Underworld.")
+            return
+
+        if caller.db.imprisoned:
+            caller.msg("You're shackled in your cell - there's no recalling out of it.")
             return
 
         cooldown_until = caller.db.recall_cooldown_until or 0
@@ -13305,6 +13382,10 @@ class CmdCast(MuxCommand):
             caller.msg("The dead have no power to cast spells - only to be released from where they wait.")
             return
 
+        if caller.db.imprisoned:
+            caller.msg("You're shackled in your cell - there's no casting anything.")
+            return
+
         if "Silenced" in (caller.db.conditions or {}):
             caller.msg("A curse chokes off your words - you cannot cast spells right now.")
             return
@@ -13658,6 +13739,10 @@ class CmdUseSkill(MuxCommand):
 
         if user.db.is_dead:
             user.msg("The dead have no use for combat skills.")
+            return
+
+        if user.db.imprisoned:
+            user.msg("You're shackled in your cell - there's no using any skill.")
             return
 
         if "Silenced" in (user.db.conditions or {}):
