@@ -39,6 +39,25 @@ class TestIsRomeProper(CrimeTestBase):
         self.assertFalse(crime.is_rome_proper(None))
 
 
+class TestIsCrimeJurisdiction(CrimeTestBase):
+    def test_rome_proper_room_is_jurisdiction(self):
+        self.assertTrue(crime.is_crime_jurisdiction(self.room1))
+
+    def test_colosseum_complex_room_is_jurisdiction(self):
+        self.room2.tags.add("colosseum_complex_zone", category="zone")
+        self.assertTrue(crime.is_crime_jurisdiction(self.room2))
+
+    def test_sewers_room_is_jurisdiction(self):
+        self.room2.tags.add("sewers", category="zone")
+        self.assertTrue(crime.is_crime_jurisdiction(self.room2))
+
+    def test_untagged_room_is_not_jurisdiction(self):
+        self.assertFalse(crime.is_crime_jurisdiction(self.room2))
+
+    def test_no_room_at_all_is_not_jurisdiction(self):
+        self.assertFalse(crime.is_crime_jurisdiction(None))
+
+
 class TestIsSanctioned(CrimeTestBase):
     def test_true_when_combat_duel_partner_matches(self):
         self.char1.db.combat_duel_partner = self.char2
@@ -59,10 +78,26 @@ class TestLogCrime(CrimeTestBase):
         self.assertIsNone(result)
         self.assertEqual(self.char1.db.crime_record, [])
 
+    def test_pvp_crime_is_illegal_in_the_colosseum_complex_too(self):
+        self.room2.tags.add("colosseum_complex_zone", category="zone")
+        event = crime.log_crime(self.char1, self.char2, "assault", self.room2)
+        self.assertIsNotNone(event)
+
+    def test_pvp_crime_is_illegal_in_the_sewers_too(self):
+        self.room2.tags.add("sewers", category="zone")
+        event = crime.log_crime(self.char1, self.char2, "murder", self.room2)
+        self.assertIsNotNone(event)
+
     def test_noop_if_either_side_is_not_a_real_player(self):
         npc = create.create_object(HostileNPC, key="a brute", location=self.room1)
         self.assertIsNone(crime.log_crime(self.char1, npc, "assault", self.room1))
         self.assertIsNone(crime.log_crime(npc, self.char1, "assault", self.room1))
+
+    def test_killing_or_stealing_from_a_grind_npc_is_never_a_crime_even_in_jurisdiction(self):
+        self.room2.tags.add("colosseum_complex_zone", category="zone")
+        npc = create.create_object(HostileNPC, key="an arena beast", location=self.room2)
+        self.assertIsNone(crime.log_crime(self.char1, npc, "murder", self.room2))
+        self.assertIsNone(crime.log_crime(self.char1, npc, "theft", self.room2))
 
     def test_noop_for_a_sanctioned_duel(self):
         self.char1.db.combat_duel_partner = self.char2

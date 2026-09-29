@@ -6,11 +6,20 @@ still-unbuilt roster this is a foundation for: guards, jail, execution,
 confiscation, the wanted board. Nothing in this file does any of that yet -
 it only decides WHETHER a crime happened and records it.
 
-Scoped to "Rome proper" only (ROME_PROPER_ZONE_TAG, applied by
-world/tag_rome_proper_live.py's own reachability walk) - a fight, a theft,
-or a killing anywhere else (the Colosseum, the sewers, the wilderness,
-Germania, the Amber Coast, the Underworld) is never a crime under this
-system, by design: the law's writ doesn't reach there.
+Scoped to Rome's actual jurisdiction (is_crime_jurisdiction) - Rome proper
+itself (ROME_PROPER_ZONE_TAG, applied by world/tag_rome_proper_live.py's
+reachability walk), PLUS the Colosseum/Ludus complex and the Cloaca Maxima
+sewers (COLOSSEUM_COMPLEX_ZONE_TAG / SEWERS_ZONE_TAG - see
+world/tag_colosseum_complex_live.py). Those last two are dense
+grind/leveling zones full of hostile combat NPCs: killing or stealing from
+one of THOSE is never a crime (log_crime's own account check already
+excludes any victim without a real player behind them, everywhere, always)
+- but a PLAYER attacking or killing another PLAYER there is exactly as
+illegal as it is on a Rome street, unless it's a sanctioned duel. The
+wilderness, Germania, the Amber Coast, and the Underworld remain fully
+outside the law's reach either way. Guards themselves (world/guards.py)
+only ever patrol Rome proper - a crime committed further out still marks
+the culprit wanted/homo sacer for when they come back.
 
 WITNESSING is the whole detection model - there's no "trial," no fact-
 finding, because the game already has ground truth about who did what:
@@ -52,6 +61,15 @@ from evennia.utils import search as evennia_search
 
 ROME_PROPER_ZONE_TAG = ("rome_proper_zone", "zone")
 
+# The two grind/leveling zones where PvP is illegal (same as Rome proper)
+# even though the zone itself isn't Rome proper and guards never patrol
+# it - see is_crime_jurisdiction(). COLOSSEUM_COMPLEX_ZONE_TAG is applied
+# live by world/tag_colosseum_complex_live.py; SEWERS_ZONE_TAG matches the
+# tag world/setup_sewers_live.py already applies to every Cloaca Maxima
+# room.
+COLOSSEUM_COMPLEX_ZONE_TAG = ("colosseum_complex_zone", "zone")
+SEWERS_ZONE_TAG = ("sewers", "zone")
+
 # How long an unresolved crime_event stays accusable before it's pruned as
 # stale - a witnessed-by-a-player-only crime doesn't stay "reportable"
 # forever, matching the real, practical window an actual accusation would
@@ -71,12 +89,33 @@ CAPITAL_CRIMES = {"murder"}
 
 
 def is_rome_proper(room):
-    """True if `room` is part of Rome proper - the only place this crime
-    system ever applies. Same shape as world.combat.is_no_combat_zone."""
+    """True if `room` is part of Rome proper specifically - the streets
+    guards actually patrol. Same shape as world.combat.is_no_combat_zone.
+    Crime DETECTION is scoped more broadly than this - see
+    is_crime_jurisdiction() - but guard placement and anything else tied
+    to the physical city should keep using this narrower check."""
     if not room:
         return False
     key, category = ROME_PROPER_ZONE_TAG
     return bool(room.tags.get(key, category=category))
+
+
+def is_crime_jurisdiction(room):
+    """True if a player-vs-player crime committed in `room` is ever
+    illegal under this system: Rome proper itself, or either of the two
+    grind zones (the Colosseum/Ludus complex, the Cloaca Maxima sewers)
+    where real players mix with the hostile NPCs everyone's expected to
+    kill and steal from freely. This is the check log_crime() actually
+    uses - is_rome_proper() alone is reserved for things scoped to the
+    physical city (guard placement)."""
+    if is_rome_proper(room):
+        return True
+    if not room:
+        return False
+    for key, category in (COLOSSEUM_COMPLEX_ZONE_TAG, SEWERS_ZONE_TAG):
+        if room.tags.get(key, category=category):
+            return True
+    return False
 
 
 def is_sanctioned(character, other):
@@ -170,9 +209,11 @@ def flag_crime(perpetrator, crime_type, room):
 def log_crime(perpetrator, victim, crime_type, room):
     """
     Records a crime_event if - and only if - it's genuinely eligible:
-    inside Rome proper, involving two real players, not a sanctioned duel,
-    and the victim isn't already homo sacer (nothing done to a convicted
-    murderer is itself a new crime - see this module's own docstring).
+    inside Rome's jurisdiction (is_crime_jurisdiction - Rome proper, the
+    Colosseum/Ludus complex, or the sewers), involving two real players,
+    not a sanctioned duel, and the victim isn't already homo sacer
+    (nothing done to a convicted murderer is itself a new crime - see this
+    module's own docstring).
 
     If any NPC is present, the crime is proven immediately (flag_crime).
     Otherwise it's logged on the perpetrator's own record, waiting for a
@@ -181,7 +222,7 @@ def log_crime(perpetrator, victim, crime_type, room):
     Returns the logged event dict, or None if the crime was never eligible
     to log at all.
     """
-    if not is_rome_proper(room):
+    if not is_crime_jurisdiction(room):
         return None
     if not getattr(perpetrator, "account", None) or not getattr(victim, "account", None):
         return None
