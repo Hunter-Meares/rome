@@ -50,6 +50,9 @@ from world.combat import (
     equip_arena_fighter,
     AMBER_COAST_GEAR,
     equip_amber_coast_npc,
+    GERMANIA_GEAR,
+    GERMANIA_ACCESSORY_GEAR,
+    equip_germania_npc,
     InstanceCleanupTimer,
     find_combat_target,
     SPELLS,
@@ -3034,6 +3037,141 @@ class TestAmberCoastEquipment(EvenniaTest):
             "typeclasses.characters.Character", key="a passerby", location=self.room1
         )
         equip_amber_coast_npc(npc)  # should be a silent no-op
+        self.assertIsNone(npc.db.wielded_weapon)
+
+
+class TestGermaniaEquipment(EvenniaTest):
+    """
+    Follow-up to the Amber Coast's own equipment pass (Sep 30) - the
+    interior Germanic Stronghold's rank-and-file population had no
+    equip_ function at all before this (a deliberate scope decision at
+    the time equip_amber_coast_npc was built). Mirrors
+    TestAmberCoastEquipment's own testing approach exactly, plus the two
+    new accessory slots this pass folds in on top.
+    """
+
+    def test_every_germania_combat_prototype_has_a_gear_entry(self):
+        import world.prototypes as protos
+
+        germania_proto_names = [
+            n for n in dir(protos)
+            if n.startswith("GERMANIA_") and isinstance(getattr(protos, n), dict)
+        ]
+        real_keys = {
+            getattr(protos, n)["key"] for n in germania_proto_names
+            if getattr(protos, n).get("typeclass") == "world.combat.RespawningNPC"
+        }
+        self.assertEqual(set(GERMANIA_GEAR.keys()), real_keys)
+
+    def test_rank_and_file_spawns_with_a_real_weapon_and_armor(self):
+        from evennia.prototypes.spawner import spawn
+
+        npc = spawn("GERMANIA_WOLFKIN_RAIDER")[0]
+        self.assertIsNotNone(npc.db.wielded_weapon)
+        self.assertEqual(npc.db.wielded_weapon.db.weapon_type_name, "gladius")
+        self.assertIsNotNone(npc.db.worn_armor)
+        self.assertIsNone(npc.db.worn_shield)
+
+    def test_gear_is_leveled_to_the_npc_own_level(self):
+        from evennia.prototypes.spawner import spawn
+        from world.combat import compute_weapon_stats
+
+        npc = spawn("GERMANIA_WOLFKIN_RAIDER")[0]
+        expected_range, expected_accuracy, _ = compute_weapon_stats("gladius", 27)
+        self.assertEqual(npc.db.wielded_weapon.db.damage_range, expected_range)
+        self.assertEqual(npc.db.wielded_weapon.db.accuracy_bonus, expected_accuracy)
+
+    def test_shield_bearer_gets_a_real_shield(self):
+        from evennia.prototypes.spawner import spawn
+
+        npc = spawn("GERMANIA_STORMCALLER_GUARD")[0]
+        self.assertIsNotNone(npc.db.worn_shield)
+        self.assertEqual(npc.db.worn_shield.db.defense_modifier, 12)
+
+    def test_boss_gets_the_best_kit_in_the_zone(self):
+        from evennia.prototypes.spawner import spawn
+
+        npc = spawn("GERMANIA_BOSS_STORMCALLER_CHAMPION")[0]
+        self.assertIsNotNone(npc.db.worn_shield)
+        self.assertEqual(npc.db.worn_armor.db.armor_category, "heavy")
+
+    def test_every_npc_also_gets_the_two_accessory_slots(self):
+        from evennia.prototypes.spawner import spawn
+
+        npc = spawn("GERMANIA_WOLFKIN_RAIDER")[0]
+        self.assertIsNotNone(npc.db.worn_feet)
+        self.assertIsNotNone(npc.db.worn_hands)
+        self.assertGreater(npc.db.worn_feet.db.damage_reduction, 0)
+        self.assertGreater(npc.db.worn_hands.db.damage_reduction, 0)
+        # Deliberately not all five slots - see GERMANIA_ACCESSORY_GEAR's
+        # own comment for why.
+        self.assertIsNone(npc.db.worn_head)
+        self.assertIsNone(npc.db.worn_legs)
+
+    def test_accessory_gear_is_also_leveled_to_the_npc_own_level(self):
+        from evennia.prototypes.spawner import spawn
+        from world.combat import compute_accessory_stats
+
+        npc = spawn("GERMANIA_WOLFKIN_RAIDER")[0]
+        expected_reduction, _, _ = compute_accessory_stats(27)
+        self.assertEqual(npc.db.worn_feet.db.damage_reduction, expected_reduction)
+
+    def test_no_germania_npc_is_left_unarmed_or_unarmored(self):
+        from evennia.prototypes.spawner import spawn
+        import world.prototypes as protos
+
+        germania_proto_names = [
+            n for n in dir(protos)
+            if n.startswith("GERMANIA_") and isinstance(getattr(protos, n), dict)
+            and getattr(protos, n).get("typeclass") == "world.combat.RespawningNPC"
+        ]
+        for name in germania_proto_names:
+            npc = spawn(name)[0]
+            self.assertIsNotNone(npc.db.wielded_weapon, "%s has no weapon" % name)
+            self.assertIsNotNone(npc.db.worn_armor, "%s has no armor" % name)
+
+    def test_gear_choices_all_respect_class_proficiency(self):
+        # A real, easy mistake to make by hand across 14 entries -
+        # confirms every weapon/armor/shield pairing in GERMANIA_GEAR
+        # is something its own class is actually proficient with, so
+        # none of these NPCs is quietly fighting at a self-inflicted
+        # penalty.
+        from evennia.prototypes.spawner import spawn
+        from world.combat import CLASS_WEAPON_PROFICIENCIES, CLASS_ARMOR_PROFICIENCIES
+        import world.prototypes as protos
+
+        germania_proto_names = [
+            n for n in dir(protos)
+            if n.startswith("GERMANIA_") and isinstance(getattr(protos, n), dict)
+            and getattr(protos, n).get("typeclass") == "world.combat.RespawningNPC"
+        ]
+        for name in germania_proto_names:
+            npc = spawn(name)[0]
+            char_class = npc.db.player_class
+            self.assertIn(
+                npc.db.wielded_weapon.db.weapon_category,
+                CLASS_WEAPON_PROFICIENCIES[char_class],
+                "%s's weapon isn't proficient for %s" % (name, char_class),
+            )
+            self.assertIn(
+                npc.db.worn_armor.db.armor_category,
+                CLASS_ARMOR_PROFICIENCIES[char_class],
+                "%s's armor isn't proficient for %s" % (name, char_class),
+            )
+            if npc.db.worn_shield:
+                self.assertIn(
+                    npc.db.worn_shield.db.armor_category,
+                    CLASS_ARMOR_PROFICIENCIES[char_class],
+                    "%s's shield isn't proficient for %s" % (name, char_class),
+                )
+
+    def test_unrelated_npc_is_left_alone(self):
+        from evennia.utils import create
+
+        npc = create.create_object(
+            "typeclasses.characters.Character", key="a passerby", location=self.room1
+        )
+        equip_germania_npc(npc)  # should be a silent no-op
         self.assertIsNone(npc.db.wielded_weapon)
 
 

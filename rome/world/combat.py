@@ -8503,11 +8503,10 @@ def equip_amber_coast_npc(npc):
     """
     Gives every Amber Coast NPC real, mechanically-active gear - by
     direct request ("all NPCs must have armor and weapons on them
-    during the fight... I want there to be a real risk of death"), a
-    deliberate departure from every other Germanic population in the
-    game (the interior Stronghold's warbands remain flavor-only, like
-    almost every NPC in the game - see this module's own docstring
-    note on that). Identical mechanism to equip_arena_fighter right
+    during the fight... I want there to be a real risk of death"), the
+    first Germanic population in the game to get one (the interior
+    Stronghold's own warbands followed later - see equip_germania_npc
+    below). Identical mechanism to equip_arena_fighter right
     above: leveled via spawn_leveled_weapon/spawn_leveled_armor (a
     level 60 Amber Guard veteran wields what a level 60 PLAYER could
     also wield), shields spawned plain (positive defense_modifier,
@@ -8528,6 +8527,68 @@ def equip_amber_coast_npc(npc):
         shield = spawn(shield_proto)[0]
         shield.move_to(npc, quiet=True)
         npc.db.worn_shield = shield
+
+
+# Germania's rank-and-file population (Sep 30, follow-up to the armor-
+# economy expansion) - previously flavor-only (no equip_ function
+# existed for this zone at all, unlike the Amber Coast's own population
+# - a deliberate scope decision at the time, per equip_amber_coast_npc's
+# own docstring). Same identical mechanism as equip_amber_coast_npc:
+# weapon/body armor leveled via
+# spawn_leveled_weapon/spawn_leveled_armor, shield spawned plain. Weapon/
+# armor choices respect each NPC's own class proficiency (CLASS_ARMOR_
+# PROFICIENCIES/weapon categories, see 'help armor') - Barbarians get
+# Heavy Weapon/Heavy Blade and Medium/Heavy armor, Venators get Ranged/
+# Polearm and Light/Medium armor, Gladiators get Light/Heavy Blade or
+# Polearm across all three armor weights.
+GERMANIA_GEAR = {
+    "a Wolf-kin raider": ("GLADIUS", "LEATHERARMOR", None),
+    "a Wolf-kin brawler": ("WARAXE", "SCALEMAIL", None),
+    "a young Minotaur of the Wolf-kin": ("WARAXE", "SCALEMAIL", None),
+    "a Boar-marked warrior": ("BROADSWORD", "SCALEMAIL", None),
+    "a Boar-marked Cyclops": ("WARAXE", "PLATEMAIL", None),
+    "a Boar-marked veteran": ("BROADSWORD", "SCALEMAIL", "CLIPEUS"),
+    "a Raven's Watch scout": ("SHORTBOW", "LEATHERARMOR", None),
+    "a Raven's Watch raider": ("JAVELIN", "SCALEMAIL", None),
+    "a Storm-caller guard": ("WARAXE", "PLATEMAIL", "SCUTUM"),
+    "a Storm-caller elite": ("SHORTBOW", "SCALEMAIL", None),
+    "a borderlands raider": ("GLADIUS", "SCALEMAIL", None),
+    "a borderlands Cyclops": ("WARAXE", "PLATEMAIL", None),
+    "a borderlands scout": ("JAVELIN", "LEATHERARMOR", None),
+    "Vidrik Storm-Marked": ("BROADSWORD", "PLATEMAIL", "SCUTUM"),
+}
+
+# Two accessory slots per NPC (not all five, unlike the shop's own full
+# sets) - a real, deliberately modest addition on top of the weapon/
+# armor/shield kit above, not a second full accessory loadout for
+# fourteen NPCs. Feet and hands, matching the flavor of "footing" and
+# "grip" a fighter would plausibly be shown caring about.
+GERMANIA_ACCESSORY_GEAR = ("GERMANIA_ARMORER_BOOTS", "GERMANIA_ARMORER_GAUNTLETS")
+
+
+def equip_germania_npc(npc):
+    """Gives a Germania rank-and-file NPC real, mechanically-active
+    weapon/body-armor/shield gear (GERMANIA_GEAR) plus two accessory
+    pieces (GERMANIA_ACCESSORY_GEAR) - identical mechanism to
+    equip_amber_coast_npc for the first three, spawn_leveled_accessory
+    for the last two."""
+    gear = GERMANIA_GEAR.get(npc.key)
+    if not gear:
+        return
+
+    weapon_proto, armor_proto, shield_proto = gear
+    level = npc.db.level or 1
+
+    npc.db.wielded_weapon = spawn_leveled_weapon(weapon_proto, level, location=npc)
+    npc.db.worn_armor = spawn_leveled_armor(armor_proto, level, location=npc)
+    if shield_proto:
+        shield = spawn(shield_proto)[0]
+        shield.move_to(npc, quiet=True)
+        npc.db.worn_shield = shield
+
+    boots_proto, gauntlets_proto = GERMANIA_ACCESSORY_GEAR
+    npc.db.worn_feet = spawn_leveled_accessory(boots_proto, level, location=npc)
+    npc.db.worn_hands = spawn_leveled_accessory(gauntlets_proto, level, location=npc)
 
 
 class RespawningNPC(HostileNPC):
@@ -8552,6 +8613,7 @@ class RespawningNPC(HostileNPC):
         equip_arena_fighter(self)
         equip_amber_coast_npc(self)
         equip_sewer_boss(self)
+        equip_germania_npc(self)
 
 
 class SummonedAlly(DefaultCharacter):
