@@ -266,16 +266,30 @@ PLATEMAIL = {
 # dodge side but never its damage_reduction side - see the design discussion
 # this came from for why (a shield helps you avoid a hit landing at all;
 # body armor softens the ones that do land - two different jobs, so they
-# don't stack the same number twice). Accessory armor contributes flat
-# stat_bonuses/resource_bonuses only, applied directly to the wearer on
-# don/doff (world/combat.py) - it's never read by the combat damage/defense
-# formulas at all, unlike body armor and shields.
+# don't stack the same number twice).
+#
+# Accessory armor originally contributed flat stat_bonuses/resource_bonuses
+# ONLY, applied directly to the wearer on don/doff, and was never read by
+# the combat damage/defense formulas at all. The Rome/Germania/Amber Coast
+# accessory shop-and-loot economy (Sep 30, owner-approved) deliberately
+# reversed that one piece: CombatRules.get_defense/get_damage now also sum
+# a small real damage_reduction/defense_modifier across all five slots
+# (world.combat.ACCESSORY_ARMOR_ATTRS), via compute_accessory_stats - see
+# that function's own comment for the scaled-down formula and why it's
+# small on purpose (up to five of these stack alongside body armor+shield).
+# An OLDER accessory prototype with no such stat (every pre-Sep-30 item,
+# including the Centaur/Harpy race substitutes) simply keeps contributing
+# 0, same as always - this was an additive change, not a retune of
+# anything that already existed.
 #
 # Shields carry armor_category (light/medium/heavy) same as body armor, so
 # CLASS_ARMOR_PROFICIENCIES (world/combat.py) can gate both the same way.
-# Accessory pieces don't - see is_armor_proficient's docstring for why a
-# penalty wouldn't have anything to meaningfully bite into on a pure
-# stat-bonus item the way it does on damage_reduction/defense_modifier.
+# Accessory pieces still deliberately don't, even with a real stat now -
+# compute_accessory_stats computes off a fixed "light" curve directly
+# rather than adding armor_category to the prototype, specifically so
+# these five slots don't pick up a NEW class-proficiency penalty dimension
+# they never had (is_armor_proficient already treats a category-less piece
+# as always-proficient).
 # ----------------------------------------------------------------------------
 
 PARMA = {
@@ -2585,6 +2599,68 @@ SMITH_SCUTUM_CHAMPION = {
     "armor_category": "heavy",
 }
 
+# Rome's own accessory-armor tier (Sep 30, armor-economy expansion) - the
+# game had NO accessory armor (head/arms/hands/legs/feet) for sale or
+# drop anywhere before this; the only accessory items in the game were
+# the free chargen starting pieces and the Centaur/Harpy race
+# substitutes, none of them ever purchasable. Sold at the new Rome
+# Armorer (world/economy.py's ROME_ARMORER_STOCK), fixed at level 25 -
+# "lower-level armor in Rome proper," by direct request, with a
+# stronger matching tier in Germania/Amber Coast below. Spawned via
+# world.combat.spawn_leveled_accessory, which overwrites damage_reduction/
+# defense_modifier/price at spawn time - the 0s below are just the
+# unspawned-prototype default, matching every existing accessory item's
+# own convention.
+ROME_ARMORER_HELM = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a reinforced legionary helm",
+    "desc": "A proper smith-made helm, cheek guards and all - a real step up from a recruit's bare felt cap.",
+    "armor_slot": "head",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "stat_bonuses": {"ingenium": 1},
+}
+
+ROME_ARMORER_VAMBRACES = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a set of reinforced vambraces",
+    "desc": "Riveted iron strips over hardened leather - real protection for the forearm, not just decoration.",
+    "armor_slot": "arms",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "stat_bonuses": {"virtus": 1},
+}
+
+ROME_ARMORER_GAUNTLETS = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a pair of banded war-gauntlets",
+    "desc": "Overlapping bands of iron across the knuckles - a real fighter's grip, not a laborer's gloves.",
+    "armor_slot": "hands",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "stat_bonuses": {"agilitas": 1},
+}
+
+ROME_ARMORER_GREAVES = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a pair of reinforced bronze greaves",
+    "desc": "Proper smith-fitted bronze, shaped to the shin rather than strapped on flat.",
+    "armor_slot": "legs",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "resource_bonuses": {"max_sp": 15},
+}
+
+ROME_ARMORER_BOOTS = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a pair of hobnailed campaign boots",
+    "desc": "Built for the long march as much as the fight - soles set with real iron studs.",
+    "armor_slot": "feet",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "resource_bonuses": {"max_hp": 15},
+}
+
 COLOSSEUM_MENAGERIE_HANDLER = {
     "key": "a menagerie handler",
     "aliases": ["handler"],
@@ -3493,6 +3569,96 @@ GERMANIA_MAIL_CHAMPION = {
     "key": "a champion's mail hauberk",
     "desc": "Genuinely fine ringmail, real and heavy - the kind only a warband's own best actually wears.",
     "armor_category": "heavy",
+}
+
+# Shields (Sep 30, armor-economy expansion) - Rome's own SMITH_PARMA/
+# CLIPEUS/SCUTUM shields cap out at level 10 (LUDUS_WEAPONSMITH_STOCK),
+# leaving nothing for anyone past that - these are Germania's own
+# 25/35/45 shield tier, same three-tier shape and self-stocking
+# mechanism (GermanicWeaponsmith, world/economy.py) as its existing
+# weapons/armor. Light category, matching a real Germanic round shield's
+# actual historical build (wood-and-hide, not the Roman legion's heavier
+# scutum).
+GERMANIA_ROUNDSHIELD_NOVICE = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a plain linden-wood roundshield",
+    "desc": "Round, light, and unadorned - a warband recruit's first real shield.",
+    "armor_slot": "shield",
+    "armor_category": "light",
+}
+
+GERMANIA_ROUNDSHIELD_VETERAN = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a battle-worn roundshield",
+    "desc": "Its rim is notched from real blows, the hide facing scarred but still sound.",
+    "armor_slot": "shield",
+    "armor_category": "light",
+}
+
+GERMANIA_ROUNDSHIELD_CHAMPION = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a chieftain's painted roundshield",
+    "desc": "A bold spiral pattern marks it as a leader's own - light enough to move fast, strong enough to matter.",
+    "armor_slot": "shield",
+    "armor_category": "light",
+}
+
+# Germania's own accessory-armor tier (Sep 30) - the "higher level"
+# counterpart to Rome's ROME_ARMORER_* tier above, fixed at level 50,
+# sold via GermanicWeaponsmith's own stock. Same slots/stat shape as
+# Rome's tier, roughly doubled, matching how this zone's own weapons/
+# armor already scale well past what the Ludus sells. Shares the exact
+# same stat block as AMBER_ARMORER_* below (deliberately, per the
+# trimmed v1 scope - one shared "frontier" tier, reflavored per zone
+# rather than two separately-tuned ones).
+GERMANIA_ARMORER_HELM = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a boar-crested war helm",
+    "desc": "A snarling boar's tusks curve up from the browline - a warband leader's own mark of standing.",
+    "armor_slot": "head",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "stat_bonuses": {"ingenium": 2},
+}
+
+GERMANIA_ARMORER_VAMBRACES = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a pair of iron-banded vambraces",
+    "desc": "Thick iron bands over boiled leather - built for a real, sustained fight, not a raid's first clash.",
+    "armor_slot": "arms",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "stat_bonuses": {"virtus": 2},
+}
+
+GERMANIA_ARMORER_GAUNTLETS = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a pair of wolf-hide war gauntlets",
+    "desc": "Wolf hide over a hardened knuckle-guard - a warrior who's already proven themselves earned these.",
+    "armor_slot": "hands",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "stat_bonuses": {"agilitas": 2},
+}
+
+GERMANIA_ARMORER_GREAVES = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a pair of fur-lined iron greaves",
+    "desc": "Iron plate over a fur lining - real protection against both blade and the frontier's own cold.",
+    "armor_slot": "legs",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "resource_bonuses": {"max_sp": 30},
+}
+
+GERMANIA_ARMORER_BOOTS = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a pair of studded trekking boots",
+    "desc": "Built for the frontier's own uneven ground - real iron studs, real soles, no give in them at all.",
+    "armor_slot": "feet",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "resource_bonuses": {"max_hp": 30},
 }
 
 """
@@ -4469,6 +4635,92 @@ AC_SMITH_WHALEBONE_CHAMPION = {
     "key": "a masterwork whalebone-plated cuirass",
     "desc": "Real amber-set rivets hold every plate - genuinely the finest heavy armor this coast produces.",
     "armor_category": "heavy",
+}
+
+# Shields (Sep 30, armor-economy expansion) - same reasoning as
+# GERMANIA_ROUNDSHIELD_* above: Rome's shields cap at level 10, and
+# nothing sold or dropped anywhere past that. The Amber Coast's own
+# 46/58/70 shield tier, self-stocked by AmberCoastArmorer exactly like
+# its existing weapons/armor. Medium category - a real coastal
+# round-shield reinforced with whalebone/driftwood, sturdier than
+# Germania's lighter linden-wood roundshield but not the Roman scutum's
+# full heavy category.
+AC_SMITH_WAVEGUARD_NOVICE = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a sealskin-bound waveguard shield",
+    "desc": "A driftwood frame wrapped in tough sealskin - a fisher-fighter's first real shield.",
+    "armor_slot": "shield",
+    "armor_category": "medium",
+}
+
+AC_SMITH_WAVEGUARD_VETERAN = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a storm-scarred waveguard",
+    "desc": "Salt-bleached and dented from real use, but the frame beneath hasn't given an inch.",
+    "armor_slot": "shield",
+    "armor_category": "medium",
+}
+
+AC_SMITH_WAVEGUARD_CHAMPION = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a champion's whalebone-rimmed waveguard",
+    "desc": "Ribbed with polished whalebone along its edge - the finest shield this coast's own smiths produce.",
+    "armor_slot": "shield",
+    "armor_category": "medium",
+}
+
+# The Amber Coast's own accessory-armor tier (Sep 30) - shares the exact
+# same stat block as GERMANIA_ARMORER_* above (see that block's own
+# comment for why), reflavored for the coast, fixed at level 50, sold
+# via AmberCoastArmorer's own stock.
+AMBER_ARMORER_HELM = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a whalebone-ridged helm",
+    "desc": "A single ridge of polished whalebone runs its crown - unmistakably this coast's own make.",
+    "armor_slot": "head",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "stat_bonuses": {"ingenium": 2},
+}
+
+AMBER_ARMORER_VAMBRACES = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a pair of sealskin-wrapped vambraces",
+    "desc": "Sealskin over a driftwood-and-iron frame - salt-cured, tested, and none the worse for it.",
+    "armor_slot": "arms",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "stat_bonuses": {"virtus": 2},
+}
+
+AMBER_ARMORER_GAUNTLETS = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a pair of driftwood-knuckled gauntlets",
+    "desc": "Smoothed driftwood set over the knuckles, lashed tight with tarred cord - a real fighter's grip.",
+    "armor_slot": "hands",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "stat_bonuses": {"agilitas": 2},
+}
+
+AMBER_ARMORER_GREAVES = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a pair of tide-worn bone greaves",
+    "desc": "Bone plate smoothed by years of salt and tide, strapped over oiled leather beneath.",
+    "armor_slot": "legs",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "resource_bonuses": {"max_sp": 30},
+}
+
+AMBER_ARMORER_BOOTS = {
+    "prototype_parent": "BASEARMOR",
+    "key": "a pair of oilskin wading boots",
+    "desc": "Sealed against the tide and built to grip wet rock - a coast fighter's own practical answer to Rome's hobnails.",
+    "armor_slot": "feet",
+    "damage_reduction": 0,
+    "defense_modifier": 0,
+    "resource_bonuses": {"max_hp": 30},
 }
 
 # ----------------------------------------------------------------------------

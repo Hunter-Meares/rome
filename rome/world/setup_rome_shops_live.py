@@ -35,6 +35,13 @@ Room choices and why:
     rapid efficiency" - world/batch_forum_data.py). Added later, once
     a pacifist needed somewhere to actually buy cosmetic-only clothing
     after real body armor/shields were closed off to them.
+  - RomeArmorer -> Ludus Entrance - same combat-gear commerce hub as
+    LudusOutfitter and the Ludus Weaponsmith (weapons/body armor/
+    shields) - a direct request for "a proper armor shop" in Rome
+    proper, specifically accessory armor (head/arms/hands/legs/feet),
+    the one piece of the equipment economy nothing sold anywhere
+    before Sep 30. Same room rather than a new one, so a player
+    gearing up in one stop can get everything at once.
 """
 
 from evennia.utils import search, create
@@ -47,6 +54,7 @@ from world.economy import (
     ForumWineMerchant,
     LudusOutfitter,
     ForumTailor,
+    RomeArmorer,
 )
 
 SHOP_PLACEMENTS = [
@@ -94,6 +102,13 @@ SHOP_PLACEMENTS = [
         "customer's measure without ever seeming to slow down. Bolts "
         "of plain, undyed cloth are stacked behind her - nothing "
         "fancy, but always ready to be cut and stitched on the spot.",
+    ),
+    (
+        RomeArmorer, "Ludus Entrance", "Decima the armorer",
+        "A broad-shouldered woman surrounded by racks of helms, "
+        "vambraces, and greaves rather than weapons or shields - the "
+        "Ludus's other smith, the one fighters see for everything a "
+        "blade or a breastplate doesn't cover.",
     ),
 ]
 

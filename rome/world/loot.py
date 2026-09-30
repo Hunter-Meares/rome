@@ -19,7 +19,7 @@ additional balancing work.
 import random
 import time
 
-from world.combat import spawn_leveled_weapon, spawn_leveled_armor
+from world.combat import spawn_leveled_weapon, spawn_leveled_armor, spawn_leveled_accessory
 
 LOOT_DROP_CHANCE = 20  # percent, checked once per defeat
 
@@ -162,6 +162,51 @@ GERMANIA_WEAPON_PROTOTYPES = [
 ]
 GERMANIA_ARMOR_PROTOTYPES = ["GERMANIA_LOOT_HIDE", "GERMANIA_LOOT_BONEPLATE"]
 
+# Shields and accessory armor (Sep 30, armor-economy expansion) -
+# deliberately reuse GermanicWeaponsmith's own shop prototypes rather
+# than inventing a second, LOOT-only set the way the weapon/armor pool
+# above does: both spawn_leveled_armor/spawn_leveled_accessory
+# recompute every stat from the DEFEATED NPC's own level anyway (see
+# below), so a shop item's own baked-in shop-tier level is irrelevant
+# once it drops as loot - only its flavor name carries over, and a
+# "champion's painted roundshield" dropping off a rank-and-file grunt
+# reads as an exciting, aspirational find rather than a stale copy of
+# something for sale nearby (there's no shop-price undercutting concern
+# here either, unlike a weapon/body armor drop, since these two
+# categories didn't exist for sale ANYWHERE before this same change).
+GERMANIA_SHIELD_PROTOTYPES = [
+    "GERMANIA_ROUNDSHIELD_NOVICE", "GERMANIA_ROUNDSHIELD_VETERAN", "GERMANIA_ROUNDSHIELD_CHAMPION",
+]
+GERMANIA_ACCESSORY_PROTOTYPES = [
+    "GERMANIA_ARMORER_HELM", "GERMANIA_ARMORER_VAMBRACES", "GERMANIA_ARMORER_GAUNTLETS",
+    "GERMANIA_ARMORER_GREAVES", "GERMANIA_ARMORER_BOOTS",
+]
+
+# weapon/armor stay the large majority of drops (matching the pre-
+# existing 50/50 balance combined); shield/accessory are rarer, meant to
+# feel like a special find on top of the ordinary weapon/armor drop. A
+# single random.random() roll against these cumulative thresholds
+# (rather than random.choices) - deliberately kept as one call against
+# fixed thresholds so it stays trivially mockable in tests, matching
+# every other loot roll in this file's own simple style.
+LOOT_CATEGORY_THRESHOLDS = (
+    ("weapon", 0.45),
+    ("armor", 0.80),
+    ("shield", 0.90),
+    ("accessory", 1.0),
+)
+
+
+def _roll_loot_category():
+    """Rolls a single random.random() value against LOOT_CATEGORY_
+    THRESHOLDS' cumulative bounds and returns the matching category
+    name."""
+    roll = random.random()
+    for category, upper_bound in LOOT_CATEGORY_THRESHOLDS:
+        if roll < upper_bound:
+            return category
+    return LOOT_CATEGORY_THRESHOLDS[-1][0]
+
 
 def roll_germania_loot_drop(defeated, attacker=None):
     """
@@ -180,13 +225,20 @@ def roll_germania_loot_drop(defeated, attacker=None):
         return
 
     level = defeated.db.level or 1
+    category = _roll_loot_category()
 
-    if random.random() < 0.5:
+    if category == "weapon":
         prototype = random.choice(GERMANIA_WEAPON_PROTOTYPES)
         item = spawn_leveled_weapon(prototype, level, location=location)
-    else:
+    elif category == "armor":
         prototype = random.choice(GERMANIA_ARMOR_PROTOTYPES)
         item = spawn_leveled_armor(prototype, level, location=location)
+    elif category == "shield":
+        prototype = random.choice(GERMANIA_SHIELD_PROTOTYPES)
+        item = spawn_leveled_armor(prototype, level, location=location)
+    else:
+        prototype = random.choice(GERMANIA_ACCESSORY_PROTOTYPES)
+        item = spawn_leveled_accessory(prototype, level, location=location)
 
     item.db.dropped_at = time.time()  # see roll_loot_drop's own note above
 
@@ -205,6 +257,18 @@ AMBER_COAST_WEAPON_PROTOTYPES = [
 ]
 AMBER_COAST_ARMOR_PROTOTYPES = ["AMBER_LOOT_TIDE_HIDE", "AMBER_LOOT_AMBER_MAIL"]
 
+# Shields and accessory armor (Sep 30) - see
+# GERMANIA_SHIELD_PROTOTYPES/GERMANIA_ACCESSORY_PROTOTYPES' own comment
+# above for why these deliberately reuse AmberCoastArmorer's own shop
+# prototypes rather than a second LOOT-only set.
+AMBER_COAST_SHIELD_PROTOTYPES = [
+    "AC_SMITH_WAVEGUARD_NOVICE", "AC_SMITH_WAVEGUARD_VETERAN", "AC_SMITH_WAVEGUARD_CHAMPION",
+]
+AMBER_COAST_ACCESSORY_PROTOTYPES = [
+    "AMBER_ARMORER_HELM", "AMBER_ARMORER_VAMBRACES", "AMBER_ARMORER_GAUNTLETS",
+    "AMBER_ARMORER_GREAVES", "AMBER_ARMORER_BOOTS",
+]
+
 
 def roll_amber_coast_loot_drop(defeated, attacker=None):
     """
@@ -222,13 +286,20 @@ def roll_amber_coast_loot_drop(defeated, attacker=None):
         return
 
     level = defeated.db.level or 1
+    category = _roll_loot_category()
 
-    if random.random() < 0.5:
+    if category == "weapon":
         prototype = random.choice(AMBER_COAST_WEAPON_PROTOTYPES)
         item = spawn_leveled_weapon(prototype, level, location=location)
-    else:
+    elif category == "armor":
         prototype = random.choice(AMBER_COAST_ARMOR_PROTOTYPES)
         item = spawn_leveled_armor(prototype, level, location=location)
+    elif category == "shield":
+        prototype = random.choice(AMBER_COAST_SHIELD_PROTOTYPES)
+        item = spawn_leveled_armor(prototype, level, location=location)
+    else:
+        prototype = random.choice(AMBER_COAST_ACCESSORY_PROTOTYPES)
+        item = spawn_leveled_accessory(prototype, level, location=location)
 
     item.db.dropped_at = time.time()  # see roll_loot_drop's own note above
 

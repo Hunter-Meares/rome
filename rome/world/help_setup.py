@@ -2214,7 +2214,14 @@ def create_all_help_entries():
             "a mismatched shield AND breastplate both apply their own "
             "separate penalty.\n\n"
             "Not sure what category or weight tier something actually "
-            "is? Use 'inspect <item>' on it - see 'help inspect'."
+            "is? Use 'inspect <item>' on it - see 'help inspect'.\n\n"
+            "|wAccessory armor|n (head/arms/hands/legs/feet) carries a "
+            "small real damage reduction of its own on top of whatever "
+            "stat or resource bonus it grants, but is never "
+            "proficiency-gated the way body armor and shields are - "
+            "any class can wear any piece at full effect. Sold in Rome "
+            "(the armorer's stall, near the Ludus) and, at a stronger "
+            "tier, in Germania and the Amber Coast."
         ),
         db_lock_storage="view:all()",
     )

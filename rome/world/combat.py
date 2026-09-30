@@ -1508,6 +1508,20 @@ class CombatRules:
             if not self.is_armor_proficient(defender, defender.db.worn_shield):
                 defense_value += NONPROFICIENT_ARMOR_DEFENSE_PENALTY
 
+        # Accessory armor (head/arms/hands/legs/feet) - added Sep 30
+        # alongside the Rome/Germania/Amber Coast accessory economy (see
+        # compute_accessory_stats' own comment for why this reverses the
+        # original "never read by combat formulas" design). No Sundered
+        # check (is_sundered only ever targets "worn_armor"/"worn_shield"/
+        # "both" - these five slots were never a valid Sunder target) and
+        # no proficiency check (these items are deliberately never given
+        # an armor_category, so is_armor_proficient would just always
+        # return True for them anyway).
+        for slot in ACCESSORY_ARMOR_ATTRS:
+            item = getattr(defender.db, slot, None)
+            if item:
+                defense_value += item.db.defense_modifier or 0
+
         if "Defense Up" in self.get_conditions(defender):
             defense_value += DEF_UP_MOD
         if "Defense Down" in self.get_conditions(defender):
@@ -1568,6 +1582,16 @@ class CombatRules:
             if not self.is_armor_proficient(defender, defender.db.worn_armor):
                 reduction = int(reduction * NONPROFICIENT_ARMOR_REDUCTION_MULTIPLIER)
             damage_value -= reduction
+
+        # Accessory armor (head/arms/hands/legs/feet) - see get_defense's
+        # own matching addition for the full reasoning. ignore_armor
+        # (Piercing Shot) skips these the same way it skips worn_armor -
+        # "ignore armor" should mean all of it, not just the body slot.
+        if not ignore_armor:
+            for slot in ACCESSORY_ARMOR_ATTRS:
+                item = getattr(defender.db, slot, None)
+                if item:
+                    damage_value -= item.db.damage_reduction or 0
 
         # Vigor (constitution/toughness) - a small flat reduction on
         # top of whatever armor provides, independent of it.
@@ -7463,6 +7487,21 @@ ARMOR_SLOT_ATTRS = {
     "feet": "worn_feet",
 }
 
+# The five accessory slots specifically (everything but body/shield) -
+# used by CombatRules.get_defense/get_damage to sum a small real combat
+# stat across all of them, see compute_accessory_stats' own comment for
+# the full reasoning.
+ACCESSORY_ARMOR_ATTRS = ("worn_head", "worn_arms", "worn_hands", "worn_legs", "worn_feet")
+
+# The same five slots, as the db.armor_slot VALUES an item itself
+# carries (not the character-side attribute names above) - used by
+# world.economy._stock_merchant to tell an accessory item apart from
+# body armor/a shield at runtime. Checked as an explicit allowlist,
+# not "not body/shield" - see that function's own comment for the real
+# bug that distinction caught (body armor's own armor_slot is often
+# just unset/None, defaulting to "body" implicitly).
+ACCESSORY_ARMOR_SLOTS = ("head", "arms", "hands", "legs", "feet")
+
 # The only stats/resources accessory armor (every slot but body and
 # shield) is allowed to modify - anything outside these in an item's
 # stat_bonuses/resource_bonuses dict is silently ignored rather than
@@ -7896,6 +7935,57 @@ def spawn_leveled_armor(prototype_name, level, location=None):
     if location:
         obj.move_to(location, quiet=True)
     reduction, defense_modifier, price = compute_armor_stats(obj.db.armor_category, level)
+    obj.db.damage_reduction = reduction
+    obj.db.defense_modifier = defense_modifier
+    obj.db.price = price
+    obj.db.item_level = level
+    return obj
+
+
+# Every accessory slot (head/arms/hands/legs/feet) has always been
+# damage_reduction=0/defense_modifier=0 by design - only resource_bonuses/
+# stat_bonuses (see world/prototypes.py's own "ADDITIONAL EQUIPMENT SLOTS"
+# design note: accessory armor was deliberately never read by the combat
+# damage/defense formulas at all, unlike body armor and shields). The
+# Rome/Germania/Amber Coast accessory shop-and-loot economy (Sep 30,
+# owner-approved reversal of that specific piece of the original design)
+# gives them a real but deliberately small combat stat on top of their
+# existing resource/stat bonus - get_defense/get_damage below now sum
+# across all five slots too. Deliberately still NOT given an
+# armor_category, unlike shields/body armor - that field is what feeds
+# is_armor_proficient's CLASS_ARMOR_PROFICIENCIES gate, and nothing about
+# the owner's request asked for a NEW proficiency dimension on five slots
+# that never had one; is_armor_proficient already treats a category-less
+# piece as always-proficient, so this is a clean way to add a real stat
+# without also silently adding a new penalty axis. ACCESSORY_REDUCTION_SHARE
+# keeps the total across all five worn at once comparable to roughly one
+# extra light body armor piece, not a second full suit - reuses
+# compute_armor_stats' own "light" curve as its base rather than inventing
+# a second, parallel formula.
+ACCESSORY_REDUCTION_SHARE = 0.2
+
+
+def compute_accessory_stats(level):
+    """Computes (damage_reduction, defense_modifier, price) for an
+    accessory-slot item at a given level - reuses compute_armor_stats' own
+    "light" curve, scaled down by ACCESSORY_REDUCTION_SHARE (see that
+    constant's own comment above for why, including why this deliberately
+    takes no armor_category argument)."""
+    reduction, _, price = compute_armor_stats("light", level)
+    reduction = max(1, round(reduction * ACCESSORY_REDUCTION_SHARE))
+    price = max(1, round(price * ACCESSORY_REDUCTION_SHARE))
+    return reduction, -reduction, price
+
+
+def spawn_leveled_accessory(prototype_name, level, location=None):
+    """Spawns an accessory-armor prototype (head/arms/hands/legs/feet)
+    with its damage_reduction/defense_modifier/price baked in for the
+    given level - mirrors spawn_leveled_armor, just via
+    compute_accessory_stats' scaled-down, category-less formula instead."""
+    obj = spawn(prototype_name)[0]
+    if location:
+        obj.move_to(location, quiet=True)
+    reduction, defense_modifier, price = compute_accessory_stats(level)
     obj.db.damage_reduction = reduction
     obj.db.defense_modifier = defense_modifier
     obj.db.price = price

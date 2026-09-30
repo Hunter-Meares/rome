@@ -251,7 +251,7 @@ class TestRollGermaniaLootDrop(EvenniaTest):
     def test_tagged_npc_drops_a_weapon_on_a_successful_roll(self, mock_randint, mock_random):
         self.npc.tags.add("germania_npc", category="npc_role")
         mock_randint.return_value = 1
-        mock_random.return_value = 0.1  # < 0.5 -> weapon branch
+        mock_random.return_value = 0.1  # < 0.45 -> weapon branch (LOOT_CATEGORY_THRESHOLDS)
 
         roll_germania_loot_drop(self.npc)
 
@@ -262,16 +262,47 @@ class TestRollGermaniaLootDrop(EvenniaTest):
 
     @patch("world.loot.random.random")
     @patch("world.loot.random.randint")
-    def test_tagged_npc_drops_armor_on_the_other_half_of_the_roll(self, mock_randint, mock_random):
+    def test_tagged_npc_drops_armor_on_the_armor_share_of_the_roll(self, mock_randint, mock_random):
         self.npc.tags.add("germania_npc", category="npc_role")
         mock_randint.return_value = 1
-        mock_random.return_value = 0.9  # >= 0.5 -> armor branch
+        mock_random.return_value = 0.6  # 0.45 <= x < 0.80 -> armor branch
 
         roll_germania_loot_drop(self.npc)
 
         dropped = self._new_drops()
         self.assertEqual(len(dropped), 1)
         self.assertTrue(dropped[0].is_typeclass("world.combat.CombatArmor", exact=False))
+        self.assertNotIn(dropped[0].db.armor_slot, ("shield", "head", "arms", "hands", "legs", "feet"))
+
+    @patch("world.loot.random.random")
+    @patch("world.loot.random.randint")
+    def test_tagged_npc_drops_a_shield_on_the_shield_share_of_the_roll(self, mock_randint, mock_random):
+        self.npc.tags.add("germania_npc", category="npc_role")
+        mock_randint.return_value = 1
+        mock_random.return_value = 0.85  # 0.80 <= x < 0.90 -> shield branch
+
+        roll_germania_loot_drop(self.npc)
+
+        dropped = self._new_drops()
+        self.assertEqual(len(dropped), 1)
+        self.assertEqual(dropped[0].db.armor_slot, "shield")
+        self.assertEqual(dropped[0].db.item_level, 30)
+
+    @patch("world.loot.random.random")
+    @patch("world.loot.random.randint")
+    def test_tagged_npc_drops_an_accessory_on_the_remaining_share_of_the_roll(self, mock_randint, mock_random):
+        self.npc.tags.add("germania_npc", category="npc_role")
+        mock_randint.return_value = 1
+        mock_random.return_value = 0.95  # >= 0.90 -> accessory branch
+
+        roll_germania_loot_drop(self.npc)
+
+        dropped = self._new_drops()
+        self.assertEqual(len(dropped), 1)
+        self.assertIn(dropped[0].db.armor_slot, ("head", "arms", "hands", "legs", "feet"))
+        self.assertEqual(dropped[0].db.item_level, 30)
+        # Real combat stat, not the old always-zero convention.
+        self.assertGreater(dropped[0].db.damage_reduction, 0)
 
     def test_drops_are_not_the_same_flavor_names_as_the_shop_stock(self):
         """The whole point of a separate loot table - a find should
@@ -325,7 +356,7 @@ class TestRollAmberCoastLootDrop(EvenniaTest):
     def test_tagged_npc_drops_a_weapon_on_a_successful_roll(self, mock_randint, mock_random):
         self.npc.tags.add("amber_coast_npc", category="npc_role")
         mock_randint.return_value = 1
-        mock_random.return_value = 0.1
+        mock_random.return_value = 0.1  # < 0.45 -> weapon branch (LOOT_CATEGORY_THRESHOLDS)
 
         roll_amber_coast_loot_drop(self.npc)
 
@@ -336,16 +367,46 @@ class TestRollAmberCoastLootDrop(EvenniaTest):
 
     @patch("world.loot.random.random")
     @patch("world.loot.random.randint")
-    def test_tagged_npc_drops_armor_on_the_other_half_of_the_roll(self, mock_randint, mock_random):
+    def test_tagged_npc_drops_armor_on_the_armor_share_of_the_roll(self, mock_randint, mock_random):
         self.npc.tags.add("amber_coast_npc", category="npc_role")
         mock_randint.return_value = 1
-        mock_random.return_value = 0.9
+        mock_random.return_value = 0.6  # 0.45 <= x < 0.80 -> armor branch
 
         roll_amber_coast_loot_drop(self.npc)
 
         dropped = self._new_drops()
         self.assertEqual(len(dropped), 1)
         self.assertTrue(dropped[0].is_typeclass("world.combat.CombatArmor", exact=False))
+        self.assertNotIn(dropped[0].db.armor_slot, ("shield", "head", "arms", "hands", "legs", "feet"))
+
+    @patch("world.loot.random.random")
+    @patch("world.loot.random.randint")
+    def test_tagged_npc_drops_a_shield_on_the_shield_share_of_the_roll(self, mock_randint, mock_random):
+        self.npc.tags.add("amber_coast_npc", category="npc_role")
+        mock_randint.return_value = 1
+        mock_random.return_value = 0.85  # 0.80 <= x < 0.90 -> shield branch
+
+        roll_amber_coast_loot_drop(self.npc)
+
+        dropped = self._new_drops()
+        self.assertEqual(len(dropped), 1)
+        self.assertEqual(dropped[0].db.armor_slot, "shield")
+        self.assertEqual(dropped[0].db.item_level, 55)
+
+    @patch("world.loot.random.random")
+    @patch("world.loot.random.randint")
+    def test_tagged_npc_drops_an_accessory_on_the_remaining_share_of_the_roll(self, mock_randint, mock_random):
+        self.npc.tags.add("amber_coast_npc", category="npc_role")
+        mock_randint.return_value = 1
+        mock_random.return_value = 0.95  # >= 0.90 -> accessory branch
+
+        roll_amber_coast_loot_drop(self.npc)
+
+        dropped = self._new_drops()
+        self.assertEqual(len(dropped), 1)
+        self.assertIn(dropped[0].db.armor_slot, ("head", "arms", "hands", "legs", "feet"))
+        self.assertEqual(dropped[0].db.item_level, 55)
+        self.assertGreater(dropped[0].db.damage_reduction, 0)
 
     def test_drops_are_not_shared_with_the_germania_or_shop_prototypes(self):
         from world.loot import (

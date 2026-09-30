@@ -600,6 +600,26 @@ class TestGetDefense(CombatTestBase):
         self.char2.db.conditions = {"Defense Down": [3, self.char1]}
         self.assertEqual(COMBAT_RULES.get_defense(self.char1, self.char2), 35)
 
+    def test_accessory_defense_modifier_applies(self):
+        # Sep 30 armor-economy expansion - accessory items now carry a
+        # real (if small) defense_modifier for the first time.
+        self.char2.db.worn_head = self._make_armor(defense_modifier=-2)
+        self.assertEqual(COMBAT_RULES.get_defense(self.char1, self.char2), 48)
+
+    def test_multiple_accessory_slots_stack(self):
+        self.char2.db.worn_head = self._make_armor(defense_modifier=-2)
+        self.char2.db.worn_arms = self._make_armor(defense_modifier=-1)
+        self.char2.db.worn_hands = self._make_armor(defense_modifier=-1)
+        self.assertEqual(COMBAT_RULES.get_defense(self.char1, self.char2), 46)
+
+    def test_preexisting_zero_stat_accessory_items_are_unaffected(self):
+        # Every accessory item that existed before Sep 30 (chargen
+        # starting gear, the Centaur/Harpy race substitutes) has
+        # defense_modifier=0 - this additive change must be a pure
+        # no-op for all of them.
+        self.char2.db.worn_feet = self._make_armor(defense_modifier=0)
+        self.assertEqual(COMBAT_RULES.get_defense(self.char1, self.char2), 50)
+
     def _make_armor(self, defense_modifier=0, damage_reduction=0):
         from evennia.utils import create
         from world.combat import CombatArmor
@@ -753,6 +773,33 @@ class TestGetDamage(CombatTestBase):
         armor = self._make_armor(damage_reduction=999)
         self.char2.db.worn_armor = armor
         self.assertEqual(COMBAT_RULES.get_damage(self.char1, self.char2), 0)
+
+    @patch("world.combat.randint")
+    def test_accessory_damage_reduction_applies(self, mock_randint):
+        # Sep 30 armor-economy expansion.
+        mock_randint.return_value = 20
+        self.char1.db.unarmed_damage_range = (20, 20)
+        self.char2.db.worn_feet = self._make_armor(damage_reduction=3)
+        self.assertEqual(COMBAT_RULES.get_damage(self.char1, self.char2), 17)
+
+    @patch("world.combat.randint")
+    def test_multiple_accessory_slots_stack_damage_reduction(self, mock_randint):
+        mock_randint.return_value = 20
+        self.char1.db.unarmed_damage_range = (20, 20)
+        self.char2.db.worn_feet = self._make_armor(damage_reduction=3)
+        self.char2.db.worn_legs = self._make_armor(damage_reduction=2)
+        self.assertEqual(COMBAT_RULES.get_damage(self.char1, self.char2), 15)
+
+    @patch("world.combat.randint")
+    def test_ignore_armor_skips_accessory_reduction_too(self, mock_randint):
+        # Piercing Shot's whole point is "ignore armor" - that has to
+        # mean all of it, not just the body slot.
+        mock_randint.return_value = 20
+        self.char1.db.unarmed_damage_range = (20, 20)
+        self.char2.db.worn_feet = self._make_armor(damage_reduction=3)
+        self.assertEqual(
+            COMBAT_RULES.get_damage(self.char1, self.char2, ignore_armor=True), 20
+        )
 
     def _make_weapon(self, accuracy_bonus=0, weapon_category="light_blade", damage_range=(5, 10)):
         from evennia.utils import create

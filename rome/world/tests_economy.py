@@ -19,6 +19,7 @@ from world.economy import (
     SELL_BACK_RATE,
     CmdShop,
 )
+from world.combat import ACCESSORY_ARMOR_SLOTS
 
 
 class EconomyTestBase(EvenniaTest):
@@ -373,6 +374,109 @@ class TestLudusWeaponsmith(EvenniaTest):
         self.assertEqual(len(weapons), 18)  # 6 weapons x 3 tiers (staff added)
         self.assertEqual(len(shields), 9)  # 3 shield categories x 3 tiers
         self.assertEqual(len(body_armor), 9)  # 3 armor categories x 3 tiers
+
+
+class TestRomeArmorer(EvenniaTest):
+    """
+    Rome's new accessory-armor shop (Sep 30, armor-economy expansion) -
+    same self-stocking pattern as LudusWeaponsmith, via the shared
+    _stock_merchant helper both now use.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from world.economy import RomeArmorer, ROME_ARMORER_STOCK
+
+        self.stock_list = ROME_ARMORER_STOCK
+        self.armorer = create.create_object(RomeArmorer, key="Armorer", location=self.room1)
+
+    def test_stocks_exactly_one_item_per_stock_entry(self):
+        self.assertEqual(len(self.armorer.contents), len(self.stock_list))
+
+    def test_stocks_all_five_accessory_slots(self):
+        slots = {item.db.armor_slot for item in self.armorer.contents}
+        self.assertEqual(slots, {"head", "arms", "hands", "legs", "feet"})
+
+    def test_every_item_has_a_real_nonzero_combat_stat(self):
+        # The whole point of this expansion - accessory items used to be
+        # damage_reduction=0/defense_modifier=0 always.
+        for item in self.armorer.contents:
+            self.assertGreater(item.db.damage_reduction, 0, "%s has no reduction" % item.key)
+            self.assertEqual(item.db.defense_modifier, -item.db.damage_reduction)
+
+    def test_every_item_keeps_its_resource_or_stat_bonus(self):
+        # The scaled-down combat stat is additive, not a replacement for
+        # the pre-existing resource_bonuses/stat_bonuses mechanism.
+        for item in self.armorer.contents:
+            self.assertTrue(item.db.resource_bonuses or item.db.stat_bonuses, item.key)
+
+    def test_shopname_set(self):
+        self.assertEqual(self.armorer.db.shopname, "the armorer's stall")
+
+
+class TestGermaniaAndAmberCoastShieldsAndAccessories(EvenniaTest):
+    """
+    The Germanic weaponsmith and Smith's Quarter armorer both gained new
+    shield/accessory entries (Sep 30) on top of their existing weapon/
+    body-armor stock - same _stock_merchant helper, so a shield's
+    defense_modifier still comes from compute_armor_stats (not the
+    accessory formula) even though it's stocked alongside accessory
+    items in the same list.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from world.combat import CombatArmor
+        from world.economy import (
+            GermanicWeaponsmith,
+            GERMANIA_WEAPONSMITH_STOCK,
+            AmberCoastArmorer,
+            AMBER_COAST_ARMORY_STOCK,
+        )
+
+        self.CombatArmor = CombatArmor
+        self.germanic = create.create_object(GermanicWeaponsmith, key="Germanic", location=self.room1)
+        self.germania_stock = GERMANIA_WEAPONSMITH_STOCK
+        self.amber = create.create_object(AmberCoastArmorer, key="Amber", location=self.room1)
+        self.amber_stock = AMBER_COAST_ARMORY_STOCK
+
+    def test_germania_stocks_a_shield_and_five_accessories(self):
+        armor = [i for i in self.germanic.contents if i.is_typeclass(self.CombatArmor, exact=True)]
+        shields = [i for i in armor if i.db.armor_slot == "shield"]
+        accessories = [i for i in armor if i.db.armor_slot in ACCESSORY_ARMOR_SLOTS]
+        self.assertEqual(len(shields), 3)  # novice/veteran/champion
+        self.assertEqual(len(accessories), 5)  # head/arms/hands/legs/feet
+
+    def test_germania_shield_uses_the_armor_formula_not_the_accessory_one(self):
+        shields = [
+            i for i in self.germanic.contents
+            if i.is_typeclass(self.CombatArmor, exact=True) and i.db.armor_slot == "shield"
+        ]
+        # A shield's reduction should be well above an accessory item's
+        # deliberately tiny one at the same rough level range.
+        accessories = [
+            i for i in self.germanic.contents
+            if i.is_typeclass(self.CombatArmor, exact=True) and i.db.armor_slot in ACCESSORY_ARMOR_SLOTS
+        ]
+        self.assertGreater(min(s.db.damage_reduction for s in shields), max(a.db.damage_reduction for a in accessories))
+
+    def test_amber_coast_stocks_a_shield_and_five_accessories(self):
+        armor = [i for i in self.amber.contents if i.is_typeclass(self.CombatArmor, exact=True)]
+        shields = [i for i in armor if i.db.armor_slot == "shield"]
+        accessories = [i for i in armor if i.db.armor_slot in ACCESSORY_ARMOR_SLOTS]
+        self.assertEqual(len(shields), 3)
+        self.assertEqual(len(accessories), 5)
+
+    def test_germania_and_amber_accessory_flavor_names_are_distinct(self):
+        germania_names = {
+            i.key for i in self.germanic.contents
+            if i.is_typeclass(self.CombatArmor, exact=True) and i.db.armor_slot in ACCESSORY_ARMOR_SLOTS
+        }
+        amber_names = {
+            i.key for i in self.amber.contents
+            if i.is_typeclass(self.CombatArmor, exact=True) and i.db.armor_slot in ACCESSORY_ARMOR_SLOTS
+        }
+        self.assertEqual(germania_names & amber_names, set())
 
 
 class TestRomeShopsStockThemselves(EvenniaTest):

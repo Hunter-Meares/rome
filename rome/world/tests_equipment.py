@@ -15,10 +15,12 @@ from world.combat import (
     WEAPON_SUBTYPES,
     ARMOR_CATEGORIES,
     ARMOR_MITIGATION_TARGET,
+    ACCESSORY_REDUCTION_SHARE,
     CLASS_ARMOR_PROFICIENCIES,
     COMBAT_RULES,
     compute_weapon_stats,
     compute_armor_stats,
+    compute_accessory_stats,
     is_junk_eligible,
 )
 
@@ -144,6 +146,49 @@ class TestMitigationRatioStaysProportional(unittest.TestCase):
         # And the spread across the whole level range should be tiny -
         # this is the actual regression guard for the drift bug.
         self.assertLess(max(ratios) - min(ratios), 0.03)
+
+
+class TestComputeAccessoryStats(unittest.TestCase):
+    """
+    compute_accessory_stats (Sep 30, armor-economy expansion) - a small
+    real combat stat for accessory-slot items (head/arms/hands/legs/
+    feet), deliberately scaled down from compute_armor_stats' own
+    "light" curve since up to five of these can be worn at once
+    alongside a full body armor piece and a shield.
+    """
+
+    def test_defense_modifier_always_mirrors_reduction(self):
+        for level in (1, 25, 50, 100):
+            reduction, defense_modifier, _ = compute_accessory_stats(level)
+            self.assertEqual(defense_modifier, -reduction)
+
+    def test_reduction_grows_with_level(self):
+        low, _, _ = compute_accessory_stats(1)
+        high, _, _ = compute_accessory_stats(100)
+        self.assertGreater(high, low)
+
+    def test_reduction_is_never_zero(self):
+        # The max(1, ...) clamp - a level 1 accessory item should still
+        # contribute something, however small, not round down to nothing.
+        reduction, _, _ = compute_accessory_stats(1)
+        self.assertGreaterEqual(reduction, 1)
+
+    def test_reduction_is_exactly_the_light_armor_curve_scaled_down(self):
+        # The whole point of ACCESSORY_REDUCTION_SHARE - reusing the
+        # body-armor formula at full weight across five slots would
+        # massively outscale a single body armor piece.
+        for level in (25, 50, 100):
+            body_reduction, _, _ = compute_armor_stats("light", level)
+            accessory_reduction, _, _ = compute_accessory_stats(level)
+            self.assertEqual(accessory_reduction, max(1, round(body_reduction * ACCESSORY_REDUCTION_SHARE)))
+            self.assertLess(accessory_reduction, body_reduction)
+
+    def test_price_is_positive_and_cheaper_than_the_equivalent_body_armor(self):
+        for level in (25, 50, 100):
+            _, _, body_price = compute_armor_stats("light", level)
+            _, _, accessory_price = compute_accessory_stats(level)
+            self.assertGreater(accessory_price, 0)
+            self.assertLess(accessory_price, body_price)
 
 
 class _FakeDB:

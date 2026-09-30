@@ -152,6 +152,66 @@ LUDUS_WEAPONSMITH_STOCK = [
 ]
 
 
+def _stock_merchant(npc, stock_list):
+    """
+    Shared self-stocking implementation for every shop that sells
+    level-scaled gear from a (prototype_key, level) list -
+    LudusWeaponsmith, GermanicWeaponsmith, AmberCoastArmorer, and the new
+    RomeArmorer below. Branches by typeclass, and for CombatArmor,
+    further by armor_slot: body/shield go through compute_armor_stats
+    (world.combat.spawn_leveled_armor's own formula), the five accessory
+    slots (head/arms/hands/legs/feet) through compute_accessory_stats
+    instead (world.combat.spawn_leveled_accessory's own deliberately
+    scaled-down formula - see that function's comment for why body
+    armor's full formula would be wrong for something up to five of
+    which can be worn at once).
+
+    Extracted (Sep 30) from what used to be three near-identical copies
+    of this exact loop, once a fourth shop (and the accessory-slot
+    branch) needed the same logic - duplicating a brand-new branch a
+    fourth time risked the copies drifting out of sync with each other.
+    """
+    from world.combat import (
+        compute_weapon_stats,
+        compute_armor_stats,
+        compute_accessory_stats,
+        ACCESSORY_ARMOR_SLOTS,
+    )
+
+    for prototype_key, level in stock_list:
+        obj = spawn(prototype_key)[0]
+        if obj.is_typeclass("world.combat.CombatWeapon", exact=True):
+            damage_range, accuracy_bonus, price = compute_weapon_stats(
+                obj.db.weapon_type_name, level
+            )
+            obj.db.damage_range = damage_range
+            obj.db.accuracy_bonus = accuracy_bonus
+            obj.db.price = price
+            obj.db.item_level = level
+        elif obj.is_typeclass("world.combat.CombatArmor", exact=True):
+            # Checked as "IS this one of the five accessory slots"
+            # (explicit allowlist), not "is this NOT body/shield" - a
+            # real, confirmed gotcha found while building this: every
+            # existing body-armor prototype (SMITH_LEATHER_NOVICE and
+            # friends) never actually sets armor_slot at all (db.
+            # armor_slot reads back as None), relying on it defaulting
+            # to "body" everywhere else in the game. An inverted check
+            # would have silently routed every one of them through
+            # compute_accessory_stats' tiny scaled-down formula instead
+            # of compute_armor_stats' real one.
+            if obj.db.armor_slot in ACCESSORY_ARMOR_SLOTS:
+                reduction, defense_modifier, price = compute_accessory_stats(level)
+            else:
+                reduction, defense_modifier, price = compute_armor_stats(
+                    obj.db.armor_category, level
+                )
+            obj.db.damage_reduction = reduction
+            obj.db.defense_modifier = defense_modifier
+            obj.db.price = price
+            obj.db.item_level = level
+        obj.move_to(npc, quiet=True)
+
+
 class LudusWeaponsmith(NPCMerchant):
     """
     The Ludus weaponsmith - stocks herself automatically on creation
@@ -168,28 +228,37 @@ class LudusWeaponsmith(NPCMerchant):
         super().at_object_creation()
         self.db.shopname = "the weaponsmith's stall"
         self.db.buys_specialty = ["weapon", "armor"]
+        _stock_merchant(self, LUDUS_WEAPONSMITH_STOCK)
 
-        from world.combat import compute_weapon_stats, compute_armor_stats
 
-        for prototype_key, level in LUDUS_WEAPONSMITH_STOCK:
-            obj = spawn(prototype_key)[0]
-            if obj.is_typeclass("world.combat.CombatWeapon", exact=True):
-                damage_range, accuracy_bonus, price = compute_weapon_stats(
-                    obj.db.weapon_type_name, level
-                )
-                obj.db.damage_range = damage_range
-                obj.db.accuracy_bonus = accuracy_bonus
-                obj.db.price = price
-                obj.db.item_level = level
-            elif obj.is_typeclass("world.combat.CombatArmor", exact=True):
-                reduction, defense_modifier, price = compute_armor_stats(
-                    obj.db.armor_category, level
-                )
-                obj.db.damage_reduction = reduction
-                obj.db.defense_modifier = defense_modifier
-                obj.db.price = price
-                obj.db.item_level = level
-            obj.move_to(self, quiet=True)
+# Rome's own accessory-armor shop (Sep 30, armor-economy expansion) - a
+# direct request ("Rome needs a proper armor shop added") separate from
+# the Ludus Weaponsmith, which already covers weapons/body armor/shields.
+# Fixed at level 25 ("lower-level armor in Rome proper... up to level
+# 25"); see GERMANIA_WEAPONSMITH_STOCK/AMBER_COAST_ARMORY_STOCK's own new
+# entries for the stronger "frontier" tier.
+ROME_ARMORER_STOCK = [
+    ("ROME_ARMORER_HELM", 25),
+    ("ROME_ARMORER_VAMBRACES", 25),
+    ("ROME_ARMORER_GAUNTLETS", 25),
+    ("ROME_ARMORER_GREAVES", 25),
+    ("ROME_ARMORER_BOOTS", 25),
+]
+
+
+class RomeArmorer(NPCMerchant):
+    """
+    Rome's own armor shop - accessory armor only (head/arms/hands/legs/
+    feet), the one piece of the equipment economy the Ludus Weaponsmith
+    never covered. Same self-stocking pattern as every other merchant
+    here (_stock_merchant).
+    """
+
+    def at_object_creation(self):
+        super().at_object_creation()
+        self.db.shopname = "the armorer's stall"
+        self.db.buys_specialty = ["armor"]
+        _stock_merchant(self, ROME_ARMORER_STOCK)
 
 
 # Three tiers (prototype_key, level) per weapon/armor - mirrors
@@ -219,6 +288,17 @@ GERMANIA_WEAPONSMITH_STOCK = [
     ("GERMANIA_MAIL_NOVICE", 25),
     ("GERMANIA_MAIL_VETERAN", 35),
     ("GERMANIA_MAIL_CHAMPION", 45),
+    # Shields and accessory armor (Sep 30, armor-economy expansion) -
+    # Rome's own shields cap at level 10 and it never sold accessory
+    # armor at all; this is the first place either exists past that.
+    ("GERMANIA_ROUNDSHIELD_NOVICE", 25),
+    ("GERMANIA_ROUNDSHIELD_VETERAN", 35),
+    ("GERMANIA_ROUNDSHIELD_CHAMPION", 45),
+    ("GERMANIA_ARMORER_HELM", 50),
+    ("GERMANIA_ARMORER_VAMBRACES", 50),
+    ("GERMANIA_ARMORER_GAUNTLETS", 50),
+    ("GERMANIA_ARMORER_GREAVES", 50),
+    ("GERMANIA_ARMORER_BOOTS", 50),
 ]
 
 
@@ -237,28 +317,7 @@ class GermanicWeaponsmith(NPCMerchant):
         # crafted good here rather than lugging it all the way home.
         self.db.distance_bonus = 1.3
         self.db.buys_specialty = ["weapon", "armor"]
-
-        from world.combat import compute_weapon_stats, compute_armor_stats
-
-        for prototype_key, level in GERMANIA_WEAPONSMITH_STOCK:
-            obj = spawn(prototype_key)[0]
-            if obj.is_typeclass("world.combat.CombatWeapon", exact=True):
-                damage_range, accuracy_bonus, price = compute_weapon_stats(
-                    obj.db.weapon_type_name, level
-                )
-                obj.db.damage_range = damage_range
-                obj.db.accuracy_bonus = accuracy_bonus
-                obj.db.price = price
-                obj.db.item_level = level
-            elif obj.is_typeclass("world.combat.CombatArmor", exact=True):
-                reduction, defense_modifier, price = compute_armor_stats(
-                    obj.db.armor_category, level
-                )
-                obj.db.damage_reduction = reduction
-                obj.db.defense_modifier = defense_modifier
-                obj.db.price = price
-                obj.db.item_level = level
-            obj.move_to(self, quiet=True)
+        _stock_merchant(self, GERMANIA_WEAPONSMITH_STOCK)
 
 
 # The Amber Coast's own Smith's Quarter Armory stock - three tiers
@@ -286,6 +345,16 @@ AMBER_COAST_ARMORY_STOCK = [
     ("AC_SMITH_WHALEBONE_NOVICE", 46),
     ("AC_SMITH_WHALEBONE_VETERAN", 58),
     ("AC_SMITH_WHALEBONE_CHAMPION", 70),
+    # Shields and accessory armor (Sep 30, armor-economy expansion) -
+    # same reasoning as GERMANIA_WEAPONSMITH_STOCK's own new entries.
+    ("AC_SMITH_WAVEGUARD_NOVICE", 46),
+    ("AC_SMITH_WAVEGUARD_VETERAN", 58),
+    ("AC_SMITH_WAVEGUARD_CHAMPION", 70),
+    ("AMBER_ARMORER_HELM", 50),
+    ("AMBER_ARMORER_VAMBRACES", 50),
+    ("AMBER_ARMORER_GAUNTLETS", 50),
+    ("AMBER_ARMORER_GREAVES", 50),
+    ("AMBER_ARMORER_BOOTS", 50),
 ]
 
 
@@ -304,28 +373,7 @@ class AmberCoastArmorer(NPCMerchant):
         # Further still than the Germanic Stronghold.
         self.db.distance_bonus = 1.6
         self.db.buys_specialty = ["weapon", "armor"]
-
-        from world.combat import compute_weapon_stats, compute_armor_stats
-
-        for prototype_key, level in AMBER_COAST_ARMORY_STOCK:
-            obj = spawn(prototype_key)[0]
-            if obj.is_typeclass("world.combat.CombatWeapon", exact=True):
-                damage_range, accuracy_bonus, price = compute_weapon_stats(
-                    obj.db.weapon_type_name, level
-                )
-                obj.db.damage_range = damage_range
-                obj.db.accuracy_bonus = accuracy_bonus
-                obj.db.price = price
-                obj.db.item_level = level
-            elif obj.is_typeclass("world.combat.CombatArmor", exact=True):
-                reduction, defense_modifier, price = compute_armor_stats(
-                    obj.db.armor_category, level
-                )
-                obj.db.damage_reduction = reduction
-                obj.db.defense_modifier = defense_modifier
-                obj.db.price = price
-                obj.db.item_level = level
-            obj.move_to(self, quiet=True)
+        _stock_merchant(self, AMBER_COAST_ARMORY_STOCK)
 
 
 # The Amber Trader's stock - a pure flavor-goods vendor (no weapon/
