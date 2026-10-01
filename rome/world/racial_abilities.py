@@ -36,14 +36,38 @@ from random import randint
 from evennia import CmdSet
 
 from commands.command import Command
-from world.combat import COMBAT_RULES, ACCURACY_STAT_MULTIPLIER, find_combat_target
+from world.combat import (
+    COMBAT_RULES,
+    ACCURACY_STAT_MULTIPLIER,
+    find_combat_target,
+    scale_spell_damage_range,
+)
 
 
 def racial_heal(user, ability_name, targets, **kwargs):
     """Heals target(s) - the racial equivalent of spell_healing, minus
     any MP cost (an innate ability, not a cast spell). Still scales
-    with Ingenium, same as a real healing spell would."""
+    with Ingenium, same as a real healing spell would.
+
+    Also grows mildly with the caster's own level (Sep 30, direct
+    player report: a flat 15-25 heal "heals less than what the enemies
+    hit" once you're well past the level it was tuned for - every real
+    spell already solves this exact problem via
+    scale_spell_damage_range's weapon-growth-curve formula, anchored at
+    level 20). Deliberately HALF that curve's strength, not the full
+    thing: this is a free racial perk with no MP/SP cost, available to
+    every Nymph regardless of class, not a real class spell - scaling
+    it at full spell parity would make it a stronger free heal than
+    what a dedicated Medicus pays resources for at the same level.
+    Blended by averaging the unscaled authored range with
+    scale_spell_damage_range's own fully-scaled result, rather than a
+    second hand-tuned curve, so it stays correct for free if the real
+    spell curve is ever retuned.
+    """
     min_healing, max_healing = kwargs.get("healing_range", (15, 25))
+    scaled_low, scaled_high = scale_spell_damage_range(user, (min_healing, max_healing))
+    min_healing = round((min_healing + scaled_low) / 2)
+    max_healing = round((max_healing + scaled_high) / 2)
     ingenium_bonus = ((user.db.ingenium or 10) - 10) // 2
 
     msg = "%s calls on %s!" % (user, ability_name.title())
@@ -129,8 +153,9 @@ RACIAL_ABILITIES = {
         "cooldown": 8,
         "abilityfunc": racial_heal,
         "healing_range": (15, 25),
-        "desc": "Heals a single ally a modest amount - the healing "
-        "touch of Nymph's fading wild blood.",
+        "desc": "Heals a single ally a modest amount, growing mildly "
+        "with your own level - the healing touch of Nymph's fading "
+        "wild blood.",
     },
     "elemental ward": {
         "race": "nymph",

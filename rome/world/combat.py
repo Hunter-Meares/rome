@@ -3595,11 +3595,30 @@ class CombatRules:
         50% of the target's own max HP) - used by Greater Restoration,
         where a flat number wouldn't scale sensibly across wildly
         different max HP totals at different levels.
+
+        A flat healing_range now grows with the caster's own level,
+        exactly like a damage spell's own range already does
+        (scale_spell_damage_range) - a real, confirmed gap found by
+        direct player question: Cure Wounds (level 1) and Mass Cure
+        Wounds (level 40) healed for the exact same amount per target
+        forever, since this function never called that same scaling
+        helper despite spell_attack/spell_vampiric/spell_execute all
+        already using it for their own flat damage ranges - the
+        original "ritual flame does 40 damage, my melee does 50... no
+        magic really scaled" fix only ever reached the damage side.
+        heal_percent-based heals (Healing Word, Greater Restoration,
+        Sacred Chant) were never affected by this gap - a percentage of
+        max HP already grows on its own, since max HP itself scales
+        with level.
         """
         spell_msg = "%s casts %s!" % (caster, spell_name)
 
         heal_percent = kwargs.get("heal_percent")
         min_healing, max_healing = kwargs.get("healing_range", (20, 40))
+        if not heal_percent:
+            min_healing, max_healing = scale_spell_damage_range(
+                caster, (min_healing, max_healing), spell_name
+            )
         ingenium_bonus = ((caster.db.ingenium or 10) - 10) // 2
 
         from world.religion import religion_bonus

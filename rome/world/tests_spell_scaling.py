@@ -185,3 +185,80 @@ class TestScalingStartsAtEachSpellsOwnUnlockLevel(EvenniaTest):
         npc = create.create_object(AutoStatNPC, key="a hedge wizard", location=self.room1)
         npc.db.level = 60
         self.assertEqual(scale_spell_damage_range(npc, (4, 6), spell_name="magic arrow"), (4, 6))
+
+
+class TestSpellHealingUsesTheScaledRange(EvenniaTest):
+    """
+    Direct follow-up to the damage-side fix above: a real, confirmed gap
+    found by direct player question ("confirm that healing spells scale
+    with level") - spell_healing never called scale_spell_damage_range at
+    all, so Cure Wounds (level 1) and Mass Cure Wounds (level 40) healed
+    for the exact same amount per target forever. Fixed the same way the
+    damage side already was. heal_percent-based heals (Healing Word,
+    Greater Restoration, Sacred Chant) were never affected - a percentage
+    of max HP already grows with level on its own - and must stay
+    unaffected by this fix.
+    """
+
+    def test_a_high_level_casters_heal_is_bigger_than_a_low_level_ones(self):
+        def max_heal_at(level):
+            self.char1.db.level = level
+            self.char1.db.ingenium = 10  # no stat bonus - isolate the level scaling
+            self.char2.db.hp = 0
+            self.char2.db.max_hp = 10**6
+            # randint(a, b) -> b: heal roll lands on the top of the
+            # (scaled) range.
+            with mock.patch("world.combat.randint", side_effect=lambda a, b: b):
+                COMBAT_RULES.spell_healing(
+                    self.char1, "cure wounds", [self.char2], 5, healing_range=(20, 40)
+                )
+            return self.char2.db.hp
+
+        low, high = max_heal_at(1), max_heal_at(60)
+        self.assertEqual(low, 40)
+        self.assertGreater(high, low)
+
+    def test_heal_percent_based_spells_are_not_affected_by_the_fix(self):
+        self.char1.db.level = 100
+        self.char1.db.ingenium = 10
+        self.char2.db.hp = 0
+        self.char2.db.max_hp = 1000
+        COMBAT_RULES.spell_healing(
+            self.char1, "greater restoration", [self.char2], 12, heal_percent=0.5
+        )
+        # Still exactly 50% of max HP, not inflated by the level-scaling
+        # path - heal_percent must take the early-exit branch.
+        self.assertEqual(self.char2.db.hp, 500)
+
+    def test_every_flat_healing_spell_is_as_authored_at_its_own_unlock_level(self):
+        from world.combat import SPELLS
+
+        for name, data in SPELLS.items():
+            if data.get("spellfunc") is not COMBAT_RULES.spell_healing:
+                continue
+            if data.get("heal_percent"):
+                continue
+            authored = data.get("healing_range", (20, 40))
+            tuned_for = min(data["level_required"], SPELL_DAMAGE_ANCHOR_LEVEL)
+            self.char1.db.level = tuned_for
+            self.assertEqual(
+                scale_spell_damage_range(self.char1, authored, spell_name=name), authored, name
+            )
+
+    def test_mass_cure_wounds_now_outheals_cure_wounds_per_target(self):
+        # The exact real-world complaint: both spells shared the
+        # function's own (20, 40) default with no healing_range of
+        # their own, so a level-40 Mass Cure Wounds healed each target
+        # for exactly what a level-1 Cure Wounds did.
+        def max_heal(spell_name, level):
+            self.char1.db.level = level
+            self.char1.db.ingenium = 10
+            self.char2.db.hp = 0
+            self.char2.db.max_hp = 10**6
+            with mock.patch("world.combat.randint", side_effect=lambda a, b: b):
+                COMBAT_RULES.spell_healing(self.char1, spell_name, [self.char2], 5)
+            return self.char2.db.hp
+
+        cure_wounds_heal = max_heal("cure wounds", 1)  # its own unlock level
+        mass_cure_heal = max_heal("mass cure wounds", 40)  # its own unlock level
+        self.assertGreater(mass_cure_heal, cure_wounds_heal)

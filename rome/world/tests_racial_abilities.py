@@ -116,6 +116,46 @@ class TestCmdRacialHeal(RacialAbilityCommandTestBase):
         self.assertIn("still recovering", result)
 
 
+class TestBoonOfTheWildsLevelScaling(RacialAbilityCommandTestBase):
+    """
+    Sep 30, direct player report: "Boon of the wild heals less than what
+    the enemies hit" - confirmed real, since it was a flat 15-25 heal
+    with zero level scaling (every real healing spell has the exact same
+    problem - see world/tests_spell_scaling.py's own TestSpellHealing
+    class). Fixed with a MILD version of scale_spell_damage_range's own
+    curve (averaged with the unscaled authored range) rather than full
+    strength - this is a free racial perk with no MP/SP cost, available
+    to any Nymph regardless of class, not a real class spell, so it
+    shouldn't out-heal what a dedicated Medicus pays resources for at
+    the same level.
+    """
+
+    def _max_heal_at(self, level):
+        self.char1.db.race = "nymph"
+        self.char1.db.level = level
+        self.char1.db.ingenium = 10  # no stat bonus - isolate the level scaling
+        self.char1.db.cooldowns = {}  # each measurement is its own fresh use
+        self.char2.db.hp = 0
+        self.char2.db.max_hp = 10**6
+        with patch("world.racial_abilities.randint", side_effect=lambda a, b: b):
+            self.call(CmdRacial(), "boon of the wilds = Char2", caller=self.char1)
+        return self.char2.db.hp
+
+    def test_grows_with_the_casters_own_level(self):
+        low = self._max_heal_at(1)
+        high = self._max_heal_at(60)
+        self.assertEqual(low, 25)  # unscaled authored max, at/below the anchor
+        self.assertGreater(high, low)
+
+    def test_scaling_is_milder_than_a_real_spells_full_curve(self):
+        from world.combat import scale_spell_damage_range
+
+        actual_max = self._max_heal_at(60)  # also sets char1's level to 60
+        full_strength_max = scale_spell_damage_range(self.char1, (15, 25))[1]
+        self.assertGreater(full_strength_max, actual_max)
+        self.assertGreater(actual_max, 25)  # still grew, just not as much
+
+
 class TestCmdRacialCondition(RacialAbilityCommandTestBase):
     def test_elemental_ward_grants_defense_up_to_self(self):
         self.char1.db.race = "nymph"
