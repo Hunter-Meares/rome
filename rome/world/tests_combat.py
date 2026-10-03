@@ -3175,6 +3175,71 @@ class TestGermaniaEquipment(EvenniaTest):
         self.assertIsNone(npc.db.wielded_weapon)
 
 
+class TestSummonedCompanionsAreLabeledAsCompanions(CombatTestBase):
+    """
+    Real player report (Sep 19/24, three separate reports of the same
+    thing): "summon fury creates a vengeful Fury of the underworld
+    (Trivia's opponent), what is this about my opponent? isn't it my
+    summon?" - every summon spell reused spawn_personal_npc, which
+    hardcoded an "(<owner>'s opponent)" suffix built for the Ludus
+    trainers and Colosseum challenges. Confirmed real: the summon WAS
+    correctly an ally (SummonedAlly typeclass, owner's side), only its
+    display name was misleading.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.level = 90
+        self.char1.db.mp = 100
+        self.char1.db.sp = 100
+        self.char1.location = self.room1
+
+    def test_default_label_is_still_opponent_for_trainers_and_challenges(self):
+        npc = COMBAT_RULES.spawn_personal_npc("HARUSPEX_FURY", self.char1)
+        self.assertTrue(npc.key.endswith("(%s's opponent)" % self.char1.key))
+
+    def test_summon_fury_is_labeled_as_a_companion_not_an_opponent(self):
+        COMBAT_RULES.spell_summon_fury(self.char1, "summon fury", [], 16)
+        fury = self.char1.db.active_companion
+        self.assertIn("%s's companion" % self.char1.key, fury.key)
+        self.assertNotIn("opponent", fury.key)
+
+    def test_summon_familiar_is_labeled_as_a_companion(self):
+        COMBAT_RULES.spell_summon_familiar(self.char1, "summon familiar", [], 10)
+        familiar = self.char1.db.active_companion
+        self.assertIn("%s's companion" % self.char1.key, familiar.key)
+
+    def test_summon_lemures_is_labeled_as_a_companion(self):
+        COMBAT_RULES.spell_summon_lemures(self.char1, "summon lemures", [], 10)
+        lemures = self.char1.db.active_companion
+        self.assertIn("%s's companion" % self.char1.key, lemures.key)
+
+    def test_the_cast_announcement_uses_the_clean_name_not_the_labeled_one(self):
+        # The exact text two of the three reports quoted - the room echo
+        # shouldn't read "...a vengeful Fury of the underworld (Trivia's
+        # companion) claws its way through!"
+        from unittest.mock import patch
+
+        with patch.object(self.room1, "msg_contents") as mock_msg:
+            COMBAT_RULES.spell_summon_fury(self.char1, "summon fury", [], 16)
+        announced = mock_msg.call_args_list[0][0][0]
+        self.assertIn("a vengeful Fury of the underworld claws its way through", announced)
+        self.assertNotIn("companion", announced)
+        self.assertNotIn("opponent", announced)
+
+    def test_call_of_the_wild_is_labeled_as_a_companion(self):
+        COMBAT_RULES.skill_call_of_the_wild(self.char1, "call of the wild", [], 10)
+        beast = self.char1.db.active_companion
+        self.assertIn("%s's companion" % self.char1.key, beast.key)
+
+    def test_the_clean_base_name_is_unaffected_by_the_label(self):
+        # db.base_name is what defeat messages etc. use - the label
+        # change must never touch it.
+        COMBAT_RULES.spell_summon_fury(self.char1, "summon fury", [], 16)
+        fury = self.char1.db.active_companion
+        self.assertEqual(fury.db.base_name, "a vengeful Fury of the underworld")
+
+
 class TestAnnounceHpThresholdChange(CombatTestBase):
     """
     A direct request: a player needs some standing way to gauge how

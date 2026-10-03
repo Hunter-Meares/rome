@@ -369,6 +369,105 @@ class TestCmdAttack(CombatCommandTestBase):
         self.assertFalse(COMBAT_RULES.is_in_combat(self.char2))
 
 
+class TestOwnCompanionCannotBeAttacked(CombatCommandTestBase):
+    """
+    Real player report (Sep 19, "and im able to attack it", about a
+    summon): the original own-pet protection only ever covered
+    CmdAttack's explicit-name path - powerattack, fight, and offensive
+    spells/skills could all still target your own summon. Every
+    offensive entry point now refuses it through the shared
+    COMBAT_RULES.is_own_companion helper.
+    """
+
+    def _make_pet(self, owner):
+        from world.combat import SummonedAlly
+
+        pet = create.create_object(SummonedAlly, key="a loyal pet", location=self.room1)
+        pet.db.hp = 20
+        pet.db.max_hp = 20
+        owner.db.active_companion = pet
+        pet.db.instance_owner = owner
+        return pet
+
+    def test_is_own_companion_helper(self):
+        pet = self._make_pet(self.char1)
+        self.assertTrue(COMBAT_RULES.is_own_companion(self.char1, pet))
+        self.assertFalse(COMBAT_RULES.is_own_companion(self.char2, pet))
+        self.assertFalse(COMBAT_RULES.is_own_companion(self.char1, self.char2))
+        self.assertFalse(COMBAT_RULES.is_own_companion(self.char1, None))
+
+    def test_powerattack_refuses_your_own_pet_by_name(self):
+        pet = self._make_pet(self.char1)
+        self._start_duel()
+        self.char1.db.sp = 30
+        result = self.call(CmdPowerAttack(), pet.key, caller=self.char1)
+        self.assertIn("own companion", result.lower())
+        self.assertEqual(pet.db.hp, 20)
+
+    def test_bare_powerattack_never_auto_targets_your_own_pet(self):
+        pet = self._make_pet(self.char1)
+        handler = self._start_duel()
+        self.assertIn(pet, handler.db.fighters)
+        self.char1.db.sp = 30
+        self.char2.db.max_hp = self.char2.db.hp = 10**6
+        with patch("world.combat.randint", return_value=100):
+            self.call(CmdPowerAttack(), "", caller=self.char1)
+        self.assertLess(self.char2.db.hp, 10**6)
+        self.assertEqual(pet.db.hp, 20)
+
+    def test_fight_refuses_your_own_pet_by_name(self):
+        pet = self._make_pet(self.char1)
+        result = self.call(CmdFight(), pet.key, caller=self.char1)
+        self.assertIn("own companion", result.lower())
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
+        self.assertEqual(pet.db.hp, 20)
+
+    def test_bare_fight_never_picks_your_own_pet_as_the_lone_target(self):
+        self.char2.location = self.room2  # the pet is now the only other thing here
+        pet = self._make_pet(self.char1)
+        result = self.call(CmdFight(), "", caller=self.char1)
+        self.assertIn("nobody here to fight", result.lower())
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
+        self.assertEqual(pet.db.hp, 20)
+
+    def test_offensive_cast_refuses_your_own_pet_by_name(self):
+        pet = self._make_pet(self.char1)
+        # Mark of Decay, not Magic Arrow - the latter is combat-only and
+        # would be refused before targeting is ever reached.
+        self.char1.db.spells_known = ["mark of decay"]
+        self.char1.db.level = 10
+        self.char1.permissions.remove("Developer")
+        result = self.call(CmdCast(), "mark of decay = %s" % pet.key, caller=self.char1)
+        self.assertIn("own companion", result.lower())
+        self.assertEqual(pet.db.hp, 20)
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
+
+    def test_offensive_cast_with_no_target_never_defaults_to_your_own_pet(self):
+        self.char2.location = self.room2
+        pet = self._make_pet(self.char1)
+        self.char1.db.spells_known = ["mark of decay"]
+        self.char1.db.level = 10
+        result = self.call(CmdCast(), "mark of decay", caller=self.char1)
+        self.assertIn("nobody here to target", result.lower())
+        self.assertEqual(pet.db.hp, 20)
+
+    def test_offensive_skill_refuses_your_own_pet_by_name(self):
+        pet = self._make_pet(self.char1)
+        self.char1.db.skills_known = ["goad"]
+        self.char1.permissions.remove("Developer")
+        result = self.call(CmdUseSkill(), "goad = %s" % pet.key, caller=self.char1)
+        self.assertIn("own companion", result.lower())
+        self.assertNotIn("Goaded", pet.db.conditions or {})
+
+    def test_offensive_skill_with_no_target_never_defaults_to_your_own_pet(self):
+        self.char2.location = self.room2
+        pet = self._make_pet(self.char1)
+        self.char1.db.skills_known = ["goad"]
+        result = self.call(CmdUseSkill(), "goad", caller=self.char1)
+        self.assertIn("nobody here to target", result.lower())
+        self.assertNotIn("Goaded", pet.db.conditions or {})
+
+
 class TestCmdAutoAttack(CombatCommandTestBase):
     def test_on_by_default_for_a_fresh_character(self):
         self.assertTrue(self.char1.db.auto_attack)

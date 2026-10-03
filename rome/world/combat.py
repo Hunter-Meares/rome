@@ -1105,6 +1105,22 @@ class CombatRules:
 
         return other in get_party_members(character)
 
+    def is_own_companion(self, character, other):
+        """
+        True if `other` is `character`'s own active companion - a
+        purchased pet or a spell-summoned familiar/lemures/fury/beast
+        (anything tracked via db.active_companion). There's no
+        legitimate reason to ever attack your own, unlike a party member
+        you might duel for sport or an oath-partner you can deliberately
+        betray, so every offensive entry point (attack, powerattack,
+        fight, offensive spells and skills) refuses it outright. Real,
+        confirmed gap (player report: "and I'm able to attack it"): the
+        original protection only ever covered CmdAttack's explicit-name
+        path, leaving powerattack, fight, and offensive casts/skills
+        wide open to hitting your own summon.
+        """
+        return other is not None and character.db.active_companion is other
+
     def has_active_purchased_pet(self, caster):
         """
         True if `caster` currently has a live PurchasedPet as their
@@ -4199,7 +4215,9 @@ class CombatRules:
         else:
             prototype = "AUGUR_FAMILIAR_TIER4"
 
-        familiar = self.spawn_personal_npc(kwargs.get("familiar_prototype", prototype), caster)
+        familiar = self.spawn_personal_npc(
+            kwargs.get("familiar_prototype", prototype), caster, label="companion"
+        )
         # Same tracking attribute Venator's Call of the Wild already
         # uses (db.active_companion) - reused rather than a separate
         # name per class, since a character only ever has one class
@@ -4210,7 +4228,8 @@ class CombatRules:
 
         caster.db.mp -= cost
         caster.location.msg_contents(
-            "%s casts %s, and %s descends to their side!" % (caster, spell_name, familiar)
+            "%s casts %s, and %s descends to their side!"
+            % (caster, spell_name, familiar.db.base_name)
         )
 
         if self.is_in_combat(caster):
@@ -4249,14 +4268,17 @@ class CombatRules:
         else:
             prototype = "HARUSPEX_LEMURES_TIER4"
 
-        lemures = self.spawn_personal_npc(kwargs.get("lemures_prototype", prototype), caster)
+        lemures = self.spawn_personal_npc(
+            kwargs.get("lemures_prototype", prototype), caster, label="companion"
+        )
         # See spell_summon_familiar's own note just above - same
         # shared db.active_companion tracking attribute.
         caster.db.active_companion = lemures
 
         caster.db.mp -= cost
         caster.location.msg_contents(
-            "%s casts %s, and %s rises from the shadows!" % (caster, spell_name, lemures)
+            "%s casts %s, and %s rises from the shadows!"
+            % (caster, spell_name, lemures.db.base_name)
         )
 
         if self.is_in_combat(caster):
@@ -4296,13 +4318,13 @@ class CombatRules:
             return
         self.release_pet(caster.db.active_companion, caster, reason="replaced")
 
-        fury = self.spawn_personal_npc("HARUSPEX_FURY", caster)
+        fury = self.spawn_personal_npc("HARUSPEX_FURY", caster, label="companion")
         caster.db.active_companion = fury
 
         caster.db.mp -= cost
         caster.location.msg_contents(
             "%s tears open a rift to the underworld, and %s claws its way through!"
-            % (caster, fury)
+            % (caster, fury.db.base_name)
         )
 
         if self.is_in_combat(caster):
@@ -5160,12 +5182,15 @@ class CombatRules:
         else:
             prototype = "VENATOR_BEAST_TIER4"
 
-        companion = self.spawn_personal_npc(kwargs.get("beast_prototype", prototype), user)
+        companion = self.spawn_personal_npc(
+            kwargs.get("beast_prototype", prototype), user, label="companion"
+        )
         user.db.active_companion = companion
 
         user.db.sp -= cost
         user.location.msg_contents(
-            "%s uses %s, and %s bounds to their side!" % (user, skill_name, companion)
+            "%s uses %s, and %s bounds to their side!"
+            % (user, skill_name, companion.db.base_name)
         )
 
         if self.is_in_combat(user):
@@ -5541,16 +5566,25 @@ class CombatRules:
     # each challenger gets their own disposable copy, cleaned up when
     # the fight ends (or after a safety-net timeout if abandoned).
 
-    def spawn_personal_npc(self, prototype_name, challenger):
+    def spawn_personal_npc(self, prototype_name, challenger, label="opponent"):
         """
         Spawns a fresh personal copy of an NPC prototype for a single
         challenger. Returns the spawned NPC.
+
+        `label` is the word in the "(<challenger>'s <label>)" suffix
+        added to its display name - "opponent" for the Ludus trainers,
+        Colosseum challenges, and quest NPCs this was built for, but the
+        four summon spells (Summon Familiar/Lemures/Fury, Call of the
+        Wild) pass "companion": a real player report ("what is this
+        about my opponent? isn't it my summon?") - every one of them
+        used to show up as "Trivia's opponent", reading as a hostile
+        spawned against you rather than something you called.
         """
         obj = spawn(prototype_name)[0]
         obj.move_to(challenger.location, quiet=True)
         obj.db.instance_owner = challenger
         obj.db.base_name = obj.key  # clean name, kept for defeat messages etc.
-        obj.key = "%s (%s's opponent)" % (obj.key, challenger.key)
+        obj.key = "%s (%s's %s)" % (obj.key, challenger.key, label)
 
         # Safety net: if the fight is abandoned (challenger disengages,
         # disconnects, whatever) the instance still gets cleaned up
@@ -10122,6 +10156,9 @@ class CmdFight(Command):
         if target == caller:
             caller.msg("You can't fight yourself.")
             return
+        if self.rules.is_own_companion(caller, target):
+            caller.msg("You can't fight your own companion!")
+            return
         if target.db.pacifist:
             caller.msg("%s has laid down arms for good - there's no fighting them." % target.key)
             return
@@ -10214,6 +10251,7 @@ class CmdFight(Command):
         possible = [
             thing for thing in here.contents
             if thing != caller and thing.db.hp and not invisible_hides_from(thing, caller)
+            and not self.rules.is_own_companion(caller, thing)
         ]
         if len(possible) == 0:
             caller.msg("There's nobody here to fight!")
@@ -10557,7 +10595,7 @@ class CmdAttack(Command):
         if attacker == defender:
             self.caller.msg("You can't attack yourself!")
             return
-        if attacker.db.active_companion is defender:
+        if self.rules.is_own_companion(attacker, defender):
             # Explicit-name path only (attacker == defender's owner is
             # unambiguous, unlike a human party member you might
             # legitimately duel or an oath-partner you can deliberately
@@ -10727,7 +10765,15 @@ class CmdPowerAttack(Command):
         if not self.args:
             turnhandler = attacker.db.combat_turnhandler
             fighters = turnhandler.db.fighters if turnhandler and turnhandler.pk else []
-            other_fighters = [f for f in fighters if f != attacker and f.db.hp]
+            # Excludes allies the same way CmdAttack's own bare path does
+            # (see its comment) - without this, a pet or party mate
+            # standing in the fight made a bare 'powerattack' either
+            # demand a name for no reason or, once the last hostile died,
+            # silently turn on your own side.
+            other_fighters = [
+                f for f in fighters
+                if f != attacker and f.db.hp and not self.rules.is_ally(attacker, f)
+            ]
             if len(other_fighters) == 1:
                 defender = other_fighters[0]
             elif len(other_fighters) == 0:
@@ -10749,6 +10795,9 @@ class CmdPowerAttack(Command):
             return
         if attacker == defender:
             self.caller.msg("You can't attack yourself!")
+            return
+        if self.rules.is_own_companion(attacker, defender):
+            self.caller.msg("You can't attack your own companion!")
             return
 
         self.rules.power_attack(attacker, defender)
@@ -13716,7 +13765,9 @@ class CmdCast(MuxCommand):
         # allowed" isn't ambiguous the way "hit one specific person" is.
         if spelldata["target"] == "otherchar" and len(spell_targets) == 0:
             possible_enemies = [
-                t for t in target_candidates if not self.rules.is_ally(caller, t)
+                t for t in target_candidates
+                if not self.rules.is_ally(caller, t)
+                and not self.rules.is_own_companion(caller, t)
             ]
 
             if spelldata["max_targets"] == 1:
@@ -13838,6 +13889,12 @@ class CmdCast(MuxCommand):
 
         if spelldata["target"] in ["other", "otherchar"] and caller in spell_targets:
             caller.msg("You can't cast '%s' on yourself." % spell_to_cast)
+            return
+
+        if spelldata["target"] == "otherchar" and any(
+            self.rules.is_own_companion(caller, t) for t in spell_targets
+        ):
+            caller.msg("You can't cast '%s' on your own companion!" % spell_to_cast)
             return
 
         if None in spell_targets:
@@ -14075,7 +14132,9 @@ class CmdUseSkill(MuxCommand):
         # AoE-capable one.
         if skilldata["target"] == "otherchar" and len(skill_targets) == 0:
             possible_enemies = [
-                t for t in target_candidates if not self.rules.is_ally(user, t)
+                t for t in target_candidates
+                if not self.rules.is_ally(user, t)
+                and not self.rules.is_own_companion(user, t)
             ]
 
             if skilldata["max_targets"] == 1:
@@ -14158,6 +14217,12 @@ class CmdUseSkill(MuxCommand):
 
         if skilldata["target"] in ["other", "otherchar"] and user in skill_targets:
             user.msg("You can't use '%s' on yourself." % skill_to_use)
+            return
+
+        if skilldata["target"] == "otherchar" and any(
+            self.rules.is_own_companion(user, t) for t in skill_targets
+        ):
+            user.msg("You can't use '%s' on your own companion!" % skill_to_use)
             return
 
         if None in skill_targets:
