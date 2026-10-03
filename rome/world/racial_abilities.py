@@ -23,9 +23,8 @@ world/combat.py).
 Scope, by direct design decision: only the abilities that map onto a
 mechanic this game already has (a heal, a buff/debuff condition, a
 bonus-damage attack) are built here. Human's Command Presence/Civic
-Access (no politics/reputation system), Minotaur's Labyrinth Sense,
-Centaur's Forest Tracker, Harpy's Skyward Scout (no lost/hidden-foe
-mechanic), and Cyclops's Forge Mastery (crafting isn't built yet
+Access (no politics/reputation system), Centaur's Forest Tracker,
+Harpy's Skyward Scout (no lost/hidden-foe mechanic), and Cyclops's Forge Mastery (crafting isn't built yet
 either) are deliberately left undone rather than forced into a weak
 mapping - see rome_mud_todo.md, and the precedent world/religion.py
 already set doing the same thing for 10 of the pantheon's 14 gods.
@@ -36,6 +35,7 @@ from random import randint
 from evennia import CmdSet
 
 from commands.command import Command
+from world import martial
 from world.combat import (
     COMBAT_RULES,
     ACCURACY_STAT_MULTIPLIER,
@@ -107,6 +107,10 @@ def racial_attack(user, ability_name, targets, **kwargs):
     built so far (Galloping Charge, Aerial Assault, Crushing Blow) is a
     physical trait, not a magical one, matching the same stat basic
     attack/skill_attack already use.
+
+    An optional `rider` (the same dict shape a SKILLS entry carries - see
+    martial.apply_rider) is inflicted on a target that survives a landed
+    hit; Gore uses it to open a Bleeding wound.
     """
     min_damage, max_damage = kwargs.get("damage_range", (15, 25))
     accuracy = kwargs.get("accuracy", 0)
@@ -115,6 +119,8 @@ def racial_attack(user, ability_name, targets, **kwargs):
 
     msg = "%s calls on %s!" % (user, ability_name.title())
     defeated_targets = []
+    landed_riders = []
+    rider = kwargs.get("rider")
     for target in targets:
         attack_value = randint(1, 100) + accuracy + agilitas_accuracy
         defense_value = COMBAT_RULES.get_defense(user, target)
@@ -128,6 +134,8 @@ def racial_attack(user, ability_name, targets, **kwargs):
         )
         if target.db.hp <= 0:
             defeated_targets.append(target)
+        elif rider:
+            landed_riders.append((target, damage))
 
     user.location.msg_contents(msg)
 
@@ -135,6 +143,8 @@ def racial_attack(user, ability_name, targets, **kwargs):
     # ordering note in world/combat.py.
     for target in defeated_targets:
         COMBAT_RULES.at_defeat(target, attacker=user)
+    for target, damage in landed_riders:
+        martial.apply_rider(COMBAT_RULES, user, target, rider, damage)
 
     if COMBAT_RULES.is_in_combat(user):
         COMBAT_RULES.spend_action(user, 1, action_name="racial")
@@ -210,6 +220,16 @@ RACIAL_ABILITIES = {
         "conditions": [("Paralyzed", 1)],
         "desc": "A bone-jarring charge that leaves the target reeling "
         "for a moment - Minotaur's raw, labyrinth-born strength.",
+    },
+    "gore": {
+        "race": "minotaur",
+        "target": "otherchar",
+        "cooldown": 6,
+        "abilityfunc": racial_attack,
+        "damage_range": (20, 30),
+        "rider": {"effect": "Bleeding", "chance": 60, "duration": 3, "share": 0.2},
+        "desc": "Lower your horns and rip into the target - a solid "
+        "strike that often opens a bleeding wound.",
     },
 }
 

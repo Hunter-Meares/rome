@@ -236,3 +236,47 @@ class TestCmdRacialDefaultsToCurrentOpponent(RacialAbilityCommandTestBase):
         # Landed on char2 (the current target), not third.
         self.assertLess(self.char2.db.hp, 1000)
         self.assertEqual(third.db.hp, 50)
+
+
+class TestMinotaurGore(RacialAbilityCommandTestBase):
+    """Gore replaced the never-built Labyrinth Sense: a horn strike that
+    can leave a Bleeding wound, via racial_attack's optional rider."""
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.race = "minotaur"
+        self.char2.db.max_hp = 500
+        self.char2.db.hp = 500
+
+    def _gore(self, bleed_roll):
+        # Always hits, always rolls max damage; `bleed_roll` decides the
+        # rider's own 1-100 chance roll (martial._randint).
+        with patch("world.racial_abilities.randint", side_effect=lambda low, high: high), patch(
+            "world.martial._randint", return_value=bleed_roll
+        ):
+            self.call(CmdRacial(), "gore = Char2", caller=self.char1)
+
+    def test_minotaur_knows_bull_rush_and_gore_and_not_labyrinth_sense(self):
+        known = racial_abilities_known(self.char1)
+        self.assertEqual(known, ["bull rush", "gore"])
+        self.assertNotIn("labyrinth sense", RACIAL_ABILITIES)
+
+    def test_gore_that_lands_can_open_a_bleeding_wound(self):
+        self._gore(bleed_roll=1)
+        self.assertLess(self.char2.db.hp, 500)
+        self.assertIn("Bleeding", self.char2.db.conditions)
+
+    def test_gore_does_not_always_bleed(self):
+        self._gore(bleed_roll=100)
+        self.assertLess(self.char2.db.hp, 500)
+        self.assertNotIn("Bleeding", self.char2.db.conditions)
+
+    def test_gore_starts_a_real_fight_out_of_combat(self):
+        self._gore(bleed_roll=100)
+        self.assertTrue(COMBAT_RULES.is_in_combat(self.char1))
+
+    def test_other_racial_attacks_never_carry_a_rider(self):
+        self.char1.db.race = "cyclops"
+        with patch("world.racial_abilities.randint", side_effect=lambda low, high: high):
+            self.call(CmdRacial(), "crushing blow = Char2", caller=self.char1)
+        self.assertNotIn("Bleeding", self.char2.db.conditions)

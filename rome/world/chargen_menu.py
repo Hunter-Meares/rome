@@ -125,13 +125,13 @@ RACES = {
         "quote": '"The maze does not frighten me. I was built to break through walls, not wander them."',
         "desc": dedent(
             """\
-            Powerful warriors, descendants of bulls and humans. Fearsome in combat and adept at navigating complex terrain like mazes or fortresses.
+            Powerful warriors, descendants of bulls and humans. Fearsome in combat, with horns and hide built for tearing through anything in their way.
             """
         ),
         "traits": ["Strength", "Resilience"],
         "abilities": [
             "Bull Rush - knock enemies back",
-            "Labyrinth Sense - never get lost in complex terrain",
+            "Gore - horn strike that can leave a bleeding wound",
         ],
         "stat_mods": {"max_hp": 20, "max_mp": -5, "max_sp": 0, "virtus": 3, "agilitas": 0, "ingenium": 0, "vigor": 1},
     },
@@ -196,7 +196,7 @@ RACES = {
         "traits": ["Strength", "Endurance"],
         "abilities": [
             "Crushing Blow - massive melee damage",
-            "Forge Mastery - craft/repair weapons faster",
+            "Forge Mastery - craft weapons faster",
             "Intimidating Presence - reduce enemy morale",
         ],
         "stat_mods": {"max_hp": 30, "max_mp": -10, "max_sp": -5, "virtus": 3, "agilitas": 0, "ingenium": 0, "vigor": 2},

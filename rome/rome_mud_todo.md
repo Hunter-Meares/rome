@@ -525,8 +525,9 @@ The original crafting design doc's own "highest-leverage piece" - **asynchronous
 - [x] An offensive racial ability used out of combat correctly starts a real, tracked fight first (`start_combat_from_offensive_action`) - the exact same fix CmdCast/CmdUseSkill got this same session, applied here from the start rather than as a follow-up gap.
 - [ ] **Deliberately NOT built - no supporting system exists yet, would be forcing a weak mapping** (the same judgment call `world/religion.py` already made for 10 of the 14 gods rather than fake a mechanic for them):
   - Human: *Command Presence*, *Civic Access* - no politics/reputation/civic-standing system exists to hook into.
-  - Minotaur: *Labyrinth Sense*, Centaur: *Forest Tracker*, Harpy: *Skyward Scout* - no "lost"/hidden-foe-detection mechanic exists to meaningfully improve.
+  - Centaur: *Forest Tracker*, Harpy: *Skyward Scout* - no "lost"/hidden-foe-detection mechanic exists to meaningfully improve.
   - Cyclops: *Forge Mastery* - blocked on `crafting` (already listed separately below as not-yet-built).
+  - **Oct 3 decisions (owner):** Minotaur's *Labyrinth Sense* was dropped and replaced by **Gore** (built: `racial_attack` now takes an optional `rider`, Gore = 20-30 damage + 60% Bleeding, cooldown 6). Human abilities are to be **modest**. Item **durability/repair is deliberately NOT being built** (website/chargen text that mentioned "repair" under Cyclops Forge Mastery was reworded to "craft"). Harpy Skyward Scout, if built, should be an active, timed ability (not a permanent passive) so it counters sneak/invisibility without nullifying them.
   - Revisit once any of the above systems actually exist - don't force these into today's combat-only ability shape just for completeness.
 - [x] 16 new tests (`world/tests_racial_abilities.py`), full suite green.
 
