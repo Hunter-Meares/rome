@@ -130,7 +130,7 @@ RACES = {
         ),
         "traits": ["Strength", "Resilience"],
         "abilities": [
-            "Bull Rush - knock enemies back",
+            "Bull Rush - a charge that leaves the target unable to act for a turn",
             "Gore - horn strike that can leave a bleeding wound",
         ],
         "stat_mods": {"max_hp": 20, "max_mp": -5, "max_sp": 0, "virtus": 3, "agilitas": 0, "ingenium": 0, "vigor": 1},
@@ -180,7 +180,7 @@ RACES = {
         "traits": ["Nature Affinity", "Healing"],
         "abilities": [
             "Boon of the Wilds - heal allies",
-            "Elemental Ward - temporary elemental protection",
+            "Elemental Ward - a short defensive boost",
         ],
         "stat_mods": {"max_hp": -5, "max_mp": 20, "max_sp": 0, "virtus": 0, "agilitas": 0, "ingenium": 3, "vigor": 0},
     },
@@ -197,7 +197,7 @@ RACES = {
         "abilities": [
             "Crushing Blow - massive melee damage",
             "Forge Mastery - better odds when crafting at the forge",
-            "Intimidating Presence - reduce enemy morale",
+            "Intimidating Presence - lowers a target's accuracy and defense",
         ],
         "stat_mods": {"max_hp": 30, "max_mp": -10, "max_sp": -5, "virtus": 3, "agilitas": 0, "ingenium": 0, "vigor": 2},
     },
