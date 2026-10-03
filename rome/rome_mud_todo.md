@@ -1479,3 +1479,8 @@ _(Unchanged.)_
 - [x] Fixed with a minimal `CmdQuit` subclass — unchanged
 - [ ] Known, deliberately-unaddressed limitation (multi-session `quit/all`) — unchanged, still not prioritized
 - [x] **"Not yet tested live" - now resolved.** 5 dedicated automated tests confirm: blocked while the issuing session's own puppeted character is in combat, allowed when not in combat, allowed when the session has no puppet (OOC), allowed when a *different* character is fighting (not this session's own puppet), and confirmed the block genuinely stops the quit rather than warning and disconnecting anyway.
+
+## Condition expiry messages - Oct 3
+- [x] Direct question: do players get a message when buffs/debuffs wear off? Only a generic, room-wide "X no longer has the 'Defense Up' condition." Added per-condition plain-English messages to the holder (room hears only visible ones: Bleeding/Stunned/Paralyzed/Grappled/Raging) via `CONDITION_EXPIRY_MESSAGES`, generic fallback kept, a test guarantees every buff/debuff has an entry; Sneak's stealth window now announces its own expiry. Tests: `TestConditionExpiryMessages`, `TestStealthWindowExpiryMessage`.
+- [ ] Open question for the owner: rename Nymph's **Elemental Ward** (it is a plain Defense Up boost; the game has no elemental damage types). Suggested: *Ward of the Wilds* (pairs with Boon of the Wilds), keeping "elemental ward" as an alias.
+

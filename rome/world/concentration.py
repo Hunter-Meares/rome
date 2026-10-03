@@ -412,6 +412,20 @@ def is_stealthed(character):
     return bool(until and time.time() < until)
 
 
+def announce_stealth_expiry(character):
+    """Movement stealth (Sneak/Vanish) is a plain wall-clock window that
+    just stops working when it runs out - this is the one place the holder
+    is told. Called from the condition tick (every turn, in or out of
+    combat). Clearing the stale timestamp is harmless: is_stealthed()
+    already treats an expired one as off."""
+    until = character.db.stealth_until
+    if until and time.time() >= until:
+        character.db.stealth_until = None
+        character.msg(
+            "|cYour cover fades - people will notice your comings and goings again.|n"
+        )
+
+
 def stealth_hides_from(character, looker):
     """Same 'who sees through it' rules as invisible_hides_from, for the
     lighter movement-stealth flag above - self, gods, and See Invisibility

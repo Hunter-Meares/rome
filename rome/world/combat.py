@@ -371,6 +371,65 @@ BENEFICIAL_CONDITIONS = frozenset({
     "Unbreakable",
 })
 
+# What a condition says when it runs out (Oct 3, owner request: "do players
+# get a message when buffs/debuffs wear off?" - they only got a generic,
+# room-wide "X no longer has the 'Defense Up' condition."). Maps a condition
+# name to (message to the holder, message to everyone else - or None to keep
+# the room quiet). "{name}" in the room line is the holder's name. A condition
+# missing from here falls back to the old generic room line, so a new
+# condition never goes silent. Only conditions bystanders would actually
+# notice get a room line.
+CONDITION_EXPIRY_MESSAGES = {
+    # Buffs
+    "Accuracy Up": ("|cYour sharpened focus fades - your aim is back to normal.|n", None),
+    "Damage Up": ("|cThe surge of strength fades - your blows land with their usual force.|n", None),
+    "Defense Up": ("|cYour protective ward fades - your guard is back to normal.|n", None),
+    "Haste": ("|cYou slow back to your normal pace.|n", None),
+    "Regeneration": ("|cYour wounds stop knitting - the regeneration fades.|n", None),
+    "Shielded": ("|cThe shielding around you flickers out.|n", None),
+    "Death Ward": ("|cThe ward against death fades.|n", None),
+    "Sees Invisible": ("|cYour eyes dim - you can no longer see through invisibility.|n", None),
+    "Invisible": ("|cYour elusiveness fades - you're no longer hard to hit.|n", None),
+    "Illusory Duplicate": ("|cYour illusory double dissolves.|n", None),
+    "Ambush": ("|cThe moment passes - your ambush advantage is gone.|n", None),
+    "Riposte Ready": ("|cYou lower your guard - no opening came.|n", None),
+    "Aiming": ("|cYou lose your careful aim.|n", None),
+    "Parrying": ("|cYou ease out of your parrying stance.|n", None),
+    "Shield Block": ("|cYou lower your shield from its guarding stance.|n", None),
+    "Barbed Guard": ("|cYour barbed guard falls away.|n", None),
+    "Fast Hands": ("|cYour hands slow to their ordinary speed.|n", None),
+    "Forager's Eye": ("|cYour forager's eye dulls - you stop spotting the best patches.|n", None),
+    "Pathfinding": ("|cYour stride settles - the road costs its usual effort again.|n", None),
+    "Frenzied": ("|cYour frenzy burns itself out.|n", None),
+    "Keen Edge": ("|cYour blade's keen edge dulls.|n", None),
+    "Raging": ("|cYour rage subsides.|n", "{name}'s rage subsides."),
+    "Sentinel": ("|cYou stand down from sentinel duty.|n", None),
+    "Unbreakable": ("|cYour unbreakable resolve eases.|n", None),
+    "Stun Immunity": ("|cYou're no longer immune to being stunned.|n", None),
+    # Debuffs
+    "Accuracy Down": ("|gYour aim steadies - the accuracy penalty lifts.|n", None),
+    "Damage Down": ("|gYour strength returns - the weakness lifts.|n", None),
+    "Defense Down": ("|gYour guard recovers.|n", None),
+    "Sanctuary Broken": ("|gThe penalty for breaking Sanctuary fades.|n", None),
+    "Poisoned": ("|gThe poison runs its course - you feel clean again.|n", None),
+    "Cursed": ("|gThe curse lifts from you.|n", None),
+    "Frightened": ("|gYour fear passes.|n", None),
+    "Silenced": ("|gYour voice returns - you can speak and cast again.|n", None),
+    "Slowed": ("|gYou shake off the sluggishness.|n", None),
+    "Confused": ("|gYour head clears.|n", None),
+    "Blinded": ("|gYour sight returns.|n", None),
+    "Goaded": ("|gThe taunt loses its hold - you can choose your own targets again.|n", None),
+    "Quarry": ("|gThe mark on you fades.|n", None),
+    "Marked for Death": ("|gThe mark of death lifts from you.|n", None),
+    "Exposed": ("|gYou're no longer exposed - your guard is back.|n", None),
+    "Hamstrung": ("|gYour legs recover from the hamstringing.|n", None),
+    "Disarmed": ("|gYou recover from being disarmed.|n", None),
+    "Grappled": ("|gYou break free of the hold.|n", "{name} breaks free of the hold."),
+    "Stunned": ("|gYou shake off the stun.|n", "{name} shakes off the stun."),
+    "Paralyzed": ("|gYou can move again.|n", "{name} can move again."),
+    "Bleeding": ("|gYour wounds stop bleeding.|n", "{name}'s wounds stop bleeding."),
+}
+
 # ----------------------------------------------------------------------------
 # WEAPON PROFICIENCY
 # ----------------------------------------------------------------------------
@@ -3241,11 +3300,27 @@ class CombatRules:
                 if character == turnchar:
                     self.get_conditions(character)[key][0] -= 1
                 if self.get_conditions(character)[key][0] <= 0:
-                    if character.location:
-                        character.location.msg_contents(
-                            "%s no longer has the '|M%s|n' condition." % (str(character), str(key))
-                        )
+                    self.announce_condition_expired(character, key)
                     del self.get_conditions(character)[key]
+        concentration.announce_stealth_expiry(character)
+
+    def announce_condition_expired(self, character, key):
+        """Tells the holder (and, for a few visible ones, the room) that a
+        condition ran out - see CONDITION_EXPIRY_MESSAGES. A condition
+        with no entry gets the old generic room line."""
+        entry = CONDITION_EXPIRY_MESSAGES.get(key)
+        if entry is None:
+            if character.location:
+                character.location.msg_contents(
+                    "%s no longer has the '|M%s|n' condition." % (str(character), str(key))
+                )
+            return
+        personal, room_line = entry
+        character.msg(personal)
+        if room_line and character.location:
+            character.location.msg_contents(
+                room_line.format(name=str(character)), exclude=[character]
+            )
 
     def add_condition(self, character, turnchar, condition, duration):
         """Adds a condition to a character."""

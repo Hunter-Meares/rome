@@ -2620,14 +2620,19 @@ class TestConditionMessagesColorTheConditionName(CombatTestBase):
         # happens on the HOLDER's own turn, not the original
         # inflicter's (char2) - see condition_tickdown's own docstring
         # for the real bug this fixed.
-        COMBAT_RULES.get_conditions(self.char1)["Accuracy Down"] = [1, self.char2]
+        #
+        # Uses a condition with no CONDITION_EXPIRY_MESSAGES entry: a listed
+        # one now gets its own plain-English line instead of the generic
+        # "no longer has the 'X' condition" wording this test is about
+        # (see TestConditionExpiryMessages).
+        COMBAT_RULES.get_conditions(self.char1)["Mystery Hex"] = [1, self.char2]
         captured = []
         self.char1.location.msg_contents = lambda text="", **kwargs: captured.append(text)
 
         COMBAT_RULES.condition_tickdown(self.char1, self.char1)
 
         full_text = "".join(str(m) for m in captured)
-        self.assertIn("|MAccuracy Down|n", full_text)
+        self.assertIn("|MMystery Hex|n", full_text)
 
 
 class TestSkillAndSpellAnnouncementOrdering(CombatTestBase):
@@ -5140,3 +5145,102 @@ class TestCombatRowProtection(CombatTestBase):
         COMBAT_RULES.resolve_attack(self.char1, self.char2)
 
         self.assertEqual(self.char1.db.combat_last_target, self.char2)
+
+
+class TestConditionExpiryMessages(CombatTestBase):
+    """
+    Oct 3, owner request ("do players get a message when buffs/debuffs wear
+    off?"): an expiring condition used to say only a generic, room-wide
+    "X no longer has the 'Defense Up' condition." Now the holder gets a
+    plain-English line of their own, bystanders hear only about the few
+    visible ones, and an unlisted condition still falls back to the old
+    generic line.
+    """
+
+    def _expire(self, name):
+        self.char1.db.conditions = {name: [1, self.char1]}
+        sent = []
+        with patch.object(
+            self.char1, "msg", side_effect=lambda *a, **k: sent.append(str(a[0]) if a else "")
+        ), patch.object(self.room1, "msg_contents") as room:
+            COMBAT_RULES.condition_tickdown(self.char1, self.char1)
+        return " ".join(sent), room
+
+    def test_a_buff_tells_the_holder_in_plain_english_and_keeps_the_room_quiet(self):
+        personal, room = self._expire("Defense Up")
+        self.assertIn("protective ward fades", personal)
+        self.assertNotIn("Defense Up", personal)
+        room.assert_not_called()
+        self.assertNotIn("Defense Up", self.char1.db.conditions)
+
+    def test_a_visible_one_also_tells_everyone_else_but_not_the_holder_twice(self):
+        personal, room = self._expire("Bleeding")
+        self.assertIn("stop bleeding", personal)
+        room.assert_called_once()
+        self.assertIn("wounds stop bleeding", room.call_args.args[0])
+        self.assertEqual(room.call_args.kwargs["exclude"], [self.char1])
+
+    def test_a_condition_with_no_entry_falls_back_to_the_generic_room_line(self):
+        personal, room = self._expire("Mystery Hex")
+        self.assertEqual(personal, "")
+        room.assert_called_once()
+        self.assertIn("no longer has the", room.call_args.args[0])
+        self.assertIn("Mystery Hex", room.call_args.args[0])
+
+    def test_nothing_is_said_while_a_condition_still_has_turns_left(self):
+        self.char1.db.conditions = {"Defense Up": [3, self.char1]}
+        with patch.object(self.char1, "msg") as msg, patch.object(self.room1, "msg_contents") as room:
+            COMBAT_RULES.condition_tickdown(self.char1, self.char1)
+        msg.assert_not_called()
+        room.assert_not_called()
+
+    def test_every_entry_names_a_real_condition(self):
+        from world.combat import (
+            BENEFICIAL_CONDITIONS,
+            CONDITION_EXPIRY_MESSAGES,
+            HARMFUL_CONDITIONS,
+        )
+
+        known = set(BENEFICIAL_CONDITIONS) | set(HARMFUL_CONDITIONS) | {"Stun Immunity"}
+        self.assertFalse(set(CONDITION_EXPIRY_MESSAGES) - known)
+        for name, (personal, room_line) in CONDITION_EXPIRY_MESSAGES.items():
+            self.assertTrue(personal, name)
+            self.assertTrue(room_line is None or "{name}" in room_line, name)
+
+    def test_every_beneficial_and_harmful_condition_has_an_entry(self):
+        from world.combat import (
+            BENEFICIAL_CONDITIONS,
+            CONDITION_EXPIRY_MESSAGES,
+            HARMFUL_CONDITIONS,
+        )
+
+        # "Asleep" ends via the Sleep spell's own wake-up messaging.
+        missing = (set(BENEFICIAL_CONDITIONS) | set(HARMFUL_CONDITIONS)) - set(
+            CONDITION_EXPIRY_MESSAGES
+        ) - {"Asleep"}
+        self.assertFalse(missing, "no expiry message for: %s" % sorted(missing))
+
+
+class TestStealthWindowExpiryMessage(CombatTestBase):
+    """Sneak's movement-stealth window is wall-clock and used to just stop
+    working in silence."""
+
+    def _tick(self):
+        sent = []
+        with patch.object(
+            self.char1, "msg", side_effect=lambda *a, **k: sent.append(str(a[0]) if a else "")
+        ):
+            COMBAT_RULES.condition_tickdown(self.char1, self.char1)
+        return " ".join(sent)
+
+    def test_an_expired_window_is_announced_once_and_cleared(self):
+        self.char1.db.stealth_until = time.time() - 5
+        self.assertIn("cover fades", self._tick())
+        self.assertIsNone(self.char1.db.stealth_until)
+        self.assertEqual(self._tick(), "")
+
+    def test_a_live_window_is_left_alone(self):
+        until = time.time() + 300
+        self.char1.db.stealth_until = until
+        self.assertEqual(self._tick(), "")
+        self.assertEqual(self.char1.db.stealth_until, until)
