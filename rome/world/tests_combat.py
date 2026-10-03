@@ -1795,6 +1795,84 @@ class TestPurchasedPetLifecycle(CombatTestBase):
         self.assertEqual(pet.location, self.room2)
 
 
+class TestConditionTickerSurvivesALogoutAndRelogin(CombatTestBase):
+    """
+    Oct 3, found while answering "what happens to active spells when you
+    log off and back in?": a character's out-of-combat condition/cooldown
+    ticker (CombatCharacter.at_update, every NONCOMBAT_TURN_TIME seconds)
+    was only ever subscribed once, in at_object_creation. at_update
+    permanently unsubscribes itself the first time it fires while the
+    character has no location - which is exactly the state Evennia leaves
+    a logged-out character in - and nothing ever re-subscribed it at
+    login. Confirmed live: the persisted ticker table had zero entries
+    for 36 characters. Every character that had ever logged out stopped
+    ticking conditions and cooldowns down outside combat for good (a
+    Sneak "Invisible" buff, Frightened, a spell cooldown all just sat
+    there until the next fight happened to tick them).
+    """
+
+    def _subscribed(self, char):
+        from evennia import TICKER_HANDLER
+
+        return any(
+            # all_display() rows are (obj, callfunc, path, interval, idstring, persistent).
+            # Identity, not ==: the ticker pool is process-global and keeps
+            # entries from earlier tests' characters (a DB rollback reuses
+            # their pks), which would otherwise match a fresh char1 and
+            # make "unsubscribed" impossible to observe.
+            row[0] is char and row[1] == "at_update" for row in TICKER_HANDLER.all_display()
+        )
+
+    def test_a_new_character_is_subscribed(self):
+        self.assertTrue(self._subscribed(self.char1))
+
+    def test_a_tick_while_logged_out_drops_the_subscription(self):
+        # Intended behavior, unchanged: nothing ticks while offline.
+        self.char1.location = None  # what Evennia's unpuppet does
+        self.char1.at_update()
+        self.assertFalse(self._subscribed(self.char1))
+
+    def test_logging_back_in_resubscribes(self):
+        self.char1.location = None
+        self.char1.at_update()
+        self.assertFalse(self._subscribed(self.char1))
+
+        self.char1.location = self.room1  # a real login restores this first
+        with patch("evennia.objects.objects.DefaultCharacter.at_post_puppet"):
+            self.char1.at_post_puppet()
+        self.assertTrue(self._subscribed(self.char1))
+
+    def test_a_second_logout_and_login_works_too(self):
+        # The "already armed" shortcut must not survive an unsubscribe -
+        # otherwise only the FIRST relog after a logout would ever work.
+        for _ in range(2):
+            self.char1.location = None
+            self.char1.at_update()
+            self.assertFalse(self._subscribed(self.char1))
+            self.char1.location = self.room1
+            with patch("evennia.objects.objects.DefaultCharacter.at_post_puppet"):
+                self.char1.at_post_puppet()
+            self.assertTrue(self._subscribed(self.char1))
+
+    def test_an_online_character_missing_its_ticker_is_rearmed_on_its_next_move(self):
+        # Covers everyone who was already online when this fix deployed
+        # (a reload doesn't re-run at_post_puppet) and any character
+        # whose subscription was lost some other way.
+        from evennia import TICKER_HANDLER
+        from world.combat import NONCOMBAT_TURN_TIME
+
+        TICKER_HANDLER.remove(NONCOMBAT_TURN_TIME, self.char1.at_update, idstring="update")
+        self.char1.ndb.condition_ticker_armed = False
+        self.assertFalse(self._subscribed(self.char1))
+
+        # The self-heal is for real players only (has_account), and the
+        # plain fixture character has no session - attach one.
+        self.char1.sessions.add(self.session)
+        self.char1.location = self.room1
+        self.char1.move_to(self.room2, quiet=True)
+        self.assertTrue(self._subscribed(self.char1))
+
+
 class TestSummonSpellsRefuseToReplaceAPurchasedPet(CombatTestBase):
     """
     A real, confirmed gap found while answering a direct question

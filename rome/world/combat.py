@@ -9115,7 +9115,31 @@ class CombatCharacter(ContribRPCharacter):
         self.db.known_languages = ["latin"]
         self.db.speaking = "latin"
         # Subscribe to ticker handler for out-of-combat condition tickdown
+        self.ensure_condition_ticker()
+
+    def ensure_condition_ticker(self):
+        """
+        (Re)subscribes at_update, the out-of-combat condition/cooldown
+        tick-down, if this process doesn't already believe it's
+        subscribed. at_update unsubscribes itself for good the first time
+        it fires while the character has no location - which is exactly
+        what Evennia leaves a logged-out character with - so this has to
+        run again at login (at_post_puppet) or nothing outside combat
+        ever ticks down for that character again. Also called from
+        at_post_move as a self-heal for anyone already online when this
+        was fixed (a reload doesn't re-run at_post_puppet).
+
+        ndb.condition_ticker_armed is just a "don't hit the database on
+        every single step" shortcut - TickerHandler.add persists its
+        whole table on every call. It's cleared whenever at_update
+        unsubscribes (so a second logout/login still re-arms) and by a
+        reload (ndb doesn't survive one), where the extra add is
+        harmless: the same subscription key just overwrites itself.
+        """
+        if self.ndb.condition_ticker_armed:
+            return
         tickerhandler.add(NONCOMBAT_TURN_TIME, self.at_update, idstring="update")
+        self.ndb.condition_ticker_armed = True
 
     def at_pre_move(self, destination, move_type="move", **kwargs):
         """
@@ -9313,6 +9337,7 @@ class CombatCharacter(ContribRPCharacter):
             check_quest_visit(self)
         if self.has_account:
             check_snare_trap(self)
+            self.ensure_condition_ticker()
         # Crime-and-punishment (world/guards.py): a wanted/homo-sacer
         # player walking into a room a city guard already occupies is the
         # other half of "encountering one is a coincidence" - the reverse
@@ -9377,6 +9402,7 @@ class CombatCharacter(ContribRPCharacter):
             from world.analytics import start_session
             start_session(self, self.account)
         concentration.prune_removed_spells(self)
+        self.ensure_condition_ticker()
 
         pet = self.db.active_companion
         if pet and pet.pk and pet.db.is_purchased_pet and pet.location is None:
@@ -9450,8 +9476,11 @@ class CombatCharacter(ContribRPCharacter):
             # crash on it. Permanently unsubscribe rather than
             # repeating this same check forever every 30 seconds for a
             # character that will never get a location back without
-            # manual intervention.
+            # manual intervention. (Which is why at_post_puppet - login -
+            # has to call ensure_condition_ticker: nothing else ever
+            # resubscribes a character that logs back in.)
             tickerhandler.remove(NONCOMBAT_TURN_TIME, self.at_update, idstring="update")
+            self.ndb.condition_ticker_armed = False
             return
         if not self.rules.is_in_combat(self):
             # Used to overwrite every condition's stored turnchar with

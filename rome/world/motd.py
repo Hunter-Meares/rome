@@ -32,17 +32,35 @@ from evennia import CmdSet
 from commands.command import Command
 from world.box_display import box_border, box_line, box_paragraph, box_blank
 
-RECENT_UPDATES_DATE = "2026-09-27"
+RECENT_UPDATES_DATE = "2026-10-03"
 
 RECENT_UPDATES_TEXT = (
-    "New: 'duel' lets you challenge another player to a real, mutually "
-    "agreed fight - the same stakes as any other, just started by consent "
-    "instead of ambush. Pilfer now works against any NPC (not just a "
-    "combat-capable one) and pays a small amount of XP on a successful "
-    "theft - a caught attempt is a different story, and a clean one "
-    "leaves no trace at all. Boss NPCs across the world also got real, "
-    "hand-picked signature moves - some fights just got a lot more "
-    "dangerous."
+    "Rome now has laws. Theft, assault, and murder against other "
+    "players are real crimes - City Guards patrol the city, and "
+    "offenders face jail, lost gold, or, for murder, execution "
+    "('wanted' shows who Rome is hunting; 'duel' keeps a fair fight "
+    "legal). Armor got a big upgrade too: higher-level shields plus new "
+    "head, arm, hand, leg, and foot armor are for sale in Rome, "
+    "Germania, and the Amber Coast, and Germanic warbands now fight "
+    "fully armed. Healing spells and Boon of the Wilds now grow with "
+    "your level, summoned companions follow you for as long as they "
+    "last, and buffs and debuffs now wear off properly after you log "
+    "back in."
+)
+
+# A known, actively-worked hosting-side issue players may still notice.
+# Set to None to drop the paragraph entirely - do that the moment the
+# lag is actually gone. Deliberately NO time window in the wording (this
+# used to say "over the next day or two" and sat unchanged for weeks,
+# which read as either dishonest or as lag being a permanent feature of
+# the game): say what's true now - how often it happens, that staff
+# know, that it isn't the game's design - and reread it every time
+# RECENT_UPDATES_TEXT changes.
+LAG_NOTICE_TEXT = (
+    "|yHeads up:|n lag is much rarer than it used to be, but you may "
+    "still hit an occasional hitch. We know about it and are actively "
+    "working on it - it comes from our hosting, not from how the game "
+    "is meant to play, and we expect it to be fully resolved soon."
 )
 
 # The box's own interior width, between its left/right borders and
@@ -84,18 +102,9 @@ def get_motd():
         "needs work. Things will change, break, and grow. Your patience, "
         "curiosity, and feedback shape where this goes next."
     )
-    lines += [_box_blank()]
-    # TEMPORARY - a known, actively-being-fixed hosting issue, not
-    # something wrong with the game itself. Remove this paragraph once
-    # the host confirms it's resolved - deliberately no hard deadline
-    # in the wording itself (a hosting fix slipping past a stated
-    # "48 hours" would read worse than never having promised one), but
-    # this still needs a manual follow-up to take back out.
-    lines += _box_paragraph(
-        "|yHeads up:|n you may notice occasional lag over the next day "
-        "or two - it's a known hosting issue our provider is actively "
-        "resolving, not something wrong with the game itself."
-    )
+    if LAG_NOTICE_TEXT:
+        lines += [_box_blank()]
+        lines += _box_paragraph(LAG_NOTICE_TEXT)
     lines += [
         _box_blank(),
         _box_line("|r>> Getting Started|n"),
