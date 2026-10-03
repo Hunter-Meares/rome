@@ -641,8 +641,10 @@ def node_inspect_and_buy(caller, raw_string="", **kwargs):
 
     from world.religion import religion_bonus
     discount = religion_bonus(caller, "mercury", "shop_discount")
+    from world.racial_abilities import racial_shop_discount
+    discount += racial_shop_discount(caller)  # Human: Civic Access
     if discount:
-        price = int(price * (1 - discount))
+        price = max(1, int(price * (1 - discount)))
 
     text = "|Y%s|n - %d gold\n\n%s" % (ware.key, price, desc)
 

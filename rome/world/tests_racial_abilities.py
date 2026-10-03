@@ -78,8 +78,8 @@ class TestCmdRacialInfo(RacialAbilityCommandTestBase):
         result = self.call(CmdRacialInfo(), "", caller=self.char1)
         self.assertIn("recovering - 3 more turns", result)
 
-    def test_a_race_with_no_abilities_built_yet_gets_an_honest_message(self):
-        self.char1.db.race = "human"  # Command Presence/Civic Access - not built
+    def test_a_character_with_no_racial_abilities_gets_an_honest_message(self):
+        self.char1.db.race = None  # every real race has abilities now
         result = self.call(CmdRacialInfo(), "", caller=self.char1)
         self.assertIn("grants you no innate abilities", result)
 
@@ -280,3 +280,127 @@ class TestMinotaurGore(RacialAbilityCommandTestBase):
         with patch("world.racial_abilities.randint", side_effect=lambda low, high: high):
             self.call(CmdRacial(), "crushing blow = Char2", caller=self.char1)
         self.assertNotIn("Bleeding", self.char2.db.conditions)
+
+
+class TestHumanCommandPresence(RacialAbilityCommandTestBase):
+    def setUp(self):
+        super().setUp()
+        self.char1.db.race = "human"
+
+    def test_alone_it_rallies_just_the_caster(self):
+        self.call(CmdRacial(), "command presence", caller=self.char1)
+        self.assertIn("Accuracy Up", self.char1.db.conditions)
+        self.assertNotIn("Accuracy Up", self.char2.db.conditions)
+
+    def test_it_rallies_party_members_standing_here_and_not_others(self):
+        self.char1.db.party_leader = self.char1
+        self.char1.db.party_members = [self.char1, self.char2]
+        self.char2.db.party_leader = self.char1
+        stranger = create.create_object(
+            "typeclasses.characters.Character", key="a stranger", location=self.room1
+        )
+        stranger.db.hp = 50
+        stranger.db.max_hp = 50
+        stranger.db.conditions = {}
+
+        self.call(CmdRacial(), "command presence", caller=self.char1)
+
+        self.assertIn("Accuracy Up", self.char1.db.conditions)
+        self.assertIn("Accuracy Up", self.char2.db.conditions)
+        self.assertNotIn("Accuracy Up", stranger.db.conditions)
+
+    def test_it_never_starts_a_fight_and_goes_on_cooldown(self):
+        self.call(CmdRacial(), "command presence", caller=self.char1)
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
+        self.assertGreater(COMBAT_RULES.get_cooldowns(self.char1)["command presence"], 0)
+
+
+class TestPassiveRacialAbilities(RacialAbilityCommandTestBase):
+    def test_a_passive_ability_cannot_be_called_and_costs_nothing(self):
+        self.char1.db.race = "human"
+        result = self.call(CmdRacial(), "civic access", caller=self.char1)
+        self.assertIn("always active", result)
+        self.assertNotIn("civic access", COMBAT_RULES.get_cooldowns(self.char1))
+
+    def test_racialinfo_lists_passives_marked_passive(self):
+        self.char1.db.race = "human"
+        result = self.call(CmdRacialInfo(), "", caller=self.char1)
+        self.assertIn("Civic Access", result)
+        self.assertIn("passive", result)
+
+    def test_only_humans_get_the_shop_discount_and_only_cyclops_the_craft_bonus(self):
+        from world.racial_abilities import racial_craft_bonus, racial_shop_discount
+
+        self.char1.db.race = "human"
+        self.assertEqual(racial_shop_discount(self.char1), 0.05)
+        self.assertEqual(racial_craft_bonus(self.char1, "faber"), 0)
+        self.char1.db.race = "cyclops"
+        self.assertEqual(racial_shop_discount(self.char1), 0)
+        self.assertEqual(racial_craft_bonus(self.char1, "faber"), 10)
+        self.assertEqual(racial_craft_bonus(self.char1, "herbalist"), 0)
+
+
+class TestHarpySkywardScout(RacialAbilityCommandTestBase):
+    def test_it_grants_sees_invisible_that_defeats_invisibility(self):
+        from world.concentration import invisible_hides_from
+
+        self.char1.db.race = "harpy"
+        self.char2.db.conditions = {}
+        with patch("world.concentration.is_invisible", return_value=True):
+            self.assertTrue(invisible_hides_from(self.char2, self.char1))
+            self.call(CmdRacial(), "skyward scout", caller=self.char1)
+            self.assertIn("Sees Invisible", self.char1.db.conditions)
+            self.assertFalse(invisible_hides_from(self.char2, self.char1))
+
+    def test_it_is_timed_not_permanent(self):
+        self.char1.db.race = "harpy"
+        self.call(CmdRacial(), "skyward scout", caller=self.char1)
+        self.assertGreater(COMBAT_RULES.get_cooldowns(self.char1)["skyward scout"], 0)
+
+
+class TestCentaurForestTracker(RacialAbilityCommandTestBase):
+    def setUp(self):
+        super().setUp()
+        self.char1.db.race = "centaur"
+        # room1 <-> room2 via the fixture's own exit
+        self.exit_name = self.exit.key
+
+    def _track(self, args="forest tracker = %s"):
+        return self.call(CmdRacial(), args % self.exit_name, caller=self.char1)
+
+    def test_it_reveals_who_is_in_the_next_room(self):
+        self.char2.location = self.room2
+        result = self._track()
+        self.assertIn("Char2", result)
+
+    def test_an_empty_room_says_so(self):
+        self.char2.location = self.room1
+        result = self._track()
+        self.assertIn("nothing", result)
+
+    def test_a_truly_invisible_character_stays_hidden(self):
+        self.char2.location = self.room2
+        with patch("world.concentration.is_invisible", return_value=True):
+            result = self._track()
+        self.assertNotIn("Char2", result)
+
+    def test_a_bad_exit_gives_a_hint_and_spends_no_cooldown(self):
+        result = self.call(CmdRacial(), "forest tracker = nowhere", caller=self.char1)
+        self.assertIn("no exit", result)
+        self.assertNotIn("forest tracker", COMBAT_RULES.get_cooldowns(self.char1))
+
+    def test_no_exit_given_asks_for_one_and_spends_no_cooldown(self):
+        result = self.call(CmdRacial(), "forest tracker", caller=self.char1)
+        self.assertIn("Track which direction", result)
+        self.assertNotIn("forest tracker", COMBAT_RULES.get_cooldowns(self.char1))
+
+    def test_it_is_refused_in_combat(self):
+        with patch("world.combat.COMBAT_RULES.roll_init") as mock_roll:
+            mock_roll.side_effect = lambda char: 1000 if char == self.char1 else 1
+            self.call(CmdFight(), "Char2", caller=self.char1)
+        result = self._track()
+        self.assertIn("middle of a fight", result)
+
+    def test_success_goes_on_cooldown(self):
+        self._track()
+        self.assertGreater(COMBAT_RULES.get_cooldowns(self.char1)["forest tracker"], 0)

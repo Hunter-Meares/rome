@@ -20,14 +20,15 @@ same get_cooldowns/tick_cooldowns machinery SPELLS/SKILLS already use
 on a real player - see CombatCharacter.at_turn_start/at_update in
 world/combat.py).
 
-Scope, by direct design decision: only the abilities that map onto a
-mechanic this game already has (a heal, a buff/debuff condition, a
-bonus-damage attack) are built here. Human's Command Presence/Civic
-Access (no politics/reputation system), Centaur's Forest Tracker,
-Harpy's Skyward Scout (no lost/hidden-foe mechanic), and Cyclops's Forge Mastery (crafting isn't built yet
-either) are deliberately left undone rather than forced into a weak
-mapping - see rome_mud_todo.md, and the precedent world/religion.py
-already set doing the same thing for 10 of the pantheon's 14 gods.
+Scope: every race's listed abilities are built. The ones with no
+dedicated system behind them (no politics/reputation, no map) were
+mapped onto small, modest versions of mechanics the game already has
+(Oct 3, owner decisions - see rome_mud_todo.md): Human Command Presence
+is a short party rally and Civic Access a small shop discount; Harpy
+Skyward Scout is a timed Sees Invisible; Centaur Forest Tracker is a
+free adjacent-room scan; Cyclops Forge Mastery is a better chance at
+the forge. Passive entries ("passive": True) have no command - other
+systems read them via racial_shop_discount / racial_craft_bonus.
 """
 
 from random import randint
@@ -40,8 +41,15 @@ from world.combat import (
     COMBAT_RULES,
     ACCURACY_STAT_MULTIPLIER,
     find_combat_target,
+    pick_party_targets,
     scale_spell_damage_range,
 )
+from world.concentration import invisible_hides_from
+
+# The two always-on perks (no command - see RACIAL_ABILITIES' "passive"
+# entries). Deliberately small: a nudge, not a build-defining edge.
+CIVIC_ACCESS_DISCOUNT = 0.05  # Human: off every shop price
+FORGE_MASTERY_CRAFT_BONUS = 10  # Cyclops: percentage points of Faber craft success
 
 
 def racial_heal(user, ability_name, targets, **kwargs):
@@ -150,6 +158,55 @@ def racial_attack(user, ability_name, targets, **kwargs):
         COMBAT_RULES.spend_action(user, 1, action_name="racial")
 
 
+def racial_rally(user, ability_name, targets, **kwargs):
+    """Grants condition(s) to the caster's party members standing here
+    (Human Command Presence) - the racial equivalent of a group buff,
+    minus any resource cost. `targets` is already the party (see
+    CmdRacial's "party" target type); alone, it's just the caster."""
+    conditions = kwargs.get("conditions", [])
+    names = ", ".join(str(t) for t in targets if t is not user)
+    if names:
+        msg = "%s calls on %s, rallying %s!" % (user, ability_name.title(), names)
+    else:
+        msg = "%s calls on %s, steeling for what comes!" % (user, ability_name.title())
+    user.location.msg_contents(msg)
+    for target in targets:
+        for condition in conditions:
+            COMBAT_RULES.add_condition(target, user, condition[0], condition[1])
+    if COMBAT_RULES.is_in_combat(user):
+        COMBAT_RULES.spend_action(user, 1, action_name="racial")
+
+
+def racial_scout_exit(user, ability_name, targets, **kwargs):
+    """Reveals who's in a room through one of the user's own exits,
+    without going there (Centaur Forest Tracker) - the free, cooldown-
+    gated cousin of the Venator's Track skill. Truly invisible
+    characters stay hidden unless the scout can see invisible.
+    Returns False when nothing happened (no/bad exit) so the cooldown
+    isn't spent."""
+    if not targets:
+        user.msg("Track which direction? Usage: racial %s = <exit>" % ability_name)
+        return False
+
+    exit_obj = user.search(targets[0].strip().lower(), candidates=user.location.exits)
+    if not exit_obj or not exit_obj.destination:
+        user.msg("There's no exit called '%s' to track through." % targets[0].strip())
+        return False
+
+    destination = exit_obj.destination
+    occupants = [
+        o.key for o in destination.contents
+        if o.attributes.has("max_hp") and not invisible_hides_from(o, user)
+    ]
+    if occupants:
+        user.msg(
+            "Reading the signs like a born tracker, you sense movement "
+            "through %s: %s" % (destination.key, ", ".join(occupants))
+        )
+    else:
+        user.msg("Reading the signs like a born tracker, you sense nothing through %s." % destination.key)
+
+
 # Cooldowns are deliberately higher than a same-tier spell/skill would
 # get from cooldown_for_level (world/combat.py) - a low-level spell
 # relies on its MP/SP cost alone as the real gate (cooldown_for_level
@@ -221,6 +278,49 @@ RACIAL_ABILITIES = {
         "desc": "A bone-jarring charge that leaves the target reeling "
         "for a moment - Minotaur's raw, labyrinth-born strength.",
     },
+    "command presence": {
+        "race": "human",
+        "target": "party",
+        "cooldown": 10,
+        "abilityfunc": racial_rally,
+        "max_targets": 4,
+        "conditions": [("Accuracy Up", 3)],
+        "desc": "A steady word that steadies the line - you and up to "
+        "three party members here fight a little more accurately for a "
+        "few turns.",
+    },
+    "civic access": {
+        "race": "human",
+        "passive": True,
+        "desc": "Always active. A Roman's standing opens doors - "
+        "merchants knock 5% off their prices for you.",
+    },
+    "skyward scout": {
+        "race": "harpy",
+        "target": "self",
+        "cooldown": 20,
+        "abilityfunc": racial_add_condition,
+        "conditions": [("Sees Invisible", 8)],
+        "desc": "Sharp eyes from above: for a few minutes you see "
+        "through sneaking and invisibility alike.",
+    },
+    "forest tracker": {
+        "race": "centaur",
+        "target": "keyword",
+        "cooldown": 3,
+        "combat": False,
+        "abilityfunc": racial_scout_exit,
+        "desc": "Read the ground, the wind and the birds to learn who "
+        "stands in the next room, through an exit you name, without "
+        "going there. Usable only out of combat.",
+    },
+    "forge mastery": {
+        "race": "cyclops",
+        "passive": True,
+        "desc": "Always active. A Cyclops's hands know the forge - a "
+        "10-point better chance of success when crafting with the Faber "
+        "skill.",
+    },
     "gore": {
         "race": "minotaur",
         "target": "otherchar",
@@ -242,6 +342,25 @@ def racial_abilities_known(character):
     implemented here."""
     race = character.db.race
     return sorted(name for name, data in RACIAL_ABILITIES.items() if data["race"] == race)
+
+
+def is_passive(ability_name):
+    return bool(RACIAL_ABILITIES[ability_name].get("passive"))
+
+
+def racial_shop_discount(character):
+    """Civic Access: the fraction taken off a shop price (0 if none)."""
+    if character.db.race == "human":
+        return CIVIC_ACCESS_DISCOUNT
+    return 0
+
+
+def racial_craft_bonus(character, skill_key):
+    """Forge Mastery: percentage points added to a craft's success
+    chance (0 if none)."""
+    if character.db.race == "cyclops" and skill_key == "faber":
+        return FORGE_MASTERY_CRAFT_BONUS
+    return 0
 
 
 class CmdRacial(Command):
@@ -308,6 +427,16 @@ class CmdRacial(Command):
         ability_name = matches[0]
         data = RACIAL_ABILITIES[ability_name]
 
+        if data.get("passive"):
+            caller.msg(
+                "%s is always active - there's nothing to call on. "
+                "See 'racialinfo'." % ability_name.title()
+            )
+            return
+        if data.get("combat") is False and self.rules.is_in_combat(caller):
+            caller.msg("You can't do that in the middle of a fight.")
+            return
+
         turns_left = self.rules.get_cooldowns(caller).get(ability_name, 0)
         if turns_left > 0:
             caller.msg(
@@ -321,6 +450,10 @@ class CmdRacial(Command):
 
         if target_type == "self":
             targets = [caller]
+        elif target_type == "party":
+            targets = pick_party_targets(caller, data.get("max_targets", 4))
+        elif target_type == "keyword":
+            targets = [target_text] if target_text else []
         elif not target_text and target_type == "anychar":
             # See CmdCast's identical fallback, world/combat.py - an
             # ally-or-self ability (a heal, here) with no target given
@@ -362,9 +495,11 @@ class CmdRacial(Command):
         # used outside combat is what starts the fight now, the same
         # real, tracked way 'fight'/an offensive spell or skill would,
         # rather than landing as a free, no-consequence hit.
-        self.rules.start_combat_from_offensive_action(caller, targets)
+        if target_type != "keyword":  # a keyword target is an exit name, not a character
+            self.rules.start_combat_from_offensive_action(caller, targets)
 
-        data["abilityfunc"](caller, ability_name, targets, **data)
+        if data["abilityfunc"](caller, ability_name, targets, **data) is False:
+            return  # nothing happened (e.g. a bad exit name) - no cooldown spent
         if data["cooldown"] > 0:
             self.rules.get_cooldowns(caller)[ability_name] = data["cooldown"]
 
@@ -393,6 +528,9 @@ class CmdRacialInfo(Command):
         lines = ["|wYour racial abilities:|n"]
         for name in known:
             data = RACIAL_ABILITIES[name]
+            if data.get("passive"):
+                lines.append("  |Y%s|n (|cpassive|n) - %s" % (name.title(), data["desc"]))
+                continue
             turns_left = cooldowns.get(name, 0)
             status = (
                 "|rrecovering - %i more turn%s|n"
@@ -404,7 +542,7 @@ class CmdRacialInfo(Command):
                 "  |Y%s|n (%s) - %s" % (name.title(), status, data["desc"])
             )
         lines.append("")
-        lines.append("Use 'racial <ability> [= target]' to call on one.")
+        lines.append("Use 'racial <ability> [= target]' to call on one. Passive abilities are always on.")
         caller.msg("\n".join(lines))
 
 

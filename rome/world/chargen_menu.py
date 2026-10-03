@@ -113,8 +113,8 @@ RACES = {
         ),
         "traits": ["Social Savvy", "Adaptable"],
         "abilities": [
-            "Command Presence - bonus to leadership/diplomacy",
-            "Civic Access - hold/influence positions",
+            "Command Presence - rally your party for a short accuracy boost",
+            "Civic Access - 5% off shop prices",
         ],
         # No stat bonuses - humans are the flexible baseline.
         "stat_mods": {"max_hp": 0, "max_mp": 0, "max_sp": 0, "virtus": 0, "agilitas": 0, "ingenium": 0, "vigor": 0},
@@ -147,7 +147,7 @@ RACES = {
         "traits": ["Strength", "Agility"],
         "abilities": [
             "Galloping Charge - powerful close-quarters attack",
-            "Forest Tracker - excellent movement and tracking in nature",
+            "Forest Tracker - scout the next room through an exit",
         ],
         "stat_mods": {"max_hp": 5, "max_mp": 0, "max_sp": 15, "virtus": 2, "agilitas": 2, "ingenium": 0, "vigor": 0},
     },
@@ -164,7 +164,7 @@ RACES = {
         "abilities": [
             "Innate Flight - take to the air at will, free ('fly' / 'land'); moving between rooms costs a quarter of the stamina",
             "Aerial Assault - bonus attacks from above",
-            "Skyward Scout - spot hidden foes",
+            "Skyward Scout - see through sneaking and invisibility for a time",
         ],
         "stat_mods": {"max_hp": -5, "max_mp": 0, "max_sp": 20, "virtus": 0, "agilitas": 2, "ingenium": 2, "vigor": 0},
     },
@@ -196,7 +196,7 @@ RACES = {
         "traits": ["Strength", "Endurance"],
         "abilities": [
             "Crushing Blow - massive melee damage",
-            "Forge Mastery - craft weapons faster",
+            "Forge Mastery - better odds when crafting at the forge",
             "Intimidating Presence - reduce enemy morale",
         ],
         "stat_mods": {"max_hp": 30, "max_mp": -10, "max_sp": -5, "virtus": 3, "agilitas": 0, "ingenium": 0, "vigor": 2},

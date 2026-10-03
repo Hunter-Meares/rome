@@ -213,6 +213,8 @@ class SkilledCraftingRecipe(CraftingRecipe):
         # time; skill above/below the recipe's difficulty shifts that
         # up or down, clamped so it's never a sure thing or hopeless.
         chance = max(5, min(95, 50 + (skill - self.difficulty)))
+        from world.racial_abilities import racial_craft_bonus
+        chance = min(95, chance + racial_craft_bonus(self.crafter, self.skill_key))  # Cyclops: Forge Mastery
         old_tier = _skill_tier(skill)
         if randint(1, 100) <= chance:
             self._train(3)

@@ -651,3 +651,26 @@ class TestOrdinaryMerchantHasNoBuyPitch(EconomyTestBase):
         text, options = node_inspect_and_buy(self.char1, ware=ware)
         self.assertNotIn("says", text)
         self.assertEqual(options[0]["desc"], "Buy for 25 gold")
+
+
+class TestCivicAccessDiscount(EconomyTestBase):
+    def test_a_human_pays_five_percent_less(self):
+        ware = self._spawn_ware(proto_key="DAGGER", price=100)
+        self.char1.db.race = "human"
+        self.char1.db.gold = 500
+        text, options = node_inspect_and_buy(self.char1, ware=ware)
+        self.assertIn("95 gold", text)
+        options[0]["goto"](self.char1)
+        self.assertEqual(self.char1.db.gold, 405)
+
+    def test_other_races_pay_full_price(self):
+        ware = self._spawn_ware(proto_key="DAGGER", price=100)
+        self.char1.db.race = "cyclops"
+        text, options = node_inspect_and_buy(self.char1, ware=ware)
+        self.assertIn("100 gold", text)
+
+    def test_the_discount_never_makes_a_ware_free(self):
+        ware = self._spawn_ware(proto_key="DAGGER", price=1)
+        self.char1.db.race = "human"
+        text, options = node_inspect_and_buy(self.char1, ware=ware)
+        self.assertIn("1 gold", text)

@@ -1943,11 +1943,10 @@ def create_all_help_entries():
             "  racial <ability>       - use one (aliased 'race')\n"
             "  racial <ability> = <target>  - use one on a specific "
             "target, where it applies\n\n"
-            "Not every race's listed traits are built yet - some (like a "
-            "Human's Command Presence or a Cyclops's Forge Mastery) are "
-            "purely social or crafting-flavored, with no matching system "
-            "in the game yet. 'racialinfo' only ever lists what's actually "
-            "usable right now."
+            "Some racial abilities are passive - always on, with nothing to "
+            "call (a Human's Civic Access shop discount, a Cyclops's Forge "
+            "Mastery at the forge). 'racialinfo' lists those too, marked "
+            "passive."
         ),
         db_lock_storage="view:all()",
     )
@@ -1967,10 +1966,21 @@ def create_all_help_entries():
     from world.racial_abilities import RACIAL_ABILITIES
 
     for ability_name, data in RACIAL_ABILITIES.items():
-        HelpEntry.objects.create(
-            db_key=ability_name,
-            db_help_category="General",
-            db_entrytext=(
+        if data.get("passive"):
+            entry_text = (
+                "|w%s|n\n\n"
+                "An innate %s racial ability. Passive: always active, "
+                "nothing to call - see 'help racial'.\n\n"
+                "%s"
+            ) % (ability_name.title(), data["race"].title(), data["desc"])
+        else:
+            target = data["target"]
+            usage = {
+                "self": "",
+                "party": "",
+                "keyword": " = <exit>",
+            }.get(target, " = <target>")
+            entry_text = (
                 "|w%s|n\n\n"
                 "An innate %s racial ability (cooldown: %d turn%s). No "
                 "MP/SP cost, no trainer needed - see 'help racial'.\n\n"
@@ -1982,9 +1992,13 @@ def create_all_help_entries():
                 data["cooldown"],
                 "" if data["cooldown"] == 1 else "s",
                 ability_name,
-                "" if data["target"] == "self" else " = <target>",
+                usage,
                 data["desc"],
-            ),
+            )
+        HelpEntry.objects.create(
+            db_key=ability_name,
+            db_help_category="General",
+            db_entrytext=entry_text,
             db_lock_storage="view:all()",
         )
 

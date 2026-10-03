@@ -500,3 +500,26 @@ class TestAntidoteRecipe(_HerbalistRecipeTestBase):
         antidote_xp, _ = _craft_reward(AntidoteRecipe.TIER_LEVEL, AntidoteRecipe.CYCLE_MINUTES)
         tonic_xp, _ = _craft_reward(HealingTonicRecipe.TIER_LEVEL, HealingTonicRecipe.CYCLE_MINUTES)
         self.assertGreater(antidote_xp, tonic_xp)
+
+
+class TestForgeMasteryCraftBonus(EvenniaTest):
+    """Cyclops's Forge Mastery: +10 points of Faber craft success."""
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.craft_skill = {}
+        self.char1.db.craft_recipes_known = set()
+
+    def _attempt(self, roll, race):
+        self.char1.db.race = race
+        recipe = _fake_recipe(difficulty=0)(self.char1)
+        with mock.patch("world.recipes.randint", return_value=roll):
+            return recipe.do_craft()
+
+    def test_a_cyclops_succeeds_on_a_roll_that_fails_everyone_else(self):
+        # skill 0 vs difficulty 0 -> 50% base; a roll of 58 only lands with +10
+        self.assertFalse(self._attempt(58, "human"))
+        self.assertTrue(self._attempt(58, "cyclops"))
+
+    def test_a_roll_above_the_bonus_still_fails(self):
+        self.assertFalse(self._attempt(61, "cyclops"))
