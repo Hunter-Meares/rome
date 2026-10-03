@@ -4396,7 +4396,10 @@ class CombatRules:
             return
 
         destination = exit_obj.destination
-        occupants = [o.key for o in destination.contents if o.attributes.has("max_hp")]
+        occupants = [
+            o.key for o in destination.contents
+            if o.attributes.has("max_hp") and not invisible_hides_from(o, caster)
+        ]
 
         caster.db.mp -= cost
         if occupants:
@@ -5252,7 +5255,10 @@ class CombatRules:
             return
 
         destination = exit_obj.destination
-        occupants = [o.key for o in destination.contents if o.attributes.has("max_hp")]
+        occupants = [
+            o.key for o in destination.contents
+            if o.attributes.has("max_hp") and not invisible_hides_from(o, user)
+        ]
 
         user.db.sp -= cost
         if occupants:

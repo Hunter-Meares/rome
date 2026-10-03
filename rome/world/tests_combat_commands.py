@@ -3060,3 +3060,43 @@ class TestCmdDuel(CombatCommandTestBase):
         self.call(CmdDuel(), "accept", caller=self.char2)
         COMBAT_RULES.combat_cleanup(self.char1)
         self.assertIsNone(self.char1.db.combat_duel_partner)
+
+
+class TestScoutingSkipsInvisibleOccupants(CombatCommandTestBase):
+    """Track (Venator) and Birdsight (Augur) reveal who's in an adjacent
+    room, but a truly invisible occupant stays hidden unless the scout
+    can see invisible. (Plain sneaking is NOT hidden - by design it never
+    hides someone from a room listing.)"""
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.sp = 20
+        self.char1.db.mp = 20
+        self.char1.db.conditions = {}
+        self.char2.location = self.room2
+
+    def _scout(self, kind):
+        from world.combat import COMBAT_RULES
+
+        sent = []
+        with patch.object(self.char1, "msg", side_effect=lambda *a, **k: sent.append(str(a[0]) if a else "")):
+            if kind == "track":
+                COMBAT_RULES.skill_track(self.char1, "track", [self.exit.key], 3)
+            else:
+                COMBAT_RULES.spell_scry(self.char1, "birdsight", [self.exit.key], 3)
+        return " ".join(sent)
+
+    def test_visible_occupant_is_revealed_by_both(self):
+        for kind in ("track", "birdsight"):
+            self.assertIn("Char2", self._scout(kind), kind)
+
+    def test_invisible_occupant_is_hidden_from_both(self):
+        for kind in ("track", "birdsight"):
+            with patch("world.concentration.is_invisible", return_value=True):
+                self.assertNotIn("Char2", self._scout(kind), kind)
+
+    def test_a_scout_who_sees_invisible_still_sees_them(self):
+        self.char1.db.conditions = {"Sees Invisible": [5, self.char1]}
+        for kind in ("track", "birdsight"):
+            with patch("world.concentration.is_invisible", return_value=True):
+                self.assertIn("Char2", self._scout(kind), kind)
