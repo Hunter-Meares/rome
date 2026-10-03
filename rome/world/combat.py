@@ -376,9 +376,10 @@ BENEFICIAL_CONDITIONS = frozenset({
 # room-wide "X no longer has the 'Defense Up' condition."). Maps a condition
 # name to (message to the holder, message to everyone else - or None to keep
 # the room quiet). "{name}" in the room line is the holder's name. A condition
-# missing from here falls back to the old generic room line, so a new
-# condition never goes silent. Only conditions bystanders would actually
-# notice get a room line.
+# missing from here falls back to a generic line to the holder alone, so a
+# new condition never goes silent. Only conditions bystanders would actually
+# notice get a room line (that same set is what condition_is_visible() uses
+# for the "gains"/"cured" announcements).
 CONDITION_EXPIRY_MESSAGES = {
     # Buffs
     "Accuracy Up": ("|cYour sharpened focus fades - your aim is back to normal.|n", None),
@@ -429,6 +430,15 @@ CONDITION_EXPIRY_MESSAGES = {
     "Paralyzed": ("|gYou can move again.|n", "{name} can move again."),
     "Bleeding": ("|gYour wounds stop bleeding.|n", "{name}'s wounds stop bleeding."),
 }
+
+
+def condition_is_visible(name):
+    """True for the few conditions a bystander would plainly see (the ones
+    with a room line in CONDITION_EXPIRY_MESSAGES). Everything else - every
+    ordinary buff and debuff - is private to the holder and whoever applied
+    or cured it."""
+    entry = CONDITION_EXPIRY_MESSAGES.get(name)
+    return bool(entry and entry[1])
 
 # ----------------------------------------------------------------------------
 # WEAPON PROFICIENCY
@@ -3307,13 +3317,10 @@ class CombatRules:
     def announce_condition_expired(self, character, key):
         """Tells the holder (and, for a few visible ones, the room) that a
         condition ran out - see CONDITION_EXPIRY_MESSAGES. A condition
-        with no entry gets the old generic room line."""
+        with no entry gets a generic line to the holder alone."""
         entry = CONDITION_EXPIRY_MESSAGES.get(key)
         if entry is None:
-            if character.location:
-                character.location.msg_contents(
-                    "%s no longer has the '|M%s|n' condition." % (str(character), str(key))
-                )
+            character.msg("You no longer have the '|M%s|n' condition." % key)
             return
         personal, room_line = entry
         character.msg(personal)
@@ -3325,9 +3332,42 @@ class CombatRules:
     def add_condition(self, character, turnchar, condition, duration):
         """Adds a condition to a character."""
         self.get_conditions(character).update({condition: [duration, turnchar]})
-        if character.location:
+        self.announce_condition_gained(character, turnchar, condition)
+
+    def announce_condition_gained(self, character, turnchar, condition):
+        """
+        Who hears about a new condition (Oct 3, owner request: a buff or
+        debuff isn't something bystanders should be told about). The holder
+        always hears ("You gain..."); whoever applied it hears too, so a
+        caster still gets feedback that their debuff took; the rest of the
+        room hears only for the few visibly obvious ones (see
+        condition_is_visible).
+        """
+        shown = "'|M%s|n'" % condition
+        character.msg("You gain the %s condition." % shown)
+        source = turnchar if (
+            turnchar is not None and turnchar is not character and getattr(turnchar, "pk", None)
+        ) else None
+        third_person = "%s gains the %s condition." % (character, shown)
+        if source is not None:
+            source.msg(third_person)
+        if condition_is_visible(condition) and character.location:
             character.location.msg_contents(
-                "%s gains the '|M%s|n' condition." % (character, condition)
+                third_person, exclude=[c for c in (character, source) if c is not None]
+            )
+
+    def announce_condition_cured(self, character, key, source=None):
+        """The cure counterpart of announce_condition_gained: the cured
+        character and whoever cured them hear it; the room only for a
+        visibly obvious condition."""
+        shown = "'|M%s|n'" % key
+        character.msg("You no longer have the %s condition." % shown)
+        if source is not None and source is not character:
+            source.msg("%s no longer has the %s condition." % (character, shown))
+        if condition_is_visible(key) and character.location:
+            character.location.msg_contents(
+                "%s no longer has the %s condition." % (character, shown),
+                exclude=[c for c in (character, source) if c is not None],
             )
 
     def apply_turn_conditions(self, character):
@@ -3626,14 +3666,17 @@ class CombatRules:
             user.msg("You can't use %s on that." % item)
             return False
 
-        item_msg = "%s %s %s! " % (user, item_use_verb(item), item)
+        item_msg = "%s %s %s!" % (user, item_use_verb(item), item)
 
+        cured = []
         for key in list(self.get_conditions(target)):
             if key in to_cure:
-                item_msg += "%s no longer has the '|M%s|n' condition. " % (str(target), str(key))
+                cured.append(key)
                 del self.get_conditions(target)[key]
 
         user.location.msg_contents(item_msg)
+        for key in cured:
+            self.announce_condition_cured(target, key, source=user)
 
     def itemfunc_attack(self, item, user, target, **kwargs):
         """Item function that attacks a target."""
@@ -3759,15 +3802,18 @@ class CombatRules:
         to_cure = kwargs.get("to_cure", ["Poisoned"])
         spell_msg = "%s casts %s!" % (caster, spell_name)
 
+        cured = []
         for target in targets:
             conditions = self.get_conditions(target)
             for key in list(conditions):
                 if key in to_cure:
-                    spell_msg += " %s no longer has the '|M%s|n' condition." % (target, key)
+                    cured.append((target, key))
                     del conditions[key]
 
         caster.db.mp -= cost
         caster.location.msg_contents(spell_msg)
+        for target, key in cured:
+            self.announce_condition_cured(target, key, source=caster)
 
     def spell_resurrect(self, caster, spell_name, targets, cost, **kwargs):
         """

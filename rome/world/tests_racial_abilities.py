@@ -24,7 +24,7 @@ class TestRacialAbilitiesKnown(EvenniaCommandTest):
     def test_nymph_knows_both_of_its_own_abilities(self):
         self.char1.db.race = "nymph"
         known = racial_abilities_known(self.char1)
-        self.assertEqual(known, ["boon of the wilds", "elemental ward"])
+        self.assertEqual(known, ["boon of the wilds", "ward of the wilds"])
 
     def test_a_different_race_does_not_know_nymph_abilities(self):
         self.char1.db.race = "cyclops"
@@ -69,7 +69,7 @@ class TestCmdRacialInfo(RacialAbilityCommandTestBase):
         self.char1.db.race = "nymph"
         result = self.call(CmdRacialInfo(), "", caller=self.char1)
         self.assertIn("Boon Of The Wilds", result)
-        self.assertIn("Elemental Ward", result)
+        self.assertIn("Ward Of The Wilds", result)
         self.assertIn("ready", result)
 
     def test_shows_cooldown_status_when_recovering(self):
@@ -157,10 +157,19 @@ class TestBoonOfTheWildsLevelScaling(RacialAbilityCommandTestBase):
 
 
 class TestCmdRacialCondition(RacialAbilityCommandTestBase):
-    def test_elemental_ward_grants_defense_up_to_self(self):
+    def test_ward_of_the_wilds_grants_defense_up_to_self(self):
         self.char1.db.race = "nymph"
-        self.call(CmdRacial(), "elemental ward", caller=self.char1)
+        self.call(CmdRacial(), "ward of the wilds", caller=self.char1)
         self.assertIn("Defense Up", self.char1.db.conditions)
+
+    def test_the_old_name_and_a_partial_name_still_find_ward_of_the_wilds(self):
+        # Renamed from "Elemental Ward" - the old name stays as an alias.
+        self.char1.db.race = "nymph"
+        for typed in ("elemental ward", "ward"):
+            self.char1.db.conditions = {}
+            self.char1.db.cooldowns = {}
+            self.call(CmdRacial(), typed, caller=self.char1)
+            self.assertIn("Defense Up", self.char1.db.conditions, typed)
 
     def test_cannot_use_an_ability_your_race_does_not_grant(self):
         self.char1.db.race = "human"
@@ -200,7 +209,7 @@ class TestCmdRacialStartsCombat(RacialAbilityCommandTestBase):
 
     def test_a_self_targeted_ability_never_starts_a_fight(self):
         self.char1.db.race = "nymph"
-        self.call(CmdRacial(), "elemental ward", caller=self.char1)
+        self.call(CmdRacial(), "ward of the wilds", caller=self.char1)
         self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
 
 

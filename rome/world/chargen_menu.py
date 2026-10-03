@@ -180,7 +180,7 @@ RACES = {
         "traits": ["Nature Affinity", "Healing"],
         "abilities": [
             "Boon of the Wilds - heal allies",
-            "Elemental Ward - a short defensive boost",
+            "Ward of the Wilds - a short defensive boost",
         ],
         "stat_mods": {"max_hp": -5, "max_mp": 20, "max_sp": 0, "virtus": 0, "agilitas": 0, "ingenium": 3, "vigor": 0},
     },

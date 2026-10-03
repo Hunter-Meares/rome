@@ -224,13 +224,19 @@ RACIAL_ABILITIES = {
         "with your own level - the healing touch of Nymph's fading "
         "wild blood.",
     },
-    "elemental ward": {
+    "ward of the wilds": {
         "race": "nymph",
+        # Renamed from "Elemental Ward" (Oct 3, owner decision): it is a plain
+        # Defense Up boost and the game has no elemental damage types, so the
+        # old name promised protection that doesn't exist. The old name still
+        # works as a command and help alias.
+        "aliases": ["elemental ward"],
         "target": "self",
         "cooldown": 8,
         "abilityfunc": racial_add_condition,
         "conditions": [("Defense Up", 4)],
-        "desc": "Wards yourself against harm for a short time.",
+        "desc": "Wards yourself against harm for a short time, "
+        "sharpening your guard - a Nymph's wild blood turning blows aside.",
     },
     "galloping charge": {
         "race": "centaur",
@@ -417,7 +423,10 @@ class CmdRacial(Command):
             )
             return
 
-        matches = [name for name in known if lhs == name or lhs in name]
+        matches = [
+            name for name in known
+            if lhs == name or lhs in name or lhs in RACIAL_ABILITIES[name].get("aliases", [])
+        ]
         if not matches:
             caller.msg("Your race doesn't grant you an ability called that.")
             return

@@ -440,6 +440,7 @@ def create_all_help_entries():
         + ["critical hits", "martial effects"]
         + [skill for data in FACTIONS.values() for skill in data["skills"]]
         + list(RACIAL_ABILITIES.keys())
+        + [alias for data in RACIAL_ABILITIES.values() for alias in data.get("aliases", [])]
     )
 
     # Clean slate for anything this script manages, so re-running it
@@ -1995,12 +1996,14 @@ def create_all_help_entries():
                 usage,
                 data["desc"],
             )
-        HelpEntry.objects.create(
+        entry = HelpEntry.objects.create(
             db_key=ability_name,
             db_help_category="General",
             db_entrytext=entry_text,
             db_lock_storage="view:all()",
         )
+        for alias in data.get("aliases", []):
+            entry.aliases.add(alias)
 
     # --- Factions ---
     HelpEntry.objects.create(

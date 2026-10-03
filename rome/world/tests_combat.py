@@ -2609,8 +2609,10 @@ class TestConditionMessagesColorTheConditionName(CombatTestBase):
     """
 
     def test_add_condition_colors_the_condition_name(self):
+        # The holder hears about a new condition privately (Oct 3: buffs and
+        # debuffs are no longer announced to the whole room).
         captured = []
-        self.char1.location.msg_contents = lambda text="", **kwargs: captured.append(text)
+        self.char1.msg = lambda text="", **kwargs: captured.append(text)
         COMBAT_RULES.add_condition(self.char1, self.char1, "Accuracy Down", 3)
         full_text = "".join(str(m) for m in captured)
         self.assertIn("|MAccuracy Down|n", full_text)
@@ -2627,7 +2629,7 @@ class TestConditionMessagesColorTheConditionName(CombatTestBase):
         # (see TestConditionExpiryMessages).
         COMBAT_RULES.get_conditions(self.char1)["Mystery Hex"] = [1, self.char2]
         captured = []
-        self.char1.location.msg_contents = lambda text="", **kwargs: captured.append(text)
+        self.char1.msg = lambda text="", **kwargs: captured.append(text)
 
         COMBAT_RULES.condition_tickdown(self.char1, self.char1)
 
@@ -2648,13 +2650,21 @@ class TestSkillAndSpellAnnouncementOrdering(CombatTestBase):
     """
 
     def _capture(self):
+        # Everything the room, the caster or the target is told, in send
+        # order - a new condition is now announced privately (to the holder
+        # and whoever applied it) rather than to the whole room.
         captured = []
-        self.char1.location.msg_contents = lambda text="", **kwargs: captured.append(str(text))
+        record = lambda text="", **kwargs: captured.append(str(text))
+        self.char1.location.msg_contents = record
+        self.char1.msg = record
+        self.char2.msg = record
         return captured
 
     def _assert_announcement_before_condition(self, captured, announcement_substr):
+        import re
+
         ann_index = next(i for i, m in enumerate(captured) if announcement_substr in m)
-        cond_index = next(i for i, m in enumerate(captured) if "gains the" in m)
+        cond_index = next(i for i, m in enumerate(captured) if re.search(r"gains? the", m))
         self.assertLess(ann_index, cond_index)
 
     def test_skill_add_condition_announces_before_condition(self):
@@ -5180,12 +5190,11 @@ class TestConditionExpiryMessages(CombatTestBase):
         self.assertIn("wounds stop bleeding", room.call_args.args[0])
         self.assertEqual(room.call_args.kwargs["exclude"], [self.char1])
 
-    def test_a_condition_with_no_entry_falls_back_to_the_generic_room_line(self):
+    def test_a_condition_with_no_entry_falls_back_to_a_generic_line_for_the_holder_only(self):
         personal, room = self._expire("Mystery Hex")
-        self.assertEqual(personal, "")
-        room.assert_called_once()
-        self.assertIn("no longer has the", room.call_args.args[0])
-        self.assertIn("Mystery Hex", room.call_args.args[0])
+        self.assertIn("You no longer have the", personal)
+        self.assertIn("Mystery Hex", personal)
+        room.assert_not_called()
 
     def test_nothing_is_said_while_a_condition_still_has_turns_left(self):
         self.char1.db.conditions = {"Defense Up": [3, self.char1]}
@@ -5244,3 +5253,72 @@ class TestStealthWindowExpiryMessage(CombatTestBase):
         self.char1.db.stealth_until = until
         self.assertEqual(self._tick(), "")
         self.assertEqual(self.char1.db.stealth_until, until)
+
+
+class TestConditionChangesArePrivateUnlessVisible(CombatTestBase):
+    """
+    Oct 3, owner request: "ensure there are no room messages for condition
+    changes that shouldn't be visible (buffs/debuffs)". Gaining or being
+    cured of a condition tells the holder, and whoever applied/cured it;
+    the rest of the room hears only for the visibly obvious ones.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.heard = {self.char1: [], self.char2: []}
+        for char in (self.char1, self.char2):
+            char.msg = (
+                lambda text="", _char=char, **kwargs: self.heard[_char].append(str(text))
+            )
+
+    def _gain(self, condition):
+        with patch.object(self.room1, "msg_contents") as room:
+            COMBAT_RULES.add_condition(self.char2, self.char1, condition, 3)
+        return room
+
+    def test_a_buff_or_debuff_is_told_to_holder_and_applier_only(self):
+        for condition in ("Defense Up", "Accuracy Down"):
+            self.heard[self.char1].clear()
+            self.heard[self.char2].clear()
+            room = self._gain(condition)
+            room.assert_not_called()
+            self.assertIn("You gain the", " ".join(self.heard[self.char2]), condition)
+            self.assertIn("gains the", " ".join(self.heard[self.char1]), condition)
+
+    def test_a_visible_condition_is_also_told_to_the_rest_of_the_room(self):
+        room = self._gain("Bleeding")
+        room.assert_called_once()
+        self.assertIn("gains the", room.call_args.args[0])
+        self.assertEqual(
+            sorted(c.key for c in room.call_args.kwargs["exclude"]),
+            sorted([self.char1.key, self.char2.key]),
+        )
+
+    def test_a_self_applied_buff_is_told_once_and_only_to_the_holder(self):
+        with patch.object(self.room1, "msg_contents") as room:
+            COMBAT_RULES.add_condition(self.char1, self.char1, "Haste", 3)
+        room.assert_not_called()
+        self.assertEqual(len(self.heard[self.char1]), 1)
+        self.assertIn("You gain the", self.heard[self.char1][0])
+        self.assertEqual(self.heard[self.char2], [])
+
+    def test_a_cure_is_private_for_an_ordinary_condition(self):
+        COMBAT_RULES.get_conditions(self.char2)["Poisoned"] = [3, self.char1]
+        with patch.object(self.room1, "msg_contents") as room:
+            COMBAT_RULES.spell_cure_condition(
+                self.char1, "antidote", [self.char2], 0, to_cure=["Poisoned"]
+            )
+        self.assertNotIn("Poisoned", self.char2.db.conditions)
+        # Only the cast announcement reaches the room - not what was cured.
+        room.assert_called_once()
+        self.assertNotIn("Poisoned", room.call_args.args[0])
+        self.assertIn("You no longer have the", " ".join(self.heard[self.char2]))
+        self.assertIn("no longer has the", " ".join(self.heard[self.char1]))
+
+    def test_every_visible_condition_is_one_a_bystander_would_notice(self):
+        from world.combat import CONDITION_EXPIRY_MESSAGES, condition_is_visible
+
+        visible = {n for n in CONDITION_EXPIRY_MESSAGES if condition_is_visible(n)}
+        self.assertEqual(
+            visible, {"Bleeding", "Stunned", "Paralyzed", "Grappled", "Raging"}
+        )

@@ -1482,5 +1482,6 @@ _(Unchanged.)_
 
 ## Condition expiry messages - Oct 3
 - [x] Direct question: do players get a message when buffs/debuffs wear off? Only a generic, room-wide "X no longer has the 'Defense Up' condition." Added per-condition plain-English messages to the holder (room hears only visible ones: Bleeding/Stunned/Paralyzed/Grappled/Raging) via `CONDITION_EXPIRY_MESSAGES`, generic fallback kept, a test guarantees every buff/debuff has an entry; Sneak's stealth window now announces its own expiry. Tests: `TestConditionExpiryMessages`, `TestStealthWindowExpiryMessage`.
-- [ ] Open question for the owner: rename Nymph's **Elemental Ward** (it is a plain Defense Up boost; the game has no elemental damage types). Suggested: *Ward of the Wilds* (pairs with Boon of the Wilds), keeping "elemental ward" as an alias.
+- [x] Nymph's **Elemental Ward** renamed **Ward of the Wilds** (it is a plain Defense Up boost; no elemental damage exists); "elemental ward" kept as an alias.
+- [x] Condition gain/cure/expiry messages are private to the holder (and the applier/curer) unless the condition is visibly obvious (Bleeding, Stunned, Paralyzed, Grappled, Raging) - no more room-wide buff/debuff announcements.
 
