@@ -59,8 +59,8 @@ RECENT_UPDATES_TEXT = (
 LAG_NOTICE_TEXT = (
     "|yHeads up:|n lag is much rarer than it used to be, but you may "
     "still hit an occasional hitch. We know about it and are actively "
-    "working on it - it comes from our hosting, not from how the game "
-    "is meant to play, and we expect it to be fully resolved soon."
+    "working on it - it comes from our hosting, not from the game "
+    "itself, and we expect it to be fully resolved soon."
 )
 
 # The box's own interior width, between its left/right borders and
