@@ -9343,13 +9343,19 @@ class CombatCharacter(ContribRPCharacter):
             announce_gather_spot(self)
 
         pet = self.db.active_companion
-        if pet and pet.pk and pet.db.is_purchased_pet and pet.location:
-            # A PurchasedPet "automatically follows the player," by
-            # direct request - unlike a spell-summoned pet, which only
-            # ever exists for the duration of one fight and has no
-            # reason to tag along outside it. Skipped entirely while
-            # either one is mid-combat (COMBAT_RULES.is_in_combat) -
-            # movement is already blocked for a character in combat
+        if pet and pet.pk and pet.location:
+            # Every active companion follows its owner: a PurchasedPet
+            # ("automatically follows the player," by direct request)
+            # AND a spell-summoned familiar/lemures/fury/beast (Oct 3,
+            # by direct request - it used to just stay behind in the
+            # room it was cast in, neither a fight-only summon nor a
+            # follower, until InstanceCleanupTimer deleted it). A summon
+            # still isn't permanent the way a bought pet is: that same
+            # timer deletes it INSTANCE_CLEANUP_TIMEOUT after it was
+            # cast (see its own docstring for how a fight in progress
+            # interacts with that). Skipped entirely while either one
+            # is mid-combat (COMBAT_RULES.is_in_combat) - movement is
+            # already blocked for a character in combat
             # (CombatCharacter.at_pre_move), so this only ever
             # actually fires on ordinary, out-of-combat movement.
             if not COMBAT_RULES.is_in_combat(self) and pet.location != self.location:
@@ -9535,6 +9541,15 @@ class InstanceCleanupTimer(DefaultScript):
     to an object with no pk left) - fixed by checking self.pk first,
     the same "did this already get cleaned up out from under me"
     guard already used for npc above.
+
+    How this plays out for a spell-summoned companion (which follows
+    its owner, so this timer is its actual lifespan): the interval is
+    fixed from the moment of spawn and a fight never resets it. A
+    summon cast at minute 0 that fights from minute 5 to minute 8 is
+    still deleted at minute 10. One still mid-fight at minute 10 is
+    skipped, and checked again at minute 20 - so a fight that straddles
+    a tick buys it up to ten more minutes, never more than that per
+    tick, and it's deleted the first tick it isn't fighting.
     """
 
     def at_script_creation(self):
@@ -9567,6 +9582,19 @@ class InstanceCleanupTimer(DefaultScript):
             # next interval; once the quest moves on it's cleaned up
             # like anything else.
             return
+
+        # A spell-summoned companion now follows its owner around
+        # (CombatCharacter.at_post_move), so it shouldn't just vanish
+        # without a word - and its owner's db.active_companion shouldn't
+        # keep pointing at a deleted object. Only for the owner's actual
+        # active companion: trainer opponents and quest NPCs share this
+        # timer and shouldn't get a "fades away" message.
+        owner = npc.db.instance_owner
+        if owner and owner.pk and owner.db.active_companion is npc:
+            owner.db.active_companion = None
+            clean_name = npc.db.base_name or npc.key
+            if npc.location:
+                npc.location.msg_contents("%s fades away." % clean_name)
 
         npc.delete()
         if self.pk:

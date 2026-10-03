@@ -468,6 +468,89 @@ class TestOwnCompanionCannotBeAttacked(CombatCommandTestBase):
         self.assertNotIn("Goaded", pet.db.conditions or {})
 
 
+class TestSpellSummonedCompanionsFollowAndExpire(CombatCommandTestBase):
+    """
+    Oct 3, by direct request: a spell-summoned companion now follows its
+    owner (it used to stay behind in the room it was cast in until
+    InstanceCleanupTimer deleted it), but only for the timer's lifetime -
+    it's not a permanent follower like a bought PurchasedPet.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.level = 10
+        self.char1.db.mp = 100
+        COMBAT_RULES.spell_summon_familiar(self.char1, "summon familiar", [], 10)
+        self.familiar = self.char1.db.active_companion
+        self.timer = self.familiar.scripts.get("instance_cleanup_timer")[0]
+
+    def test_a_summoned_companion_follows_its_owner(self):
+        self.assertEqual(self.familiar.location, self.room1)
+        self.char1.move_to(self.room2, quiet=True)
+        self.assertEqual(self.familiar.location, self.room2)
+
+    def test_it_does_not_follow_while_the_owner_is_in_combat(self):
+        self.char1.db.combat_turnhandler = True  # is_in_combat only checks truthiness
+        self.char1.move_to(self.room2, quiet=True)
+        self.assertEqual(self.familiar.location, self.room1)
+
+    def test_it_is_deleted_when_the_timer_fires_and_nobody_is_fighting(self):
+        # A fight that began and ended before the tick (minute 5 to 8,
+        # tick at minute 10) leaves nothing in progress when it fires -
+        # the fight never extended the timer.
+        self.timer.at_repeat()
+        self.assertFalse(self.familiar.pk)
+        self.assertIsNone(self.char1.db.active_companion)
+
+    def test_the_owner_and_room_are_told_it_faded_instead_of_it_vanishing_silently(self):
+        from unittest.mock import patch
+
+        with patch.object(self.room1, "msg_contents") as mock_msg:
+            self.timer.at_repeat()
+        announced = [call[0][0] for call in mock_msg.call_args_list]
+        self.assertTrue(any("fades away" in text for text in announced), announced)
+        # The clean name, never the "(X's companion)" label.
+        self.assertTrue(any("a great grey owl fades away" in text for text in announced), announced)
+
+    def test_a_companion_mid_fight_when_the_timer_fires_is_left_alone(self):
+        # A fight still going at the tick buys it until the NEXT tick -
+        # the timer repeats, so it's checked again a full interval later.
+        handler = self._start_duel()
+        self.assertIn(self.familiar, handler.db.fighters)
+        self.timer.at_repeat()
+        self.assertTrue(self.familiar.pk)
+        self.assertIs(self.char1.db.active_companion, self.familiar)
+
+    def test_once_the_fight_is_over_the_next_tick_deletes_it(self):
+        handler = self._start_duel()
+        self.timer.at_repeat()  # mid-fight: skipped
+        self.assertTrue(self.familiar.pk)
+        # End the fight the way a real victory does (stop + delete the
+        # turn handler) - NOT force_disengage on the owner, which would
+        # release_pet(reason="owner_fled") and delete the summon for an
+        # unrelated reason.
+        handler.stop()
+        handler.delete()
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.familiar))
+        self.timer.at_repeat()  # next interval: no longer fighting
+        self.assertFalse(self.familiar.pk)
+
+    def test_other_instance_npcs_get_no_fade_message_and_no_owner_cleanup(self):
+        from unittest.mock import patch
+
+        # A trainer-style opponent shares the same timer but isn't the
+        # owner's companion.
+        opponent = COMBAT_RULES.spawn_personal_npc("HARUSPEX_FURY", self.char1)
+        opponent_timer = opponent.scripts.get("instance_cleanup_timer")[0]
+        with patch.object(self.room1, "msg_contents") as mock_msg:
+            opponent_timer.at_repeat()
+        self.assertFalse(opponent.pk)
+        announced = [call[0][0] for call in mock_msg.call_args_list]
+        self.assertFalse(any("fades away" in text for text in announced), announced)
+        # The real companion is untouched.
+        self.assertIs(self.char1.db.active_companion, self.familiar)
+
+
 class TestCmdAutoAttack(CombatCommandTestBase):
     def test_on_by_default_for_a_fresh_character(self):
         self.assertTrue(self.char1.db.auto_attack)
@@ -935,8 +1018,10 @@ class TestCmdDismissPet(CombatCommandTestBase):
         self.assertIn("banish", CmdDismissPet.aliases)
 
     def test_dismiss_works_even_when_not_in_the_same_room(self):
-        """Pets don't auto-follow their owner, so dismiss must work
-        purely off db.active_companion, not a room search."""
+        """A companion can be in a different room than its owner (a
+        bought pet pulled out of play, or one that was just left behind
+        by a teleport), so dismiss must work purely off
+        db.active_companion, not a room search."""
         other_room = create.create_object("typeclasses.rooms.Room", key="elsewhere")
         pet = create.create_object(
             "world.combat.SummonedAlly", key="a familiar", location=other_room
