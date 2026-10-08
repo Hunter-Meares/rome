@@ -1471,9 +1471,14 @@ class CombatRules:
         if is_no_combat_zone(here):
             return
 
+        # A "keyword" spell/skill (Gate, Birdsight, Track) passes plain text -
+        # an exit or destination name - as its target, not a character. That
+        # used to crash here with "'str' object has no attribute 'db'" (Oct 7
+        # bug report: casting Gate failed outright), so only real objects count.
         hostiles = [
             t for t in targets
-            if t is not None and t != caller and t.db.hp and not self.is_ally(caller, t)
+            if t is not None and hasattr(t, "db") and t != caller and t.db.hp
+            and not self.is_ally(caller, t)
         ]
         if not hostiles:
             return
@@ -4105,7 +4110,14 @@ class CombatRules:
         fair to a physical poison-user's own build too, not just casters.
         """
         conditions = kwargs.get("conditions", [("Defense Up", 3)])
-        spell_msg = "%s casts %s!" % (caster, spell_name)
+        if kwargs.get("requires_weapon") and not martial.wielded_weapon(caster):
+            caster.msg("You need a weapon in your hands to cast %s on." % spell_name)
+            return False
+        # An optional flavor line replaces the plain "X casts Y!" (Enchant Weapon).
+        spell_msg = (
+            kwargs["cast_message"].format(caster=caster)
+            if kwargs.get("cast_message") else "%s casts %s!" % (caster, spell_name)
+        )
         duration_bonus = max(0, ((caster.db.ingenium or 10) - 10) // 3)
 
         # Announce the cast BEFORE applying conditions - add_condition()
@@ -4462,6 +4474,41 @@ class CombatRules:
     GATE_DESTINATIONS = {
         "atrium": ("colosseum_recall_point", "colosseum"),
     }
+    # Other words a player might reasonably type for a destination (Oct 7 bug
+    # report: Gate needed the exact name). Matching is also forgiving about
+    # case, a leading "the", partial words and extra words around the name.
+    GATE_DESTINATION_ALIASES = {
+        "atrium": ["colosseum", "colosseum atrium", "the atrium", "recall point"],
+    }
+
+    def match_gate_destination(self, typed):
+        """
+        Resolves what a player typed to a key of GATE_DESTINATIONS. Returns
+        (key, None) on a single match, or (None, [candidate keys]) when it
+        matched nothing (empty list) or was ambiguous (2+).
+        """
+        text = " ".join((typed or "").lower().split())
+        if text.startswith("the "):
+            text = text[4:]
+        if not text:
+            return None, []
+        exact = [
+            key for key in self.GATE_DESTINATIONS
+            if text == key or text in self.GATE_DESTINATION_ALIASES.get(key, [])
+        ]
+        if len(exact) == 1:
+            return exact[0], None
+        loose = [
+            key for key in self.GATE_DESTINATIONS
+            if key.startswith(text) or text in key.split() or key in text.split()
+            or any(
+                alias.startswith(text) or text in alias or alias in text
+                for alias in self.GATE_DESTINATION_ALIASES.get(key, [])
+            )
+        ]
+        if len(loose) == 1:
+            return loose[0], None
+        return None, loose
 
     def spell_gate(self, caster, spell_name, targets, cost, **kwargs):
         """
@@ -4477,19 +4524,24 @@ class CombatRules:
         if not targets:
             valid = ", ".join(self.GATE_DESTINATIONS.keys())
             caster.msg("Gate to where? Known destinations: %s" % valid)
-            return
+            return False
 
-        destination_key = targets[0].strip().lower()
-        if destination_key not in self.GATE_DESTINATIONS:
+        destination_key, candidates = self.match_gate_destination(targets[0])
+        if destination_key is None:
             valid = ", ".join(self.GATE_DESTINATIONS.keys())
-            caster.msg("You can't gate there. Known destinations: %s" % valid)
-            return
+            if candidates:
+                caster.msg(
+                    "Which destination do you mean: %s?" % ", ".join(sorted(candidates))
+                )
+            else:
+                caster.msg("You can't gate there. Known destinations: %s" % valid)
+            return False
 
         tag, category = self.GATE_DESTINATIONS[destination_key]
         rooms = search_tag(tag, category=category)
         if not rooms:
             caster.msg("The gate finds nowhere to open to.")
-            return
+            return False
 
         caster.location.msg_contents(
             "%s vanishes in a shimmer of divine light!" % caster, exclude=caster
@@ -4508,13 +4560,13 @@ class CombatRules:
         """
         if not targets:
             caster.msg("Scry which direction? Usage: cast birdsight = <exit>")
-            return
+            return False
 
         exit_name = targets[0].strip().lower()
         exit_obj = caster.search(exit_name, candidates=caster.location.exits)
         if not exit_obj or not exit_obj.destination:
             caster.msg("There's no exit called '%s' to scry through." % exit_name)
-            return
+            return False
 
         destination = exit_obj.destination
         occupants = [
@@ -5367,13 +5419,13 @@ class CombatRules:
         """
         if not targets:
             user.msg("Track which direction? Usage: skill track = <exit>")
-            return
+            return False
 
         exit_name = targets[0].strip().lower()
         exit_obj = user.search(exit_name, candidates=user.location.exits)
         if not exit_obj or not exit_obj.destination:
             user.msg("There's no exit called '%s' to track through." % exit_name)
-            return
+            return False
 
         destination = exit_obj.destination
         occupants = [
@@ -6151,9 +6203,17 @@ SPELLS = {
         # Accuracy Up/Damage Up together rather than inventing a real
         # temporary-item-enchantment mechanic (which doesn't exist
         # anywhere in the game) - same shape as Gladiator's own Favor.
-        "desc": "Traces a rune of power across the caster's own weapon, sharpening both its edge and its aim.",
+        # Oct 7 bug report ("enchant weapon seems to just give accuracy up
+        # and damage up and not actually increase the damage of the weapon
+        # itself"): that IS the mechanic - the weapon's own stats are never
+        # edited. Fixed the confusion rather than the mechanic: it now needs
+        # a weapon in hand, has its own cast message, and the description
+        # says exactly what it does.
+        "desc": "Traces a rune of power across the weapon in your hands. For a few turns every blow you strike hits about 15% harder (at least +5) and lands more often. The weapon itself isn't changed - the rune lends its power to your strikes.",
         "target": "self",
         "cost": 6,
+        "requires_weapon": True,
+        "cast_message": "{caster} traces a rune of power along the weapon in hand, and it flares with light!",
         "conditions": [("Accuracy Up", 3), ("Damage Up", 3)],
         "classes": ["augur"],
     },
@@ -9441,6 +9501,55 @@ class CombatCharacter(ContribRPCharacter):
             tickerhandler.remove(self.REST_TICK_INTERVAL, self.at_rest_tick)
             self.db.resting = False
 
+    def bring_companion_along(self, source_location):
+        """
+        Moves this character's active companion to wherever they now stand, so
+        it follows them out of combat. Returns the companion's display name if
+        it was moved, else None.
+
+        Every active companion follows its owner: a PurchasedPet ("automatically
+        follows the player," by direct request) AND a spell-summoned
+        familiar/lemures/fury/beast (Oct 3). A summon still isn't permanent the
+        way a bought pet is - InstanceCleanupTimer deletes it
+        INSTANCE_CLEANUP_TIMEOUT after it was cast. Skipped while either is
+        mid-combat (movement is already blocked for a fighter in
+        CombatCharacter.at_pre_move, so this only ever fires on ordinary,
+        out-of-combat movement).
+
+        Wilderness tiles (Oct 7 bug report: "the familiar doesn't follow me and
+        disappears after leaving the room"): a wilderness room is recycled the
+        moment its last player leaves, and the contrib wipes the location of
+        anything still inside it - a companion included - so by the time the
+        owner has arrived the companion has no location at all. It also tracks
+        every object by coordinates, so moving a companion in with a plain
+        move_to would send it back to the tile it was last on. Inside a
+        wilderness the companion is therefore placed with the wilderness's own
+        move_obj at the owner's coordinates.
+        """
+        pet = self.db.active_companion
+        here = self.location
+        if not pet or not pet.pk or here is None:
+            return None
+        if COMBAT_RULES.is_in_combat(self) or pet.location == here:
+            return None
+
+        name = pet.db.base_name or pet.key
+        shown = name[:1].upper() + name[1:]  # "a divine owl" -> "A divine owl"
+        if source_location is not None and pet.location == source_location:
+            source_location.msg_contents(
+                "%s follows %s away." % (shown, self), exclude=[self, pet]
+            )
+
+        script = getattr(here, "wilderness", None)
+        coordinates = script.itemcoordinates.get(self) if script is not None else None
+        if script is not None and coordinates is not None:
+            script.move_obj(pet, coordinates)
+        else:
+            pet.move_to(here, quiet=True, move_type="teleport")
+
+        here.msg_contents("%s arrives, following %s." % (shown, self), exclude=[self, pet])
+        return shown
+
     def at_post_move(self, source_location, move_type="move", **kwargs):
         """
         Called after a successful move. Calls super() FIRST - this is
@@ -9451,7 +9560,13 @@ class CombatCharacter(ContribRPCharacter):
         world/analytics.py) - harmless no-op for characters with no
         active session tracked.
         """
+        # The companion is moved BEFORE the arrival look below, so it is already
+        # in the room the owner is shown (Oct 7 bug report: the familiar did
+        # follow, but only showed up on a second 'look').
+        followed = self.bring_companion_along(source_location)
         super().at_post_move(source_location, move_type=move_type, **kwargs)
+        if followed:
+            self.msg("|c%s follows you.|n" % followed)
         if self.has_account:
             from world.analytics import log_room_visit
             log_room_visit(self)
@@ -9493,25 +9608,6 @@ class CombatCharacter(ContribRPCharacter):
         if self.has_account:
             from world.gathering import announce_gather_spot
             announce_gather_spot(self)
-
-        pet = self.db.active_companion
-        if pet and pet.pk and pet.location:
-            # Every active companion follows its owner: a PurchasedPet
-            # ("automatically follows the player," by direct request)
-            # AND a spell-summoned familiar/lemures/fury/beast (Oct 3,
-            # by direct request - it used to just stay behind in the
-            # room it was cast in, neither a fight-only summon nor a
-            # follower, until InstanceCleanupTimer deleted it). A summon
-            # still isn't permanent the way a bought pet is: that same
-            # timer deletes it INSTANCE_CLEANUP_TIMEOUT after it was
-            # cast (see its own docstring for how a fight in progress
-            # interacts with that). Skipped entirely while either one
-            # is mid-combat (COMBAT_RULES.is_in_combat) - movement is
-            # already blocked for a character in combat
-            # (CombatCharacter.at_pre_move), so this only ever
-            # actually fires on ordinary, out-of-combat movement.
-            if not COMBAT_RULES.is_in_combat(self) and pet.location != self.location:
-                pet.move_to(self.location, quiet=True, move_type="teleport")
 
     def at_post_puppet(self, **kwargs):
         """

@@ -674,3 +674,55 @@ class TestCivicAccessDiscount(EconomyTestBase):
         self.char1.db.race = "human"
         text, options = node_inspect_and_buy(self.char1, ware=ware)
         self.assertIn("1 gold", text)
+
+
+class TestShopWithSeveralMerchants(EconomyTestBase):
+    """Oct 7 bug report: "shop only opens the first" of a room's merchants."""
+
+    def setUp(self):
+        super().setUp()
+        self.armorer = create.create_object(NPCMerchant, key="Gnaeus the Armorer", location=self.room1)
+        self.armorer.aliases.add("armorer")
+
+    def _shop(self, args):
+        from unittest.mock import patch
+
+        from world.economy import CmdShop
+
+        cmd = CmdShop()
+        cmd.caller = self.char1
+        cmd.args = args
+        said = []
+        self.char1.msg = lambda text="", **kw: said.append(str(text))
+        with patch("world.economy.EvMenu") as menu:
+            cmd.func()
+        return menu, " ".join(said)
+
+    def test_no_name_with_several_merchants_lists_them_and_opens_nothing(self):
+        menu, said = self._shop("")
+        menu.assert_not_called()
+        self.assertIn("Vendor", said)
+        self.assertIn("Gnaeus the Armorer", said)
+
+    def test_a_name_opens_that_merchant_not_the_first(self):
+        menu, _ = self._shop("armorer")
+        menu.assert_called_once()
+        self.assertIs(self.char1.ndb.shop_merchant, self.armorer)
+
+    def test_a_number_picks_from_the_list(self):
+        menu, _ = self._shop("2")
+        menu.assert_called_once()
+        self.assertEqual(self.char1.ndb.shop_merchant.key, "Gnaeus the Armorer")
+
+    def test_an_unknown_name_says_so_and_lists_the_choices(self):
+        menu, said = self._shop("zzz")
+        menu.assert_not_called()
+        self.assertIn("No merchant here matches", said)
+        self.assertIn("Vendor", said)
+
+    def test_a_lone_merchant_still_opens_with_or_without_an_argument(self):
+        self.armorer.delete()
+        for args in ("", "anything"):
+            menu, _ = self._shop(args)
+            menu.assert_called_once()
+            self.assertIs(self.char1.ndb.shop_merchant, self.merchant)

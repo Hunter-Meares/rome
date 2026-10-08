@@ -800,8 +800,11 @@ class CmdShop(Command):
 
     Usage:
       shop
+      shop <merchant name or number>
 
-    Use this while standing in the same room as a merchant. You'll
+    Use this while standing in the same room as a merchant. Where
+    several merchants share a room, 'shop' lists them and 'shop <name>'
+    (or 'shop 2') opens the one you want. You'll
     see everything they have for sale and can buy anything you can
     afford - merchants never run out of stock, no matter how many
     people buy from them. You can also sell items of your own back
@@ -823,12 +826,49 @@ class CmdShop(Command):
             return
 
         merchant = merchants[0]
+        if len(merchants) > 1:
+            # Several merchants can share a room (Oct 7 bug report: "shop only
+            # opens the first"), so the player has to be able to pick one.
+            merchant = self._pick_merchant(merchants, self.args.strip().lower())
+            if merchant is None:
+                return
         caller.ndb.shop_merchant = merchant
         EvMenu(
             caller,
             "world.economy",
             startnode="node_shopfront",
         )
+
+
+    def _pick_merchant(self, merchants, wanted):
+        """The merchant named by `wanted` (a number from the list, or part of a
+        name), or None after telling the player what the choices are."""
+        caller = self.caller
+        listing = "\n".join("  %d. %s" % (i, m.key) for i, m in enumerate(merchants, 1))
+        if not wanted:
+            caller.msg(
+                "More than one merchant is here:\n%s\nUse 'shop <name or number>' "
+                "to open one." % listing
+            )
+            return None
+        if wanted.isdigit():
+            index = int(wanted)
+            if 1 <= index <= len(merchants):
+                return merchants[index - 1]
+            caller.msg("There's no merchant number %s here:\n%s" % (wanted, listing))
+            return None
+        matches = [
+            m for m in merchants
+            if wanted in m.key.lower() or any(wanted in a.lower() for a in m.aliases.all())
+        ]
+        if len(matches) == 1:
+            return matches[0]
+        shown = "\n".join("  %s" % m.key for m in matches) if matches else listing
+        caller.msg(
+            ("Which merchant do you mean?\n%s" if matches else "No merchant here matches '%s'. Merchants here:\n%s")
+            % ((shown,) if matches else (wanted, shown))
+        )
+        return None
 
 
 class EconomyCmdSet(CmdSet):

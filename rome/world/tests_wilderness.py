@@ -346,3 +346,48 @@ class TestFixedWildernessRoom(EvenniaTest):
 
         result = self.char1.move_to(wilderness_room, quiet=True, move_type="teleport")
         self.assertTrue(result)
+
+
+class TestCompanionFollowsThroughTheWilderness(EvenniaTest):
+    """
+    Oct 7 bug report: "the familiar doesn't follow me and disappears after
+    leaving the room". A wilderness tile is recycled the moment its last
+    player leaves and the contrib sets the location of anything still inside
+    to None - a companion included - and it tracks every object by
+    coordinates, so a plain move_to would also send it back to its last tile.
+    """
+
+    def setUp(self):
+        super().setUp()
+        wilderness.create_wilderness(
+            name="companion_road", mapprovider=RomeWildernessMapProvider()
+        )
+        self.char1.db.level = 25
+        self.pet = create.create_object(
+            "typeclasses.characters.Character", key="an owl", location=self.room1
+        )
+        self.pet.db.base_name = "an owl"
+        self.char1.db.active_companion = self.pet
+        wilderness.enter_wilderness(self.char1, coordinates=(0, 5), name="companion_road")
+        # enter_wilderness places the character directly, without the move
+        # hooks a real exit traversal runs - run the one that matters here.
+        self.char1.at_post_move(self.room1)
+
+    def _step_north(self):
+        exit_obj = next(e for e in self.char1.location.exits if e.key == "north")
+        exit_obj.at_traverse(self.char1, exit_obj.destination)
+
+    def _coords(self, obj):
+        return obj.location.wilderness.itemcoordinates.get(obj)
+
+    def test_the_companion_arrives_with_its_owner_on_entering(self):
+        self.assertEqual(self.pet.location, self.char1.location)
+        self.assertEqual(self._coords(self.pet), (0, 5))
+
+    def test_the_companion_keeps_up_step_after_step(self):
+        for expected_y in (6, 7, 8):
+            self._step_north()
+            self.assertIsNotNone(self.pet.location, "companion vanished at y=%d" % expected_y)
+            self.assertEqual(self.pet.location, self.char1.location)
+            self.assertEqual(self._coords(self.char1), (0, expected_y))
+            self.assertEqual(self._coords(self.pet), (0, expected_y))

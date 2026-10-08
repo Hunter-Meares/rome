@@ -1485,3 +1485,10 @@ _(Unchanged.)_
 - [x] Nymph's **Elemental Ward** renamed **Ward of the Wilds** (it is a plain Defense Up boost; no elemental damage exists); "elemental ward" kept as an alias.
 - [x] Condition gain/cure/expiry messages are private to the holder (and the applier/curer) unless the condition is visibly obvious (Bleeding, Stunned, Paralyzed, Grappled, Raging) - no more room-wide buff/debuff announcements.
 
+## Oct 7 bug reports (Circe) - 4 real, 1 clarity
+- [x] Gate crash ("'str' object has no attribute 'db'") + exact-name-only matching; same crash affected Birdsight and Track (keyword targets).
+- [x] Summoned familiar disappeared after leaving a wilderness tile (recycled-room location wipe + coordinate tracking); now follows via the wilderness's own `move_obj`.
+- [x] Familiar followed but wasn't shown on arrival; moved before the look + arrival/departure messages.
+- [x] `shop` opened only the first merchant in a room (Ludus Entrance has 3, incl. the Rome armorer); now `shop <name|number>`.
+- [x] Enchant Weapon: not a bug (the mechanic is Accuracy Up + Damage Up); now needs a weapon, has its own cast message and an exact description.
+

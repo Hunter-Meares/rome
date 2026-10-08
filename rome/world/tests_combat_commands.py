@@ -3100,3 +3100,150 @@ class TestScoutingSkipsInvisibleOccupants(CombatCommandTestBase):
         for kind in ("track", "birdsight"):
             with patch("world.concentration.is_invisible", return_value=True):
                 self.assertIn("Char2", self._scout(kind), kind)
+
+
+class TestGateSpell(CombatCommandTestBase):
+    """Oct 7 bug report: casting Gate crashed with "'str' object has no
+    attribute 'db'" (start_combat_from_offensive_action read .db off the
+    typed destination text), and it only worked for the exact name."""
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.spells_known = ["gate"]
+        self.char1.db.mp = 20
+        self.char1.db.level = 80
+        self.room2.tags.add("colosseum_recall_point", category="colosseum")
+
+    def _gate(self, typed):
+        self.char1.location = self.room1
+        self.char1.db.mp = 20
+        self.char1.db.cooldowns = {}
+        return self.call(CmdCast(), "gate = %s" % typed, caller=self.char1)
+
+    def test_gate_to_the_exact_name_no_longer_crashes(self):
+        result = self._gate("atrium")
+        self.assertNotIn("Traceback", result)
+        self.assertEqual(self.char1.location, self.room2)
+
+    def test_gate_accepts_forgiving_names(self):
+        for typed in ("Atrium", "the atrium", "ATRIUM ", "atr", "colosseum atrium", "colosseum"):
+            self._gate(typed)
+            self.assertEqual(self.char1.location, self.room2, typed)
+
+    def test_an_unknown_destination_lists_the_choices_and_costs_nothing(self):
+        result = self._gate("narnia")
+        self.assertIn("atrium", result)
+        self.assertEqual(self.char1.location, self.room1)
+        self.assertEqual(self.char1.db.mp, 20)
+        self.assertNotIn("gate", self.char1.db.cooldowns or {})
+
+    def test_destination_matching_is_unambiguous_or_asks(self):
+        from world.combat import COMBAT_RULES
+
+        self.assertEqual(COMBAT_RULES.match_gate_destination("the Atrium"), ("atrium", None))
+        self.assertEqual(COMBAT_RULES.match_gate_destination(""), (None, []))
+        self.assertEqual(COMBAT_RULES.match_gate_destination("zzz"), (None, []))
+
+    def test_birdsight_style_keyword_casts_no_longer_crash_either(self):
+        # Same root cause: any keyword spell/skill hands its text target to
+        # start_combat_from_offensive_action.
+        from world.combat import COMBAT_RULES
+
+        COMBAT_RULES.start_combat_from_offensive_action(self.char1, ["north"])
+        self.assertFalse(COMBAT_RULES.is_in_combat(self.char1))
+
+
+class TestEnchantWeapon(CombatCommandTestBase):
+    """Oct 7 bug report: Enchant Weapon "just gives accuracy up and damage up
+    and not actually increase the damage of the weapon itself". That is the
+    mechanic (the weapon's stats are never edited) - the fix is clarity: it
+    needs a weapon in hand, says so when cast, and the description is exact."""
+
+    def setUp(self):
+        super().setUp()
+        self.char1.db.spells_known = ["enchant weapon"]
+        self.char1.db.mp = 20
+
+    def _weapon(self):
+        weapon = create.create_object(
+            "world.combat.CombatWeapon", key="a test sword", location=self.char1
+        )
+        weapon.db.damage_range = (5, 8)
+        self.char1.db.wielded_weapon = weapon
+        return weapon
+
+    def test_it_needs_a_weapon_in_hand_and_costs_nothing_without_one(self):
+        result = self.call(CmdCast(), "enchant weapon", caller=self.char1)
+        self.assertIn("need a weapon", result)
+        self.assertEqual(self.char1.db.mp, 20)
+        self.assertNotIn("Damage Up", self.char1.db.conditions)
+
+    def test_with_a_weapon_it_grants_both_buffs_and_a_rune_message(self):
+        self._weapon()
+        result = self.call(CmdCast(), "enchant weapon", caller=self.char1)
+        self.assertIn("rune of power", result)
+        self.assertIn("Accuracy Up", self.char1.db.conditions)
+        self.assertIn("Damage Up", self.char1.db.conditions)
+
+    def test_the_weapon_itself_is_not_edited(self):
+        weapon = self._weapon()
+        self.call(CmdCast(), "enchant weapon", caller=self.char1)
+        self.assertEqual(tuple(weapon.db.damage_range), (5, 8))
+
+    def test_the_description_states_what_it_really_does(self):
+        from world.combat import SPELLS
+
+        desc = SPELLS["enchant weapon"]["desc"]
+        self.assertIn("15%", desc)
+        self.assertIn("isn't changed", desc)
+
+
+class TestCompanionFollowsAndIsSeenArriving(CombatCommandTestBase):
+    """Oct 7 bug reports: a summoned familiar (a) disappeared after leaving the
+    room and (b) did follow, but didn't show in the arrival look."""
+
+    def setUp(self):
+        super().setUp()
+        self.pet = create.create_object("typeclasses.characters.Character", key="an owl", location=self.room1)
+        self.pet.db.base_name = "an owl"
+        self.char1.db.active_companion = self.pet
+        self.heard = []
+        self.char1.msg = lambda text="", **kw: self.heard.append(str(text))
+
+    def test_the_companion_is_in_the_room_before_the_arrival_look(self):
+        seen_in_look = []
+        original = self.char1.at_look
+
+        def spying_look(target=None, session=None, **kw):
+            seen_in_look.append(self.pet.location == self.room2)
+            return original(target, session=session, **kw)
+
+        self.char1.at_look = spying_look
+        self.char1.move_to(self.room2)
+        self.assertEqual(self.pet.location, self.room2)
+        self.assertTrue(seen_in_look and all(seen_in_look))
+
+    def test_the_owner_is_told_it_followed(self):
+        self.char1.move_to(self.room2)
+        self.assertIn("An owl follows you.", " ".join(self.heard))
+
+    def test_bystanders_see_it_leave_and_arrive(self):
+        watcher_out = create.create_object("typeclasses.characters.Character", key="Watcher", location=self.room1)
+        watcher_in = create.create_object("typeclasses.characters.Character", key="Greeter", location=self.room2)
+        said_out, said_in = [], []
+        watcher_out.msg = lambda text="", **kw: said_out.append(str(text))
+        watcher_in.msg = lambda text="", **kw: said_in.append(str(text))
+        self.char1.move_to(self.room2)
+        self.assertIn("An owl follows", " ".join(said_out))
+        self.assertIn("An owl arrives, following", " ".join(said_in))
+
+    def test_a_companion_with_no_location_still_follows(self):
+        # What a wilderness tile does to anything left behind when it is recycled.
+        self.pet.location = None
+        self.char1.move_to(self.room2)
+        self.assertEqual(self.pet.location, self.room2)
+
+    def test_a_companion_does_not_follow_into_combat(self):
+        self._start_duel()
+        self.char1.at_post_move(self.room1)
+        self.assertEqual(self.pet.location, self.room1)
